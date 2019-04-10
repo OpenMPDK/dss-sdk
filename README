@@ -1,0 +1,4 @@
+This is the location of the source code for the NKV client library stack.
+#Directory structure contains nkv_api and open_mpdk for now.
+#nkv_api contains all the source code needed to implement higher level nkv apis
+#open_mpdk is the Samsung opensource driver code base for communicating with local KV devices.

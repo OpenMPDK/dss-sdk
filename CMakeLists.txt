@@ -1,0 +1,78 @@
+cmake_minimum_required(VERSION 2.8.9)
+project (libnkvapi C CXX)
+
+option(NKV_WITH_EMU "Enable NKV with Emulator support" OFF)
+option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" ON)
+option(NKV_WITH_SPDK "Enable NKV with SPDK Driver support" OFF)
+
+set(CMAKE_C_FLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
+set(CMAKE_CXX_FLAGS "-O3 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
+
+
+include_directories (${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/include)
+set(Boost_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../boost_1_66_0/include/)
+set(Boost_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../boost_1_66_0/lib/)
+include_directories(${Boost_INCLUDE_DIR})
+link_directories(${Boost_LIBRARY_DIR})
+
+set(LOG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/libsmglog/inc/ ${CMAKE_CURRENT_SOURCE_DIR}/../../common/log4cpp/include/)
+set(LOG_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib/libsmglog/)
+
+include_directories(${LOG_INCLUDE_DIR})
+link_directories(${LOG_LIBRARY_DIR})
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../common/ ${CMAKE_BINARY_DIR}/lib)
+
+if(NKV_WITH_KDD)
+
+#put all the libs and binaries in one place
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/open_mpdk/PDK/core/)
+set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${Boost_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog)
+
+# SOURCE CODE
+SET(SOURCES_NKV_KDD
+    ${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/src/nkv_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/src/nkv_framework.cpp
+)
+
+SET(HEADERS_NKV_KDD
+    ${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/include/nkv_api.h
+)
+
+set(NKVAPI_CXXFLAGS "-std=c++11 -MMD -MP -Wall -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -march=native")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${NKVAPI_CFLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${NKVAPI_CXXFLAGS}")
+set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lnuma -lrt ${KVAPI_LIBS} -march=native)
+
+set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/open_mpdk/PDK/core/include)
+set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/include_private)
+
+add_library(nkvapi SHARED ${SOURCES_NKV_KDD} ${HEADERS_NKV_KDD})
+target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR})
+target_link_libraries (nkvapi ${NKVAPI_LIBS})
+add_dependencies(nkvapi smglog)
+add_dependencies(nkvapi kvapi)
+
+add_executable(nkv_test_cli ${CMAKE_CURRENT_SOURCE_DIR}/nkv_api/test/nkv_test_cli.cpp)
+target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS})
+add_dependencies(nkv_test_cli nkvapi)
+
+elseif(NKV_WITH_EMU)
+
+set(kvemul_CFLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
+set(kvemul_CXXFLAGS "-O2 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
+
+elseif(NKV_WITH_SPDK)
+  
+else()
+  message( FATAL_ERROR "Please specify device driver type for compilation." )
+
+endif()
+
+
