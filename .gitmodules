@@ -1,0 +1,8 @@
+[submodule "src/openmpdk"]
+	path = src/openmpdk
+	url = msl-git:kvssd/opensource.git
+	branch = master
+[submodule "src/logger/log4cpp"]
+	path = src/logger/log4cpp
+	url = msl-git:ssd/log4cpp.git
+	branch = master
