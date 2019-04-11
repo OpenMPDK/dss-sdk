@@ -6,3 +6,7 @@
 	path = src/logger/log4cpp
 	url = msl-git:ssd/log4cpp.git
 	branch = master
+[submodule "src/boost_1_66_0"]
+	path = src/boost_1_66_0
+	url = msl-git:ssd/boost_1_66_0.git
+	branch = master
