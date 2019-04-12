@@ -9,6 +9,8 @@
   "nkv_app_thread_core" : 22,
   "nkv_queue_depth_monitor_required" : 0,
   "nkv_queue_depth_threshold_per_path" : 64,
+  "drive_iter_support_required" : 1,
+  "iter_prefix_to_filter" : "",
 
   "nkv_mounts": [
     {
