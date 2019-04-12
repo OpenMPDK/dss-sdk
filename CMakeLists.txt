@@ -75,4 +75,27 @@ else()
 
 endif()
 
+add_custom_command(
+	TARGET nkv_test_cli POST_BUILD
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
+	COMMAND tar cvzf nkv-sdk-bin.tgz ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk
+)
+
+
+
+	
+
+
+
 
