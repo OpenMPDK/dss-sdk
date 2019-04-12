@@ -48,8 +48,9 @@ int32_t queue_depth_monitor_required = 0;
 int32_t queue_depth_threshold = 0;
 
 thread_local int32_t core_running_driver_thread = -1;
+std::string iter_prefix = "0000";
 #define iter_buff (32*1024)
-#define ITER_PREFIX "meta"
+//#define ITER_PREFIX "meta"
 
 void kvs_aio_completion (kvs_callback_context* ioctx) {
   if (!ioctx) {
@@ -507,10 +508,11 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
 
 }
 
-nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted) {
+nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, 
+                                                  const char* prefix) {
   nkv_result stat = NKV_SUCCESS;
   uint32_t key_size = 0;
-  char key[256];
+  char key[256] = {0};
   uint8_t *it_buffer = (uint8_t *) iter_info->iter_list.it_list;
   assert(it_buffer != NULL);
   assert(*num_keys_iterted >= 0);
@@ -525,23 +527,41 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
     key_size = *((unsigned int*)it_buffer);
     it_buffer += sizeof(unsigned int);   
     if (!no_space) {
-      char* key_name = (char*) keys[*num_keys_iterted].key;
-      assert(key_name != NULL);
-      uint32_t key_len = keys[*num_keys_iterted].length;
+      uint32_t cur_index = *num_keys_iterted;
+      assert(keys[cur_index].key != NULL);
+      uint32_t key_len = keys[cur_index].length;
       if (key_len < key_size) {
         smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
                   key_len, key_size, dev_path.c_str(), path_ip.c_str());
       }
       assert(key_len >= key_size);
-      memcpy(key_name, it_buffer, key_size);
-      key_name[key_size] = '\0';
-      keys[*num_keys_iterted].length = key_size;
-      *num_keys_iterted++;
-      smg_info(logger, "Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u",
-               key_name, key_size, dev_path.c_str(), path_ip.c_str(), *num_keys_iterted); 
+      memcpy(keys[cur_index].key, it_buffer, key_size);
+      //key_name[key_size] = '\0';
+      if (!prefix) {
+        keys[cur_index].length = key_size;
+        smg_info(logger, "No prefix provided, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u",
+                 (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys);
+        (*num_keys_iterted)++;
+      } else {
+        char* p = strstr((char*) keys[cur_index].key, prefix);
+        if (p) {
+          keys[cur_index].length = key_size;
+          smg_info(logger, "Prefix matched, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
+                   (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
+          (*num_keys_iterted)++;
+        } else {
+          smg_info(logger, "Prefix *not matched*, skipping key = %s, length = %u , dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
+                   (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
+        }
+      }
+
+      /*(*num_keys_iterted)++;
+      memcpy(key, it_buffer, key_size);
+      smg_warn(logger, "Added key = %s, length = %u to nothing! dev_path = %s, ip = %s, number of keys so far = %u",
+               key, key_size, dev_path.c_str(), path_ip.c_str(), *num_keys_iterted);*/
     } else {
       memcpy(key, it_buffer, key_size);
-      key[key_size] = 0; 
+      //key[key_size] = 0; 
       iter_info->excess_keys.insert(std::string(key));
       smg_warn(logger, "Added key = %s, length = %u to the exceeded key less, output buffer is not big enough! dev_path = %s, ip = %s, number of keys = %u", 
                key, key_size, dev_path.c_str(), path_ip.c_str(), iter_info->excess_keys.size());
@@ -552,13 +572,13 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
   return stat;
 }
 
-nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys) {
+nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix) {
   
   nkv_result stat = NKV_SUCCESS;
   if (!iter_info->visited_path.empty()) {
     auto v_iter = iter_info->visited_path.find(path_hash);
     if (v_iter != iter_info->visited_path.end()) {
-      smg_error(logger, "This path is alrady been iterated, path = %u, dev_path = %s, ip = %s", 
+      smg_warn(logger, "This path is alrady been iterated, path = %u, dev_path = %s, ip = %s", 
                 path_hash, dev_path.c_str(), path_ip.c_str());
       return NKV_SUCCESS;
     }
@@ -568,14 +588,19 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
 
     kvs_iterator_context iter_ctx_open;
 
-    iter_ctx_open.bitmask = 0xffffffff;
-    char prefix_str[5] = ITER_PREFIX;
+    //iter_ctx_open.bitmask = 0xffffffff;
+    iter_ctx_open.bitmask = 0xffff0000;
+    //char prefix_str[5] = iter_prefix.c_str();
+    //char prefix_str[5] = "0000";
     unsigned int PREFIX_KV = 0;
     for (int i = 0; i < 4; i++){
-      PREFIX_KV |= (prefix_str[i] << i*8);
+      //PREFIX_KV |= (prefix_str[i] << i*8);
+      PREFIX_KV |= (iter_prefix[i] << i*8);
     }
 
     iter_ctx_open.bit_pattern = PREFIX_KV;
+    smg_info(logger, "Opening iterator with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x", 
+             iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern);
     iter_ctx_open.private1 = NULL;
     iter_ctx_open.private2 = NULL;
 
@@ -583,9 +608,29 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
   
     int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
     if(ret != KVS_SUCCESS) {
-      smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), 
-                path_ip.c_str(), ret, kvs_errstr(ret));
-      return map_kvs_err_code_to_nkv_err_code(ret);
+      if (ret != KVS_ERR_ITERATOR_OPEN) {
+        smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                  path_ip.c_str(), ret, kvs_errstr(ret));
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      } else {
+        smg_warn(logger, "Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s, network_path_hash_iterating = %u",
+                 dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating);
+        kvs_iterator_context iter_ctx_close;
+        iter_ctx_close.private1 = NULL;
+        iter_ctx_close.private2 = NULL;
+
+        ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        }
+        ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                    path_ip.c_str(), ret, kvs_errstr(ret));
+          return map_kvs_err_code_to_nkv_err_code(ret);
+
+        }
+      }
     }
     iter_info->network_path_hash_iterating = path_hash;
   } else {
@@ -598,6 +643,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
   iter_info->iter_list.size = iter_buff;
   uint8_t *buffer;
   buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
+  memset(buffer, 0, iter_buff);
   iter_info->iter_list.it_list = (uint8_t*) buffer;
 
   kvs_iterator_context iter_ctx_next;
@@ -616,10 +662,13 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       if(buffer) kvs_free(buffer);
       return map_kvs_err_code_to_nkv_err_code(ret);
     }
-        
     total_entries += iter_info->iter_list.num_entries;
     //*num_keys_iterted += iter_info->iter_list.num_entries;
-    stat = populate_keys_from_path(max_keys, keys, iter_info, num_keys_iterted);
+
+    stat = populate_keys_from_path(max_keys, keys, iter_info, num_keys_iterted, prefix);
+    smg_info(logger, "iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated so far = %u",
+             dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, *num_keys_iterted);
+
     if(iter_info->iter_list.end) {
       smg_alert(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u, this batch = %u", 
                 dev_path.c_str(), path_ip.c_str(), total_entries, *num_keys_iterted);

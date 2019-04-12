@@ -105,6 +105,10 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     queue_depth_monitor_required = pt.get<int>("nkv_queue_depth_monitor_required");
     if (queue_depth_monitor_required)
       queue_depth_threshold = pt.get<int>("nkv_queue_depth_threshold_per_path");
+
+    int32_t iter_feature_required = pt.get<int>("drive_iter_support_required");
+    if (iter_feature_required)
+      iter_prefix = pt.get<std::string>("iter_prefix_to_filter");
   }
   catch (std::exception& e) {
     smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
@@ -474,7 +478,7 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
   if (ioctx->is_pass_through) {
     uint64_t cnt_hash = ioctx->container_hash;
     uint64_t cnt_path_hash = ioctx->network_path_hash;
-    stat = nkv_cnt_list->nkv_list_keys(cnt_hash, cnt_path_hash, max_keys, keys, *iter_context);
+    stat = nkv_cnt_list->nkv_list_keys(cnt_hash, cnt_path_hash, max_keys, keys, *iter_context, prefix);
 
   } else {
     smg_error(logger, "Wrong input, nkv non-pass through mode is not supported yet, op = list_keys !");

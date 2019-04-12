@@ -64,6 +64,7 @@
   extern int32_t core_pinning_required;
   extern int32_t queue_depth_monitor_required;
   extern int32_t queue_depth_threshold;
+  extern std::string iter_prefix;
 
   typedef struct {
     std::unordered_set<uint64_t> visited_path;
@@ -156,8 +157,8 @@
     nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
-    nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys); 
-    nkv_result populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted); 
+    nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix); 
+    nkv_result populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, const char* prefix); 
   };
 
   class NKVTarget {
@@ -240,7 +241,7 @@
 
     }
 
-    nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context) {
+    nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix) {
 
       nkv_result stat = NKV_SUCCESS;
       uint64_t current_path_hash = 0;
@@ -291,7 +292,7 @@
 
         NKVTargetPath* one_p = p_iter->second;
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
         if (stat != NKV_SUCCESS) {
           smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
                     one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
@@ -319,7 +320,7 @@
         
         NKVTargetPath* one_p = p_iter->second; 
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
         if (stat != NKV_SUCCESS) {
           smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
                     one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
@@ -344,7 +345,7 @@
           assert(one_p != NULL);
           smg_info(logger,"Start Iterating over path hash = %u, dev mount = %s, path ip = %s", one_p->path_hash,
                    one_p->dev_path.c_str(), one_p->path_ip.c_str());
-          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys);
+          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
           if (stat != NKV_SUCCESS) {
             smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
                       one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
@@ -540,7 +541,7 @@
     }
 
     nkv_result nkv_list_keys (uint64_t container_hash, uint64_t container_path_hash, uint32_t* max_keys, 
-                              nkv_key* keys, void*& iter_context) {
+                              nkv_key* keys, void*& iter_context, const char* prefix) {
 
       nkv_result stat = NKV_SUCCESS;
       auto c_iter = cnt_list.find(container_hash);
@@ -550,7 +551,7 @@
       }
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
-        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context);
+        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context, prefix);
       } else {
         smg_error(logger, "NULL Container found for hash = %u, op = list_keys!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;

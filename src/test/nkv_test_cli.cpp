@@ -449,7 +449,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  if (!key_beginning && !key_to_work) {
+  if (!key_beginning && !key_to_work && (op_type != 4) ) {
     smg_error(logger, "Please provide a key prefix to work on..");
     usage(argv[0]);
     exit(1);
@@ -517,7 +517,9 @@ int main(int argc, char *argv[]) {
       if (op_type != 4) { //not listing
         io_ctx[io_ctx_cnt].network_path_hash = cntlist[i].transport_list[p].network_path_hash;
       }
-      io_ctx_cnt++;              
+      io_ctx_cnt++;           
+      if (op_type == 4)
+        break;   
     } 
   }
   if (is_async) {
@@ -666,8 +668,11 @@ int main(int argc, char *argv[]) {
     uint32_t total_keys = 0;
     //Allocate out buffer
     nkv_key* keys_out = (nkv_key*) malloc (sizeof(nkv_key) * num_ios);
+    memset(keys_out, 0, (sizeof(nkv_key) * num_ios));
     for (int iter = 0; iter < num_ios; iter++) {
-      keys_out[iter].key = calloc (0, 256);
+      keys_out[iter].key = malloc (256);
+      assert(keys_out[iter].key != NULL);
+      memset(keys_out[iter].key, 0, 256);
       keys_out[iter].length = 256;
     }
     auto start = std::chrono::steady_clock::now();
@@ -676,18 +681,13 @@ int main(int argc, char *argv[]) {
       smg_info(logger, "Iterating for container hash = %u", io_ctx[cnt_iter].container_hash);
       void* iter_context = NULL;
       do {
-        memset(keys_out, 0, (sizeof(nkv_key) * num_ios));
         max_keys = num_ios;
-        status = nkv_indexing_list_keys(nkv_handle, &io_ctx[cnt_iter], NULL, NULL, NULL, NULL, &max_keys, keys_out, &iter_context);
+        status = nkv_indexing_list_keys(nkv_handle, &io_ctx[cnt_iter], NULL, key_beginning, NULL, NULL, &max_keys, keys_out, &iter_context);
         if ((status == NKV_ITER_MORE_KEYS) || (status == NKV_SUCCESS)) {
-          smg_alert(logger, "Looks like we got some valid keys, number of keys got in this batch = %u", max_keys);
+          smg_alert(logger, "Looks like we got some valid keys, number of keys got in this batch = %u, status = %x", max_keys, status);
           total_keys += max_keys;
           for (uint32_t k_iter = 0; k_iter < max_keys; k_iter++) {
-            if (k_iter % 5 == 0) {
-              smg_alert(logger, "key_%u = %s\n", k_iter, keys_out[k_iter].key);
-            } else {
-              smg_alert(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
-            }
+            smg_alert(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
           }
         }
         

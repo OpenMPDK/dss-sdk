@@ -267,7 +267,9 @@ nkv_result nkv_delete_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, con
  *  IN/OUT iter_context - Very first time App will pass NULL, library will allocate and populate a context if needed,
  *                        For subsequent calls App should pass the same context to get the next set of keys. Once all keys are passed,
  *                        Library will deallocate this context. 
- *        
+ *
+ *  Returns - NKV_SUCCESS if iterator operation is successful , otherwise returns NKV_ITER_MORE_KEYS or errors. User should loop
+ *            if it gets NKV_ITER_MORE_KEYS as response. 
  */
 
 
