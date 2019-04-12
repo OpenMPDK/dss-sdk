@@ -75,6 +75,7 @@ else()
 
 endif()
 
+execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
 	TARGET nkv_test_cli POST_BUILD
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include
@@ -89,7 +90,7 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
-	COMMAND tar cvzf nkv-sdk-bin.tgz ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk
+	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk
 )
 
 
