@@ -164,7 +164,7 @@ void usage(char *program)
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
   printf("-q      queue_depth     :  queue depth on each path , used in async mode\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing\n");
+  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
@@ -175,6 +175,7 @@ void usage(char *program)
   printf("-t      threads         :  number of threads in case of sync IO  \n");
   printf("-d      mixed_io        :  small meta io before doing a big io  \n");
   printf("-x      hex_dump        :  Inspect memory dump  \n");
+  printf("-r      delimiter       :  delimiter for S3 like listing  \n");
   printf("==============\n");
 }
 
@@ -352,10 +353,12 @@ int main(int argc, char *argv[]) {
   int32_t port = -1;
   uint64_t num_ios = 10;
   int qdepth = 64;
-  int op_type = 2;
+  int op_type = 3;
+  int parent_op_type = -1;
   uint32_t vlen = 4096;
   uint32_t klen = 16;
   char* key_beginning = NULL;
+  char* key_delimiter = NULL;
   int is_exclusive = 0;
   int check_integrity = 1;
   int is_async = 0;
@@ -370,7 +373,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:h")) != -1) {
     switch(c) {
 
     case 'c':
@@ -424,6 +427,9 @@ int main(int argc, char *argv[]) {
     case 'x':
       hex_dump = atoi(optarg);
       break;
+    case 'r':
+      key_delimiter = optarg;
+      break;
 
     case 'h':
       usage(argv[0]);
@@ -475,6 +481,11 @@ int main(int argc, char *argv[]) {
   }
   smg_info(logger, "NKV open successful, instance uuid = %u, nkv handle = %u", instance_uuid, nkv_handle);
 
+do {
+  if (op_type == 5) {
+    parent_op_type = 5;
+    op_type = 0;
+  }
   uint32_t index = 0;
   uint32_t cnt_count = NKV_MAX_ENTRIES_PER_CALL;
   nkv_container_info *cntlist = new nkv_container_info[NKV_MAX_ENTRIES_PER_CALL];
@@ -589,17 +600,18 @@ int main(int argc, char *argv[]) {
       nkv_free(val);
     exit(0);
   }
+  if (op_type != 4) {
+    std::string key_start = key_beginning;
+    std::string num_io_len = std::to_string(num_ios);
+    if (klen <= num_io_len.length()) {
+      smg_error(logger, "key length provided is not big enough compare to number of IO request to perform !");
+      exit(1);
+    }
 
-  std::string key_start = key_beginning;
-  std::string num_io_len = std::to_string(num_ios);
-  if (klen <= num_io_len.length()) {
-    smg_error(logger, "key length provided is not big enough compare to number of IO request to perform !");
-    exit(1);
-  }
-
-  if (key_start.length() + 4 > (klen - num_io_len.length())) {
-    smg_error(logger, "Key prefix provided should be less than %d characters", (klen - num_io_len.length()));
-    exit(1);
+    if (key_start.length() + 4 > (klen - num_io_len.length())) {
+      smg_error(logger, "Key prefix provided should be less than %d characters", (klen - num_io_len.length()));
+      exit(1);
+    }
   }
 
   if (num_threads > 0) {
@@ -678,11 +690,11 @@ int main(int argc, char *argv[]) {
     auto start = std::chrono::steady_clock::now();
 
     for (int cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
-      smg_info(logger, "Iterating for container hash = %u", io_ctx[cnt_iter].container_hash);
+      smg_info(logger, "Iterating for container hash = %u, prefix = %s, delimiter = %s", io_ctx[cnt_iter].container_hash, key_beginning, key_delimiter);
       void* iter_context = NULL;
       do {
         max_keys = num_ios;
-        status = nkv_indexing_list_keys(nkv_handle, &io_ctx[cnt_iter], NULL, key_beginning, NULL, NULL, &max_keys, keys_out, &iter_context);
+        status = nkv_indexing_list_keys(nkv_handle, &io_ctx[cnt_iter], NULL, key_beginning, key_delimiter, NULL, &max_keys, keys_out, &iter_context);
         if ((status == NKV_ITER_MORE_KEYS) || (status == NKV_SUCCESS)) {
           smg_alert(logger, "Looks like we got some valid keys, number of keys got in this batch = %u, status = %x", max_keys, status);
           total_keys += max_keys;
@@ -690,6 +702,12 @@ int main(int argc, char *argv[]) {
             smg_alert(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
           }
         }
+        for (int iter = 0; iter < num_ios; iter++) {
+          assert(keys_out[iter].key != NULL);
+          memset(keys_out[iter].key, 0, 256);
+          keys_out[iter].length = 256;
+        }
+
         
       } while (status == NKV_ITER_MORE_KEYS);
     }
@@ -708,8 +726,26 @@ int main(int argc, char *argv[]) {
       free (keys_out);
 
     smg_alert (logger, "TPS = %u, total_num_keys = %u", rounded_tps, total_keys);
-    return 0;    
+    if (parent_op_type != 5)
+      return 0;   
+    else {
+      std::cout << "Enter op_type:" << std::endl;
+      std::cin>> op_type;
+
+      std::cout << "Enter num_ios:" << std::endl;
+      std::cin>> num_ios;
+
+      std::cout << "Enter key prefix:" << std::endl;
+      std::cin>> key_beginning;
+
+      std::cout << "Enter key delimiter:" << std::endl;
+      std::cin>> key_delimiter;
+
+      smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
+      continue;
+    } 
   } 
+
   smg_info(logger, "num_threads = 0, going without thread creation..");
  
   char *cmpval   = (char*)nkv_zalloc(vlen);
@@ -1142,6 +1178,25 @@ int main(int argc, char *argv[]) {
   smg_alert (logger, "TPS = %u, Throughput = %u MB/sec, value_size = %u, total_num_objs = %u", rounded_tps,
              t_put_in_mb, vlen, total_num_objs);
 
+  if (parent_op_type == 5) {
+    std::cout << "Enter op_type:" << std::endl;
+    std::cin>> op_type;
+
+    std::cout << "Enter num_ios:" << std::endl;
+    std::cin>> num_ios;
+
+    std::cout << "Enter key prefix:" << std::endl;
+    std::cin>> key_beginning; 
+
+    std::cout << "Enter key delimiter:" << std::endl;
+    std::cin>> key_delimiter;
+
+    smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
+
+  } else
+    op_type = -1;
+
+} while (op_type != -1);
   /*std::cout << "Press any key to quit.." << std::endl;
   char input;
   std::cin >> input;*/

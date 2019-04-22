@@ -4,13 +4,15 @@
   "nkv_transport" : 0,
   "min_container_required" : 1,
   "min_container_path_required" : 1,
-  "nkv_container_path_qd" : 2048,
+  "nkv_container_path_qd" : 16384,
   "nkv_core_pinning_required" : 0,
   "nkv_app_thread_core" : 22,
   "nkv_queue_depth_monitor_required" : 0,
-  "nkv_queue_depth_threshold_per_path" : 64,
+  "nkv_queue_depth_threshold_per_path" : 8,
   "drive_iter_support_required" : 1,
-  "iter_prefix_to_filter" : "",
+  "iter_prefix_to_filter" : "meta",
+  "nkv_listing_with_cached_keys" : 0,
+  "nkv_num_path_per_container_to_iterate" : 1,
 
   "nkv_mounts": [
     {

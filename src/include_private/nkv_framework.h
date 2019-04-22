@@ -37,6 +37,7 @@
 #include <unordered_set>
 #include <string>
 #include <atomic>
+#include <mutex>
 #include <functional>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -64,15 +65,33 @@
   extern int32_t core_pinning_required;
   extern int32_t queue_depth_monitor_required;
   extern int32_t queue_depth_threshold;
+  extern int32_t listing_with_cached_keys;
   extern std::string iter_prefix;
+  extern int32_t num_path_per_container_to_iterate;
 
-  typedef struct {
+  typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
     std::unordered_set<std::string> excess_keys;
+    std::unordered_set<std::string> dir_entries_added;
     kvs_iterator_handle iter_handle;
     kvs_iterator_list iter_list;
     uint64_t network_path_hash_iterating;
     int32_t all_done;
+    //For cached based listing
+    std::unordered_set<std::string>* dup_chached_key_set;
+    std::unordered_set<std::string>::const_iterator cached_key_iter;
+    iterator_info():network_path_hash_iterating(0), all_done(0), dup_chached_key_set(NULL) {
+      excess_keys.clear();
+      dir_entries_added.clear();
+      visited_path.clear();
+    }
+
+    ~iterator_info() {
+      if (dup_chached_key_set) {
+        delete dup_chached_key_set;
+        dup_chached_key_set = NULL;
+      }
+    }
   } iterator_info;
 
   //Aio call back function
@@ -97,6 +116,8 @@
     int32_t core_to_pin;
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
+    std::unordered_set<std::string> cached_keys;
+    std::mutex cache_mtx;
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
                   int32_t numa_aligned, int32_t p_type):
@@ -106,6 +127,7 @@
       nkv_async_path_cur_qd = 0;
       core_to_pin = -1;
       path_numa_node = -1;
+      cached_keys.clear();
     }
 
     ~NKVTargetPath() {
@@ -157,8 +179,12 @@
     nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
-    nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix); 
-    nkv_result populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, const char* prefix); 
+    nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
+                                     const char* delimiter); 
+    nkv_result find_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, const char* prefix,
+                                      const char* delimiter); 
+    void filter_and_populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, char* disk_key, uint32_t key_size, uint32_t* num_keys_iterted,
+                                            const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys = false);
   };
 
   class NKVTarget {
@@ -205,13 +231,13 @@
       NKVTargetPath* one_p = p_iter->second;
       if (one_p) {
         if (!post_fn) {
-          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, op = %d, cur_qd = %u",
+          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, key_length = %u, op = %d, cur_qd = %u",
                   one_p->dev_path.c_str(), target_container_name.c_str(), target_node_name.c_str(), one_p->path_ip.c_str(), 
-                  one_p->path_port, (char*)key->key, which_op, one_p->nkv_async_path_cur_qd.load());
+                  one_p->path_port, (char*)key->key, key->length, which_op, one_p->nkv_async_path_cur_qd.load());
         } else {
-          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, op = %d, cur_path_qd = %u, max_path_qd = %u",
+          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, key_length = %u, op = %d, cur_path_qd = %u, max_path_qd = %u",
                   one_p->dev_path.c_str(), target_container_name.c_str(), target_node_name.c_str(), one_p->path_ip.c_str(),
-                  one_p->path_port, (char*)key->key, which_op, one_p->nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+                  one_p->path_port, (char*)key->key, key->length, which_op, one_p->nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
           /*smg_warn(logger, "Sending IO to dev mount = %s, key = %s, op = %d, cur_qd = %u, cb_address = 0x%x, post_fn = 0x%x, pvt_1 = 0x%x",
                   one_p->dev_path.c_str(), (char*)key->key, which_op, one_p->nkv_async_path_cur_qd.load(), post_fn->nkv_aio_cb, post_fn, post_fn->private_data_1);*/
         }
@@ -241,7 +267,8 @@
 
     }
 
-    nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix) {
+    nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix,
+                                    const char* delimiter) {
 
       nkv_result stat = NKV_SUCCESS;
       uint64_t current_path_hash = 0;
@@ -268,12 +295,13 @@
           iter_info->excess_keys.erase(iter_info->excess_keys.begin(), k_iter);
         }
       } else {
-        iter_info = new iterator_info;
+        iter_info = new iterator_info();
         assert(iter_info != NULL);
-        iter_info->network_path_hash_iterating = 0;
+        /*iter_info->network_path_hash_iterating = 0;
         iter_info->all_done = 0;
         iter_info->excess_keys.clear();
-        iter_info->visited_path.clear();
+        iter_info->dir_entries_added.clear();
+        iter_info->visited_path.clear();*/
         smg_info(logger, "Created an iterator context for NKV iteration, container name = %s, target node = %s",
                  target_container_name.c_str(), target_node_name.c_str());
 
@@ -292,22 +320,26 @@
 
         NKVTargetPath* one_p = p_iter->second;
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
         if (stat != NKV_SUCCESS) {
-          smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
-                    one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
           *max_keys = num_keys_iterted;
           if (stat != NKV_ITER_MORE_KEYS) {
             if (iter_info) {
               delete(iter_info);
               iter_info = NULL;
             }
+            smg_error(logger,"Path iteration failed on dev mount = %s, path ip = %s , error = %x",
+                     one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
+            return stat;
+          } else {
+            smg_warn(logger,"Out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
+                     one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
             return stat;
           } 
         }
         
       }
-      
+
       if ((container_path_hash != 0) && (num_keys_iterted < *max_keys)) {
         smg_info(logger, "Start iterating on container path hash= %u, container name = %s, target node = %s", 
                  container_path_hash, target_container_name.c_str(), target_node_name.c_str());
@@ -320,56 +352,77 @@
         
         NKVTargetPath* one_p = p_iter->second; 
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
         if (stat != NKV_SUCCESS) {
-          smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
-                    one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
           *max_keys = num_keys_iterted;
           if (stat != NKV_ITER_MORE_KEYS) {
+            smg_error(logger,"Path iteration failed dev mount = %s, path ip = %s , error = %x",
+                      one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
             if (iter_info) {
               delete(iter_info);
               iter_info = NULL;
             }
             return stat;
+          } else {
+            smg_warn(logger,"Out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
+                    one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
+            return stat;
           }
-
         }
+        iter_info->all_done = 1;
+      }
+
+      if ((num_path_per_container_to_iterate > 0) && (num_path_per_container_to_iterate == (int32_t)iter_info->visited_path.size())) {
+        smg_info(logger, "Finished iterating the number of path (%d) provided via config option (%d), exiting..",
+                  iter_info->visited_path.size(), num_path_per_container_to_iterate);
         iter_info->all_done = 1;
       }
 
       if ((num_keys_iterted < *max_keys) && (0 == iter_info->all_done)) {
         smg_info(logger, "No Path provided, listing for all path(s)/device(s), container name = %s, target node = %s",
                  target_container_name.c_str(), target_node_name.c_str());
+
         for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
           NKVTargetPath* one_p = p_iter->second;
           assert(one_p != NULL);
           smg_info(logger,"Start Iterating over path hash = %u, dev mount = %s, path ip = %s", one_p->path_hash,
                    one_p->dev_path.c_str(), one_p->path_ip.c_str());
-          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix);
+          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
+          
           if (stat != NKV_SUCCESS) {
-            smg_error(logger,"Path iteration failed or out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
-                      one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
             *max_keys = num_keys_iterted;
             if (stat != NKV_ITER_MORE_KEYS) {
               if (iter_info) {
                 delete(iter_info);
                 iter_info = NULL;
               }
+              smg_error(logger,"Path iteration failed on dev mount = %s, path ip = %s , error = %x",
+                        one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
+
               return stat;
-            } else
+            } else {
+              smg_warn(logger,"Out buffer exhausted on dev mount = %s, path ip = %s , error = %x",
+                       one_p->dev_path.c_str(), one_p->path_ip.c_str(), stat);
               break;
+            }
           }
           if (num_keys_iterted >= *max_keys) {
             smg_warn(logger, "Output buffer full, returning the call from path iteration, max_keys = %u, key_inserted = %u, container name = %s, target node = %s",
                      *max_keys, num_keys_iterted, target_container_name.c_str(), target_node_name.c_str());
             break;
           }
+
+          if ((num_path_per_container_to_iterate > 0) && (num_path_per_container_to_iterate == (int32_t)iter_info->visited_path.size())) {
+            smg_info(logger, "Finished iterating the number of path (%d) provided via config option (%d), exiting..",
+                      iter_info->visited_path.size(), num_path_per_container_to_iterate);
+            iter_info->all_done = 1;  
+          }
           
         }
       }
       *max_keys = num_keys_iterted;
       if ((iter_info->visited_path.size() == pathMap.size()) || (iter_info->all_done)) {
-        smg_alert(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d",
+        smg_info(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d",
                   target_container_name.c_str(), target_node_name.c_str(), iter_info->visited_path.size(), iter_info->all_done);
         if (iter_info) {
           delete(iter_info);
@@ -541,7 +594,7 @@
     }
 
     nkv_result nkv_list_keys (uint64_t container_hash, uint64_t container_path_hash, uint32_t* max_keys, 
-                              nkv_key* keys, void*& iter_context, const char* prefix) {
+                              nkv_key* keys, void*& iter_context, const char* prefix, const char* delimiter) {
 
       nkv_result stat = NKV_SUCCESS;
       auto c_iter = cnt_list.find(container_hash);
@@ -551,7 +604,7 @@
       }
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
-        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context, prefix);
+        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context, prefix, delimiter);
       } else {
         smg_error(logger, "NULL Container found for hash = %u, op = list_keys!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;

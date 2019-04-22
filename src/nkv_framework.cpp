@@ -46,6 +46,8 @@ NKVContainerList* nkv_cnt_list = NULL;
 int32_t core_pinning_required = 0;
 int32_t queue_depth_monitor_required = 0;
 int32_t queue_depth_threshold = 0;
+int32_t listing_with_cached_keys = 0;
+int32_t num_path_per_container_to_iterate = 0;
 
 thread_local int32_t core_running_driver_thread = -1;
 std::string iter_prefix = "0000";
@@ -307,6 +309,16 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
   if (n_opt->nkv_store_crc_in_meta) {
     return NKV_ERR_OPTION_CRC_NOT_SUPPORTED;
   }
+  //cache keys for listing (till iterator issue is fixed)
+  if (listing_with_cached_keys) {
+    std::string key_str ((char*) n_key->key, n_key->length);
+    std::size_t found = key_str.find(iter_prefix);
+    if (found != std::string::npos && found == 0) {
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      cached_keys.insert(key_str);
+    }
+  }
+
   kvs_store_context put_ctx = {option, 0, 0};
   if (!post_fn) {
     const kvs_key  kvskey = { n_key->key, n_key->length};
@@ -469,6 +481,12 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
+
+  if (listing_with_cached_keys && (cached_keys.size() != 0)) {
+    std::string key_str ((char*) n_key->key, n_key->length);
+    std::lock_guard<std::mutex> lck (cache_mtx);
+    cached_keys.erase(key_str);
+  }
   
   const kvs_key  kvskey = { n_key->key, n_key->length};
   kvs_delete_context del_ctx = { {false}, 0, 0};
@@ -508,8 +526,165 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
 
 }
 
-nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, 
-                                                  const char* prefix) {
+void NKVTargetPath::filter_and_populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, char* disk_key_raw, uint32_t key_size, uint32_t* num_keys_iterted,
+                                                  const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys) {
+  assert(disk_key_raw != NULL);
+  uint32_t cur_index = *num_keys_iterted;
+  smg_info(logger, "### Got key = %s, size = %u and we are about to filter based on prefix = %s, delimiter = %s",
+           disk_key_raw, key_size, prefix, delimiter);
+
+  if (!prefix && !delimiter) {
+    if (cached_keys) {
+      assert(keys[cur_index].key != NULL);
+      uint32_t max_key_len = keys[cur_index].length;
+      if (max_key_len < key_size) {
+        smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                  max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+      }
+      assert(max_key_len >= key_size);
+      memcpy(keys[cur_index].key, disk_key_raw, key_size);
+      
+    }
+    keys[cur_index].length = key_size;
+    smg_info(logger, "No prefix  and delimiter provided, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u",
+             (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys);
+    (*num_keys_iterted)++;
+
+  } else if (prefix && !delimiter) {
+    char* p = strstr(disk_key_raw, prefix);
+    if (p) {
+      if (cached_keys) {
+        assert(keys[cur_index].key != NULL);
+        uint32_t max_key_len = keys[cur_index].length;
+        if (max_key_len < key_size) {
+          smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                    max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+        }
+        assert(max_key_len >= key_size);
+        memcpy(keys[cur_index].key, disk_key_raw, key_size);
+
+      }
+
+      keys[cur_index].length = key_size;
+      smg_info(logger, "No delimiter provided but Prefix matched, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
+               (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
+      (*num_keys_iterted)++;
+    } else {
+      smg_info(logger, "No delimiter provided and Prefix *not matched*, skipping key = %s, length = %u , dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
+               disk_key_raw, key_size, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
+    }
+  } else if (!prefix && delimiter) {
+    std::string disk_key (disk_key_raw, key_size);
+    std::size_t found = disk_key.find_first_of(delimiter);
+    if (found == std::string::npos) {
+      if (cached_keys) {
+        assert(keys[cur_index].key != NULL);
+        uint32_t max_key_len = keys[cur_index].length;
+        if (max_key_len < key_size) {
+          smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                    max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+        }
+        assert(max_key_len >= key_size);
+        memcpy(keys[cur_index].key, disk_key_raw, key_size);
+
+      }
+      keys[cur_index].length = key_size;
+      smg_info(logger, "No prefix provided, delimiter provided but not found in key, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+               (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);
+      (*num_keys_iterted)++;
+      
+    } else {
+      std::string root_dir = disk_key.substr(0, found + 1);
+      auto d_iter = iter_info->dir_entries_added.find(root_dir);
+      if (d_iter != iter_info->dir_entries_added.end()) {
+        smg_info(logger, "No prefix provided, delimiter provided, dir = %s already added, skipping key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+                 root_dir.c_str(), disk_key_raw, key_size, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);        
+      } else {
+        //Add the dir
+        assert(keys[cur_index].key != NULL);
+        uint32_t max_key_len = keys[cur_index].length;
+        key_size = root_dir.length();
+        if (max_key_len < key_size) {
+          smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                    max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+        }
+        assert(max_key_len >= key_size);
+        strcpy((char*)keys[cur_index].key, root_dir.c_str());
+        keys[cur_index].length = key_size;
+        smg_info(logger, "No prefix provided, delimiter provided and found in key, Added dir = %s, length = %u from actual key = %s to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+                 (char*) keys[cur_index].key, keys[cur_index].length, disk_key_raw, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);
+        (*num_keys_iterted)++;
+        iter_info->dir_entries_added.insert(root_dir);
+      }
+      
+    }
+  } else {
+    //Both prefix and delimitier provided
+    std::string disk_key (disk_key_raw, key_size);
+    std::size_t found = disk_key.find(prefix);
+    if (found != std::string::npos) {
+      //Now search for delimiter after prefix
+      std::size_t prefix_end = found + strlen(prefix);
+      found =  disk_key.find(delimiter, prefix_end, strlen(delimiter));
+      if (found != std::string::npos) {
+        //delimitier found , add the next dir in hierarchy
+        std::string dir_after_prefix = disk_key.substr(prefix_end, (found - prefix_end) + 1);
+        auto d_iter = iter_info->dir_entries_added.find(dir_after_prefix);
+        if (d_iter != iter_info->dir_entries_added.end()) {
+          smg_info(logger, "prefix and delimiter provided, dir = %s already added, skipping key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+                   dir_after_prefix.c_str(), disk_key_raw, key_size, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);
+        } else {
+
+          assert(keys[cur_index].key != NULL);
+          uint32_t max_key_len = keys[cur_index].length;
+          key_size = dir_after_prefix.length();
+          if (max_key_len < key_size) {
+            smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                      max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+          }
+          assert(max_key_len >= key_size);
+          strcpy((char*)keys[cur_index].key, dir_after_prefix.c_str());
+          keys[cur_index].length = key_size;
+          smg_info(logger, "prefix and delimiter provided and found in key, Added dir = %s, length = %u from actual key = %s to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+                   (char*) keys[cur_index].key, keys[cur_index].length, disk_key_raw, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);
+          (*num_keys_iterted)++;
+          iter_info->dir_entries_added.insert(dir_after_prefix);
+
+        }
+      } else {
+        //No delimiter after prefix, add rest of the key to the output
+        std::string filename = disk_key.substr(prefix_end);
+        if (!filename.empty()) {
+          assert(keys[cur_index].key != NULL);
+          uint32_t max_key_len = keys[cur_index].length;
+          key_size = filename.length();
+          if (max_key_len < key_size) {
+            smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                      max_key_len, key_size, dev_path.c_str(), path_ip.c_str());
+          }
+          assert(max_key_len >= key_size);
+          strcpy((char*)keys[cur_index].key, filename.c_str());
+          keys[cur_index].length = key_size;
+          smg_info(logger, "prefix and delimiter provided and found filename in key, Added key = %s, length = %u from actual key = %s to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, delimiter = %s",
+                 (char*) keys[cur_index].key, keys[cur_index].length, disk_key.c_str(), dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, delimiter);
+          (*num_keys_iterted)++;
+       } else {
+         smg_warn(logger, "Empty filename found, probably prefix supplied exactly matching key, skipping the key = %s, prefix = %s, delimiter = %s",
+                  disk_key.c_str(), prefix, delimiter);
+       }
+
+      }
+    
+    } else {
+      smg_info(logger, "delimiter, prefix provided but Prefix *not matched*, skipping key = %s, length = %u , dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
+               disk_key_raw, key_size, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
+    }
+  }
+
+}
+
+nkv_result NKVTargetPath::find_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, 
+                                                  const char* prefix, const char* delimiter) {
   nkv_result stat = NKV_SUCCESS;
   uint32_t key_size = 0;
   char key[256] = {0};
@@ -518,7 +693,7 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
   assert(*num_keys_iterted >= 0);
   bool no_space = false;
 
-  for(int i = 0; i < iter_info->iter_list.num_entries; i++) {
+  for(uint32_t i = 0; i < iter_info->iter_list.num_entries; i++) {
     if (*num_keys_iterted >= *max_keys) {
       *max_keys = *num_keys_iterted;
       stat = NKV_ITER_MORE_KEYS;
@@ -537,7 +712,7 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
       assert(key_len >= key_size);
       memcpy(keys[cur_index].key, it_buffer, key_size);
       //key_name[key_size] = '\0';
-      if (!prefix) {
+      /*if (!prefix) {
         keys[cur_index].length = key_size;
         smg_info(logger, "No prefix provided, Added key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u",
                  (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys);
@@ -553,8 +728,9 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
           smg_info(logger, "Prefix *not matched*, skipping key = %s, length = %u , dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u, prefix = %s",
                    (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys, prefix);
         }
-      }
-
+      }*/
+      
+      filter_and_populate_keys_from_path (max_keys, keys, (char*)keys[cur_index].key, key_size, num_keys_iterted, prefix, delimiter, iter_info);
       /*(*num_keys_iterted)++;
       memcpy(key, it_buffer, key_size);
       smg_warn(logger, "Added key = %s, length = %u to nothing! dev_path = %s, ip = %s, number of keys so far = %u",
@@ -572,7 +748,8 @@ nkv_result NKVTargetPath::populate_keys_from_path(uint32_t* max_keys, nkv_key* k
   return stat;
 }
 
-nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix) {
+nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
+                                                const char* delimiter) {
   
   nkv_result stat = NKV_SUCCESS;
   if (!iter_info->visited_path.empty()) {
@@ -583,13 +760,66 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       return NKV_SUCCESS;
     }
   }
+
+  if (listing_with_cached_keys) {
+    uint32_t number_cached_keys = 0;
+    if (0 == iter_info->network_path_hash_iterating) {
+      {
+        std::lock_guard<std::mutex> lck (cache_mtx);
+        if (cached_keys.size() != 0) {
+          iter_info->dup_chached_key_set = new std::unordered_set<std::string>();
+          //cached_keys.swap(*(iter_info->dup_chached_key_set));
+          *(iter_info->dup_chached_key_set) = cached_keys;
+          iter_info->cached_key_iter = iter_info->dup_chached_key_set->cbegin();
+          iter_info->network_path_hash_iterating = path_hash;
+        } else {
+          iter_info->visited_path.insert(path_hash);
+          return stat;
+        }
+      }
+      number_cached_keys = iter_info->dup_chached_key_set->size();
+      smg_info(logger, "Successfully opened Cache Iterator context on dev_path = %s, ip = %s, network_path_hash_iterating = %u, total keys = %u",
+               dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating, number_cached_keys);  
+    } else {
+      number_cached_keys = iter_info->dup_chached_key_set->size();
+      smg_info(logger, "Cache Iterator context is already opened on dev_path = %s, ip = %s, network_path_hash_iterating = %u, total keys = %u",
+               dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating, number_cached_keys);
+      //iter_info->cached_key_iter++;
+    }
+    //Iterate over cahched keys
+    for ( ; iter_info->cached_key_iter != iter_info->dup_chached_key_set->cend(); iter_info->cached_key_iter++) {
+      if ((*max_keys - *num_keys_iterted) == 0) {
+        smg_warn(logger,"Not enough out buffer space to accomodate next cached key for dev_path = %s, ip = %s, remaining key space = %u, total keys = %u",
+                 dev_path.c_str(), path_ip.c_str(), (*max_keys - *num_keys_iterted), number_cached_keys);
+        *max_keys = *num_keys_iterted;
+        stat = NKV_ITER_MORE_KEYS;
+        break;
+      }
+      
+      filter_and_populate_keys_from_path (max_keys, keys, (char*)(*(iter_info->cached_key_iter)).c_str(), (*(iter_info->cached_key_iter)).length(), 
+                                         num_keys_iterted, prefix, delimiter, iter_info, true);
+    }
+
+    if (iter_info->cached_key_iter == iter_info->dup_chached_key_set->cend()) {
+      iter_info->visited_path.insert(path_hash);
+      iter_info->network_path_hash_iterating = 0;
+      if (iter_info->dup_chached_key_set) {
+        delete iter_info->dup_chached_key_set;
+        iter_info->dup_chached_key_set = NULL;
+      }
+      smg_info(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u",
+                dev_path.c_str(), path_ip.c_str(), *num_keys_iterted);
+    }
+    return stat;  
+  }
+
   if (0 == iter_info->network_path_hash_iterating) {
     smg_info(logger, "Opening iterator and creating handle on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
 
     kvs_iterator_context iter_ctx_open;
 
-    //iter_ctx_open.bitmask = 0xffffffff;
-    iter_ctx_open.bitmask = 0xffff0000;
+    iter_ctx_open.bitmask = 0xffffffff;
+    //iter_ctx_open.bitmask = 0xffff0000;
     //char prefix_str[5] = iter_prefix.c_str();
     //char prefix_str[5] = "0000";
     unsigned int PREFIX_KV = 0;
@@ -665,12 +895,12 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
     total_entries += iter_info->iter_list.num_entries;
     //*num_keys_iterted += iter_info->iter_list.num_entries;
 
-    stat = populate_keys_from_path(max_keys, keys, iter_info, num_keys_iterted, prefix);
+    stat = find_keys_from_path(max_keys, keys, iter_info, num_keys_iterted, prefix, delimiter);
     smg_info(logger, "iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated so far = %u",
              dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, *num_keys_iterted);
 
     if(iter_info->iter_list.end) {
-      smg_alert(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u, this batch = %u", 
+      smg_info(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u, this batch = %u", 
                 dev_path.c_str(), path_ip.c_str(), total_entries, *num_keys_iterted);
       /* Close iterator */
       kvs_iterator_context iter_ctx_close;
