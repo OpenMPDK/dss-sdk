@@ -90,7 +90,9 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
-	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk
+        COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
+	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz nkv-sdk
+        COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 )
 
 
