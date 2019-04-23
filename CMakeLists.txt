@@ -81,6 +81,7 @@ add_custom_command(
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test
+	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
@@ -88,6 +89,7 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
+	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v3.10 ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
 	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz nkv-sdk
         COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
