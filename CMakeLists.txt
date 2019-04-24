@@ -2,11 +2,16 @@ cmake_minimum_required(VERSION 2.8.9)
 project (libnkvapi C CXX)
 
 option(NKV_WITH_EMU "Enable NKV with Emulator support" OFF)
-option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" ON)
+option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" OFF)
 option(NKV_WITH_SPDK "Enable NKV with SPDK Driver support" OFF)
 
 set(CMAKE_C_FLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
 set(CMAKE_CXX_FLAGS "-O3 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
+
+#put all the libs and binaries in one place
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -19,17 +24,23 @@ set(LOG_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib/libsmglog/)
 include_directories(${LOG_INCLUDE_DIR})
 link_directories(${LOG_LIBRARY_DIR})
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/ ${CMAKE_BINARY_DIR}/lib)
+#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/ ${CMAKE_BINARY_DIR}/lib)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
 
 if(NKV_WITH_KDD)
+  set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
 
-#put all the libs and binaries in one place
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+elseif(NKV_WITH_EMU)
+  set(WITH_EMU ON CACHE BOOL "Enable KDD functionality" FORCE)
 
-set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/)
+elseif(NKV_WITH_SPDK)
+
+else()
+  message( FATAL_ERROR "Please specify device driver type for compilation." )
+
+endif()
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
 set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog)
 
@@ -61,18 +72,6 @@ add_executable(nkv_test_cli ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cp
 target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS})
 add_dependencies(nkv_test_cli nkvapi)
 
-elseif(NKV_WITH_EMU)
-
-set(kvemul_CFLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
-set(kvemul_CXXFLAGS "-O2 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
-
-elseif(NKV_WITH_SPDK)
-  
-else()
-  message( FATAL_ERROR "Please specify device driver type for compilation." )
-
-endif()
-
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
 	TARGET nkv_test_cli POST_BUILD
@@ -85,9 +84,9 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
-	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
+	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
+	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
+	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/README_INSTALL.txt ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
