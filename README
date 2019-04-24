@@ -1,5 +1,24 @@
-This is the location of the source code for the NKV client library stack.
-#Directory structure contains nkv_api and open_mpdk for now.
-#nkv_api contains all the source code needed to implement higher level nkv apis
-#open_mpdk is the Samsung opensource driver code base for communicating with local KV devices.
-#open_mpdk is the Samsung opensource driver code base for communicating with local KV devices.
+#This README file will help user to get familiar with high level directory structure of the NKV client library stack.
+
+Root Directory structure contains the following..
+
+  README_INSTALL.txt  --> README for the installation and run test application on top of KV device(s)
+  README              --> README for NKV project
+  config              --> Sample config file to run NKV app
+  build.sh            --> Script for Building entire NKV stack (including openmpdk) 
+  spec                --> NKV spec document for application Integration
+  include             --> Header files for application Integration
+  src                 --> NKV library source code
+  CMakeLists.txt      --> Cmake file (will be invoked by build.sh script)
+
+'src' directory is containing the following..
+
+  include_private     --> Include files for internal use
+  nkv_api.cpp         --> Library entry point
+  test                --> Directory containing sample test application code
+  nkv_framework.cpp   --> Library framework implementation 
+  openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with
+                          local KV devices. Added as submodule here.
+  logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+
+
