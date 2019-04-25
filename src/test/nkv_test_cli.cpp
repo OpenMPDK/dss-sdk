@@ -228,6 +228,7 @@ void *iothread(void *args)
     uint32_t klen = targs->klen;//strlen (key_name);
     char *val   = (char*)nkv_zalloc(targs->vlen);
     memset(val, 0, targs->vlen);
+    //char* val = (char*) calloc (targs->vlen, sizeof(char));
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, targs->vlen, 0 };
 
@@ -299,11 +300,19 @@ void *iothread(void *args)
             smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
             return 0;
           } else {
-            smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
-                    (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
+            if (nkvvalue.actual_length == targs->vlen) {
+              smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
+                      (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
+            } else {
+              smg_error(logger, "NKV Retrieve successful, but got wrong length back ! key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
+                      (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);              
+              if (nkvvalue.actual_length > targs->vlen)
+                assert(nkvvalue.actual_length == targs->vlen);
+            }
 
             if (targs->check_integrity) {
-              int n = memcmp(cmpval, (char*) nkvvalue.value, targs->vlen);
+              //int n = memcmp(cmpval, (char*) nkvvalue.value, targs->vlen);
+              int n = memcmp(cmpval, (char*) nkvvalue.value, nkvvalue.actual_length);
               if (n != 0) {
                 //smg_error(logger, "Data integrity failed for key = %s, expected = %s, got = %s", key_name, cmpval, (char*) nkvvalue.value);
                 smg_error(logger, "Data integrity failed for key = %s, expected = %s, got = %s, actual length = %u, mismatched byte = %d",
@@ -473,6 +482,12 @@ int main(int argc, char *argv[]) {
     usage(argv[0]);
     exit(1);
   }
+  if (klen > vlen) {
+    smg_error(logger, "key length can't be greater than value length, not an API restriction but specific to test CLI requirement, sorry..");
+    usage(argv[0]);
+    exit(1);  
+  }
+
   uint64_t instance_uuid, nkv_handle = 0; 
   nkv_result status = nkv_open(config_path, "nkv_test_cli", host_name_ip, port, &instance_uuid, &nkv_handle);
   if (status != 0) {
@@ -1158,8 +1173,14 @@ do {
         smg_error(logger,"Unsupported operation provided, op = %d", op_type);
     }
     if (!is_async) {
-      nkv_free(key_name);
-      nkv_free(val);
+      if (key_name) {
+        nkv_free(key_name);
+        key_name = NULL;
+      }
+      if (val) {
+        nkv_free(val);
+        val = NULL;
+      }
     }
   }
   if (is_async) {

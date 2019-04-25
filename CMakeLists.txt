@@ -29,6 +29,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
 
 if(NKV_WITH_KDD)
   set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
+  #set(WITH_LOG ON CACHE BOOL "Enable KDD functionality" FORCE)
 
 elseif(NKV_WITH_EMU)
   set(WITH_EMU ON CACHE BOOL "Enable KDD functionality" FORCE)
