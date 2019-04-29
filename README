@@ -21,4 +21,9 @@ Root Directory structure contains the following..
                           local KV devices. Added as submodule here.
   logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
 
-
+Building NKV
+ go to source directory
+ and run the following: ./build.sh kdd
+ the above build will create build directory "$cwd../$cmdname_out" for build output and builds it.
+ build generates nkv bins "nkv-sdk-bin-TIMESTAMP.tgz" which contains shared libraries and cli test tool
+ The above shared libraries are used to integrate with MINIO S3 APP server, refer minio for more info https://github.com/minio/minio/blob/nkv/docs/nkv/README.md 
