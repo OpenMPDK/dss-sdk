@@ -5,6 +5,7 @@ add_definitions(-std=c++11)
 add_library(${PROJECT_NAME} SHARED src/smglogger.cpp src/csmglogger.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inc)
+INCLUDE_DIRECTORIES(BEFORE ${CMAKE_BINARY_DIR}/src/logger/log4cpp/include)
 
 # target_compile_definitions(${PROJECT_NAME} PUBLIC -std=c++11)
 
