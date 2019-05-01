@@ -71,7 +71,7 @@ struct nkv_thread_args{
 void memHexDump (void *addr, int len) {
     int i;
     unsigned char buff[17];       
-    unsigned char *pc = addr;
+    unsigned char *pc = (unsigned char *)addr;
      
     for (i = 0; i < len; i++) {
       if ((i % 16) == 0) {
@@ -163,7 +163,6 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-q      queue_depth     :  queue depth on each path , used in async mode\n");
   printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
@@ -221,7 +220,7 @@ void *iothread(void *args)
   char *cmpval   = (char*)nkv_zalloc(targs->vlen); 
   nkv_result status = NKV_SUCCESS;
   //do_io(targs->id, targs->cont_hd, targs->count, targs->klen, targs->vlen, targs->op_type);
-  for(uint32_t iter = 0; iter < targs->count; iter++) {
+  for(int32_t iter = 0; iter < targs->count; iter++) {
     char *key_name   = (char*)nkv_malloc(targs->klen);
     memset(key_name, 0, targs->klen);
     sprintf(key_name, "%s_%d_%u", targs->key_prefix, targs->id, iter);
@@ -361,7 +360,7 @@ int main(int argc, char *argv[]) {
   char* subsystem_ip = NULL;
   int32_t port = -1;
   uint64_t num_ios = 10;
-  int qdepth = 64;
+  //int qdepth = 64;
   int op_type = 3;
   int parent_op_type = -1;
   uint32_t vlen = 4096;
@@ -397,9 +396,9 @@ int main(int argc, char *argv[]) {
     case 'n':
       num_ios = atoi(optarg);
       break;
-    case 'q':
+    /*case 'q':
       qdepth = atoi(optarg);
-      break;
+      break;*/
     case 'o':
       op_type = atoi(optarg);
       break;
@@ -696,7 +695,7 @@ do {
     //Allocate out buffer
     nkv_key* keys_out = (nkv_key*) malloc (sizeof(nkv_key) * num_ios);
     memset(keys_out, 0, (sizeof(nkv_key) * num_ios));
-    for (int iter = 0; iter < num_ios; iter++) {
+    for (uint32_t iter = 0; iter < num_ios; iter++) {
       keys_out[iter].key = malloc (256);
       assert(keys_out[iter].key != NULL);
       memset(keys_out[iter].key, 0, 256);
@@ -704,7 +703,7 @@ do {
     }
     auto start = std::chrono::steady_clock::now();
 
-    for (int cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
+    for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
       smg_info(logger, "Iterating for container hash = %u, prefix = %s, delimiter = %s", io_ctx[cnt_iter].container_hash, key_beginning, key_delimiter);
       void* iter_context = NULL;
       do {
@@ -717,7 +716,7 @@ do {
             smg_alert(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
           }
         }
-        for (int iter = 0; iter < num_ios; iter++) {
+        for (uint32_t iter = 0; iter < num_ios; iter++) {
           assert(keys_out[iter].key != NULL);
           memset(keys_out[iter].key, 0, 256);
           keys_out[iter].length = 256;
@@ -730,7 +729,7 @@ do {
     long double tps = ((long double)((long double)total_keys/(long double)elapsed.count())) * 1000000;
     uint32_t rounded_tps = round(tps);
 
-    for (int iter = 0; iter < num_ios; iter++) {
+    for (uint32_t iter = 0; iter < num_ios; iter++) {
       if (keys_out[iter].key) {
         free(keys_out[iter].key);
         keys_out[iter].key = NULL;

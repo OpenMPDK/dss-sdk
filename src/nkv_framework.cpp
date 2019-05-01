@@ -321,7 +321,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
 
   kvs_store_context put_ctx = {option, 0, 0};
   if (!post_fn) {
-    const kvs_key  kvskey = { n_key->key, n_key->length};
+    const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
     const kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
 
     int ret = kvs_store_tuple(path_cont_handle, &kvskey, &kvsvalue, &put_ctx);    
@@ -336,7 +336,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
                 n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
       usleep(1);
     }
-    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < queue_depth_threshold))
+    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
       smg_error(logger, "In store: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
                 queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
 
@@ -402,7 +402,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
   kvs_retrieve_context ret_ctx = {option, 0, 0};
   if (!post_fn) {
-    const kvs_key  kvskey = { n_key->key, n_key->length};
+    const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
     kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
 
     int ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue, &ret_ctx);
@@ -443,7 +443,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
                 n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
       usleep(1);
     }
-    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < queue_depth_threshold))
+    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
       smg_error(logger, "In retrieve: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
                 queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
 
@@ -488,7 +488,7 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     cached_keys.erase(key_str);
   }
   
-  const kvs_key  kvskey = { n_key->key, n_key->length};
+  const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
   kvs_delete_context del_ctx = { {false}, 0, 0};
 
   if (!post_fn) {
