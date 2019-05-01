@@ -27,6 +27,8 @@ else
   yum install boost-devel
 fi
 
+yum install log4cpp-devel
+
 rm -rf $OD
 mkdir $OD
 
