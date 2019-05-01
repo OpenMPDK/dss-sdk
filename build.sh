@@ -27,20 +27,6 @@ else
   yum install boost-devel
 fi
 
-if [ $(yum list installed | cut -f1 -d" " | grep --extended '^log4cpp' | wc -l) -eq 1 ]; then
-  echo "log4cpp already installed";
-else
-  echo "yum install log4cpp"
-  yum install log4cpp
-fi
-
-if [ $(yum list installed | cut -f1 -d" " | grep --extended '^log4cpp-devel' | wc -l) -eq 1 ]; then
-  echo "log4cpp-devel already installed";
-else
-  echo "yum install log4cpp"
-  yum install log4cpp-devel
-fi
-
 rm -rf $OD
 mkdir $OD
 

@@ -17,10 +17,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(Boost_INCLUDE_DIR /usr/include/boost/)
 include_directories(${Boost_INCLUDE_DIR})
-set(LOG4CPP_INCLUDE_DIR /usr/include/log4cpp/)
-include_directories(${LOG4CPP_INCLUDE_DIR})
 
-set(LOG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/logger/libsmglog/inc/)
+set(LOG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/logger/libsmglog/inc/ ${CMAKE_CURRENT_SOURCE_DIR}/src/logger/log4cpp/include/)
 set(LOG_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib/libsmglog/)
 
 include_directories(${LOG_INCLUDE_DIR})
@@ -45,7 +43,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
-set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -pthread -llog4cpp -lkvapi -lnkvapi -lsmglog)
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog)
 
 # SOURCE CODE
 SET(SOURCES_NKV_KDD

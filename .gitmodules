@@ -4,3 +4,8 @@
 	#url = https://github.com/OpenMPDK/KVSSD.git
 	url = git@MSL-DC-GITLAB.SSI.SAMSUNG.COM:kvssd/opensource.git
 	branch = master
+[submodule "src/logger/log4cpp"]
+	path = src/logger/log4cpp
+	#url = git@github.com:orocos-toolchain/log4cpp.git
+	url = https://github.com/orocos-toolchain/log4cpp.git
+	branch = stable
