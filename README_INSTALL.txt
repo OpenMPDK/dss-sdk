@@ -5,7 +5,7 @@ Supported OS and Kernel:
 CentOS Linux release 7.6.1810 (Core)
 3.10.0-514.el7.x86_64
 
-Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk'.
+Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
 Build open_mpdk driver:
 ----------------------
@@ -26,8 +26,8 @@ Run open_mpdk test cli:
 
 Run the open_mpdk test cli to make sure nvme KV driver is working fine.
 
- 1. Run "nvme list" command to identify the SamSung KV devices, let's say it is mounted on /dev/nvme0n1
- 2. "cd <root-package>/bin" and run the following command and check if similar output is coming or not in your setup.
+ 1. Run "nvme list" command to identify the Samsung KV devices, let's say it is mounted on /dev/nvme0n1
+ 2. "cd ~/nkv-sdk/bin" and run the following command and check if similar output is coming or not in your setup.
  //PUT
  [root@msl-ssg-sk01 bin]# ./sample_code_sync -d /dev/nvme0n1 -n 10 -o 1 -k 16 -v 4096
  ENTER: open
@@ -47,7 +47,7 @@ Run NKV test cli:
 
 All good so far, let's now nkv test cli to see if nkv stack is working fine or not
 
- 1. export LD_LIBRARY_PATH=<package-root>/lib, for ex: "export LD_LIBRARY_PATH=/root/som/nkv_minio_package/lib"
+ 1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. vim ../conf/nkv_config.json
  3. nkv_config.json is the config file for NKV. It has broadly 3 section for now, global, "nkv_mounts" and "subsystem_maps".
     Config file is mostly designed for remote NVMEoF targets and thus the term subsystem,nqn etc. NKV api doc has the detailed
@@ -86,11 +86,11 @@ All good so far, let's now nkv test cli to see if nkv stack is working fine or n
   KV device is closed: fd 8
   KV device is closed: fd 10
 
- 9. For more verbose output, enable INFO logging in bin/smglogger.properties by editting the following.
+ 9. For more verbose output, enable INFO logging in bin/smglogger.properties by editing the following.
    log4cpp.category.libnkv=WARN, nkvAppender_rolling
 
  10. To get list of keys, run the following command
-   ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030 -b meta/root/som/samsung -r /  -k 128 -o 4 -n 10000
+   ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030 -b meta/minio -r /  -k 128 -o 4 -n 10000
   
    -b <prefix> - will filter on the key prefix
    -k <key-length> - Key size
@@ -101,17 +101,17 @@ All good so far, let's now nkv test cli to see if nkv stack is working fine or n
 Building app on top of NKV:
 --------------------------
 
- 1. Header files required to build the app is present in <root-package>/include folder
- 2. NKV library and other dependent libraries are present in <root-package>/lib
- 3. nkv_test_cli code is provided as reference under <root-package>/src/test folder 
+ 1. Header files required to build the app is present in ~/nkv-sdk/include folder
+ 2. NKV library and other dependent libraries are present in ~/nkv-sdk/lib
+ 3. nkv_test_cli code is provided as reference under ~/nkv-sdk/src/test folder 
  4. Supported api so far , nkv_open, nkv_close, nkv_physical_container_list, nkv_malloc, nkv_zalloc, nkv_free, nkv_store_kvp, nkv_retrieve_kvp, nkv_delete_kvp, nkv_indexing_list_keys
 
 Running MINIO app :
 ------------------
 Put the following in a script may be..
 
- 1. export LD_LIBRARY_PATH=<package-root>/lib
- 2. export MINIO_NKV_CONFIG=<package-root>/conf/nkv_config.json
+ 1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
+ 2. export MINIO_NKV_CONFIG=~/nkv-sdk/conf/nkv_config.json
  3. export MINIO_ACCESS_KEY=minio
  4. export MINIO_SECRET_KEY=minio123
  5. export MINIO_NKV_MAX_VALUE_SIZE=2097152
@@ -119,7 +119,7 @@ Put the following in a script may be..
  7. ulimit -n 65535
  8. ulimit -c unlimited
 
- 9. cd <package-root>/bin
+ 9. cd ~/nkv-sdk/bin
  10. ./<minio-binary> server  /ip/101.100.10.31 /ip/102.100.10.31 /ip/103.100.10.31 /ip/104.100.10.31
  11. IPs above should be matching the IPs given to nkv_config.json under 'subsystem_transport' and 'nkv_mounts'
  12. Distributed Minio command is:
