@@ -1202,7 +1202,9 @@ do {
   if (parent_op_type == 5) {
     std::cout << "Enter op_type:" << std::endl;
     std::cin>> op_type;
-
+    if (op_type == -1)
+      break;  
+  
     std::cout << "Enter num_ios:" << std::endl;
     std::cin>> num_ios;
 
