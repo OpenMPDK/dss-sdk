@@ -112,13 +112,14 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       listing_with_cached_keys = pt.get<int>("nkv_listing_with_cached_keys");
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
     }
+    nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
   }
   catch (std::exception& e) {
     smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
     return NKV_ERR_CONFIG;
   }
-  smg_alert(logger,"contact_fm = %d, nkv_transport = %d, min_container_required = %d, min_container_path_required = %d, container_path_qd = %d", 
-          connect_fm, nkv_transport, min_container, min_container_path, nkv_container_path_qd);
+  smg_alert(logger,"contact_fm = %d, nkv_transport = %d, min_container_required = %d, min_container_path_required = %d, container_path_qd = %d, is_local = %d", 
+          connect_fm, nkv_transport, min_container, min_container_path, nkv_container_path_qd, nkv_is_on_local_kv);
   smg_alert(logger, "core_pinning_required = %d, app_thread_core = %d, nkv_queue_depth_monitor_required = %d, nkv_queue_depth_threshold_per_path = %d",
             core_pinning_required, nkv_app_thread_core, queue_depth_monitor_required, queue_depth_threshold);
 
@@ -128,13 +129,21 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   nkv_cnt_list = new NKVContainerList(0, app_uuid, *instance_uuid, *nkv_handle);
   assert(nkv_cnt_list != NULL);
 
-  if (!connect_fm) {
+  if (!connect_fm && !nkv_is_on_local_kv) {
    if (nkv_cnt_list->parse_add_container(pt)) 
      return NKV_ERR_CONFIG;
   } else {
-    // Add logic to contact FM and then give that json ptree to the parse_add_container call
+    if (nkv_is_on_local_kv) {
+      if (nkv_cnt_list->add_local_container_and_path(host_name_ip, host_port, pt))
+        return NKV_ERR_CONFIG;
+    } else if (connect_fm) {
+      // Add logic to contact FM and then give that json ptree to the parse_add_container call
+
+    } else {
+      // Should not come here !!
+    }
   }
-  if (nkv_cnt_list->parse_add_path_mount_point(pt))
+  if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
 
   if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path))

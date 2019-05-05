@@ -48,6 +48,7 @@ int32_t queue_depth_monitor_required = 0;
 int32_t queue_depth_threshold = 0;
 int32_t listing_with_cached_keys = 0;
 int32_t num_path_per_container_to_iterate = 0;
+int32_t nkv_is_on_local_kv  = 1;
 
 thread_local int32_t core_running_driver_thread = -1;
 std::string iter_prefix = "0000";

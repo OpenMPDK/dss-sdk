@@ -740,8 +740,10 @@ do {
       free (keys_out);
 
     smg_alert (logger, "TPS = %u, total_num_keys = %u", rounded_tps, total_keys);
-    if (parent_op_type != 5)
-      return 0;   
+    if (parent_op_type != 5) {
+      nkv_close (nkv_handle, instance_uuid);
+      return 0;
+    }
     else {
       std::cout << "Enter op_type:" << std::endl;
       std::cin>> op_type;

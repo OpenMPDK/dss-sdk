@@ -68,6 +68,7 @@
   extern int32_t listing_with_cached_keys;
   extern std::string iter_prefix;
   extern int32_t num_path_per_container_to_iterate;
+  extern int32_t nkv_is_on_local_kv;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -658,7 +659,7 @@
 
     int32_t parse_add_path_mount_point(boost::property_tree::ptree & pt) {
       try {
-        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_mounts")) {
+        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_remote_mounts")) {
           assert(v.first.empty());
           boost::property_tree::ptree pc = v.second;
           std::string subsystem_mount = pc.get<std::string>("mount_point");
@@ -705,8 +706,66 @@
         return 1;
       } 
       return 0; 
-    } 
+    }
+  
+    // This is for LKV based deployment
+    int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt) {
+      uint64_t ss_hash = std::hash<std::string>{}(host_name_ip);
 
+      NKVTarget* one_cnt = new NKVTarget(0, "", host_name_ip, host_name_ip, ss_hash);
+      assert(one_cnt != NULL);
+      one_cnt->set_ss_status(1);
+      one_cnt->set_space_avail_percent(100);
+      int32_t path_id = 0;
+
+      try {
+        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_local_mounts")) {
+          assert(v.first.empty());
+          boost::property_tree::ptree pc = v.second;
+          std::string local_mount = pc.get<std::string>("mount_point");
+          std::string local_address = "127.0.0.1";
+          std::string local_node = host_name_ip;
+          int32_t local_port = host_port;
+          int32_t numa_node_attached = -1;
+          int32_t driver_thread_core = -1;
+
+          if (core_pinning_required) {
+            numa_node_attached = pc.get<int>("numa_node_attached");
+            driver_thread_core = pc.get<int>("driver_thread_core");
+          }
+
+          smg_alert(logger, "Adding local device path, mount point = %s, address = %s, host_name_ip = %s, port = %d, numa = %d, core = %d",
+                    local_mount.c_str(), local_address.c_str(), host_name_ip, local_port, numa_node_attached, driver_thread_core);
+
+          std::string h_path_str = host_name_ip + local_mount;
+          uint64_t ss_p_hash = std::hash<std::string>{}(h_path_str);
+          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, -1, -1, -1);
+          assert(one_path != NULL);
+          one_path->add_device_path(local_mount);
+          one_path->path_numa_node = numa_node_attached;
+          one_path->core_to_pin = driver_thread_core;
+
+          one_cnt->add_network_path(one_path, ss_p_hash);
+          path_id++;
+
+        }
+      }
+      catch (std::exception& e) {
+        smg_error(logger, "%s%s", "Error reading config file while adding path mount point, Error = ", e.what());
+        return 1;
+      }
+      auto cnt_iter = cnt_list.find(ss_hash);
+      assert (cnt_iter == cnt_list.end());
+      cnt_list[ss_hash] = one_cnt;
+
+      smg_info (logger, "Local Container added, hash = %u, id = %u, host_name_ip = %s, container count = %d",
+                ss_hash, 0, host_name_ip, cnt_list.size());
+
+      return 0;
+
+    }
+
+    // This is for Network KV based deployment
     int32_t parse_add_container(boost::property_tree::ptree & pr) {
 
       int32_t cnt_id = 0;  
@@ -753,9 +812,7 @@
 
           auto cnt_iter = cnt_list.find(ss_hash);
           assert (cnt_iter == cnt_list.end());
-
           cnt_list[ss_hash] = one_cnt;
-          //cnt_list.insert(std::make_pair<uint64_t, NKVTarget*>(std::move(ss_hash), std::move(one_cnt)));
 
           smg_info (logger, "Container added, hash = %u, id = %u, uuid = %s, Node name = %s , NQN name = %s , container count = %d",
                    ss_hash, cnt_id, subsystem_nqn_id.c_str(), target_server_name.c_str(), subsystem_nqn.c_str(), cnt_list.size());
