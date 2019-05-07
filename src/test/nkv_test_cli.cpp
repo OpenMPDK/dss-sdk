@@ -531,10 +531,11 @@ do {
 
     smg_info(logger,"Number of Container transport = %d", cntlist[i].num_container_transport);
     for (int p = 0; p < cntlist[i].num_container_transport; p++) {
-      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d",
+      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
               cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, cntlist[i].transport_list[p].ip_addr, 
               cntlist[i].transport_list[p].port, cntlist[i].transport_list[p].addr_family, cntlist[i].transport_list[p].speed, 
-              cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node);
+              cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node, cntlist[i].transport_list[p].mount_point);
+
       if (subsystem_ip && (0 != strcmp(cntlist[i].transport_list[p].ip_addr, subsystem_ip)))
         continue;
       io_ctx[io_ctx_cnt].is_pass_through = 1;

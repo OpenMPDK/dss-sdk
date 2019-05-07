@@ -10,7 +10,7 @@ Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sd
 Build open_mpdk driver:
 ----------------------
 
- 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10/
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10.0-693-centos-7_4/
  2. make clean
  3. make all
  4. ./re_insmod.sh   //It may take some seconds
@@ -49,13 +49,12 @@ All good so far, let's now nkv test cli to see if nkv stack is working fine or n
 
  1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. vim ../conf/nkv_config.json
- 3. nkv_config.json is the config file for NKV. It has broadly 3 section for now, global, "nkv_mounts" and "subsystem_maps".
-    Config file is mostly designed for remote NVMEoF targets and thus the term subsystem,nqn etc. NKV api doc has the detailed
-    explanation of all the fields. For local KV devices user only needs to change the "mount_point" field under "nkv_mounts".
+ 3. nkv_config.json is the config file for NKV. It has broadly 2 sections for now, global, "nkv_local_mounts" .
+    NKV api doc has the detailed explanation of all the fields. For local KV devices user only needs to change 
+    the "mount_point" field under "nkv_local_mounts" to run with defaults.
     Provide the dev path (/dev/mvme*) from nvme list command like we use for running "sample_code_sync" above.
     Example config file has four mount points defined and thus four dev path, "/dev/nvme14n1" .. "/dev/nvme17n1"
-    Other fields under "nkv_mounts" need not be changed for local devices. If we need to add more devices, we need to add new section
-    under 'subsystem_transport' and new section with same ip/port/nqn under 'nkv_mounts'.
+    If we need to add/remove devices, we need to add/remove section under 'nkv_local_mounts'.
 
  4. Create log folder "/var/log/dragonfly/" if doesn't exists. This is default log location. Default log level is WARN.
     Log config options can be changed from bin/smglogger.properties.
@@ -108,7 +107,7 @@ Building app on top of NKV:
 
 Running MINIO app :
 ------------------
-Put the following in a script may be..
+Put the following in a script may be..Need at least 4 devices to run Minio..
 
  1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. export MINIO_NKV_CONFIG=~/nkv-sdk/conf/nkv_config.json

@@ -81,6 +81,9 @@ typedef struct {
   //Container transport aligned to numanode#
   int8_t numa_node;
 
+  //Mount point of the path, length allocated should be NKV_MAX_MOUNT_POINT_LENGTH
+  char mount_point[NKV_MAX_MOUNT_POINT_LENGTH];
+
 
 } nkv_container_transport;
 

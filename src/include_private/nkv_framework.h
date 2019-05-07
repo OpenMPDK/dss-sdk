@@ -525,6 +525,7 @@
           transportlist[cur_pop_index].speed = one_path->path_speed;
           transportlist[cur_pop_index].status = one_path->path_status;
           one_path->path_ip.copy(transportlist[cur_pop_index].ip_addr, one_path->path_ip.length());
+          one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
 
           cur_pop_index++;
  
