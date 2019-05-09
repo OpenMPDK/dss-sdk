@@ -568,6 +568,7 @@ do {
 
     klen = strlen (key_to_work);
     char *val   = (char*)nkv_zalloc(vlen);
+    memset(val, 0, vlen);
     const nkv_key  nkvkey = { (void*)key_to_work, klen};
     nkv_value nkvvalue = { (void*)val, vlen, 0 };
     

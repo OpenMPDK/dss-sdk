@@ -354,11 +354,11 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
 
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_STORE_OP);
   if (stat != NKV_SUCCESS)
-    smg_error(logger, "NKV store operation failed for nkv_handle = %u, key = %s, value_length = %u, code = %d", 
-              nkv_handle, (char*)key->key, value ? value->length:0, stat);
+    smg_error(logger, "NKV store operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d", 
+              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0, stat);
   else
-    smg_info(logger, "NKV store operation is successful for nkv_handle = %u, key = %s, value_length = %u", 
-             nkv_handle, (char*)key->key, value ? value->length:0);
+    smg_info(logger, "NKV store operation is successful for nkv_handle = %u, key = %s, key_length = %u, value_length = %u", 
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0);
   return stat;
 }
 
@@ -367,17 +367,19 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_RETRIEVE_OP);
   if (stat != NKV_SUCCESS) {
     if (stat != NKV_ERR_KEY_NOT_EXIST) {
-      smg_error(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
+      smg_error(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
     } else {
-      smg_info(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
+      smg_info(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+                key ? (char*)key->key: "NULL", key ? key->length:0, stat);
     }
   }
   else {
-    smg_info(logger, "NKV retrieve operation is successful for nkv_handle = %u, key = %s, supplied length = %u, actual length = %u", 
-             nkv_handle, (char*)key->key, value->length, value->actual_length);
+    smg_info(logger, "NKV retrieve operation is successful for nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u", 
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length);
     if (value->actual_length == 0)
-      smg_error(logger, "NKV retrieve operation returned 0 value length object !!, nkv_handle = %u, key = %s, supplied length = %u, actual length = %u",
-                nkv_handle, (char*)key->key, value->length, value->actual_length); 
+      smg_error(logger, "NKV retrieve operation returned 0 value length object !!, nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
+                nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length); 
   }
   return stat;
 
@@ -387,9 +389,11 @@ nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv
 
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, NULL, NULL, NKV_DELETE_OP);
   if (stat != NKV_SUCCESS)
-    smg_error(logger, "NKV delete operation failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
+    smg_error(logger, "NKV delete operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+              key ? (char*)key->key: "NULL", key ? key->length:0, stat);
   else
-    smg_info(logger, "NKV delete operation is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
+    smg_info(logger, "NKV delete operation is successful for nkv_handle = %u, key = %s, key_length = %u", nkv_handle, 
+             key ? (char*)key->key: "NULL", key ? key->length:0);
   return stat;
 
 }

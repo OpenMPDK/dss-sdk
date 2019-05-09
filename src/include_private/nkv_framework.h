@@ -119,6 +119,7 @@
     std::atomic<uint32_t> nkv_async_path_cur_qd;
     std::unordered_set<std::string> cached_keys;
     std::mutex cache_mtx;
+    std::mutex iter_mtx; //To prevent multithreaded iter execution
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
                   int32_t numa_aligned, int32_t p_type):
