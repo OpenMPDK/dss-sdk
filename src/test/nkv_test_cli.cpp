@@ -749,6 +749,8 @@ do {
     else {
       std::cout << "Enter op_type:" << std::endl;
       std::cin>> op_type;
+      if (op_type == -1)
+        break;
 
       std::cout << "Enter num_ios:" << std::endl;
       std::cin>> num_ios;
@@ -756,8 +758,10 @@ do {
       std::cout << "Enter key prefix:" << std::endl;
       std::cin>> key_beginning;
 
-      std::cout << "Enter key delimiter:" << std::endl;
-      std::cin>> key_delimiter;
+      if (key_delimiter) {
+        std::cout << "Enter key delimiter:" << std::endl;
+        std::cin>> key_delimiter;
+      }
 
       smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
       continue;
@@ -1214,8 +1218,10 @@ do {
     std::cout << "Enter key prefix:" << std::endl;
     std::cin>> key_beginning; 
 
-    std::cout << "Enter key delimiter:" << std::endl;
-    std::cin>> key_delimiter;
+    if (key_delimiter) {
+      std::cout << "Enter key delimiter:" << std::endl;
+      std::cin>> key_delimiter;
+    }
 
     smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
 
