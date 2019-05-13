@@ -2,15 +2,15 @@ Here is the steps to install nkv stack and test it out.
 
 Supported OS and Kernel:
 -----------------------
-CentOS Linux release 7.6.1810 (Core)
-3.10.0-514.el7.x86_64
+CentOS Linux release 7.4.1708 (Core)
+3.10.0-693.el7.x86_64
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
 Build open_mpdk driver:
 ----------------------
 
- 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10.0-693-centos-7_4/
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10/
  2. make clean
  3. make all
  4. ./re_insmod.sh   //It may take some seconds
@@ -119,13 +119,13 @@ Put the following in a script may be..Need at least 4 devices to run Minio..
  8. ulimit -c unlimited
 
  9. cd ~/nkv-sdk/bin
- 10. ./<minio-binary> server  /ip/101.100.10.31 /ip/102.100.10.31 /ip/103.100.10.31 /ip/104.100.10.31
- 11. IPs above should be matching the IPs given to nkv_config.json under 'subsystem_transport' and 'nkv_mounts'
+ 10. ./<minio-binary> server  /dev/nvme{0...5}n1
+ 11. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
  12. Distributed Minio command is:
 
-     ./<minio-binary> server  http://nkvsmchost{1...4}/ip/100.100.{1...12}.1
+     ./<minio-binary> server  http://nkvsmchost{1...4}/dev/nvme{0...5}n1
     Where, mkvsmchost1, to nkvsmchost4 are 4 minio node names mentioned in /etc/hosts file of each server.
-    100.100.1.1, 100.100.2.1, … 100.100.12.1 are KV drives.
+    /dev/nvme{0...5}n1 are KV drives.
 
  13. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
  
