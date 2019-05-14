@@ -2,8 +2,8 @@ Here is the steps to install nkv stack and test it out.
 
 Supported OS and Kernel:
 -----------------------
-CentOS Linux release 7.6.1810 (Core)
-3.10.0-514.el7.x86_64
+CentOS Linux release 7.4.1708 (Core)
+3.10.0-693.el7.x86_64
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
@@ -49,13 +49,12 @@ All good so far, let's attempt nkv test cli to see if nkv stack is working fine 
 
  1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. vim ../conf/nkv_config.json
- 3. nkv_config.json is the config file for NKV. It has broadly 3 section for now, global, "nkv_mounts" and "subsystem_maps".
-    Config file is mostly designed for remote NVMEoF targets and thus the term subsystem,nqn etc. NKV api doc has the detailed
-    explanation of all the fields. For local KV devices user only needs to change the "mount_point" field under "nkv_mounts".
+ 3. nkv_config.json is the config file for NKV. It has broadly 2 sections for now, global, "nkv_local_mounts" .
+    NKV api doc has the detailed explanation of all the fields. For local KV devices user only needs to change 
+    the "mount_point" field under "nkv_local_mounts" to run with defaults.
     Provide the dev path (/dev/mvme*) from nvme list command like we use for running "sample_code_sync" above.
     Example config file has four mount points defined and thus four dev path, "/dev/nvme14n1" .. "/dev/nvme17n1"
-    Other fields under "nkv_mounts" need not be changed for local devices. If we need to add more devices, we need to add new section
-    under 'subsystem_transport' and new section with same ip/port/nqn under 'nkv_mounts'.
+    If we need to add/remove devices, we need to add/remove section under 'nkv_local_mounts'.
 
  4. Create log folder "/var/log/dragonfly/" if doesn't exists. This is default log location. Default log level is WARN.
     Log config options can be changed from bin/smglogger.properties.
@@ -108,7 +107,7 @@ Building app on top of NKV:
 
 Running MINIO app :
 ------------------
-Put the following in a script may be..
+Put the following in a script may be..Need at least 4 devices to run Minio..
 
  1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. export MINIO_NKV_CONFIG=~/nkv-sdk/conf/nkv_config.json
@@ -120,13 +119,13 @@ Put the following in a script may be..
  8. ulimit -c unlimited
 
  9. cd ~/nkv-sdk/bin
- 10. ./<minio-binary> server  /ip/101.100.10.31 /ip/102.100.10.31 /ip/103.100.10.31 /ip/104.100.10.31
- 11. IPs above should be matching the IPs given to nkv_config.json under 'subsystem_transport' and 'nkv_mounts'
+ 10. ./<minio-binary> server  /dev/nvme{0...5}n1
+ 11. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
  12. Distributed Minio command is:
 
-     ./<minio-binary> server  http://nkvsmchost{1...4}/ip/100.100.{1...12}.1
+     ./<minio-binary> server  http://nkvsmchost{1...4}/dev/nvme{0...5}n1
     Where, mkvsmchost1, to nkvsmchost4 are 4 minio node names mentioned in /etc/hosts file of each server.
-    100.100.1.1, 100.100.2.1, … 100.100.12.1 are KV drives.
+    /dev/nvme{0...5}n1 are KV drives.
 
  13. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
  

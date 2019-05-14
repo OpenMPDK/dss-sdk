@@ -531,10 +531,11 @@ do {
 
     smg_info(logger,"Number of Container transport = %d", cntlist[i].num_container_transport);
     for (int p = 0; p < cntlist[i].num_container_transport; p++) {
-      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d",
+      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
               cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, cntlist[i].transport_list[p].ip_addr, 
               cntlist[i].transport_list[p].port, cntlist[i].transport_list[p].addr_family, cntlist[i].transport_list[p].speed, 
-              cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node);
+              cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node, cntlist[i].transport_list[p].mount_point);
+
       if (subsystem_ip && (0 != strcmp(cntlist[i].transport_list[p].ip_addr, subsystem_ip)))
         continue;
       io_ctx[io_ctx_cnt].is_pass_through = 1;
@@ -567,6 +568,7 @@ do {
 
     klen = strlen (key_to_work);
     char *val   = (char*)nkv_zalloc(vlen);
+    memset(val, 0, vlen);
     const nkv_key  nkvkey = { (void*)key_to_work, klen};
     nkv_value nkvvalue = { (void*)val, vlen, 0 };
     
@@ -740,11 +742,15 @@ do {
       free (keys_out);
 
     smg_alert (logger, "TPS = %u, total_num_keys = %u", rounded_tps, total_keys);
-    if (parent_op_type != 5)
-      return 0;   
+    if (parent_op_type != 5) {
+      nkv_close (nkv_handle, instance_uuid);
+      return 0;
+    }
     else {
       std::cout << "Enter op_type:" << std::endl;
       std::cin>> op_type;
+      if (op_type == -1)
+        break;
 
       std::cout << "Enter num_ios:" << std::endl;
       std::cin>> num_ios;
@@ -752,8 +758,10 @@ do {
       std::cout << "Enter key prefix:" << std::endl;
       std::cin>> key_beginning;
 
-      std::cout << "Enter key delimiter:" << std::endl;
-      std::cin>> key_delimiter;
+      if (key_delimiter) {
+        std::cout << "Enter key delimiter:" << std::endl;
+        std::cin>> key_delimiter;
+      }
 
       smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
       continue;
@@ -1210,8 +1218,10 @@ do {
     std::cout << "Enter key prefix:" << std::endl;
     std::cin>> key_beginning; 
 
-    std::cout << "Enter key delimiter:" << std::endl;
-    std::cin>> key_delimiter;
+    if (key_delimiter) {
+      std::cout << "Enter key delimiter:" << std::endl;
+      std::cin>> key_delimiter;
+    }
 
     smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
 

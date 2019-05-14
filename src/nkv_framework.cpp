@@ -48,6 +48,7 @@ int32_t queue_depth_monitor_required = 0;
 int32_t queue_depth_threshold = 0;
 int32_t listing_with_cached_keys = 0;
 int32_t num_path_per_container_to_iterate = 0;
+int32_t nkv_is_on_local_kv  = 1;
 
 thread_local int32_t core_running_driver_thread = -1;
 std::string iter_prefix = "0000";
@@ -310,14 +311,14 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     return NKV_ERR_OPTION_CRC_NOT_SUPPORTED;
   }
   //cache keys for listing (till iterator issue is fixed)
-  if (listing_with_cached_keys) {
+  /*if (listing_with_cached_keys) {
     std::string key_str ((char*) n_key->key, n_key->length);
     std::size_t found = key_str.find(iter_prefix);
     if (found != std::string::npos && found == 0) {
       std::lock_guard<std::mutex> lck (cache_mtx);
       cached_keys.insert(key_str);
     }
-  }
+  }*/
 
   kvs_store_context put_ctx = {option, 0, 0};
   if (!post_fn) {
@@ -330,6 +331,16 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
                 ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
       return map_kvs_err_code_to_nkv_err_code(ret);
     }
+    //cache keys for listing (till iterator issue is fixed)
+    if (listing_with_cached_keys) {
+      std::string key_str ((char*) n_key->key, n_key->length);
+      std::size_t found = key_str.find(iter_prefix);
+      if (found != std::string::npos && found == 0) {
+        std::lock_guard<std::mutex> lck (cache_mtx);
+        cached_keys.insert(key_str);
+      }
+    }
+
   } else { //Async
     while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
       smg_warn(logger, "store tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
@@ -482,12 +493,6 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     return NKV_ERR_KEY_LENGTH;
   }
 
-  if (listing_with_cached_keys && (cached_keys.size() != 0)) {
-    std::string key_str ((char*) n_key->key, n_key->length);
-    std::lock_guard<std::mutex> lck (cache_mtx);
-    cached_keys.erase(key_str);
-  }
-  
   const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
   kvs_delete_context del_ctx = { {false}, 0, 0};
 
@@ -498,6 +503,12 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
                 ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
       return map_kvs_err_code_to_nkv_err_code(ret);
     }
+    if (listing_with_cached_keys && (cached_keys.size() != 0)) {
+      std::string key_str ((char*) n_key->key, n_key->length);
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      cached_keys.erase(key_str);
+    }
+
   } else {
 
     while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
@@ -835,7 +846,8 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
     iter_ctx_open.private2 = NULL;
 
     iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
-  
+    //Lock because we can have only one iterator open for the same prefix/bitmask at one time
+    iter_mtx.lock();
     int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
     if(ret != KVS_SUCCESS) {
       if (ret != KVS_ERR_ITERATOR_OPEN) {
@@ -911,6 +923,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       if(ret != KVS_SUCCESS) {
         smg_error(logger, "Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
       }
+      iter_mtx.unlock();
       iter_info->visited_path.insert(path_hash);
       iter_info->network_path_hash_iterating = 0;
  
