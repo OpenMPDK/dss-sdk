@@ -45,7 +45,7 @@ Run the open_mpdk test cli to make sure nvme KV driver is working fine.
 Run NKV test cli:
 ----------------
 
-All good so far, let's now nkv test cli to see if nkv stack is working fine or not
+All good so far, let's attempt nkv test cli to see if nkv stack is working fine or not
 
  1. export LD_LIBRARY_PATH=~/nkv-sdk/lib
  2. vim ../conf/nkv_config.json
