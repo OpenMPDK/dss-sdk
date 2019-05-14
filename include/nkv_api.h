@@ -127,37 +127,71 @@ nkv_result nkv_get_version_info(uint64_t nkv_handle, uint64_t instance_uuid, uin
 
 nkv_result nkv_physical_container_list (uint64_t nkv_handle, uint32_t index, nkv_container_info *cntlist, uint32_t *cnt_count);
 
-/*! Allocate aligened memory 
+/*! Allocate 4K aligened memory 
  *  
  *  It allocates from hugepages when DPDK is enabled,
  *  otherwise allocate from the memory in the current NUMA node.
+ *  Default alignment is 4K
  *  IN size -  in bytes
- *  IN alignment -  optional alignment, default 4K
  *  return a memory pointer if succeeded, NULL otherwise.
  *        
  */
 
-void* nkv_malloc(size_t size, size_t alignment = 4096);
+void* nkv_malloc(size_t size);
 
 
 /*! Allocate zeroed aligened memory
  *  
  *  It allocates from hugepages when DPDK is enabled,
  *  otherwise allocate from the memory in the current NUMA node.
+ *  Default alignment is 4K
  *  IN size -  in bytes
- *  IN alignment -  optional alignment, default 4K
  *  return a memory pointer if succeeded, NULL otherwise.
  *  
  */
 
-void* nkv_zalloc(size_t size, size_t alignment = 4096);
+void* nkv_zalloc(size_t size);
 
-/*! Allocate zeroed aligened memory
+/*! Free aligened memory
  *  
  *  It frees up memory
  *  IN buf - pointer to the memory region to be freed
  *       
  */
+
+/*! Allocate aligened memory
+ *  
+ *  It allocates from hugepages when DPDK is enabled,
+ *  otherwise allocate from the memory in the current NUMA node.
+ *  IN size -  in bytes
+ *  IN alignment -  alignment to be used
+ *  return a memory pointer if succeeded, NULL otherwise.
+ *
+ */
+
+void* nkv_malloc_aligned(size_t size, size_t alignment);
+
+
+/*! Allocate zeroed aligened memory
+ *  
+ *  It allocates from hugepages when DPDK is enabled,
+ *  otherwise allocate from the memory in the current NUMA node.
+ *  IN size -  in bytes
+ *  IN alignment - alignment to be used
+ *  return a memory pointer if succeeded, NULL otherwise.
+ *  
+ */
+
+void* nkv_zalloc_aligned(size_t size, size_t alignment);
+
+
+/*! Free aligened memory
+ * 
+ *  It frees up memory
+ *  IN buf - pointer to the memory region to be freed
+ *     *
+ */
+
 
 void nkv_free(void* buf);
 

@@ -259,11 +259,20 @@ nkv_result nkv_physical_container_list (uint64_t nkv_handle, uint32_t index, nkv
   return NKV_SUCCESS;
 }
 
-void* nkv_malloc(size_t size, size_t alignment) {
+void* nkv_malloc(size_t size) {
+  return kvs_malloc(size, 4096);
+}
+
+void* nkv_zalloc(size_t size) {
+  return kvs_zalloc(size, 4096);
+}
+
+
+void* nkv_malloc_aligned(size_t size, size_t alignment) {
   return kvs_malloc(size, alignment);
 }
 
-void* nkv_zalloc(size_t size, size_t alignment) {
+void* nkv_zalloc_aligned(size_t size, size_t alignment) {
   return kvs_zalloc(size, alignment);
 }
 

@@ -780,11 +780,11 @@ do {
   auto start = std::chrono::steady_clock::now();
   
   for(uint32_t iter = 0; iter < num_ios; iter++) {
-    char *key_name   = (char*)nkv_malloc(klen, 4096);
+    char *key_name   = (char*)nkv_malloc(klen);
     memset(key_name, 0, klen);
 
     if (is_async && is_mixed) {
-      meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+      meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
       memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
       sprintf(meta_key_2, "meta_2_%u", iter);
       meta2_klen = NKV_TEST_META_KEY_LEN; //strlen(meta_key_2);
@@ -806,7 +806,7 @@ do {
     switch(op_type) {
       case 0: //PUT
         {
-          val   = (char*)nkv_zalloc(vlen, 4096);
+          val   = (char*)nkv_zalloc(vlen);
           memset(val, 0, vlen);
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
           sprintf(val, "%0*d", klen, iter);
@@ -822,11 +822,11 @@ do {
             //Async PUT
             if (is_mixed) {
               {
-                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
                 sprintf(meta_key_1, "meta_1_%u", iter);
                 meta1_klen = NKV_TEST_META_KEY_LEN;//strlen(meta_key_1);
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, meta1_klen};
                 sprintf(meta_val, "%s_%d","nkv_test_meta1_", iter); 
@@ -852,11 +852,11 @@ do {
               }
        
               {
-                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
                 sprintf(meta_key_1, "meta_1_%u", iter);
                 meta1_klen = strlen(meta_key_1);
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, meta1_klen};
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
@@ -883,7 +883,7 @@ do {
               }
             
               {
-                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+                meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
                 sprintf(meta_key_1, "meta_1_%u", iter);
                 meta1_klen = strlen(meta_key_1);
@@ -904,7 +904,7 @@ do {
               }
 
               {
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 sprintf(meta_val, "%s_%d","nkv_test_meta2_", iter);
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
@@ -942,7 +942,7 @@ do {
 
       case 1: //GET
         {
-          val   = (char*)nkv_zalloc(vlen, 4096);
+          val   = (char*)nkv_zalloc(vlen);
           memset(val, 0, vlen);
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
 
@@ -959,7 +959,7 @@ do {
             //Async GET
             if (is_mixed) {
               {
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
@@ -978,10 +978,10 @@ do {
                 submitted.fetch_add(1, std::memory_order_relaxed);
               }
               {
-                meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+                meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
                 sprintf(meta_key_2, "meta_2_%u", iter);
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
@@ -1001,10 +1001,10 @@ do {
                 submitted.fetch_add(1, std::memory_order_relaxed);
               }
               {
-                meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN, 4096);
+                meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
                 sprintf(meta_key_2, "meta_2_%u", iter);
-                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN, 4096);
+                meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
