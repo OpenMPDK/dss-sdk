@@ -430,17 +430,18 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
     n_value->actual_length = kvsvalue.actual_value_size;
     if (n_value->actual_length == 0) {
-      smg_error(logger, "Retrieve tuple Success with actual length = 0, Retrying once !! key = %s, dev_path = %s, ip = %s",
-                n_key->key, dev_path.c_str(), path_ip.c_str());
+      smg_error(logger, "Retrieve tuple Success with actual length = 0, Retrying once !! key = %s, dev_path = %s, ip = %s, passed_length = %u",
+                n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue.length);
 
-      ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue, &ret_ctx);
+      kvs_value kvsvalue_retry = { n_value->value, (uint32_t)n_value->length, 0, 0};
+      ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue_retry, &ret_ctx);
       if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s, passed_length = %u",
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue_retry.length);
         return map_kvs_err_code_to_nkv_err_code(ret);
       }
 
-      n_value->actual_length = kvsvalue.actual_value_size;
+      n_value->actual_length = kvsvalue_retry.actual_value_size;
       if (n_value->actual_length == 0) {
         smg_error(logger, "Retrieve tuple Success with actual length = 0, done Retrying !! key = %s, dev_path = %s, ip = %s",
                   n_key->key, dev_path.c_str(), path_ip.c_str());
