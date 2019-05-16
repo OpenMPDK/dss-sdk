@@ -1,6 +1,7 @@
-SDK for Samsung-KV Device(s) - Network KV (NKV) API
+# SDK for Samsung-KV Device(s) - Network KV (NKV) API
 
-### Root Directory Structure
+
+## Root Directory Structure
 
   * README_INSTALL.txt  --> README for the installation and run test application on top of KV device(s)
   * README              --> README for NKV project
@@ -10,22 +11,35 @@ SDK for Samsung-KV Device(s) - Network KV (NKV) API
   * include             --> Header files for application Integration
   * CMakeLists.txt      --> Cmake file (will be invoked by build.sh script)
   * src                 --> NKV library source code
-   * include_private     --> Include files for internal use
-   * nkv_api.cpp         --> Library entry point
-   * test                --> Directory containing sample test application code
-   * nkv_framework.cpp   --> Library framework implementation 
-   * openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with KV devices
-   * logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+	  * include_private     --> Include files for internal use
+	  * nkv_api.cpp         --> Library entry point
+	  * test                --> Directory containing sample test application code
+	  * nkv_framework.cpp   --> Library framework implementation
+	  * openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with KV devices
+	  * logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+	
+## Checking out the source
 
+You can clone from github with
 
-### Building SDK for Samsung KV Device(s)
-#### Prerequisites
-   Build depends on the following packages: cmake,boost-devel,numactl-devel,tbb-devel.
-#### Build Steps
+	git clone --recursive git@github.com/OpenMPDK/NKV.git
 
-   * clone the source with --recursive option to bring all dependant submodules
-   * go to source directory
-   * and run the following: ./build.sh kdd
+or, if you are not a github user,
+
+	git clone --recursive https://github.com/OpenMPDK/NKV.git
+
+## Prerequisites
+
+### Install dependent packages
+
+	sudo yum group install "Development Tools"
+	sudo yum install cmake boost-devel numactl-devel tbb-devel
+
+## Building SDK
+
+	cd NKV/
+	sudo ./build.sh kdd
+
    * the above build script creates build directory, just above current working directory with appending **\_out** and builds under it. ex)"NKV/../NKV_out"
    * build generates nkv bins "nkv-sdk-bin-TIMESTAMP.tgz" which contains shared libraries and cli test tool
    * The above shared libraries are used to integrate with MINIO S3 APP server, refer [minio](https://github.com/minio/minio/blob/nkv/docs/nkv/README.md) for more info
