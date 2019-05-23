@@ -514,6 +514,7 @@ do {
   status = nkv_physical_container_list (nkv_handle, index, cntlist, &cnt_count); 
   if (status != 0) {
     smg_error(logger, "NKV getting physical container list failed !!, error = %d", status);
+    nkv_close (nkv_handle, instance_uuid);
     exit(1);
   }
   smg_info(logger, "Got container list, count = %u", cnt_count);
@@ -580,6 +581,7 @@ do {
           status = nkv_store_kvp (nkv_handle, &io_ctx[0], &nkvkey, &s_option, &nkvvalue);
           if (status != 0) {
             smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+            nkv_close (nkv_handle, instance_uuid);
             exit(1);
           }
           smg_info(logger, "NKV Store successful, key = %s", (char*) nkvkey.key);
@@ -590,6 +592,7 @@ do {
           status = nkv_retrieve_kvp (nkv_handle, &io_ctx[0], &nkvkey, &r_option, &nkvvalue);
           if (status != 0) {
             smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+            nkv_close (nkv_handle, instance_uuid);
             exit(1);
           } else {
             smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
@@ -603,6 +606,7 @@ do {
           status = nkv_delete_kvp (nkv_handle, &io_ctx[0], &nkvkey);
           if (status != 0) {
             smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+            nkv_close (nkv_handle, instance_uuid);
             exit(1);
           } else {
             smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
@@ -614,18 +618,22 @@ do {
     }
     if (val)
       nkv_free(val);
+    nkv_close (nkv_handle, instance_uuid);
     exit(0);
   }
+
   if (op_type != 4) {
     std::string key_start = key_beginning;
     std::string num_io_len = std::to_string(num_ios);
     if (klen <= num_io_len.length()) {
       smg_error(logger, "key length provided is not big enough compare to number of IO request to perform !");
+      nkv_close (nkv_handle, instance_uuid);
       exit(1);
     }
 
     if (key_start.length() + 4 > (klen - num_io_len.length())) {
       smg_error(logger, "Key prefix provided should be less than %d characters", (klen - num_io_len.length()));
+      nkv_close (nkv_handle, instance_uuid);
       exit(1);
     }
   }
@@ -815,6 +823,7 @@ do {
             status = nkv_store_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             }
             smg_info(logger, "NKV Store successful, key = %s, value size = %u", key_name, vlen);
@@ -842,6 +851,7 @@ do {
                 status = nkv_store_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta1, &s_option, &nkvvaluemeta, p_fn2);
                 if (status != 0) {
                   smg_error(logger, "NKV Store Meta KVP start failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
                 submitted.fetch_add(1, std::memory_order_relaxed);
@@ -898,6 +908,7 @@ do {
                 status = nkv_delete_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta1, p_fn1);
                 if (status != 0) {
                   smg_error(logger, "NKV Delete Meta KVP Async start failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
                 submitted.fetch_add(1, std::memory_order_relaxed);
@@ -920,6 +931,7 @@ do {
                 //status = nkv_store_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta2, &s_option, &nkvvaluemeta);
                 if (status != 0) {
                   smg_error(logger, "NKV Store KVP Async start failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
                 submitted.fetch_add(1, std::memory_order_relaxed);
@@ -930,6 +942,7 @@ do {
             status = nkv_store_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &s_option, &nkvvalue, p_fn);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP Async start failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             }
             submitted.fetch_add(1, std::memory_order_relaxed);
@@ -950,6 +963,7 @@ do {
             status = nkv_retrieve_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             } else {
               smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key, 
@@ -973,6 +987,7 @@ do {
                 status = nkv_retrieve_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta2, &r_option, &nkvvaluemeta, p_fn1);
                 if (status != 0) {
                   smg_error(logger, "NKV Retrieve Meta1 KVP Async start failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
                 submitted.fetch_add(1, std::memory_order_relaxed);
@@ -995,6 +1010,7 @@ do {
                 status = nkv_retrieve_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta2, &r_option, &nkvvaluemeta, p_fn2);
                 if (status != 0) {
                   smg_error(logger, "NKV Retrieve Meta2 KVP Async start failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
 
@@ -1018,6 +1034,7 @@ do {
                 status = nkv_retrieve_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta2, &r_option, &nkvvaluemeta, p_fn3);
                 if (status != 0) {
                   smg_error(logger, "NKV Retrieve Meta3 KVP Async start failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                  nkv_close (nkv_handle, instance_uuid);
                   exit(1);
                 }
                 submitted.fetch_add(1, std::memory_order_relaxed);
@@ -1026,6 +1043,7 @@ do {
             status = nkv_retrieve_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue, p_fn);
             if (status != 0) {
               smg_error(logger, "NKV Retrieve KVP Async start failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             }
             submitted.fetch_add(1, std::memory_order_relaxed);
@@ -1044,6 +1062,7 @@ do {
             status = nkv_delete_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey);
             if (status != 0) {
               smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             } else {
               smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
@@ -1061,6 +1080,7 @@ do {
               status = nkv_delete_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkeymeta2, p_fn1);
               if (status != 0) {
                 smg_error(logger, "NKV Delete KVP Async start failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                nkv_close (nkv_handle, instance_uuid);
                 exit(1);
               }
               submitted.fetch_add(1, std::memory_order_relaxed);
@@ -1069,6 +1089,7 @@ do {
             status = nkv_delete_kvp_async (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, p_fn);
             if (status != 0) {
               smg_error(logger, "NKV Delete KVP Async start failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             }
             submitted.fetch_add(1, std::memory_order_relaxed);
@@ -1105,6 +1126,7 @@ do {
             status = nkv_store_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             }
             smg_info(logger, "NKV Store successful, key = %s", key_name);
@@ -1117,6 +1139,7 @@ do {
             status = nkv_retrieve_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             } else {
               smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
@@ -1137,6 +1160,7 @@ do {
                   status = nkv_retrieve_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue);
                   if (status != 0) {
                     smg_error(logger, "NKV Retrieve retry KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                    nkv_close (nkv_handle, instance_uuid);
                     exit(1);
                   } else {
                     smg_info(logger, "NKV Retrieve retry successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
@@ -1149,6 +1173,7 @@ do {
                       memHexDump(cmpval, nkvvalue.actual_length);
                       printf("Received buffer:\n");
                       memHexDump(nkvvalue.value, nkvvalue.actual_length);
+                      nkv_close (nkv_handle, instance_uuid);
                       exit(1);
                     } else {
                       smg_info(logger,"Data integrity check is successful after retrying once for key = %s", key_name);
@@ -1163,6 +1188,7 @@ do {
             status = nkv_delete_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey);
             if (status != 0) {
               smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
               exit(1);
             } else {
               smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
@@ -1170,6 +1196,7 @@ do {
           } else {
             //Async PUT, GET, DEL
             smg_error(logger, "This operation is not supported for async !!");
+            nkv_close (nkv_handle, instance_uuid);
             exit(1);
           }
 

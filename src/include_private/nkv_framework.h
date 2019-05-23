@@ -118,8 +118,15 @@
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
     std::unordered_set<std::string> cached_keys;
+    std::unordered_set<std::string> iter_key_set;
+    std::unordered_set<std::string> deleted_cached_keys;
+    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
+    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
+    std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
+    std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
+    std::atomic<uint32_t> nkv_outstanding_iter_on_path;
     std::mutex cache_mtx;
-    std::mutex iter_mtx; //To prevent multithreaded iter execution
+    std::mutex iter_mtx;
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
                   int32_t numa_aligned, int32_t p_type):
@@ -130,6 +137,12 @@
       core_to_pin = -1;
       path_numa_node = -1;
       cached_keys.clear();
+      iter_key_set.clear();
+      deleted_cached_keys.clear();
+      listing_keys.clear();
+      listing_keys_sub_prefix.clear();
+      listing_keys_track_iter.reserve(4096);
+      nkv_outstanding_iter_on_path = 0;
     }
 
     ~NKVTargetPath() {
@@ -187,6 +200,10 @@
                                       const char* delimiter); 
     void filter_and_populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, char* disk_key, uint32_t key_size, uint32_t* num_keys_iterted,
                                             const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys = false);
+    int32_t parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs,
+                                    std::vector<std::string>& prefixes, std::string& f_name);
+    void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val);
+    bool remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix = false);
   };
 
   class NKVTarget {
@@ -304,8 +321,8 @@
         iter_info->excess_keys.clear();
         iter_info->dir_entries_added.clear();
         iter_info->visited_path.clear();*/
-        smg_info(logger, "Created an iterator context for NKV iteration, container name = %s, target node = %s",
-                 target_container_name.c_str(), target_node_name.c_str());
+        smg_info(logger, "Created an iterator context for NKV iteration, container name = %s, target node = %s, prefix = %s, delimiter = %s",
+                 target_container_name.c_str(), target_node_name.c_str(), prefix, delimiter);
 
         iter_context = (void*) iter_info;
       }
@@ -424,8 +441,8 @@
       }
       *max_keys = num_keys_iterted;
       if ((iter_info->visited_path.size() == pathMap.size()) || (iter_info->all_done)) {
-        smg_info(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d",
-                  target_container_name.c_str(), target_node_name.c_str(), iter_info->visited_path.size(), iter_info->all_done);
+        smg_info(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d, prefix = 5s, delimiter = %s",
+                  target_container_name.c_str(), target_node_name.c_str(), iter_info->visited_path.size(), iter_info->all_done, prefix, delimiter);
         if (iter_info) {
           delete(iter_info);
           iter_info = NULL;

@@ -94,7 +94,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   int32_t nkv_app_thread_core = -1;
   try {
     connect_fm = pt.get<int>("contact_fm");
-    //0 = nvmeOverTCPKernel, 1 = nvmeOverTCPSPDK, 2 = nvmeOverRDMAKernel, 3 = nvmeOverRDMASPDK
+    //0 = Local KV, 1 = nvmeOverTCPKernel, 2 = nvmeOverTCPSPDK, 3 = nvmeOverRDMAKernel, 4 = nvmeOverRDMASPDK
     nkv_transport = pt.get<int>("nkv_transport");
     min_container = pt.get<int>("min_container_required");
     min_container_path = pt.get<int>("min_container_path_required");
@@ -154,8 +154,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     kvs_init_options options;
     kvs_init_env_opts(&options);
 
-    if (NKV_TRANSPORT_NVMF_TCP_KERNEL == nkv_transport) {
-      smg_info(logger,"**NKV transport is NVMe Over TCP via kernel**");
+    if ((NKV_TRANSPORT_LOCAL_KERNEL == nkv_transport) || (NKV_TRANSPORT_NVMF_TCP_KERNEL == nkv_transport)) {
+      smg_info(logger,"**NKV transport is Over kernel**");
       options.aio.iocoremask = 0;
       options.memory.use_dpdk = 0;
       options.aio.queuedepth = nkv_container_path_qd;
