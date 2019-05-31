@@ -42,6 +42,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/foreach.hpp>
+#include <thread>
 #include "kvs_api.h"
 #include "csmglogger.h"
 #include "nkv_struct.h"
@@ -69,6 +70,10 @@
   extern std::string iter_prefix;
   extern int32_t num_path_per_container_to_iterate;
   extern int32_t nkv_is_on_local_kv;
+  extern std::string key_default_delimiter;
+  extern int32_t MAX_DIR_ENTRIES;
+  extern int32_t nkv_listing_wait_till_cache_init;
+  extern int32_t nkv_listing_need_cache_stat;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -102,6 +107,8 @@
     kvs_device_handle path_handle;
     kvs_container_context path_cont_ctx;
     kvs_container_handle path_cont_handle;
+    std::thread path_thread_iter;
+    std::thread path_thread_cache;
   public:
     std::string path_cont_name;
     std::string dev_path;
@@ -125,8 +132,13 @@
     std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
     std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
     std::atomic<uint32_t> nkv_outstanding_iter_on_path;
+    std::atomic<uint32_t> nkv_path_stopping;
+    std::atomic<uint64_t> nkv_num_key_prefixes;
+    std::atomic<uint32_t> nkv_num_keys;
     std::mutex cache_mtx;
     std::mutex iter_mtx;
+    std::vector<std::string> path_vec;
+
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
                   int32_t numa_aligned, int32_t p_type):
@@ -143,9 +155,17 @@
       listing_keys_sub_prefix.clear();
       listing_keys_track_iter.reserve(4096);
       nkv_outstanding_iter_on_path = 0;
+      nkv_path_stopping = 0;
+      nkv_num_key_prefixes = 0;
+      nkv_num_keys = 0;
     }
 
     ~NKVTargetPath() {
+      if (listing_with_cached_keys) {
+        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
+        wait_for_thread_completion();
+      }
+
       kvs_result ret = kvs_close_container(path_cont_handle);
       assert(ret == KVS_SUCCESS);
       //kvs_delete_container(path_handle, path_cont_name.c_str());
@@ -204,6 +224,35 @@
                                     std::vector<std::string>& prefixes, std::string& f_name);
     void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val);
     bool remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix = false);
+    void nkv_path_thread_func(int32_t what_work);
+    void nkv_path_thread_init(int32_t what_work);
+
+    void start_thread(int32_t what_work = 0) {
+      path_thread_iter = std::thread(&NKVTargetPath::nkv_path_thread_func, this, what_work);
+      path_thread_cache = std::thread(&NKVTargetPath::nkv_path_thread_init, this, what_work);
+      
+    }
+    void wait_for_thread_completion() {
+      try {
+        if (path_thread_iter.joinable()) {
+          path_thread_iter.join();
+        }
+        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
+        if (path_thread_cache.joinable()) {
+          path_thread_cache.join();
+        }
+
+      } catch(...) {
+        smg_warn(logger,"Exception during pthread_join() on dev_path = %s, ip = %s, may be thread is not running ?",
+                 dev_path.c_str(), path_ip.c_str());
+      }
+    }
+    void detach_thread_completion() {
+      path_thread_iter.detach();
+      path_thread_cache.detach();
+    }
+    int32_t initialize_iter_cache (iterator_info*& iter_info);
+
   };
 
   class NKVTarget {
@@ -464,6 +513,48 @@
                  ip_hash, target_container_name.c_str(), pathMap.size()); 
       }
     }
+
+    void collect_nkv_path_stat() {
+
+      for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+        NKVTargetPath* one_path = p_iter->second;
+        if (one_path) {
+          smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+
+          smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u",
+                    one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load()); 
+        } else {
+          smg_error(logger, "NULL path found !!");
+          assert(0);
+        }
+      }
+      
+    }
+
+    void wait_or_detach_path_thread(bool will_wait) {
+
+      for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+        NKVTargetPath* one_path = p_iter->second;
+        if (one_path) {
+          smg_info(logger, "wait_or_detach_path_thread for path with address = %s , dev_path = %s, port = %d, status = %d",
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+
+          if (will_wait) {
+            one_path->wait_for_thread_completion();          
+          } else {
+            one_path->detach_thread_completion();
+          }
+ 
+        } else {
+          smg_error(logger, "NULL path found !!");
+          assert(0);
+        }
+      }
+
+    }
+
+
     bool verify_min_path_exists(int32_t min_path_required) {
       if (pathMap.size() < (uint32_t) min_path_required) {
         smg_error(logger, "Not enough container path, minimum required = %d, available = %d",
@@ -523,6 +614,11 @@
   
           if (!one_path->open_path(app_name))
             return false;        
+
+          if (listing_with_cached_keys) {
+            one_path->start_thread();
+          }
+
         } else {
           smg_error(logger, "NULL path found while opening path !!");
         }
@@ -675,6 +771,36 @@
       }
       return true;
     }
+
+    void collect_nkv_stat () {
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* one_cnt = m_iter->second;
+        if (one_cnt) {
+          smg_debug(logger, "Collecting stat for target id = %d, target node = %s, container name = %s",
+                   one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
+          one_cnt->collect_nkv_path_stat();
+        } else {
+          smg_error(logger, "Got NULL container while collecting stat !!");
+          assert(0);
+        }
+      }
+    }
+
+    void wait_or_detach_thread (bool will_wait = true) {
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* one_cnt = m_iter->second;
+        if (one_cnt) {
+          smg_debug(logger, "wait_or_detach_thread for target id = %d, target node = %s, container name = %s",
+                   one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
+          one_cnt->wait_or_detach_path_thread(will_wait);
+        } else {
+          smg_error(logger, "Got NULL container while inspecting thread !!");
+          assert(0);
+        }
+      }
+    }
+
+
 
     int32_t parse_add_path_mount_point(boost::property_tree::ptree & pt) {
       try {

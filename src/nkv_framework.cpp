@@ -55,9 +55,11 @@ thread_local int32_t core_running_driver_thread = -1;
 std::string iter_prefix = "0000";
 std::string key_default_delimiter = "/";
 int32_t MAX_DIR_ENTRIES = 8;
+int32_t nkv_listing_wait_till_cache_init  = 1;
+int32_t nkv_listing_need_cache_stat  = 1;
 
 #define iter_buff (32*1024)
-std::string NKV_ROOT_PREFIX = "root";
+std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;
 
 void kvs_aio_completion (kvs_callback_context* ioctx) {
   if (!ioctx) {
@@ -291,15 +293,24 @@ int32_t NKVTargetPath::parse_delimiter_entries(std::string& key, const char* del
 }
 
 void NKVTargetPath::populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val) {
+
   auto list_iter = listing_keys.find(key_prefix);
   if (list_iter == listing_keys.end()) {
     std::unordered_set<std::string> tmp_hset({key_prefix_val});
     listing_keys.insert (std::make_pair<std::string, std::unordered_set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
-
+    if (nkv_listing_need_cache_stat) {
+      nkv_num_key_prefixes.fetch_add(1, std::memory_order_relaxed);
+      nkv_num_keys.fetch_add(1, std::memory_order_relaxed); 
+    }
   } else {
-    listing_keys[key_prefix].emplace(key_prefix_val);
+    auto set_iter = listing_keys[key_prefix].find(key_prefix_val);
+    if (set_iter == listing_keys[key_prefix].end()) {
+      listing_keys[key_prefix].emplace(key_prefix_val);
+      if (nkv_listing_need_cache_stat) {
+        nkv_num_keys.fetch_add(1, std::memory_order_relaxed);
+      }
+    }  
   }
-
 }
 
 
@@ -374,7 +385,6 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     if (listing_with_cached_keys) {
       std::string key_str ((char*) n_key->key, n_key->length);
       std::size_t found = key_str.find(iter_prefix);
-      uint64_t cache_size = 0;
       if (found != std::string::npos && found == 0) {
       #if 0
         {
@@ -413,9 +423,6 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
         }     
       }
       
-      /*if ((cache_size > 10000) && (cache_size % 10000 == 0)) {
-        smg_warn(logger, "Present cache size for iteration is = %u", cache_size);
-      }*/
     }
 
   } else { //Async
@@ -563,13 +570,25 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix) {
   bool key_prefix_delete = false;
   auto list_iter = listing_keys.find(key_prefix);
-  assert(list_iter != listing_keys.end());
+  if (list_iter == listing_keys.end()) {
+    smg_error(logger, "Key prefix passed is not found !!, key_prefix = %s", key_prefix.c_str());
+    return key_prefix_delete;
+  }
   int32_t num_keys_deleted = listing_keys[key_prefix].erase(key_prefix_val);
+  if (num_keys_deleted == 0) {
+    smg_error(logger, "Key prefix value is not found !!, key_prefix_val = %s", key_prefix_val.c_str());
+  }
   assert(num_keys_deleted != 0);
+  if (nkv_listing_need_cache_stat) {
+    nkv_num_keys.fetch_sub(1, std::memory_order_relaxed);
+  }
   if (listing_keys[key_prefix].empty() && !root_prefix) {
     num_keys_deleted = listing_keys.erase(key_prefix);
     assert(num_keys_deleted != 0);
     key_prefix_delete = true;
+    if (nkv_listing_need_cache_stat) {
+      nkv_num_key_prefixes.fetch_sub(1, std::memory_order_relaxed);
+    }
   }
   return key_prefix_delete;
 }
@@ -931,6 +950,213 @@ int32_t NKVTargetPath::create_modify_iter_meta(std::string& key_prefix) {
 }
 #endif
 
+void NKVTargetPath::nkv_path_thread_init(int32_t what_work) {
+
+    /*int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
+    assert(!file_name.empty());
+    std::string tmp_root = NKV_ROOT_PREFIX;
+    if (num_prefixes == 0) {
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      populate_iter_cache(tmp_root, file_name);
+    } else {
+      assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
+        if (prefix_it == 0) {
+          populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
+        }
+        if (prefix_it == (num_prefixes -1)) {
+          populate_iter_cache (prefix_entries[prefix_it], file_name);
+        } else {
+          populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
+        }
+
+      }
+    }
+    dir_entries.clear();
+    prefix_entries.clear();*/
+ 
+}
+
+int32_t NKVTargetPath::initialize_iter_cache (iterator_info*& iter_info) {
+
+  uint32_t key_size = 0;
+  //char key[256] = {0};
+  uint8_t *it_buffer = (uint8_t *) iter_info->iter_list.it_list;
+  assert(it_buffer != NULL);
+  /*std::vector<std::string> dir_entries;
+  dir_entries.reserve(MAX_DIR_ENTRIES);
+  std::vector<std::string> prefix_entries;
+  prefix_entries.reserve(MAX_DIR_ENTRIES);
+  std::string file_name;*/
+  std::lock_guard<std::mutex> lck (cache_mtx);
+  for(uint32_t i = 0; i < iter_info->iter_list.num_entries; i++) {
+    key_size = *((unsigned int*)it_buffer);
+    it_buffer += sizeof(unsigned int);
+    std::string key_str ((const char*) it_buffer, key_size);
+    //std::string tmp_root = NKV_ROOT_PREFIX;
+    //populate_iter_cache(tmp_root, key_str);
+    //std::lock_guard<std::mutex> lck (cache_mtx);
+    path_vec.emplace_back(key_str);
+    /*smg_info(logger, "Adding key = %s to the iterator cache", key_str.c_str());
+    int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
+    assert(!file_name.empty());
+    std::string tmp_root = NKV_ROOT_PREFIX;
+    if (num_prefixes == 0) {
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      populate_iter_cache(tmp_root, file_name);
+    } else {
+      assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
+      std::lock_guard<std::mutex> lck (cache_mtx);
+      for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
+        if (prefix_it == 0) {
+          populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
+        }
+        if (prefix_it == (num_prefixes -1)) {
+          populate_iter_cache (prefix_entries[prefix_it], file_name);
+        } else {
+          populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
+        }
+
+      }
+    }
+    dir_entries.clear();
+    prefix_entries.clear();*/
+    it_buffer += key_size;
+  }
+  return 0;
+}
+
+void NKVTargetPath::nkv_path_thread_func(int32_t what_work) {
+
+  std::string device_thread_name = "nkv_" + dev_path.substr(5);
+  int rc = pthread_setname_np(pthread_self(), device_thread_name.c_str());
+  if (rc != 0) {
+    smg_error(logger, "Error on setting worker thread on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+  } 
+
+  if (what_work == 0 && listing_with_cached_keys) {
+    kvs_iterator_context iter_ctx_open;
+    iter_ctx_open.bitmask = 0xffffffff;
+    unsigned int PREFIX_KV = 0;
+    for (int i = 0; i < 4; i++){    
+      PREFIX_KV |= (iter_prefix[i] << i*8);
+    }
+
+    iter_ctx_open.bit_pattern = PREFIX_KV;
+    smg_info(logger, "nkv_path_thread_func::Opening iterator with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x, dev_path = %s, ip = %s",
+             iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern, dev_path.c_str(), path_ip.c_str());
+    iter_ctx_open.private1 = NULL;
+    iter_ctx_open.private2 = NULL;
+    iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
+
+    iterator_info* iter_info = new iterator_info(); 
+    assert(iter_info != NULL);
+ 
+    int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+    if(ret != KVS_SUCCESS) {
+      if (ret != KVS_ERR_ITERATOR_OPEN) {
+        smg_error(logger, "nkv_path_thread_func::iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                  path_ip.c_str(), ret, kvs_errstr(ret));
+        if (iter_info) {
+          delete(iter_info);
+          iter_info = NULL;
+        }
+        return ;
+      } else {
+        smg_warn(logger, "nkv_path_thread_func::Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s",
+                 dev_path.c_str(), path_ip.c_str());
+        kvs_iterator_context iter_ctx_close;
+        iter_ctx_close.private1 = NULL;
+        iter_ctx_close.private2 = NULL;
+
+        ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        }
+        ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "nkv_path_thread_func::iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                    path_ip.c_str(), ret, kvs_errstr(ret));
+          if (iter_info) {
+            delete(iter_info);
+            iter_info = NULL;
+          }
+          return ;
+
+        }
+      }
+    }
+
+    /* Do iteration */
+    static int total_entries = 0;
+    iter_info->iter_list.size = iter_buff;
+    uint8_t *buffer;
+    buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
+    memset(buffer, 0, iter_buff);
+    iter_info->iter_list.it_list = (uint8_t*) buffer;
+
+    kvs_iterator_context iter_ctx_next;
+    iter_ctx_next.private1 = iter_info;
+    iter_ctx_next.private2 = NULL;
+
+    iter_info->iter_list.end = 0;
+    iter_info->iter_list.num_entries = 0;
+
+    while(1) {
+      iter_info->iter_list.size = iter_buff;
+      int ret = kvs_iterator_next(path_cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
+      if(ret != KVS_SUCCESS) {
+        smg_error(logger, "nkv_path_thread_func::iterator next fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), path_ip.c_str(),
+                  ret, kvs_errstr(ret));
+        if(buffer) kvs_free(buffer);
+        if (iter_info) {
+          delete(iter_info);
+          iter_info = NULL;
+        }
+        return ;
+      }
+      total_entries += iter_info->iter_list.num_entries;
+      initialize_iter_cache (iter_info); 
+      smg_info(logger, "nkv_path_thread_func::iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated = %u, key prefixes populated = %u",
+               dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+
+      if(iter_info->iter_list.end) {
+        smg_info(logger, "nkv_path_thread_func::Done with all keys on dev_path = %s, ip = %s. Total: %u, keys populated = %u, key prefixes populated = %u",
+                 dev_path.c_str(), path_ip.c_str(), total_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+        /* Close iterator */
+        kvs_iterator_context iter_ctx_close;
+        iter_ctx_close.private1 = NULL;
+        iter_ctx_close.private2 = NULL;
+
+        int ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        }
+
+        break;
+
+      } else {
+        memset(iter_info->iter_list.it_list, 0,  iter_buff);
+      }
+      if (nkv_path_stopping) {
+        smg_info(logger, "nkv_path_thread_func::Thread is stopping on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        break;
+      }
+    }
+
+    if(buffer) kvs_free(buffer);
+    if (iter_info) {
+      delete(iter_info);
+      iter_info = NULL;
+    }
+    smg_info(logger, "nkv_path_thread_func::Finished iteration job for dev_path = %s, ip = %s, exiting the thread", dev_path.c_str(), path_ip.c_str());
+  } else {
+    smg_error(logger, "nkv_path_thread_func::Invalid work order = %d, exiting thread", what_work);
+  }
+ 
+}
+
 nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
                                                 const char* delimiter) {
   
@@ -945,12 +1171,12 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
   }
 
   if (listing_with_cached_keys) {
+    std::string key_prefix_iter (NKV_ROOT_PREFIX);
+    if (prefix) {
+      key_prefix_iter = prefix;
+    }
     if (0 == iter_info->network_path_hash_iterating) {
 
-      std::string key_prefix_iter (NKV_ROOT_PREFIX);
-      if (prefix) {
-        key_prefix_iter = prefix;
-      }
       iter_info->network_path_hash_iterating = path_hash;
       cache_mtx.lock();
       auto list_iter_main = listing_keys.find(key_prefix_iter);
@@ -988,7 +1214,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       
     }
       
-    for ( ; iter_info->cached_key_iter != listing_keys[prefix].cend(); iter_info->cached_key_iter++) {
+    for ( ; iter_info->cached_key_iter != listing_keys[key_prefix_iter.c_str()].cend(); iter_info->cached_key_iter++) {
       if ((*max_keys - *num_keys_iterted) == 0) {
         smg_warn(logger,"Not enough out buffer space to accomodate next cached key for dev_path = %s, ip = %s, remaining key space = %u",
                  dev_path.c_str(), path_ip.c_str(), (*max_keys - *num_keys_iterted));
@@ -1002,7 +1228,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       filter_and_populate_keys_from_path (max_keys, keys, (char*)one_key.c_str(), one_key_len, num_keys_iterted, NULL, NULL, iter_info, true);
     }
 
-    if (iter_info->cached_key_iter == listing_keys[prefix].cend()) {
+    if (iter_info->cached_key_iter == listing_keys[key_prefix_iter.c_str()].cend()) {
       iter_info->visited_path.insert(path_hash);
       iter_info->network_path_hash_iterating = 0;
       cache_mtx.unlock();

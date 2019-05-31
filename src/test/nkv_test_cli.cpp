@@ -723,7 +723,7 @@ do {
           smg_alert(logger, "Looks like we got some valid keys, number of keys got in this batch = %u, status = %x", max_keys, status);
           total_keys += max_keys;
           for (uint32_t k_iter = 0; k_iter < max_keys; k_iter++) {
-            smg_alert(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
+            smg_warn(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
           }
         }
         for (uint32_t iter = 0; iter < num_ios; iter++) {
