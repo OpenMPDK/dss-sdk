@@ -43,6 +43,8 @@ int32_t core_to_pin = -1;
 std::thread nkv_thread;
 int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
+std::condition_variable cv_global;
+std::mutex mtx_global;
 
 void nkv_thread_func (uint64_t nkv_handle) {
   int rc = pthread_setname_np(pthread_self(), "nkv_stat_thr");
@@ -72,8 +74,10 @@ void nkv_thread_func (uint64_t nkv_handle) {
     }
     nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
-
-    std::this_thread::sleep_for (std::chrono::seconds(nkv_stat_thread_polling_interval));
+    
+    std::unique_lock<std::mutex> lck(mtx_global);
+    cv_global.wait_for(lck,std::chrono::seconds(nkv_stat_thread_polling_interval));
+    //std::this_thread::sleep_for (std::chrono::seconds(nkv_stat_thread_polling_interval));
 
   }
 
@@ -245,6 +249,7 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   smg_info(logger, "nkv_close invoked for nkv_handle = %u", nkv_handle);
   nkv_stopping = true;
   if (nkv_stat_thread_needed) {
+    cv_global.notify_one();
     nkv_thread.join();
   }
   while (nkv_pending_calls) {

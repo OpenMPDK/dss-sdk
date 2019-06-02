@@ -952,77 +952,86 @@ int32_t NKVTargetPath::create_modify_iter_meta(std::string& key_prefix) {
 
 void NKVTargetPath::nkv_path_thread_init(int32_t what_work) {
 
-    /*int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
-    assert(!file_name.empty());
-    std::string tmp_root = NKV_ROOT_PREFIX;
-    if (num_prefixes == 0) {
-      std::lock_guard<std::mutex> lck (cache_mtx);
-      populate_iter_cache(tmp_root, file_name);
-    } else {
-      assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
-      std::lock_guard<std::mutex> lck (cache_mtx);
-      for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
-        if (prefix_it == 0) {
-          populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
+  std::vector<std::string> dir_entries;
+  dir_entries.reserve(MAX_DIR_ENTRIES);
+  std::vector<std::string> prefix_entries;
+  prefix_entries.reserve(MAX_DIR_ENTRIES);
+  std::string file_name;
+  std::vector<std::string> tmp_vec;
+  bool done_processing = false;
+
+  std::string init_thread_name = "nkv_p" + dev_path.substr(5);
+  int rc = pthread_setname_np(pthread_self(), init_thread_name.c_str());
+  if (rc != 0) {
+    smg_error(logger, "Error on setting worker thread on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+  }
+
+  if (what_work == 0 && listing_with_cached_keys) {
+    while (1) {
+      {
+        std::unique_lock<std::mutex> lck(cache_mtx);
+        if (path_vec.empty()) {
+          cv_path.wait_for(lck,std::chrono::seconds(1));
+          if (nkv_path_stopping && path_vec.empty()) {
+            smg_info(logger, "nkv_path_thread_init::Thread is stopping on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+            break;
+          }
         }
-        if (prefix_it == (num_prefixes -1)) {
-          populate_iter_cache (prefix_entries[prefix_it], file_name);
-        } else {
-          populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
+        if (nkv_path_stopping) {
+          done_processing = true;
         }
 
+        if (!path_vec.empty()) {
+          path_vec.swap(tmp_vec);
+        }
+      }
+      while (!tmp_vec.empty()) {
+        std::string key_str = tmp_vec.back();
+        tmp_vec.pop_back();
+        smg_info(logger, "Adding key = %s to the iterator cache", key_str.c_str());  
+        int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
+        assert(!file_name.empty());
+        std::string tmp_root = NKV_ROOT_PREFIX;
+        if (num_prefixes == 0) {
+          populate_iter_cache(tmp_root, file_name);
+        } else {
+          assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
+          for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
+            if (prefix_it == 0) {
+              populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
+            }
+            if (prefix_it == (num_prefixes -1)) {
+              populate_iter_cache (prefix_entries[prefix_it], file_name);
+            } else {
+              populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
+            }
+          }
+        }
+        dir_entries.clear();
+        prefix_entries.clear();
+      }
+      if (done_processing) {
+        smg_info(logger, "nkv_path_thread_init::Thread finished work on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        break;
       }
     }
-    dir_entries.clear();
-    prefix_entries.clear();*/
- 
+  } else {
+    smg_error(logger, "nkv_path_thread_init::Invalid work order = %d, exiting thread", what_work);
+  }
+
 }
 
 int32_t NKVTargetPath::initialize_iter_cache (iterator_info*& iter_info) {
 
   uint32_t key_size = 0;
-  //char key[256] = {0};
   uint8_t *it_buffer = (uint8_t *) iter_info->iter_list.it_list;
   assert(it_buffer != NULL);
-  /*std::vector<std::string> dir_entries;
-  dir_entries.reserve(MAX_DIR_ENTRIES);
-  std::vector<std::string> prefix_entries;
-  prefix_entries.reserve(MAX_DIR_ENTRIES);
-  std::string file_name;*/
   std::lock_guard<std::mutex> lck (cache_mtx);
   for(uint32_t i = 0; i < iter_info->iter_list.num_entries; i++) {
     key_size = *((unsigned int*)it_buffer);
     it_buffer += sizeof(unsigned int);
     std::string key_str ((const char*) it_buffer, key_size);
-    //std::string tmp_root = NKV_ROOT_PREFIX;
-    //populate_iter_cache(tmp_root, key_str);
-    //std::lock_guard<std::mutex> lck (cache_mtx);
     path_vec.emplace_back(key_str);
-    /*smg_info(logger, "Adding key = %s to the iterator cache", key_str.c_str());
-    int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
-    assert(!file_name.empty());
-    std::string tmp_root = NKV_ROOT_PREFIX;
-    if (num_prefixes == 0) {
-      std::lock_guard<std::mutex> lck (cache_mtx);
-      populate_iter_cache(tmp_root, file_name);
-    } else {
-      assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
-      std::lock_guard<std::mutex> lck (cache_mtx);
-      for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
-        if (prefix_it == 0) {
-          populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
-        }
-        if (prefix_it == (num_prefixes -1)) {
-          populate_iter_cache (prefix_entries[prefix_it], file_name);
-        } else {
-          populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
-        }
-
-      }
-    }
-    dir_entries.clear();
-    prefix_entries.clear();*/
-    it_buffer += key_size;
   }
   return 0;
 }

@@ -47,7 +47,7 @@
 #include "csmglogger.h"
 #include "nkv_struct.h"
 #include "nkv_result.h"
-
+#include <condition_variable>
 
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
@@ -138,6 +138,7 @@
     std::mutex cache_mtx;
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
+    std::condition_variable cv_path;
 
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
@@ -239,6 +240,7 @@
         }
         nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
         if (path_thread_cache.joinable()) {
+          cv_path.notify_one();
           path_thread_cache.join();
         }
 
@@ -490,7 +492,7 @@
       }
       *max_keys = num_keys_iterted;
       if ((iter_info->visited_path.size() == pathMap.size()) || (iter_info->all_done)) {
-        smg_info(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d, prefix = 5s, delimiter = %s",
+        smg_info(logger, "Iteration is successfully completed for container name = %s, target node = %s, completed_paths = %d, all_done = %d, prefix = %s, delimiter = %s",
                   target_container_name.c_str(), target_node_name.c_str(), iter_info->visited_path.size(), iter_info->all_done, prefix, delimiter);
         if (iter_info) {
           delete(iter_info);
