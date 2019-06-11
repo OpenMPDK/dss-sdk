@@ -294,10 +294,17 @@ int32_t NKVTargetPath::parse_delimiter_entries(std::string& key, const char* del
 
 void NKVTargetPath::populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val) {
 
+  if (key_prefix_val.empty()) {
+    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix.c_str());
+    return ;
+  }
+
   auto list_iter = listing_keys.find(key_prefix);
   if (list_iter == listing_keys.end()) {
-    std::unordered_set<std::string> tmp_hset({key_prefix_val});
-    listing_keys.insert (std::make_pair<std::string, std::unordered_set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
+    //std::unordered_set<std::string> tmp_hset({key_prefix_val});
+    //listing_keys.insert (std::make_pair<std::string, std::unordered_set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
+    std::set<std::string> tmp_hset({key_prefix_val});
+    listing_keys.insert (std::make_pair<std::string, std::set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
     if (nkv_listing_need_cache_stat) {
       nkv_num_key_prefixes.fetch_add(1, std::memory_order_relaxed);
       nkv_num_keys.fetch_add(1, std::memory_order_relaxed); 
@@ -309,7 +316,7 @@ void NKVTargetPath::populate_iter_cache(std::string& key_prefix, std::string& ke
       if (nkv_listing_need_cache_stat) {
         nkv_num_keys.fetch_add(1, std::memory_order_relaxed);
       }
-    }  
+    }
   }
 }
 
@@ -400,7 +407,11 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
         prefix_entries.reserve(MAX_DIR_ENTRIES);
         std::string file_name;
         int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
-        assert(!file_name.empty());
+        //assert(!file_name.empty());
+        if (file_name.empty()) {
+          smg_warn(logger, "Empty file name found for key = %s, not a S3 compatible hierarchical key!", key_str.c_str());
+        }
+        
         std::string tmp_root = NKV_ROOT_PREFIX;
         if (num_prefixes == 0) {
           std::lock_guard<std::mutex> lck (cache_mtx);
@@ -571,25 +582,34 @@ bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix, std::string&
   bool key_prefix_delete = false;
   auto list_iter = listing_keys.find(key_prefix);
   if (list_iter == listing_keys.end()) {
-    smg_error(logger, "Key prefix passed is not found !!, key_prefix = %s", key_prefix.c_str());
+    smg_warn(logger, "Key prefix passed is not found !!, key_prefix = %s", key_prefix.c_str());
+    return key_prefix_delete;
+  }
+  if (key_prefix_val.empty()) {
+    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix.c_str());
     return key_prefix_delete;
   }
   int32_t num_keys_deleted = listing_keys[key_prefix].erase(key_prefix_val);
   if (num_keys_deleted == 0) {
-    smg_error(logger, "Key prefix value is not found !!, key_prefix_val = %s", key_prefix_val.c_str());
+    smg_warn(logger, "Key prefix value not found while removing !!, key_prefix = %s, key_prefix_val = %s", key_prefix.c_str(), key_prefix_val.c_str());
   }
-  assert(num_keys_deleted != 0);
-  if (nkv_listing_need_cache_stat) {
+
+  if (nkv_listing_need_cache_stat && num_keys_deleted) {
     nkv_num_keys.fetch_sub(1, std::memory_order_relaxed);
   }
+
   if (listing_keys[key_prefix].empty() && !root_prefix) {
     num_keys_deleted = listing_keys.erase(key_prefix);
-    assert(num_keys_deleted != 0);
+    if (num_keys_deleted == 0) {
+      smg_warn(logger, "Key prefix not found while removing empty prefix !!, key_prefix = %s", key_prefix.c_str());
+    }
+
     key_prefix_delete = true;
-    if (nkv_listing_need_cache_stat) {
+    if (nkv_listing_need_cache_stat && num_keys_deleted) {
       nkv_num_key_prefixes.fetch_sub(1, std::memory_order_relaxed);
     }
   }
+
   return key_prefix_delete;
 }
 
@@ -649,7 +669,10 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
   
         std::string file_name;
         int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
-        assert(!file_name.empty());
+        //assert(!file_name.empty());
+        if (file_name.empty()) {
+          smg_warn(logger, "Empty file name found for key = %s", key_str.c_str());
+        }
         std::lock_guard<std::mutex> lck (cache_mtx);
         if (listing_keys.size() == 0)
           return NKV_SUCCESS;
@@ -991,7 +1014,11 @@ void NKVTargetPath::nkv_path_thread_init(int32_t what_work) {
         tmp_vec.pop_back();
         smg_info(logger, "Adding key = %s to the iterator cache", key_str.c_str());  
         int32_t num_prefixes = parse_delimiter_entries(key_str, key_default_delimiter.c_str(), dir_entries, prefix_entries, file_name);
-        assert(!file_name.empty());
+        //assert(!file_name.empty());
+        if (file_name.empty()) {
+          smg_warn(logger, "Empty file name found for key = %s", key_str.c_str());
+        }
+        
         std::string tmp_root = NKV_ROOT_PREFIX;
         if (num_prefixes == 0) {
           populate_iter_cache(tmp_root, file_name);
@@ -1191,6 +1218,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
         cache_mtx.unlock();
         return stat;
       }
+      
       iter_info->cached_key_iter = list_iter_main->second.cbegin();
       /*
       std::string prefix_str(prefix);
@@ -1218,7 +1246,6 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       }*/
       
     }
-      
     for ( ; iter_info->cached_key_iter != listing_keys[key_prefix_iter.c_str()].cend(); iter_info->cached_key_iter++) {
       if ((*max_keys - *num_keys_iterted) == 0) {
         smg_warn(logger,"Not enough out buffer space to accomodate next cached key for dev_path = %s, ip = %s, remaining key space = %u",
@@ -1230,7 +1257,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       std::string one_key =  (*(iter_info->cached_key_iter));
       uint32_t one_key_len = one_key.length();
       assert(one_key_len <= 255);
-      //smg_warn(logger, "Adding key = %s for prefix = %s", one_key.c_str(), key_prefix_iter.c_str());
+      smg_info(logger, "Adding key = %s for prefix = %s during iteration", one_key.c_str(), key_prefix_iter.c_str());
       filter_and_populate_keys_from_path (max_keys, keys, (char*)one_key.c_str(), one_key_len, num_keys_iterted, NULL, NULL, iter_info, true);
     }
 

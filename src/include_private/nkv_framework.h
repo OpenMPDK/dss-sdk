@@ -35,6 +35,8 @@
 #define NKV_FRAMEWORK_H
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
+#include <list>
 #include <string>
 #include <atomic>
 #include <mutex>
@@ -85,7 +87,10 @@
     int32_t all_done;
     //For cached based listing
     std::unordered_set<std::string>* dup_chached_key_set;
-    std::unordered_set<std::string>::const_iterator cached_key_iter;
+    //std::unordered_set<std::string>::const_iterator cached_key_iter;
+    //std::list<std::string>::const_iterator cached_key_iter;
+    //std::vector<std::string>::const_iterator cached_key_iter;
+    std::set<std::string>::const_iterator cached_key_iter;
     iterator_info():network_path_hash_iterating(0), all_done(0), dup_chached_key_set(NULL) {
       excess_keys.clear();
       dir_entries_added.clear();
@@ -127,7 +132,11 @@
     std::unordered_set<std::string> cached_keys;
     std::unordered_set<std::string> iter_key_set;
     std::unordered_set<std::string> deleted_cached_keys;
-    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::unordered_set<std::string>* > listing_keys; 
+    //std::unordered_map<std::string, std::list<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::vector<std::string> > listing_keys; 
+    std::unordered_map<std::string, std::set<std::string> > listing_keys; 
     std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
     std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
     std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
@@ -153,6 +162,7 @@
       iter_key_set.clear();
       deleted_cached_keys.clear();
       listing_keys.clear();
+      //listing_keys.reserve(50000000);
       listing_keys_sub_prefix.clear();
       listing_keys_track_iter.reserve(4096);
       nkv_outstanding_iter_on_path = 0;
