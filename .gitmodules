@@ -1,7 +1,8 @@
 [submodule "src/openmpdk"]
 	path = src/openmpdk
 	#url = https://github.com/OpenMPDK/KVSSD.git
-	url = git@MSL-DC-GITLAB.SSI.SAMSUNG.COM:kvssd/opensource.git
+	#url = git@MSL-DC-GITLAB.SSI.SAMSUNG.COM:kvssd/opensource.git
+	url = https://github.sec.samsung.net/DS8-MemoryOpenSource/KVSSD 
 	branch = master
 [submodule "src/logger/log4cpp"]
 	path = src/logger/log4cpp
