@@ -92,7 +92,6 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/README_INSTALL.txt ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/
-	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v3.10/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
 	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz nkv-sdk
         COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
