@@ -269,7 +269,7 @@
     std::string target_node_name;
     std::string target_container_name;
     int32_t ss_status;
-    int32_t ss_space_avail_percent;
+    float ss_space_avail_percent;
     //Generated from target_uuid and passed to the app
     uint64_t target_hash;
     NKVTarget(uint32_t p_id, const std::string& puuid, const std::string& tgtNodeName, const std::string& tgtCntName, uint64_t t_hash) : 
@@ -286,7 +286,7 @@
       ss_status = p_status;
     }
     
-    void set_space_avail_percent (int32_t p_space) {
+    void set_space_avail_percent (float p_space) {
       ss_space_avail_percent = p_space;
     }
 
@@ -803,7 +803,6 @@
     }
 
 
-
     int32_t parse_add_path_mount_point(boost::property_tree::ptree & pt) {
       try {
         BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_remote_mounts")) {
@@ -919,19 +918,19 @@
       try {
         BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pr.get_child("subsystem_maps")) {
           assert(v.first.empty());
+          
           boost::property_tree::ptree pt = v.second;
           std::string target_server_name = pt.get<std::string>("target_server_name");
           std::string subsystem_nqn_id = pt.get<std::string>("subsystem_nqn_id");
           std::string subsystem_nqn = pt.get<std::string>("subsystem_nqn");
           int32_t subsystem_status = pt.get<int>("subsystem_status");
-          int32_t subsystem_spapce_available_percent = pt.get<int>("subsystem_space_avail_percent");
-
+          float subsystem_space_available_percent = pt.get<float>("subsystem_avail_percent");
           uint64_t ss_hash = std::hash<std::string>{}(subsystem_nqn_id);
 
           NKVTarget* one_cnt = new NKVTarget(cnt_id, subsystem_nqn_id, target_server_name, subsystem_nqn, ss_hash);
           assert(one_cnt != NULL);
           one_cnt->set_ss_status(subsystem_status);
-          one_cnt->set_space_avail_percent(subsystem_spapce_available_percent);
+          one_cnt->set_space_avail_percent(subsystem_space_available_percent);
 
           int32_t path_id = 0;
           BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("subsystem_transport")) {

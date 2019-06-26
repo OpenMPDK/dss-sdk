@@ -35,6 +35,8 @@
 #include <cstdlib>
 #include <string>
 #include "nkv_framework.h"
+#include "cluster_map.h"
+#include "auto_discovery.h"
 #include <pthread.h>
 
 thread_local int32_t core_running_app_thread = -1;
@@ -186,12 +188,44 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       if (nkv_cnt_list->add_local_container_and_path(host_name_ip, host_port, pt))
         return NKV_ERR_CONFIG;
     } else if (connect_fm) {
-      // Add logic to contact FM and then give that json ptree to the parse_add_container call
+        // Add logic to contact FM and then give that json ptree to the parse_add_container call
+        std::string fm_address  = pt.get<std::string>("fm_address");
+        std::string fm_endpoint = pt.get<std::string>("fm_endpoint");
+        const long time_out     = pt.get<long>("fm_connection_timeout");
+        std::string url = fm_address + fm_endpoint;
+
+        ClusterMap* cm = new ClusterMap(url);
+        std::string response("");
+        bool ret = cm->get_response(response, time_out);
+
+        if (ret){
+            if ( ! cm->get_clustermap(pt)){
+                nkv_cnt_list->parse_add_container(pt);
+            }
+            else{
+                smg_error(logger, "NKV: Falied to receive cluster map information ... ");
+            }
+        }
+        else{
+            smg_error(logger, "NKV: Response not recived from Fabric Manager ...");
+        }
 
     } else {
       // Should not come here !!
     }
   }
+
+  // Auto Discovery: Update KNV configuration with remote mount paths and corresponding tranport ips.
+  if(connect_fm)
+  {
+     smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
+     if (! add_remote_mount_path(pt) ){
+        smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
+     }
+        
+  }
+
+
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
 
