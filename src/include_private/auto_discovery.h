@@ -375,11 +375,18 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
     try
     {
         // Get /sys/block base path
-        const std::string sys_base_path = pt.get<std::string>("sys_path");
+        const std::string sys_base_path = "/sys/block";
 
         // Get nvme mount information.
         std::unordered_map<std::string, std::string> ip_to_nvme;
         get_nvme_mount_dir(sys_base_path, ip_to_nvme);
+
+        // Remove nkv_remote_mounts if exist
+        boost::optional< ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
+        if(is_node_exist){
+            pt.erase("nkv_remote_mounts");
+        }
+
 
         // Find remote mount path for each subsytem NQN
         BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("subsystem_maps")) {

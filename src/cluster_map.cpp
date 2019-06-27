@@ -121,7 +121,6 @@ bool ClusterMap::get_clustermap(ptree&  nkv_config)
 {
     try
     {
-        //ptree pt, pt2;
         ptree clustermap;
         std::istringstream is (rest_response);
         read_json(is, clustermap);
@@ -129,8 +128,13 @@ bool ClusterMap::get_clustermap(ptree&  nkv_config)
         // Add each keys from cluster map to nkv_config
         BOOST_FOREACH(boost::property_tree::ptree::value_type &v, clustermap)
         {
+            boost::optional< ptree& > is_node_exist = nkv_config.get_child_optional(v.first.data());
+            if(is_node_exist){
+                nkv_config.erase(v.first.data());
+            }
             nkv_config.add_child(v.first.data(), v.second);
-        } 
+        }
+        //boost::property_tree::write_json(std::cout, nkv_config); 
 
         smg_info(logger, "Updated Subsystem and Cluster information to the NKV configuration ...");
     }
