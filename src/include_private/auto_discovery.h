@@ -13,6 +13,16 @@
 using namespace std;
 using namespace boost::filesystem;
 
+#ifndef LINUX_SYS_PATHS
+#define SYS_BLOCK_PATH "/sys/block"
+// /sys/block/nvme0n1/device/numa_node
+#define NUMA_NODE_PATH "/device/numa_node"
+// /sys/block/nvme0n1/device/subsysnqn
+#define SUBSYSTEM_NQN_PATH "/device/subsysnqn"
+#endif
+
+
+
 extern c_smglogger* logger;
 
 bool update_mount_path(boost::property_tree::ptree & pt, 
@@ -282,7 +292,7 @@ bool get_address_port( const std::string& file, std::string& address, std::strin
  */
 int32_t get_numa_node(std::string& remote_nvme_path)
 {
-    const std::string numa_node_file = remote_nvme_path + "/device/numa_node";
+    const std::string numa_node_file = remote_nvme_path + NUMA_NODE_PATH;
     int32_t numa_node_attached;
     std::vector<std::string> lines;
 
@@ -306,7 +316,7 @@ int32_t get_numa_node(std::string& remote_nvme_path)
  */
 void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
 {
-    const std::string subsystem_nqn_file = nvme_base_path + "/device/subsysnqn";
+    const std::string subsystem_nqn_file = nvme_base_path + SUBSYSTEM_NQN_PATH;
     std::vector<std::string> lines;
     read_file(subsystem_nqn_file, 1,1,lines);
     if(lines.size()){
@@ -375,7 +385,7 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
     try
     {
         // Get /sys/block base path
-        const std::string sys_base_path = "/sys/block";
+        const std::string sys_base_path = SYS_BLOCK_PATH;
 
         // Get nvme mount information.
         std::unordered_map<std::string, std::string> ip_to_nvme;
