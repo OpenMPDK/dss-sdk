@@ -10,14 +10,14 @@ Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sd
 Build open_mpdk driver:
 ----------------------
 
- 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10/
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v3.10.0-693-centos-7_4/
  2. make clean
  3. make all
  4. ./re_insmod.sh   //It may take some seconds
  5. It should unload stock nvme driver and load open_mpdk one.
  6. Run the following command to see if you are getting similar output to make sure driver loaded properly
 
-    [root@msl-ssg-sk01 kernel_v3.10]# lsmod | grep nvme
+    [root@msl-ssg-sk01]# lsmod | grep nvme
     nvme                   62347  0
     nvme_core              50009  0
 
@@ -120,12 +120,27 @@ Put the following in a script may be..Need at least 4 devices to run Minio..
 
  9. cd ~/nkv-sdk/bin
  10. ./<minio-binary> server  /dev/nvme{0...5}n1
- 11. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
- 12. Distributed Minio command is:
+ 11. start.sh script is included under bin directory that has all the above commands incorporated. Change the minio binary, config file and LD_LIBRARY_PATH accordingly
+ 12. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
+ 13. Distributed Minio command is:
 
      ./<minio-binary> server  http://nkvsmchost{1...4}/dev/nvme{0...5}n1
     Where, mkvsmchost1, to nkvsmchost4 are 4 minio node names mentioned in /etc/hosts file of each server.
     /dev/nvme{0...5}n1 are KV drives.
 
- 13. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
+ 14. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
+
+Running MINIO app with emulator :
+-------------------------------
+
+ 1. Modify config file path within bin/start.sh to use nkv_config_emul.json
+ 2. Download minio_nkv_jun27.1 (or latest minio) binary under bin/
+ 3. Uncomment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jun27.1 server /dev/kvemul{1...4}
+ 4. Comment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jun27.1 server /dev/nvme{0...5}n1
+ 5. ./start.sh
+ 6. Run S3bench pointing to this server like this
+    ./s3-benchmark -a minio -b default -s minio123 -u http://<ip>:9000 -t 2 -z 64M -d 10
+ 7. Emulator doesn't support lot of threads and biger size IO because of memory limitation
+
+
  
