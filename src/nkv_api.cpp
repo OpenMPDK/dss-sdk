@@ -45,6 +45,7 @@ int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 std::condition_variable cv_global;
 std::mutex mtx_global;
+std::string config_path;
 
 void nkv_thread_func (uint64_t nkv_handle) {
   int rc = pthread_setname_np(pthread_self(), "nkv_stat_thr");
@@ -72,6 +73,27 @@ void nkv_thread_func (uint64_t nkv_handle) {
       nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
       break;
     }
+
+    boost::property_tree::ptree pt;
+    try {
+      boost::property_tree::read_json(config_path, pt);
+    }
+    catch (std::exception& e) {
+      smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
+    }
+
+    try {
+      nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
+      nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      if (nkv_dynamic_logging) 
+        smg_alert(logger, "## NKV debugging is ON ##");
+      else
+        smg_alert(logger, "## NKV debugging is OFF ##");
+    }
+    catch (std::exception& e) {
+      smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
+    }
+    smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
     nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
     
@@ -97,7 +119,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     return NKV_ERR_ALREADY_INITIALIZED;  
   }
 
-  std::string config_path =  config_file;
+  config_path =  config_file;
 
   if (NULL == config_file) {
     config_path = NKV_CONFIG_FILE;
@@ -156,6 +178,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         nkv_listing_wait_till_cache_init = pt.get<int>("nkv_listing_wait_iter_done_on_init", 1);
         key_default_delimiter = pt.get<std::string>("nkv_key_default_delimiter", "/"); 
         nkv_listing_need_cache_stat = pt.get<int>("nkv_listing_need_cache_stat", 1);
+        nkv_listing_cache_num_shards = pt.get<int>("nkv_listing_cache_num_shards", 1024);
       }
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);

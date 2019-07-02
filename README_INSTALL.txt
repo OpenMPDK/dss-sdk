@@ -5,6 +5,11 @@ Supported OS and Kernel:
 CentOS Linux release 7.4.1708 (Core)
 3.10.0-693.el7.x86_64
 
+Supported Minio release:
+-----------------------
+minio_nkv_jul02.1
+
+
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
 Build open_mpdk driver:

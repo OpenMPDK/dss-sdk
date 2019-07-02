@@ -57,6 +57,8 @@ std::string key_default_delimiter = "/";
 int32_t MAX_DIR_ENTRIES = 8;
 int32_t nkv_listing_wait_till_cache_init  = 1;
 int32_t nkv_listing_need_cache_stat  = 1;
+int32_t nkv_listing_cache_num_shards = 1024;
+int32_t nkv_dynamic_logging = 0;
 
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;
@@ -292,30 +294,46 @@ int32_t NKVTargetPath::parse_delimiter_entries(std::string& key, const char* del
   return num_entries;
 }
 
-void NKVTargetPath::populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val) {
+void NKVTargetPath::populate_iter_cache(std::string& key_prefix_p, std::string& key_prefix_val, bool need_lock) {
 
   if (key_prefix_val.empty()) {
-    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix.c_str());
+    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix_p.c_str());
     return ;
   }
-
-  auto list_iter = listing_keys.find(key_prefix);
-  if (list_iter == listing_keys.end()) {
+  std::size_t key_prefix = std::hash<std::string>{}(key_prefix_p);
+  int32_t shard_id = key_prefix % nkv_listing_cache_num_shards;
+  if (need_lock) {
+    int32_t r = pthread_rwlock_wrlock(&cache_rw_lock_list[shard_id]);
+    if (r != 0) {
+      smg_error(logger, "RW lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_prefix_p.c_str());
+      assert (r == 0);
+    }
+  }
+  auto list_iter = listing_keys[shard_id].find(key_prefix);
+  if (list_iter == listing_keys[shard_id].end()) {
     //std::unordered_set<std::string> tmp_hset({key_prefix_val});
     //listing_keys.insert (std::make_pair<std::string, std::unordered_set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
     std::set<std::string> tmp_hset({key_prefix_val});
-    listing_keys.insert (std::make_pair<std::string, std::set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
+    //listing_keys.insert (std::make_pair<std::string, std::set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
+    listing_keys[shard_id].insert (std::make_pair<std::size_t, std::set<std::string> > (std::move(key_prefix), std::move(tmp_hset)));
     if (nkv_listing_need_cache_stat) {
       nkv_num_key_prefixes.fetch_add(1, std::memory_order_relaxed);
       nkv_num_keys.fetch_add(1, std::memory_order_relaxed); 
     }
   } else {
-    auto set_iter = listing_keys[key_prefix].find(key_prefix_val);
-    if (set_iter == listing_keys[key_prefix].end()) {
-      listing_keys[key_prefix].emplace(key_prefix_val);
+    auto set_iter = listing_keys[shard_id][key_prefix].find(key_prefix_val);
+    if (set_iter == listing_keys[shard_id][key_prefix].end()) {
+      listing_keys[shard_id][key_prefix].emplace(key_prefix_val);
       if (nkv_listing_need_cache_stat) {
         nkv_num_keys.fetch_add(1, std::memory_order_relaxed);
       }
+    }
+  }
+  if (need_lock) {
+    int32_t r = pthread_rwlock_unlock(&cache_rw_lock_list[shard_id]);
+    if (r != 0) {
+      smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_prefix_p.c_str());
+      assert (r == 0);
     }
   }
 }
@@ -342,6 +360,11 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
+  if (nkv_dynamic_logging) {
+    smg_alert(logger, "NKV store request for key = %s, key_length = %u, value_length = %u, dev_path = %s, ip = %s",
+             (char*) n_key->key, n_key->length, n_value->length, dev_path.c_str(), path_ip.c_str());
+  }
+
   kvs_store_option option;
   option.st_type = KVS_STORE_POST;
   option.kvs_store_compress = false;
@@ -368,14 +391,6 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     return NKV_ERR_OPTION_CRC_NOT_SUPPORTED;
   }
   //cache keys for listing (till iterator issue is fixed)
-  /*if (listing_with_cached_keys) {
-    std::string key_str ((char*) n_key->key, n_key->length);
-    std::size_t found = key_str.find(iter_prefix);
-    if (found != std::string::npos && found == 0) {
-      std::lock_guard<std::mutex> lck (cache_mtx);
-      cached_keys.insert(key_str);
-    }
-  }*/
 
   kvs_store_context put_ctx = {option, 0, 0};
   if (!post_fn) {
@@ -393,14 +408,6 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
       std::string key_str ((char*) n_key->key, n_key->length);
       std::size_t found = key_str.find(iter_prefix);
       if (found != std::string::npos && found == 0) {
-      #if 0
-        {
-          std::lock_guard<std::mutex> lck (cache_mtx);
-          cached_keys.emplace(key_str);
-          cache_size = cached_keys.size();
-        }
-        smg_info(logger, "Added key = %s to the iterator cache, cache size = %u", key_str.c_str(), cache_size);
-      #endif
         std::vector<std::string> dir_entries; 
         dir_entries.reserve(MAX_DIR_ENTRIES);
         std::vector<std::string> prefix_entries; 
@@ -414,12 +421,13 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
         
         std::string tmp_root = NKV_ROOT_PREFIX;
         if (num_prefixes == 0) {
-          std::lock_guard<std::mutex> lck (cache_mtx);
+          //std::lock_guard<std::mutex> lck (cache_mtx);
           populate_iter_cache(tmp_root, file_name);
         } else {
           //Got hierarchial key
           assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
-          std::lock_guard<std::mutex> lck (cache_mtx);
+          //std::lock_guard<std::mutex> lck (cache_mtx);
+
           for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
             if (prefix_it == 0) {
               populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
@@ -429,7 +437,6 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
             } else {
                populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
             }
-            
           }
         }     
       }
@@ -490,6 +497,11 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
+  if (nkv_dynamic_logging) {
+    smg_alert(logger, "NKV retrieve request for key = %s, key_length = %u, dev_path = %s, ip = %s",
+             (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
+  }
+
   kvs_retrieve_option option;
   memset(&option, 0, sizeof(kvs_retrieve_option));
   option.kvs_retrieve_decompress = false;
@@ -578,30 +590,46 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
   return NKV_SUCCESS;
 }
 
-bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix) {
-  bool key_prefix_delete = false;
-  auto list_iter = listing_keys.find(key_prefix);
-  if (list_iter == listing_keys.end()) {
-    smg_warn(logger, "Key prefix passed is not found !!, key_prefix = %s", key_prefix.c_str());
-    return key_prefix_delete;
-  }
+bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix_p, std::string& key_prefix_val, bool root_prefix) {
+
   if (key_prefix_val.empty()) {
-    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix.c_str());
+    smg_warn(logger, "Empty key_prefix_val for key_prefix = %s", key_prefix_p.c_str());
+    return true; //Delete empty directory without file
+  }
+
+  bool key_prefix_delete = false;
+  std::size_t key_prefix = std::hash<std::string>{}(key_prefix_p);
+  int32_t shard_id = key_prefix % nkv_listing_cache_num_shards;
+  int32_t r = pthread_rwlock_wrlock(&cache_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_prefix_p.c_str());
+    assert (r == 0);
+  }
+
+  auto list_iter = listing_keys[shard_id].find(key_prefix);
+  if (list_iter == listing_keys[shard_id].end()) {
+    smg_warn(logger, "Key prefix passed is not found !!, key_prefix = %s, shard_id = %d", key_prefix_p.c_str(), shard_id);
+    r = pthread_rwlock_unlock(&cache_rw_lock_list[shard_id]);
+    if (r != 0) {
+      smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_prefix_p.c_str());
+      assert (r == 0);
+    }
     return key_prefix_delete;
   }
-  int32_t num_keys_deleted = listing_keys[key_prefix].erase(key_prefix_val);
+
+  int32_t num_keys_deleted = listing_keys[shard_id][key_prefix].erase(key_prefix_val);
   if (num_keys_deleted == 0) {
-    smg_warn(logger, "Key prefix value not found while removing !!, key_prefix = %s, key_prefix_val = %s", key_prefix.c_str(), key_prefix_val.c_str());
+    smg_warn(logger, "Key prefix value not found while removing !!, key_prefix = %s, key_prefix_val = %s", key_prefix_p.c_str(), key_prefix_val.c_str());
   }
 
   if (nkv_listing_need_cache_stat && num_keys_deleted) {
     nkv_num_keys.fetch_sub(1, std::memory_order_relaxed);
   }
 
-  if (listing_keys[key_prefix].empty() && !root_prefix) {
-    num_keys_deleted = listing_keys.erase(key_prefix);
+  if (listing_keys[shard_id][key_prefix].empty() && !root_prefix) {
+    num_keys_deleted = listing_keys[shard_id].erase(key_prefix);
     if (num_keys_deleted == 0) {
-      smg_warn(logger, "Key prefix not found while removing empty prefix !!, key_prefix = %s", key_prefix.c_str());
+      smg_warn(logger, "Key prefix not found while removing empty prefix !!, key_prefix = %s", key_prefix_p.c_str());
     }
 
     key_prefix_delete = true;
@@ -609,7 +637,11 @@ bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix, std::string&
       nkv_num_key_prefixes.fetch_sub(1, std::memory_order_relaxed);
     }
   }
-
+  r = pthread_rwlock_unlock(&cache_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_prefix_p.c_str());
+    assert (r == 0);
+  }
   return key_prefix_delete;
 }
 
@@ -623,6 +655,10 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
   if ((n_key->length > NKV_MAX_KEY_LENGTH) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
+  }
+  if (nkv_dynamic_logging) {
+    smg_alert(logger, "NKV delete request for key = %s, key_length = %u, dev_path = %s, ip = %s",
+             (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
 
   const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
@@ -673,14 +709,16 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
         if (file_name.empty()) {
           smg_warn(logger, "Empty file name found for key = %s", key_str.c_str());
         }
-        std::lock_guard<std::mutex> lck (cache_mtx);
+        /*std::lock_guard<std::mutex> lck (cache_mtx);
         if (listing_keys.size() == 0)
           return NKV_SUCCESS;
+        */
         if (num_prefixes == 0) {
           remove_from_iter_cache(NKV_ROOT_PREFIX, file_name, true);
         } else {
           assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
           bool key_prefix_deleted = false;
+
           for (int32_t prefix_it = num_prefixes -1; prefix_it >= 0; --prefix_it) {
             
             if (prefix_it == (num_prefixes -1)) {
@@ -695,7 +733,6 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
             if (!key_prefix_deleted)         
               break;
           }
-
         }  
       }
     }
@@ -1021,17 +1058,17 @@ void NKVTargetPath::nkv_path_thread_init(int32_t what_work) {
         
         std::string tmp_root = NKV_ROOT_PREFIX;
         if (num_prefixes == 0) {
-          populate_iter_cache(tmp_root, file_name);
+          populate_iter_cache(tmp_root, file_name, false);
         } else {
           assert(dir_entries.size() == (uint32_t)(num_prefixes - 1));
           for (int32_t prefix_it = 0; prefix_it < num_prefixes; ++prefix_it) {
             if (prefix_it == 0) {
-              populate_iter_cache(tmp_root, prefix_entries[prefix_it]);
+              populate_iter_cache(tmp_root, prefix_entries[prefix_it], false);
             }
             if (prefix_it == (num_prefixes -1)) {
-              populate_iter_cache (prefix_entries[prefix_it], file_name);
+              populate_iter_cache (prefix_entries[prefix_it], file_name, false);
             } else {
-              populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it]);
+              populate_iter_cache(prefix_entries[prefix_it], dir_entries[prefix_it], false);
             }
           }
         }
@@ -1203,19 +1240,44 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
   }
 
   if (listing_with_cached_keys) {
-    std::string key_prefix_iter (NKV_ROOT_PREFIX);
+    /*std::string key_prefix_iter (NKV_ROOT_PREFIX);
     if (prefix) {
       key_prefix_iter = prefix;
-    }
+    }*/
+    int32_t shard_id = 0;
     if (0 == iter_info->network_path_hash_iterating) {
+      if (nkv_dynamic_logging) {
+        smg_alert(logger, "NKV listing request for prefix = %s, delimiter = %s, dev_path = %s, ip = %s",
+                 prefix ? prefix: "NULL", delimiter ? delimiter:"NULL", dev_path.c_str(), path_ip.c_str());
+      }
+
+      std::string key_prefix_iter (NKV_ROOT_PREFIX);
+      if (prefix) {
+        key_prefix_iter = prefix;
+      }
 
       iter_info->network_path_hash_iterating = path_hash;
-      cache_mtx.lock();
-      auto list_iter_main = listing_keys.find(key_prefix_iter);
-      if (list_iter_main == listing_keys.end()) {
+      std::size_t key_prefix = std::hash<std::string>{}(key_prefix_iter);
+      iter_info->key_prefix_hash = key_prefix;
+      shard_id = key_prefix % nkv_listing_cache_num_shards;
+      int32_t r = pthread_rwlock_rdlock(&cache_rw_lock_list[shard_id]);
+      if (r != 0) {
+        smg_error(logger, "RW lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_prefix_iter.c_str());
+        assert (r == 0);
+      }
+
+      //cache_mtx.lock();
+      /*auto list_iter_main = listing_keys.find(key_prefix_iter);*/
+      auto list_iter_main = listing_keys[shard_id].find(iter_info->key_prefix_hash);
+      if (list_iter_main == listing_keys[shard_id].end()) {
         iter_info->visited_path.insert(path_hash);
         iter_info->network_path_hash_iterating = 0;
-        cache_mtx.unlock();
+        r = pthread_rwlock_unlock(&cache_rw_lock_list[shard_id]);
+        if (r != 0) {
+          smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_prefix_iter.c_str());
+          assert (r == 0);
+        }
+        //cache_mtx.unlock();
         return stat;
       }
       
@@ -1245,30 +1307,50 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
         }
       }*/
       
+    } else {
+      shard_id = iter_info->key_prefix_hash % nkv_listing_cache_num_shards;
+      int32_t r = pthread_rwlock_rdlock(&cache_rw_lock_list[shard_id]);
+      if (r != 0) {
+        smg_error(logger, "RW lock acquisition failed for shard_id = %d, prefix = %s", shard_id, prefix ? prefix : NKV_ROOT_PREFIX.c_str());
+        assert (r == 0);
+      }
+      //cache_mtx.lock();
+      iter_info->cached_key_iter = listing_keys[shard_id][iter_info->key_prefix_hash].find(iter_info->key_to_start_iter);
     }
-    for ( ; iter_info->cached_key_iter != listing_keys[key_prefix_iter.c_str()].cend(); iter_info->cached_key_iter++) {
+
+    //for ( ; iter_info->cached_key_iter != listing_keys[key_prefix_iter.c_str()].cend(); iter_info->cached_key_iter++) {
+    for ( ; iter_info->cached_key_iter != listing_keys[shard_id][iter_info->key_prefix_hash].cend(); iter_info->cached_key_iter++) {
       if ((*max_keys - *num_keys_iterted) == 0) {
         smg_warn(logger,"Not enough out buffer space to accomodate next cached key for dev_path = %s, ip = %s, remaining key space = %u",
                  dev_path.c_str(), path_ip.c_str(), (*max_keys - *num_keys_iterted));
         *max_keys = *num_keys_iterted;
         stat = NKV_ITER_MORE_KEYS;
+        iter_info->key_to_start_iter = (*(iter_info->cached_key_iter));
         break;
       }
       std::string one_key =  (*(iter_info->cached_key_iter));
       uint32_t one_key_len = one_key.length();
       assert(one_key_len <= 255);
-      smg_info(logger, "Adding key = %s for prefix = %s during iteration", one_key.c_str(), key_prefix_iter.c_str());
+      smg_info(logger, "Adding key = %s for prefix = %s during iteration", one_key.c_str(), prefix ? prefix : NKV_ROOT_PREFIX.c_str());
       filter_and_populate_keys_from_path (max_keys, keys, (char*)one_key.c_str(), one_key_len, num_keys_iterted, NULL, NULL, iter_info, true);
     }
 
-    if (iter_info->cached_key_iter == listing_keys[key_prefix_iter.c_str()].cend()) {
+    //if (iter_info->cached_key_iter == listing_keys[key_prefix_iter.c_str()].cend()) {
+    if (iter_info->cached_key_iter == listing_keys[shard_id][iter_info->key_prefix_hash].cend()) {
       iter_info->visited_path.insert(path_hash);
       iter_info->network_path_hash_iterating = 0;
-      cache_mtx.unlock();
+      //cache_mtx.unlock();
       smg_info(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u",
                 dev_path.c_str(), path_ip.c_str(), *num_keys_iterted);
     }
-      
+
+    int32_t r = pthread_rwlock_unlock(&cache_rw_lock_list[shard_id]);
+    if (r != 0) {
+      smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, prefix ? prefix : NKV_ROOT_PREFIX.c_str());
+      assert (r == 0);
+    }
+    
+    //cache_mtx.unlock();  
     return stat;
   }
 

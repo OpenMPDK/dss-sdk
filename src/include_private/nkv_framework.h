@@ -50,6 +50,7 @@
 #include "nkv_struct.h"
 #include "nkv_result.h"
 #include <condition_variable>
+#include <pthread.h>
 
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
@@ -76,6 +77,8 @@
   extern int32_t MAX_DIR_ENTRIES;
   extern int32_t nkv_listing_wait_till_cache_init;
   extern int32_t nkv_listing_need_cache_stat;
+  extern int32_t nkv_listing_cache_num_shards;
+  extern int32_t nkv_dynamic_logging;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -91,10 +94,13 @@
     //std::list<std::string>::const_iterator cached_key_iter;
     //std::vector<std::string>::const_iterator cached_key_iter;
     std::set<std::string>::const_iterator cached_key_iter;
+    std::size_t key_prefix_hash;
+    std::string key_to_start_iter;
     iterator_info():network_path_hash_iterating(0), all_done(0), dup_chached_key_set(NULL) {
       excess_keys.clear();
       dir_entries_added.clear();
       visited_path.clear();
+      key_prefix_hash = 0;
     }
 
     ~iterator_info() {
@@ -136,7 +142,9 @@
     //std::unordered_map<std::string, std::unordered_set<std::string>* > listing_keys; 
     //std::unordered_map<std::string, std::list<std::string> > listing_keys; 
     //std::unordered_map<std::string, std::vector<std::string> > listing_keys; 
-    std::unordered_map<std::string, std::set<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::set<std::string> > listing_keys; 
+    //std::unordered_map<std::size_t, std::set<std::string> > listing_keys; 
+    std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
     std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
     std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
     std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
@@ -145,6 +153,7 @@
     std::atomic<uint64_t> nkv_num_key_prefixes;
     std::atomic<uint32_t> nkv_num_keys;
     std::mutex cache_mtx;
+    pthread_rwlock_t* cache_rw_lock_list;
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
     std::condition_variable cv_path;
@@ -161,7 +170,7 @@
       cached_keys.clear();
       iter_key_set.clear();
       deleted_cached_keys.clear();
-      listing_keys.clear();
+      //listing_keys.clear();
       //listing_keys.reserve(50000000);
       listing_keys_sub_prefix.clear();
       listing_keys_track_iter.reserve(4096);
@@ -169,6 +178,12 @@
       nkv_path_stopping = 0;
       nkv_num_key_prefixes = 0;
       nkv_num_keys = 0;
+      cache_rw_lock_list = new pthread_rwlock_t[nkv_listing_cache_num_shards];
+      
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
+      }
+      listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
     }
 
     ~NKVTargetPath() {
@@ -183,6 +198,11 @@
 
       ret = kvs_close_device(path_handle);
       assert(ret == KVS_SUCCESS);
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
+      }
+      delete[] cache_rw_lock_list;
+      delete[] listing_keys;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
     }
 
@@ -233,7 +253,7 @@
                                             const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys = false);
     int32_t parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs,
                                     std::vector<std::string>& prefixes, std::string& f_name);
-    void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val);
+    void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool need_lock = true);
     bool remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix = false);
     void nkv_path_thread_func(int32_t what_work);
     void nkv_path_thread_init(int32_t what_work);
