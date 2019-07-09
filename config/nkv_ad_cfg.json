@@ -16,7 +16,7 @@
   "nkv_listing_with_cached_keys" : 0,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_is_on_local_kv" : 0,
-
+  "transport" : "tcp",
   "nkv_local_mounts": [
     {
       "mount_point": "/dev/nvme14n1",
@@ -43,39 +43,39 @@
 
   "nkv_remote_mounts": [
     {
-      "mount_point": "/dev/nvme14n1",
-      "remote_nqn_name": "nqn-02",
-      "remote_target_node_name": "msl-ssg-sk01",
-      "nqn_transport_address": "101.100.10.31",
-      "nqn_transport_port": 1023,
+      "mount_point": "/dev/nvme2n1",
+      "remote_nqn_name": "nqn.2019-07.samsung:msl-ssg-mp02-minio-data1",
+      "remote_target_node_name": "msl-ssg-mp02",
+      "nqn_transport_address": "101.100.20.2",
+      "nqn_transport_port": 1024,
       "numa_node_attached" : 0,
       "driver_thread_core" : 23
     },
     {
-      "mount_point": "/dev/nvme15n1",
-      "remote_nqn_name": "nqn-02",
-      "remote_target_node_name": "msl-ssg-sk01",
-      "nqn_transport_address": "102.100.10.31",
-      "nqn_transport_port": 1023,
-      "numa_node_attached" : 1,
+      "mount_point": "/dev/nvme3n1",
+      "remote_nqn_name": "nqn.2019-07.samsung:msl-ssg-mp02-minio-data2",
+      "remote_target_node_name": "msl-ssg-mp02",
+      "nqn_transport_address": "101.100.20.2",
+      "nqn_transport_port": 1024,
+      "numa_node_attached" : 0,
       "driver_thread_core" : 24
     },
     {
-      "mount_point": "/dev/nvme16n1",
-      "remote_nqn_name": "nqn-02",
-      "remote_target_node_name": "msl-ssg-sk01",
-      "nqn_transport_address": "103.100.10.31",
-      "nqn_transport_port": 1023,
-      "numa_node_attached" : 1,
+      "mount_point": "/dev/nvme4n1",
+      "remote_nqn_name": "nqn.2019-07.samsung:msl-ssg-mp02-minio-data3",
+      "remote_target_node_name": "msl-ssg-mp02",
+      "nqn_transport_address": "101.100.20.2",
+      "nqn_transport_port": 1024,
+      "numa_node_attached" : 0,
       "driver_thread_core" : 25
     },
     {
-      "mount_point": "/dev/nvme17n1",
-      "remote_nqn_name": "nqn-02",
-      "remote_target_node_name": "msl-ssg-sk01",
-      "nqn_transport_address": "104.100.10.31",
-      "nqn_transport_port": 1023,
-      "numa_node_attached" : 1,
+      "mount_point": "/dev/nvme5n1",
+      "remote_nqn_name": "nqn.2019-07.samsung:msl-ssg-mp02-minio-data4",
+      "remote_target_node_name": "msl-ssg-mp02",
+      "nqn_transport_address": "101.100.20.2",
+      "nqn_transport_port": 1024,
+      "numa_node_attached" : 0,
       "driver_thread_core" : 26
     }
 
@@ -131,7 +131,7 @@
 
       ],
       "subsystem_status": 0,
-      "subsystem_space_avail_percent": 87
+      "subsystem_avail_percent": 87
     }
   ]
 
