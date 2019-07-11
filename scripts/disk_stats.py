@@ -7,6 +7,7 @@ import logging
 import os
 import struct
 import sys
+import json
 
 NVME_IOCTL_ADMIN_CMD = 0xC0484E41
 
@@ -132,5 +133,7 @@ if __name__ == '__main__':
         if disk_out:
             out.append({dev_name: disk_out})
 
-    print(out)
+    json_string = json.dumps(out)
+
+    print(json_string)
 

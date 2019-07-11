@@ -41,14 +41,9 @@
 #include <atomic>
 #include <mutex>
 #include <functional>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/foreach.hpp>
 #include <thread>
 #include "kvs_api.h"
-#include "csmglogger.h"
-#include "nkv_struct.h"
-#include "nkv_result.h"
+#include "nkv_utils.h"
 #include <condition_variable>
 #include <pthread.h>
 
@@ -63,7 +58,7 @@
   extern std::atomic<uint32_t> nkv_async_path_max_qd;
   extern std::atomic<uint64_t> nkv_num_async_submission;
   extern std::atomic<uint64_t> nkv_num_async_completion;
-  extern c_smglogger* logger;
+  //extern c_smglogger* logger;
   class NKVContainerList;
   extern NKVContainerList* nkv_cnt_list;
   extern int32_t core_pinning_required;
@@ -359,12 +354,30 @@
    
       } else {
         smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
-        return NKV_ERR_NO_CNT_FOUND;
+        return NKV_ERR_NO_CNT_PATH_FOUND;
       }
       /*if (stat == NKV_SUCCESS && post_fn)
         nkv_num_async_submission.fetch_add(1, std::memory_order_relaxed);*/
       return stat;
 
+    }
+    
+    nkv_result get_path_mount_point (uint64_t container_path_hash, std::string& p_mount) {
+
+      nkv_result stat = NKV_SUCCESS;
+      auto p_iter = pathMap.find(container_path_hash);
+      if (p_iter == pathMap.end()) {
+        smg_error(logger,"No Container path found for hash = %u", container_path_hash);
+        return NKV_ERR_NO_CNT_PATH_FOUND;
+      }
+      NKVTargetPath* one_p = p_iter->second;
+      if (one_p) {
+        p_mount = one_p->dev_path;
+      } else {
+        smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
+        return NKV_ERR_NO_CNT_PATH_FOUND;
+      }
+      return stat;
     }
 
     nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix,
@@ -553,9 +566,18 @@
         if (one_path) {
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+          nkv_path_stat p_stat = {0};
+          nkv_result stat = nkv_get_path_stat_util(one_path->dev_path, &p_stat); 
+          if (stat == NKV_SUCCESS) {
 
-          smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u",
-                    one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load()); 
+            smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %d",
+                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load(),
+                       (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes, p_stat.path_storage_util_percentage); 
+
+          } else {
+             smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u, path stat collection failed !!",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load());
+          }
         } else {
           smg_error(logger, "NULL path found !!");
           assert(0);
@@ -761,6 +783,24 @@
 
     }
 
+    nkv_result nkv_get_path_mount_point (uint64_t container_hash, uint64_t container_path_hash, std::string& p_mount) {
+      nkv_result stat = NKV_SUCCESS;
+      auto c_iter = cnt_list.find(container_hash);
+      if (c_iter == cnt_list.end()) {
+        smg_error(logger,"No Container found for hash = %u, number of containers = %u, op = nkv_get_path_mount_point", container_hash, cnt_list.size());
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      NKVTarget* one_cnt = c_iter->second;
+      if (one_cnt) {
+        stat = one_cnt->get_path_mount_point(container_path_hash, p_mount);
+      } else {
+        smg_error(logger, "NULL Container found for hash = %u, op = nkv_get_path_mount_point!!", container_hash);
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      return stat;
+
+    }
+      
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
     bool open_container_paths(const std::string& app_name) {

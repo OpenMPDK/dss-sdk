@@ -49,6 +49,7 @@ set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -p
 SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_framework.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_utils.cpp
 )
 
 SET(HEADERS_NKV_KDD
@@ -85,6 +86,7 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_emul.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/disk_stats.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/start.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
 	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/

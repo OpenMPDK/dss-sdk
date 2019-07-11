@@ -311,6 +311,19 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
                                    const char* delimiter, const char* start_after, uint32_t* max_keys, nkv_key* keys, void** iter_context );
 
 
+
+/*! Get stat of a NKV path
+ *  
+ *  This API gives NKV path stat like usage, health etc.
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     mgmtctx - nkv_mgmt_context buffer required to perform management operation on NKV
+ *  IN/OUT p_stat - nkv_path_stat structure is used to return the stats for the path, caller is resposible for allocating/deallocating this
+ *        
+ */
+
+nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nkv_path_stat* p_stat);
+
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
