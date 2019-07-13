@@ -185,6 +185,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
+      path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
   }
@@ -640,9 +641,12 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     stat = nkv_cnt_list->nkv_get_path_mount_point(cnt_hash, cnt_path_hash, p_mount);
     if (stat == NKV_SUCCESS) {
       stat = nkv_get_path_stat_util(p_mount, p_stat);
-      smg_info(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %d",
-              p_stat->path_mount_point, (long long)p_stat->path_storage_capacity_in_bytes, (long long)p_stat->path_storage_usage_in_bytes, 
-              p_stat->path_storage_util_percentage);
+      if (stat == NKV_SUCCESS) {
+        smg_info(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
+                p_stat->path_mount_point, (long long)p_stat->path_storage_capacity_in_bytes, (long long)p_stat->path_storage_usage_in_bytes, 
+                p_stat->path_storage_util_percentage);
+      }
+      
     } else {
       smg_error(logger, "Not able to get NKV path mount point, handle = %u, cnt_hash = %u, cnt_path_hash = %u", 
                nkv_handle, cnt_hash, cnt_path_hash);

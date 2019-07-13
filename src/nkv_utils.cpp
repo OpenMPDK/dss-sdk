@@ -46,7 +46,7 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
         std::string d_usage_percent_str = p_mount + ".DiskUtilizationPercentage";
         p_stat->path_storage_capacity_in_bytes = pr.get<uint64_t>(d_cap_str, 0);
         p_stat->path_storage_usage_in_bytes = pr.get<uint64_t>(d_usage_str, 0);
-        p_stat->path_storage_util_percentage = pr.get<int>(d_usage_percent_str, 0);
+        p_stat->path_storage_util_percentage = pr.get<double>(d_usage_percent_str, 0);
       }
     }
     catch (std::exception& e) {

@@ -194,7 +194,7 @@ typedef struct {
   char path_mount_point[NKV_MAX_MOUNT_POINT_LENGTH];
   uint64_t path_storage_capacity_in_bytes;
   uint64_t path_storage_usage_in_bytes;
-  int32_t  path_storage_util_percentage;
+  double   path_storage_util_percentage;
 
 } nkv_path_stat; 
 

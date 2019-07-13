@@ -74,6 +74,7 @@
   extern int32_t nkv_listing_need_cache_stat;
   extern int32_t nkv_listing_cache_num_shards;
   extern int32_t nkv_dynamic_logging;
+  extern int32_t path_stat_collection;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -567,16 +568,21 @@
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
           nkv_path_stat p_stat = {0};
+          if (!path_stat_collection) {
+             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection disabled !!",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
+             continue; 
+          }
           nkv_result stat = nkv_get_path_stat_util(one_path->dev_path, &p_stat); 
           if (stat == NKV_SUCCESS) {
 
-            smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %d",
-                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load(),
+            smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
+                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
                        (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes, p_stat.path_storage_util_percentage); 
 
           } else {
-             smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u, path stat collection failed !!",
-                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load());
+             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection failed !!",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
           }
         } else {
           smg_error(logger, "NULL path found !!");

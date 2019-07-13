@@ -59,6 +59,7 @@ int32_t nkv_listing_wait_till_cache_init  = 1;
 int32_t nkv_listing_need_cache_stat  = 1;
 int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
+int32_t path_stat_collection = 1;
 
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;

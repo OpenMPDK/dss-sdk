@@ -5,6 +5,21 @@ Supported OS and Kernel:
 CentOS Linux release 7.4.1708 (Core)
 3.10.0-693.el7.x86_64
 
+Supported system configuration:
+------------------------------
+  Memory : 
+  ------
+  If cache based listing is turned on (default), NKV need a system with at least 256G memory
+  depending on the number of local drives it has.
+  For remote NKV, memory requirement on the NKV client side will be less as indexing will be
+  on the target side.
+
+  CPU:
+  ---
+  We benchmarked with the following cpu config:
+  Model :        2 x Intel(R) Xeon(R) Gold 6152 CPU @ 2.10GH
+  Physical core: 22 physical core per cpu socket
+
 Supported Minio release:
 -----------------------
 minio_nkv_jul02.1

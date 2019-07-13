@@ -154,30 +154,6 @@ void nkv_aio_complete (nkv_aio_construct* op_data, int32_t num_op) {
 
 }
 
-void usage(char *program)
-{
-  printf("==============\n");
-  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-e is_exclusive] [-m check_integrity] \n", program);
-  printf("-c      config_path     :  NKV config file location\n");
-  printf("-i      host_name_ip    :  Host name or ip the nkv client instance will be running\n");
-  printf("-p      host_port       :  Host port this nkv instance will bind to\n");
-  printf("-b      key_prefix      :  Key name prefix to be used\n");
-  printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list\n");
-  printf("-k      klen            :  key length \n");
-  printf("-v      vlen            :  value length \n");
-  printf("-e      is_exclusive    :  Idempotent Put \n");
-  printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
-  printf("-a      async_mode      :  Execution will be done in async mode  \n");
-  printf("-w      working key     :  CLI will only work on the key passed  \n");
-  printf("-s      subsystem ip    :  CLI will send io to this ip only  \n");
-  printf("-t      threads         :  number of threads in case of sync IO  \n");
-  printf("-d      mixed_io        :  small meta io before doing a big io  \n");
-  printf("-x      hex_dump        :  Inspect memory dump  \n");
-  printf("-r      delimiter       :  delimiter for S3 like listing  \n");
-  printf("==============\n");
-}
-
 void print(boost::property_tree::ptree & pt)
 {
     std::string subsystem_nqn_id = pt.get<std::string>("subsystem_nqn_id");
@@ -353,6 +329,32 @@ void *iothread(void *args)
   return 0;
 }
 
+void usage(char *program)
+{
+  printf("==============\n");
+  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-e is_exclusive] [-m check_integrity] \n", program);
+  printf("-c      config_path     :  NKV config file location\n");
+  printf("-i      host_name_ip    :  Host name or ip the nkv client instance will be running\n");
+  printf("-p      host_port       :  Host port this nkv instance will bind to\n");
+  printf("-b      key_prefix      :  Key name prefix to be used\n");
+  printf("-n      num_ios         :  total number of ios\n");
+  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list\n");
+  printf("-k      klen            :  key length \n");
+  printf("-v      vlen            :  value length \n");
+  printf("-e      is_exclusive    :  Idempotent Put \n");
+  printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
+  printf("-a      async_mode      :  Execution will be done in async mode  \n");
+  printf("-w      working key     :  CLI will only work on the key passed  \n");
+  printf("-s      subsystem ip    :  CLI will send io to this ip only  \n");
+  printf("-t      threads         :  number of threads in case of sync IO  \n");
+  printf("-d      mixed_io        :  small meta io before doing a big io  \n");
+  printf("-x      hex_dump        :  Inspect memory dump  \n");
+  printf("-r      delimiter       :  delimiter for S3 like listing  \n");
+  printf("-u      path_stat       :  Collect path/disk stat for all underlying path(s)/disk(s) \n");
+  printf("==============\n");
+}
+
+
 int main(int argc, char *argv[]) {
   char* config_path = NULL;
   char* host_name_ip = NULL;
@@ -374,6 +376,7 @@ int main(int argc, char *argv[]) {
   int32_t num_threads = 0;
   int is_mixed = 0;
   int hex_dump = 0;
+  bool get_stat = false;
 
   logger = smg_acquire_logger("libnkv");
   if (!logger) {
@@ -381,7 +384,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h")) != -1) {
     switch(c) {
 
     case 'c':
@@ -438,7 +441,9 @@ int main(int argc, char *argv[]) {
     case 'r':
       key_delimiter = optarg;
       break;
-
+    case 'u':
+      get_stat = true;
+      break;
     case 'h':
       usage(argv[0]);
       smg_release_logger(logger);
@@ -463,7 +468,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  if (!key_beginning && !key_to_work && (op_type != 4) ) {
+  if (!key_beginning && !key_to_work && (op_type != 4) && (!get_stat)) {
     smg_error(logger, "Please provide a key prefix to work on..");
     usage(argv[0]);
     exit(1);
@@ -549,6 +554,30 @@ do {
         break;   
     } 
   }
+  //Path stat request
+  if (get_stat) {
+    nkv_mgmt_context mg_ctx = {0};
+    mg_ctx.is_pass_through = 1;
+
+    for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
+      mg_ctx.container_hash = io_ctx[cnt_iter].container_hash;
+      mg_ctx.network_path_hash = io_ctx[cnt_iter].network_path_hash;
+      nkv_path_stat p_stat = {0};
+      nkv_result stat = nkv_get_path_stat (nkv_handle, &mg_ctx, &p_stat);
+
+      if (stat == NKV_SUCCESS) {
+        smg_alert(logger, "NKV stat call succeeded");
+        smg_alert(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
+                p_stat.path_mount_point, (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes,
+                p_stat.path_storage_util_percentage);
+      } else {
+        smg_error(logger, "NKV stat call failed, error = %d", stat);
+      }
+    }
+    nkv_close (nkv_handle, instance_uuid);
+    return 0;    
+  }
+
   if (is_async) {
     /*for (uint32_t iter = 0; iter < io_ctx_cnt; iter++) {
       cur_qdepth[iter] = 0;      
