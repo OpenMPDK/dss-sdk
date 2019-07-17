@@ -38,6 +38,7 @@
 #include "cluster_map.h"
 #include "auto_discovery.h"
 #include <pthread.h>
+#include <sstream>
 
 thread_local int32_t core_running_app_thread = -1;
 std::atomic<int32_t> nkv_app_thread_count(0);
@@ -47,6 +48,7 @@ int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 std::condition_variable cv_global;
 std::mutex mtx_global;
+std::string config_path;
 
 void nkv_thread_func (uint64_t nkv_handle) {
   int rc = pthread_setname_np(pthread_self(), "nkv_stat_thr");
@@ -74,6 +76,27 @@ void nkv_thread_func (uint64_t nkv_handle) {
       nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
       break;
     }
+    smg_alert(logger, "### NKV Library version in use = %s ###", NKV_VERSION_INFO);
+    boost::property_tree::ptree pt;
+    try {
+      boost::property_tree::read_json(config_path, pt);
+    }
+    catch (std::exception& e) {
+      smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
+    }
+
+    try {
+      nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
+      nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      if (nkv_dynamic_logging) 
+        smg_alert(logger, "## NKV debugging is ON ##");
+      else
+        smg_alert(logger, "## NKV debugging is OFF ##");
+    }
+    catch (std::exception& e) {
+      smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
+    }
+    smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
     nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
     
@@ -99,7 +122,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     return NKV_ERR_ALREADY_INITIALIZED;  
   }
 
-  std::string config_path =  config_file;
+  config_path =  config_file;
 
   if (NULL == config_file) {
     config_path = NKV_CONFIG_FILE;
@@ -109,6 +132,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
   }
   smg_info(logger, "NKV config file = %s", config_path.c_str());
+  smg_alert(logger, "### NKV Library version = %s ###", NKV_VERSION_INFO);
 
   std::string nkv_unique_instance_name = std::string(app_uuid) + "-" + std::string(host_name_ip) + "-" + std::to_string(host_port);
 
@@ -158,10 +182,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         nkv_listing_wait_till_cache_init = pt.get<int>("nkv_listing_wait_iter_done_on_init", 1);
         key_default_delimiter = pt.get<std::string>("nkv_key_default_delimiter", "/"); 
         nkv_listing_need_cache_stat = pt.get<int>("nkv_listing_need_cache_stat", 1);
+        nkv_listing_cache_num_shards = pt.get<int>("nkv_listing_cache_num_shards", 1024);
       }
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
+      path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
   }
@@ -613,3 +639,60 @@ done:
 
 }
 
+nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nkv_path_stat* p_stat) {
+
+  if (!mgmtctx) {
+    smg_error(logger, "mgmtctx is NULL !!, nkv_handle = %u, op = nkv_get_path_stat", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if (!p_stat) {
+    smg_error(logger, "Input stat structure is NULL!!, nkv_handle = %u, op = nkv_get_path_stat", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  nkv_result stat = NKV_SUCCESS;
+
+  nkv_pending_calls.fetch_add(1, std::memory_order_relaxed);
+  if (nkv_stopping) {
+    stat = NKV_ERR_INS_STOPPING;
+    goto done;
+  }
+  if (!nkv_cnt_list) {
+    stat = NKV_ERR_INTERNAL;
+    goto done;
+  }
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_path_stat !!", nkv_handle);
+    stat = NKV_ERR_HANDLE_INVALID;
+    goto done;
+  }
+
+  if (mgmtctx->is_pass_through && nkv_is_on_local_kv) {
+    uint64_t cnt_hash = mgmtctx->container_hash;
+    uint64_t cnt_path_hash = mgmtctx->network_path_hash;
+    std::string p_mount;
+    stat = nkv_cnt_list->nkv_get_path_mount_point(cnt_hash, cnt_path_hash, p_mount);
+    if (stat == NKV_SUCCESS) {
+      stat = nkv_get_path_stat_util(p_mount, p_stat);
+      if (stat == NKV_SUCCESS) {
+        smg_info(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
+                p_stat->path_mount_point, (long long)p_stat->path_storage_capacity_in_bytes, (long long)p_stat->path_storage_usage_in_bytes, 
+                p_stat->path_storage_util_percentage);
+      }
+      
+    } else {
+      smg_error(logger, "Not able to get NKV path mount point, handle = %u, cnt_hash = %u, cnt_path_hash = %u", 
+               nkv_handle, cnt_hash, cnt_path_hash);
+    }
+
+  } else {
+    smg_error(logger, "Wrong input, nkv non-pass through mode and remote stat collection is not supported yet, op = nkv_get_path_stat !");
+    stat = NKV_ERR_WRONG_INPUT;
+  }
+
+done:
+  nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
+  return stat;
+
+}

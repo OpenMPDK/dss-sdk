@@ -164,7 +164,7 @@ typedef struct {
   //Using NKV in pass-through mode ? 0 – non-pass-through, 1 – pass-through
   int8_t is_pass_through;
 
-  // Hash id of the physical container, needed for pass-through mode
+  //Hash id of the physical container, needed for pass-through mode
   uint64_t container_hash;
 
   //Container transport path hash, not needed if nic_load_balance and nic_failover feature is enabled
@@ -175,6 +175,28 @@ typedef struct {
   int32_t ks_id;
 
 } nkv_io_context;
+
+typedef struct {
+
+  //Using NKV in pass-through mode ? 0 – non-pass-through, 1 – pass-through
+  int8_t is_pass_through;
+
+  //Hash id of the physical container, needed for pass-through mode
+  uint64_t container_hash;
+
+  //Container transport path hash, needed for pass-through mode
+  uint64_t network_path_hash;
+
+} nkv_mgmt_context;
+  
+typedef struct {
+
+  char path_mount_point[NKV_MAX_MOUNT_POINT_LENGTH];
+  uint64_t path_storage_capacity_in_bytes;
+  uint64_t path_storage_usage_in_bytes;
+  double   path_storage_util_percentage;
+
+} nkv_path_stat; 
 
 typedef struct {
  

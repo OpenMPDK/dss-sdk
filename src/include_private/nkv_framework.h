@@ -35,19 +35,17 @@
 #define NKV_FRAMEWORK_H
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
+#include <list>
 #include <string>
 #include <atomic>
 #include <mutex>
 #include <functional>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/foreach.hpp>
 #include <thread>
 #include "kvs_api.h"
-#include "csmglogger.h"
-#include "nkv_struct.h"
-#include "nkv_result.h"
+#include "nkv_utils.h"
 #include <condition_variable>
+#include <pthread.h>
 
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
@@ -60,7 +58,7 @@
   extern std::atomic<uint32_t> nkv_async_path_max_qd;
   extern std::atomic<uint64_t> nkv_num_async_submission;
   extern std::atomic<uint64_t> nkv_num_async_completion;
-  extern c_smglogger* logger;
+  //extern c_smglogger* logger;
   class NKVContainerList;
   extern NKVContainerList* nkv_cnt_list;
   extern int32_t core_pinning_required;
@@ -74,6 +72,9 @@
   extern int32_t MAX_DIR_ENTRIES;
   extern int32_t nkv_listing_wait_till_cache_init;
   extern int32_t nkv_listing_need_cache_stat;
+  extern int32_t nkv_listing_cache_num_shards;
+  extern int32_t nkv_dynamic_logging;
+  extern int32_t path_stat_collection;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -85,11 +86,17 @@
     int32_t all_done;
     //For cached based listing
     std::unordered_set<std::string>* dup_chached_key_set;
-    std::unordered_set<std::string>::const_iterator cached_key_iter;
+    //std::unordered_set<std::string>::const_iterator cached_key_iter;
+    //std::list<std::string>::const_iterator cached_key_iter;
+    //std::vector<std::string>::const_iterator cached_key_iter;
+    std::set<std::string>::const_iterator cached_key_iter;
+    std::size_t key_prefix_hash;
+    std::string key_to_start_iter;
     iterator_info():network_path_hash_iterating(0), all_done(0), dup_chached_key_set(NULL) {
       excess_keys.clear();
       dir_entries_added.clear();
       visited_path.clear();
+      key_prefix_hash = 0;
     }
 
     ~iterator_info() {
@@ -127,7 +134,13 @@
     std::unordered_set<std::string> cached_keys;
     std::unordered_set<std::string> iter_key_set;
     std::unordered_set<std::string> deleted_cached_keys;
-    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::unordered_set<std::string>* > listing_keys; 
+    //std::unordered_map<std::string, std::list<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::vector<std::string> > listing_keys; 
+    //std::unordered_map<std::string, std::set<std::string> > listing_keys; 
+    //std::unordered_map<std::size_t, std::set<std::string> > listing_keys; 
+    std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
     std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
     std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
     std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
@@ -136,6 +149,7 @@
     std::atomic<uint64_t> nkv_num_key_prefixes;
     std::atomic<uint32_t> nkv_num_keys;
     std::mutex cache_mtx;
+    pthread_rwlock_t* cache_rw_lock_list;
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
     std::condition_variable cv_path;
@@ -152,13 +166,20 @@
       cached_keys.clear();
       iter_key_set.clear();
       deleted_cached_keys.clear();
-      listing_keys.clear();
+      //listing_keys.clear();
+      //listing_keys.reserve(50000000);
       listing_keys_sub_prefix.clear();
       listing_keys_track_iter.reserve(4096);
       nkv_outstanding_iter_on_path = 0;
       nkv_path_stopping = 0;
       nkv_num_key_prefixes = 0;
       nkv_num_keys = 0;
+      cache_rw_lock_list = new pthread_rwlock_t[nkv_listing_cache_num_shards];
+      
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
+      }
+      listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
     }
 
     ~NKVTargetPath() {
@@ -173,6 +194,11 @@
 
       ret = kvs_close_device(path_handle);
       assert(ret == KVS_SUCCESS);
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
+      }
+      delete[] cache_rw_lock_list;
+      delete[] listing_keys;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
     }
 
@@ -223,7 +249,7 @@
                                             const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys = false);
     int32_t parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs,
                                     std::vector<std::string>& prefixes, std::string& f_name);
-    void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val);
+    void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool need_lock = true);
     bool remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix = false);
     void nkv_path_thread_func(int32_t what_work);
     void nkv_path_thread_init(int32_t what_work);
@@ -329,12 +355,30 @@
    
       } else {
         smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
-        return NKV_ERR_NO_CNT_FOUND;
+        return NKV_ERR_NO_CNT_PATH_FOUND;
       }
       /*if (stat == NKV_SUCCESS && post_fn)
         nkv_num_async_submission.fetch_add(1, std::memory_order_relaxed);*/
       return stat;
 
+    }
+    
+    nkv_result get_path_mount_point (uint64_t container_path_hash, std::string& p_mount) {
+
+      nkv_result stat = NKV_SUCCESS;
+      auto p_iter = pathMap.find(container_path_hash);
+      if (p_iter == pathMap.end()) {
+        smg_error(logger,"No Container path found for hash = %u", container_path_hash);
+        return NKV_ERR_NO_CNT_PATH_FOUND;
+      }
+      NKVTargetPath* one_p = p_iter->second;
+      if (one_p) {
+        p_mount = one_p->dev_path;
+      } else {
+        smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
+        return NKV_ERR_NO_CNT_PATH_FOUND;
+      }
+      return stat;
     }
 
     nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix,
@@ -523,9 +567,23 @@
         if (one_path) {
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+          nkv_path_stat p_stat = {0};
+          if (!path_stat_collection) {
+             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection disabled !!",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
+             continue; 
+          }
+          nkv_result stat = nkv_get_path_stat_util(one_path->dev_path, &p_stat); 
+          if (stat == NKV_SUCCESS) {
 
-          smg_alert(logger, "Dev path = %s, address = %s, Total cache keys = %u, Total indexes = %u",
-                    one_path->dev_path.c_str(), one_path->path_ip.c_str(), one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load()); 
+            smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
+                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
+                       (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes, p_stat.path_storage_util_percentage); 
+
+          } else {
+             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection failed !!",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
+          }
         } else {
           smg_error(logger, "NULL path found !!");
           assert(0);
@@ -731,6 +789,24 @@
 
     }
 
+    nkv_result nkv_get_path_mount_point (uint64_t container_hash, uint64_t container_path_hash, std::string& p_mount) {
+      nkv_result stat = NKV_SUCCESS;
+      auto c_iter = cnt_list.find(container_hash);
+      if (c_iter == cnt_list.end()) {
+        smg_error(logger,"No Container found for hash = %u, number of containers = %u, op = nkv_get_path_mount_point", container_hash, cnt_list.size());
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      NKVTarget* one_cnt = c_iter->second;
+      if (one_cnt) {
+        stat = one_cnt->get_path_mount_point(container_path_hash, p_mount);
+      } else {
+        smg_error(logger, "NULL Container found for hash = %u, op = nkv_get_path_mount_point!!", container_hash);
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      return stat;
+
+    }
+      
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
     bool open_container_paths(const std::string& app_name) {

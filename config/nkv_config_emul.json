@@ -1,5 +1,5 @@
-{ 
-  "fm_address": "10.1.51.2:8080",
+{  
+  "fm_address": "10.1.20.91",
   "contact_fm": 0,
   "nkv_transport" : 0,
   "min_container_required" : 1,
@@ -15,21 +15,20 @@
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_stat_thread_polling_interval_in_sec": 60,
   "nkv_enable_debugging": 0,
-  "nkv_listing_cache_num_shards" : 32,
   "nkv_is_on_local_kv" : 1,
 
   "nkv_local_mounts": [
     {
-      "mount_point": "/dev/nvme14n1"
+      "mount_point": "/dev/kvemul1"
     },
     {
-      "mount_point": "/dev/nvme15n1"
+      "mount_point": "/dev/kvemul2"
     },
     {
-      "mount_point": "/dev/nvme16n1"
+      "mount_point": "/dev/kvemul3"
     },
     {
-      "mount_point": "/dev/nvme17n1"
+      "mount_point": "/dev/kvemul4"
     }
 
   ]
