@@ -225,32 +225,27 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         bool ret = cm->get_response(response, time_out);
 
         if (ret){
-            if ( ! cm->get_clustermap(pt)){
-                nkv_cnt_list->parse_add_container(pt);
+          if ( ! cm->get_clustermap(pt)) {
+            nkv_cnt_list->parse_add_container(pt);
+            smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
+            if (! add_remote_mount_path(pt) ){
+              smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
+              return NKV_ERR_CONFIG;
             }
-            else{
-                smg_error(logger, "NKV: Falied to receive cluster map information ... ");
-            }
-        }
-        else{
-            smg_error(logger, "NKV: Response not recived from Fabric Manager ...");
+
+          } else{
+            smg_error(logger, "NKV: Falied to receive cluster map information ... ");
+            return NKV_ERR_CONFIG;
+          }
+        } else{
+          smg_error(logger, "NKV: Response not recived from Fabric Manager ...");
+          return NKV_ERR_CONFIG;
         }
 
     } else {
       // Should not come here !!
     }
   }
-
-  // Auto Discovery: Update KNV configuration with remote mount paths and corresponding tranport ips.
-  if(connect_fm)
-  {
-     smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
-     if (! add_remote_mount_path(pt) ){
-        smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
-     }
-        
-  }
-
 
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
