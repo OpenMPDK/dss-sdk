@@ -573,6 +573,12 @@
                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
              continue; 
           }
+          if (!nkv_is_on_local_kv) {
+            smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
+                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
+                       0, 0, ss_space_avail_percent);
+            continue;
+          }
           nkv_result stat = nkv_get_path_stat_util(one_path->dev_path, &p_stat); 
           if (stat == NKV_SUCCESS) {
 
