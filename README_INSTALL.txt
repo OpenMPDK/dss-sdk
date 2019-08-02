@@ -155,8 +155,8 @@ Running MINIO app with emulator :
 
  1. Modify config file path within bin/start.sh to use nkv_config_emul.json
  2. Download minio_nkv_jun27.1 (or latest minio) binary under bin/
- 3. Uncomment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jun27.1 server /dev/kvemul{1...4}
- 4. Comment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jun27.1 server /dev/nvme{0...5}n1
+ 3. Uncomment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul24 server /dev/kvemul{1...4}
+ 4. Comment LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul24 server /dev/nvme{0...5}n1
  5. ./start.sh
  6. Run S3bench pointing to this server like this
     ./s3-benchmark -a minio -b default -s minio123 -u http://<ip>:9000 -t 2 -z 64M -d 10

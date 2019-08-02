@@ -202,6 +202,7 @@ void *iothread(void *args)
     sprintf(key_name, "%s_%d_%u", targs->key_prefix, targs->id, iter);
     uint32_t klen = targs->klen;//strlen (key_name);
     char *val   = (char*)nkv_zalloc(targs->vlen);
+    //char *val   = (char*)aligned_alloc(4096, targs->vlen);
     memset(val, 0, targs->vlen);
     //char* val = (char*) calloc (targs->vlen, sizeof(char));
     const nkv_key  nkvkey = { (void*)key_name, klen};

@@ -11,7 +11,7 @@ ulimit -n 65535
 ulimit -c unlimited
 yum install jemalloc-devel
 
-LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul02.1 server /dev/nvme{0...5}n1
+LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul24 server /dev/nvme{0...5}n1
 #LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul02.1 server /dev/kvemul{1...4}
 date
 
