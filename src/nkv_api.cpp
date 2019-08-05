@@ -185,11 +185,14 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         nkv_listing_cache_num_shards = pt.get<int>("nkv_listing_cache_num_shards", 1024);
       }
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
-      nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 100);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
+    if (!nkv_is_on_local_kv) {
+      path_stat_collection = 0;
+    }
   }
   catch (std::exception& e) {
     smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
@@ -263,7 +266,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       options.aio.iocoremask = 0;
       options.memory.use_dpdk = 0;
       options.aio.queuedepth = nkv_container_path_qd;
-      const char *emulconfigfile = "../kvssd_emul.conf";
+      const char *emulconfigfile = "./kvssd_emul.conf";
       options.emul_config_file =  emulconfigfile;
 
     } else if (NKV_TRANSPORT_NVMF_TCP_SPDK == nkv_transport) {
@@ -304,7 +307,7 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   smg_info(logger, "nkv_close invoked for nkv_handle = %u", nkv_handle);
   nkv_stopping = true;
   if (nkv_stat_thread_needed) {
-    cv_global.notify_one();
+    cv_global.notify_all();
     nkv_thread.join();
   }
   while (nkv_pending_calls) {

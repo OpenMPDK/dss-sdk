@@ -9,6 +9,7 @@ export MINIO_NKV_SYNC=1
 #export MINIO_NKV_CHECKSUM=1
 ulimit -n 65535
 ulimit -c unlimited
+yum install boost-devel
 yum install jemalloc-devel
 
 LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul24 server /dev/nvme{0...5}n1

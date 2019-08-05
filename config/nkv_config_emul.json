@@ -14,6 +14,7 @@
   "nkv_listing_with_cached_keys" : 1,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_stat_thread_polling_interval_in_sec": 60,
+  "nkv_need_path_stat" : 0,
   "nkv_enable_debugging": 0,
   "nkv_is_on_local_kv" : 1,
 

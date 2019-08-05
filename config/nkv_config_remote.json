@@ -16,6 +16,8 @@
   "nkv_listing_with_cached_keys" : 0,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_is_on_local_kv" : 0,
+  "nkv_stat_thread_needed" : 0,
+  "nkv_need_path_stat" : 0,
   "transport" : "tcp"
 }
 

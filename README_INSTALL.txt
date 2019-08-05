@@ -24,6 +24,11 @@ Supported Minio release:
 -----------------------
 minio_nkv_jul02.1
 
+Dependency:
+----------
+yum install boost-devel
+yum install jemalloc-devel
+
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
