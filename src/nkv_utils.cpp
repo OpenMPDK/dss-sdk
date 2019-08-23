@@ -59,7 +59,7 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
   smg_info(logger, "NKV stat command = %s", cmd_str.c_str());
   std::string result;
   int32_t rc = nkv_cmd_exec(cmd_str.c_str(), result);
-  if (rc == 0) {
+  if (rc == 0 && !result.empty()) {
     smg_info(logger, "NKV stat data = %s", result.c_str());
     boost::property_tree::ptree pt;
     try {
@@ -89,7 +89,6 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
                cmd_str.c_str(), result.c_str(), e.what());
       return NKV_ERR_INTERNAL;
     }
-
   } else {
     smg_error(logger, "NKV stat script execution failed, cmd = %s !!", cmd_str.c_str());
     return NKV_ERR_INTERNAL;

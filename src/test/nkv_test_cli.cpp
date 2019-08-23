@@ -188,6 +188,32 @@ void print(boost::property_tree::ptree & pt)
     }
 }
 
+void *stat_thread(void *args)
+{
+  nkv_thread_args *targs = (nkv_thread_args *)args;
+  std::string th_name = "nkv_stat_" + std::to_string(targs->id);
+  pthread_setname_np(pthread_self(), th_name.c_str());
+  for (uint32_t cnt_iter = 0; cnt_iter < targs->ioctx_cnt; cnt_iter++) {
+    nkv_mgmt_context mg_ctx = {0};
+    mg_ctx.is_pass_through = 1;
+
+    mg_ctx.container_hash = targs->ioctx[cnt_iter].container_hash;
+    mg_ctx.network_path_hash = targs->ioctx[cnt_iter].network_path_hash;
+    nkv_path_stat p_stat = {0};
+    nkv_result stat = nkv_get_path_stat (targs->nkv_handle, &mg_ctx, &p_stat);
+
+    if (stat == NKV_SUCCESS) {
+      smg_alert(logger, "NKV stat call succeeded, thread_name = %s", th_name.c_str());
+      smg_alert(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f, thread_name = %s",
+              p_stat.path_mount_point, (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes,
+              p_stat.path_storage_util_percentage, th_name.c_str());
+    } else {
+      smg_error(logger, "NKV stat call failed, error = %d, thread_name = %s", stat, th_name.c_str());
+    }
+  }
+  return 0;
+}
+
 void *iothread(void *args)
 {
   nkv_thread_args *targs = (nkv_thread_args *)args;
@@ -559,6 +585,38 @@ do {
   if (get_stat) {
     nkv_mgmt_context mg_ctx = {0};
     mg_ctx.is_pass_through = 1;
+
+    if (num_threads > 0) {
+      nkv_thread_args args[num_threads];
+      std::thread nkv_test_threads[num_threads];
+
+      for(int i = 0; i < num_threads; i++){
+        args[i].id = i;
+        args[i].klen = klen;
+        args[i].vlen = vlen;
+        args[i].count = num_ios;
+        args[i].op_type = op_type;
+        args[i].key_prefix = key_beginning;
+        args[i].ioctx = io_ctx;
+        args[i].ioctx_cnt = io_ctx_cnt;
+        args[i].nkv_handle = nkv_handle;
+        //args[i].s_option = &s_option;
+        //args[i].r_option = &r_option;
+        args[i].check_integrity = check_integrity;
+        args[i].hex_dump = hex_dump;
+
+        nkv_test_threads[i] = std::thread(stat_thread, &args[i]);
+      }
+
+      for(int i = 0; i < num_threads; i++) {
+        nkv_test_threads[i].join();
+      }
+
+      nkv_close (nkv_handle, instance_uuid);
+      return 0;
+
+    }
+
 
     for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
       mg_ctx.container_hash = io_ctx[cnt_iter].container_hash;

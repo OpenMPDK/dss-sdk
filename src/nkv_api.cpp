@@ -46,8 +46,10 @@ int32_t core_to_pin = -1;
 std::thread nkv_thread;
 int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
+int32_t nkv_dummy_path_stat;
 std::condition_variable cv_global;
 std::mutex mtx_global;
+std::mutex mtx_stat;
 std::string config_path;
 
 void nkv_thread_func (uint64_t nkv_handle) {
@@ -188,6 +190,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 100);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
+      nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     if (!nkv_is_on_local_kv) {
@@ -666,15 +669,18 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     goto done;
   }
 
-  if (mgmtctx->is_pass_through && nkv_is_on_local_kv) {
+  if (mgmtctx->is_pass_through && nkv_is_on_local_kv && !nkv_dummy_path_stat) {
     uint64_t cnt_hash = mgmtctx->container_hash;
     uint64_t cnt_path_hash = mgmtctx->network_path_hash;
     std::string p_mount;
     stat = nkv_cnt_list->nkv_get_path_mount_point(cnt_hash, cnt_path_hash, p_mount);
     if (stat == NKV_SUCCESS) {
-      stat = nkv_get_path_stat_util(p_mount, p_stat);
+      {
+        std::unique_lock<std::mutex> lck(mtx_stat);
+        stat = nkv_get_path_stat_util(p_mount, p_stat);
+      }
       if (stat == NKV_SUCCESS) {
-        smg_info(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
+        smg_warn(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
                 p_stat->path_mount_point, (long long)p_stat->path_storage_capacity_in_bytes, (long long)p_stat->path_storage_usage_in_bytes, 
                 p_stat->path_storage_util_percentage);
       }
@@ -685,8 +691,14 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     }
 
   } else {
-    smg_error(logger, "Wrong input, nkv non-pass through mode and remote stat collection is not supported yet, op = nkv_get_path_stat !");
-    stat = NKV_ERR_WRONG_INPUT;
+    smg_warn(logger, "nkv remote stat collection is not supported yet or dummy path collection enabled, op = nkv_get_path_stat !");
+    std::string p_mount = "/dev/nvme";
+    p_mount.copy(p_stat->path_mount_point, p_mount.length());
+    p_stat->path_storage_capacity_in_bytes = 0;
+    p_stat->path_storage_usage_in_bytes = 0;
+    p_stat->path_storage_util_percentage = 0.0;
+
+    stat = NKV_SUCCESS;
   }
 
 done:
