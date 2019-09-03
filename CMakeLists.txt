@@ -26,13 +26,15 @@ link_directories(${LOG_LIBRARY_DIR})
 
 #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/ ${CMAKE_BINARY_DIR}/lib)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
+set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
+add_definitions(-DSAMSUNG_API)
 
 if(NKV_WITH_KDD)
   set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
   #set(WITH_LOG ON CACHE BOOL "Enable KDD functionality" FORCE)
 
 elseif(NKV_WITH_EMU)
-  set(WITH_EMU ON CACHE BOOL "Enable KDD functionality" FORCE)
+  set(WITH_EMU ON CACHE BOOL "Enable EMUL functionality" FORCE)
 
 elseif(NKV_WITH_SPDK)
 
