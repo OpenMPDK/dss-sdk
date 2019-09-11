@@ -308,13 +308,17 @@
       pathMap.clear();      
     }
 
+    std::unordered_map<uint64_t, NKVTargetPath*>& get_path_map() {
+        return pathMap;
+    }
+
     void set_ss_status (int32_t p_status) {
       ss_status = p_status;
     }
     
     void set_space_avail_percent (float p_space) {
       ss_space_avail_percent = p_space;
-    }
+    } 
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
                                 void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
@@ -1073,7 +1077,54 @@
     }
  
     
-    //To Do, event threads etc. etc. 
+   /* Function Name: update_container
+    * Params       : <string> -Address of Remote Mount Path
+    *                <int32_t>-Port of Remote Mount Path 
+    *                <string> -nqn for subsystem
+    *                <int32_t>-Rremote Mount Path status
+    * Return       : <bool>  Updated Mount Path or Not
+    * Description  : Update remote mount path status based on the address received from event.
+    *                Invoked from event handler.
+    */
+    bool update_container(std::string& subsystem_address,
+                          int32_t subsystem_port,
+                          std::string& subsystem_nqn, 
+                          int32_t remote_path_status) {
+
+      bool is_nkv_data_structure_updated =  false;
+
+      // Iterate container list which contain the list of subsystems 
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* target_ptr = m_iter->second;
+        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map(); 
+
+        // Iterate each path of a subsystem
+        for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
+          NKVTargetPath* target_path_ptr = p_iter->second;
+                    
+          // Check path if matches and update status accordingly
+          if (target_path_ptr->path_ip == subsystem_address && 
+              target_path_ptr->path_port ==  subsystem_port &&
+              target_ptr->target_container_name == subsystem_nqn ) {
+                
+            if ( target_path_ptr->path_status !=  remote_path_status ) {
+                 target_path_ptr->path_status = remote_path_status;
+                 // Update a variable to indicate there has been a change in NKV data-struture
+                 is_nkv_data_structure_updated = true;
+                              
+              if ( remote_path_status ) {
+                smg_alert(logger,"Remote mount path %s is up for IO", (target_path_ptr->dev_path).c_str());
+              }
+              else {
+                smg_alert(logger,"Remote mount path %s is down for IO", (target_path_ptr->dev_path).c_str());
+              }
+            }
+          } // End of checking subsystem paths
+        } // End of transporter path iteration
+      } // End of iteration of subsystems
+
+      return is_nkv_data_structure_updated;
+    } 
 
   };
 

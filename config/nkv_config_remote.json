@@ -14,10 +14,14 @@
   "drive_iter_support_required" : 1,
   "iter_prefix_to_filter" : "meta",
   "nkv_listing_with_cached_keys" : 1,
+  "nkv_stat_thread_polling_interval_in_sec": 10,
+  "nkv_need_path_stat" : 1,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_is_on_local_kv" : 0,
   "nkv_stat_thread_needed" : 0,
   "nkv_need_path_stat" : 0,
-  "transport" : "tcp"
+  "nkv_event_polling_interval_in_sec": 10,
+  "event_subscribe_channel": "TARGET,SUBSYSTEM",
+  "mq_address":"tcp://10.1.51.3:6001"
 }
 
