@@ -261,24 +261,30 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
 
   if (*nkv_handle != 0 && *instance_uuid != 0) {
     // All good, start initializing open_mpdk stuff
-    kvs_init_options options;
-    kvs_init_env_opts(&options);
+    #ifdef SAMSUNG_API
+      kvs_init_options options;
+      kvs_init_env_opts(&options);
+    #endif
 
     if ((NKV_TRANSPORT_LOCAL_KERNEL == nkv_transport) || (NKV_TRANSPORT_NVMF_TCP_KERNEL == nkv_transport)) {
       smg_info(logger,"**NKV transport is Over kernel**");
-      options.aio.iocoremask = 0;
-      options.memory.use_dpdk = 0;
-      options.aio.queuedepth = nkv_container_path_qd;
-      const char *emulconfigfile = "./kvssd_emul.conf";
-      options.emul_config_file =  emulconfigfile;
+      #ifdef SAMSUNG_API
+        options.aio.iocoremask = 0;
+        options.memory.use_dpdk = 0;
+        options.aio.queuedepth = nkv_container_path_qd;
+        const char *emulconfigfile = "./kvssd_emul.conf";
+        options.emul_config_file =  emulconfigfile;
+      #endif
 
     } else if (NKV_TRANSPORT_NVMF_TCP_SPDK == nkv_transport) {
       //To do, add spdk related kvs options 
     } else {
 
     }
-    kvs_init_env(&options);
-    smg_info(logger, "Setting environment for open mpdk is successful for app = %s", app_uuid);
+    #ifdef SAMSUNG_API
+      kvs_init_env(&options);
+      smg_info(logger, "Setting environment for open mpdk is successful for app = %s", app_uuid);
+    #endif
 
     if(!nkv_cnt_list->open_container_paths(app_uuid))
       return NKV_ERR_COMMUNICATION;
@@ -322,8 +328,10 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
     delete nkv_cnt_list;
     nkv_cnt_list = NULL;
   }
-  
-  kvs_exit_env();
+ 
+  #ifdef SAMSUNG_API 
+    kvs_exit_env();
+  #endif
 
   if (logger)
     smg_release_logger(logger);
