@@ -64,6 +64,8 @@ int32_t path_stat_collection = 1;
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;
 
+#ifdef SAMSUNG_API
+
 void kvs_aio_completion (kvs_callback_context* ioctx) {
   if (!ioctx) {
     smg_error(logger, "Async IO returned NULL ioctx, ignoring..");
@@ -183,6 +185,122 @@ void kvs_aio_completion (kvs_callback_context* ioctx) {
     free(ioctx->value);
 }
 
+#else
+void kvs_aio_completion (kvs_postprocess_context* ioctx) {
+  if (!ioctx) {
+    smg_error(logger, "Async IO returned NULL ioctx, ignoring..");
+    return;
+  }
+  nkv_postprocess_function* post_fn = (nkv_postprocess_function*)ioctx->private1;
+  NKVTargetPath* t_path = (NKVTargetPath*)ioctx->private2;
+
+  if (core_pinning_required && core_running_driver_thread == -1 && t_path) {
+    int32_t core_to_pin = t_path->core_to_pin;
+    if (core_to_pin != -1) {
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(core_to_pin, &cpuset);
+      int32_t ret = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+      if (ret != 0) {
+        smg_error(logger, "Setting driver thread affinity failed, thread_id = %u, core_id = %d",
+                  pthread_self(), core_to_pin);
+        assert(ret == 0);
+
+      } else {
+        smg_alert(logger, "Setting driver thread affinity successful, thread_id = %u, core_id = %d",
+                  pthread_self(), core_to_pin);
+        core_running_driver_thread = core_to_pin;
+      }
+    } else {
+      smg_warn(logger, "Core not supplied to set driver thread affinity, ignoring, performance may be affected !!");
+      core_running_driver_thread = 0;
+    }
+  }
+
+
+  if (ioctx->result != 0) {
+    if (ioctx->result != KVS_ERR_KEY_NOT_EXIST) {
+      smg_error(logger, "Async IO failed: op = %d, key = %s, result = 0x%x, dev_path = %s, ip = %s\n",
+                ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result, 
+                t_path->dev_path.c_str(), t_path->path_ip.c_str());
+    } else {
+      smg_info(logger, "Async IO failed: op = %d, key = %s, result = 0x%x, dev_path = %s, ip = %s\n",
+               ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result, 
+               t_path->dev_path.c_str(), t_path->path_ip.c_str());
+
+    }
+
+  } else {
+    smg_info(logger, "Async IO success: op = %d, key = %s, result = 0x%x, dev_path = %s, ip = %s\n",
+             ioctx->context, ioctx->key? (char*)ioctx->key->key : 0 , ioctx->result,
+             t_path->dev_path.c_str(), t_path->path_ip.c_str());
+  }
+  int32_t num_op = 1;//now always 1
+  uint64_t actual_get_size = 0;
+  bool safe_to_free_val_buffer = true;
+  if (post_fn) {
+    nkv_aio_construct aio_ctx;
+    //To do:: Covert to nkv result
+    aio_ctx.result = ioctx->result;
+    aio_ctx.private_data_1 = post_fn->private_data_1;
+    aio_ctx.private_data_2 = post_fn->private_data_2;
+
+    switch(ioctx->context) {
+      case KVS_CMD_STORE:
+        aio_ctx.opcode = 1;
+        break;
+
+      case KVS_CMD_RETRIEVE:
+        {
+          aio_ctx.opcode = 0;
+          actual_get_size = ioctx->value? ioctx->value->actual_value_size: 0;
+          smg_info(logger, "Async GET actual value size = %u", actual_get_size);
+          if (actual_get_size == 0 && ioctx->result == 0) {
+            smg_error(logger, "Async GET actual value size 0 !! op = %d, key = %s, result = 0x%x, dev_path = %s, ip = %s\n",
+                      ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result,
+                      t_path->dev_path.c_str(), t_path->path_ip.c_str());
+            safe_to_free_val_buffer = false;
+          }
+        }
+        break;
+
+      case KVS_CMD_DELETE:
+        aio_ctx.opcode = 2;
+        break;
+
+      default:
+        break;
+    }
+    aio_ctx.key.key = ioctx->key? ioctx->key->key: 0;
+    aio_ctx.key.length = ioctx->key? ioctx->key->length: 0;
+    aio_ctx.value.value = ioctx->value? ioctx->value->value: 0;
+    aio_ctx.value.length = ioctx->value? ioctx->value->length: 0;
+    aio_ctx.value.actual_length = ioctx->value? ioctx->value->actual_value_size: 0;
+    if(post_fn->nkv_aio_cb) {
+      post_fn->nkv_aio_cb(&aio_ctx, num_op);
+    } else {
+      smg_error(logger, "Async IO with no application callback !: op = %d, key = %s, result = 0x%x\n",
+                ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result);
+    }
+  } else {
+    smg_error(logger, "Async IO returned with null post_fn ! : op = %d, key = %s, result = 0x%x\n",
+              ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result);
+  }
+  if (t_path) {
+    t_path->nkv_async_path_cur_qd.fetch_sub(1, std::memory_order_relaxed);
+    smg_warn(logger, "cur_qd(%u)/max_qd(%u)", t_path->nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+  } else {
+    smg_error(logger, "Async IO returned with null path pointer ! : op = %d, key = %s, result = 0x%x\n",
+              ioctx->context, ioctx->key? (char*)ioctx->key->key : 0, ioctx->result);
+  }
+  if (ioctx->key)
+    free(ioctx->key);
+  if (ioctx->value && safe_to_free_val_buffer)
+    free(ioctx->value);
+}
+
+#endif
+
 bool NKVContainerList::populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t s_index) {
   
   uint32_t cur_index = 0, cur_pop_index = 0;
@@ -231,6 +349,7 @@ bool NKVContainerList::populate_container_info(nkv_container_info *cntlist, uint
 
 nkv_result NKVTargetPath::map_kvs_err_code_to_nkv_err_code (int32_t kvs_code) {
 
+#ifdef SAMSUNG_API
   switch(kvs_code) {
     case 0x001:
       return NKV_ERR_BUFFER_SMALL;
@@ -271,6 +390,40 @@ nkv_result NKVTargetPath::map_kvs_err_code_to_nkv_err_code (int32_t kvs_code) {
     default:
       return NKV_ERR_IO;
   }
+
+#else
+  switch(kvs_code) {
+    case KVS_ERR_BUFFER_SMALL:
+      return NKV_ERR_BUFFER_SMALL;
+
+    case KVS_ERR_DEV_CAPAPCITY:
+    case KVS_ERR_KS_CAPACITY:
+      return NKV_ERR_CNT_CAPACITY;
+
+    case KVS_ERR_DEV_NOT_EXIST:
+    case KVS_ERR_KS_NOT_EXIST:
+      return NKV_ERR_NO_CNT_FOUND;
+
+    case KVS_ERR_KEY_LENGTH_INVALID:
+      return NKV_ERR_KEY_LENGTH;
+
+    case KVS_ERR_KEY_NOT_EXIST:
+      return NKV_ERR_KEY_NOT_EXIST;
+
+    case KVS_ERR_VALUE_LENGTH_INVALID:
+      return NKV_ERR_VALUE_LENGTH;
+
+    case KVS_ERR_VALUE_OFFSET_MISALIGNED:
+      return NKV_ERR_VALUE_LENGTH_MISALIGNED;
+
+    case KVS_ERR_VALUE_UPDATE_NOT_ALLOWED:
+      return NKV_ERR_VALUE_UPDATE_NOT_ALLOWED;
+
+    default:
+      return NKV_ERR_IO;
+  }
+
+#endif
 }
 
 int32_t NKVTargetPath::parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs, 
@@ -366,44 +519,61 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
              (char*) n_key->key, n_key->length, n_value->length, dev_path.c_str(), path_ip.c_str());
   }
 
-  kvs_store_option option;
-  option.st_type = KVS_STORE_POST;
-  option.kvs_store_compress = false;
+  #ifdef SAMSUNG_API
+    kvs_store_option option;
+    option.st_type = KVS_STORE_POST;
+    option.kvs_store_compress = false;
 
-  smg_info(logger, "Store option:: compression = %d, encryption = %d, store crc = %d, no overwrite = %d, atomic = %d, update only = %d, append = %d, is_async = %d",
-          n_opt->nkv_store_compressed, n_opt->nkv_store_ecrypted, n_opt->nkv_store_crc_in_meta, n_opt->nkv_store_no_overwrite,
-          n_opt->nkv_store_atomic, n_opt->nkv_store_update_only, n_opt->nkv_store_append, post_fn? 1: 0);
+    smg_info(logger, "Store option:: compression = %d, encryption = %d, store crc = %d, no overwrite = %d, atomic = %d, update only = %d, append = %d, is_async = %d",
+            n_opt->nkv_store_compressed, n_opt->nkv_store_ecrypted, n_opt->nkv_store_crc_in_meta, n_opt->nkv_store_no_overwrite,
+            n_opt->nkv_store_atomic, n_opt->nkv_store_update_only, n_opt->nkv_store_append, post_fn? 1: 0);
 
-  if (n_opt->nkv_store_compressed) {
-    option.kvs_store_compress = true;    
-  }
-
-  if (n_opt->nkv_store_no_overwrite) {
-    option.st_type = KVS_STORE_NOOVERWRITE; //Idempotent
-  } else if (n_opt->nkv_store_update_only) {
-    option.st_type = KVS_STORE_UPDATE_ONLY;
-  } else if (n_opt->nkv_store_append) {
-    option.st_type = KVS_STORE_APPEND;
-  }
-  if (n_opt->nkv_store_ecrypted) {
-    return NKV_ERR_OPTION_ENCRYPTION_NOT_SUPPORTED;
-  } 
-  if (n_opt->nkv_store_crc_in_meta) {
-    return NKV_ERR_OPTION_CRC_NOT_SUPPORTED;
-  }
-  //cache keys for listing (till iterator issue is fixed)
-
-  kvs_store_context put_ctx = {option, 0, 0};
-  if (!post_fn) {
-    const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
-    const kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
-
-    int ret = kvs_store_tuple(path_cont_handle, &kvskey, &kvsvalue, &put_ctx);    
-    if(ret != KVS_SUCCESS ) {
-      smg_error(logger, "store tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
+    if (n_opt->nkv_store_compressed) {
+      option.kvs_store_compress = true;    
     }
+
+    if (n_opt->nkv_store_no_overwrite) {
+      option.st_type = KVS_STORE_NOOVERWRITE; //Idempotent
+    } else if (n_opt->nkv_store_update_only) {
+      option.st_type = KVS_STORE_UPDATE_ONLY;
+    } else if (n_opt->nkv_store_append) {
+      option.st_type = KVS_STORE_APPEND;
+    }
+    if (n_opt->nkv_store_ecrypted) {
+      return NKV_ERR_OPTION_ENCRYPTION_NOT_SUPPORTED;
+    } 
+    if (n_opt->nkv_store_crc_in_meta) {
+      return NKV_ERR_OPTION_CRC_NOT_SUPPORTED;
+    }
+
+    kvs_store_context put_ctx = {option, 0, 0};
+  #else
+    kvs_option_store option;
+    option.st_type = KVS_STORE_POST;
+    option.assoc = NULL;  
+  #endif
+
+  if (!post_fn) {
+    kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
+    #ifdef SAMSUNG_API
+      const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+      int ret = kvs_store_tuple(path_cont_handle, &kvskey, &kvsvalue, &put_ctx);    
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "store tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+    #else
+      kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};
+      kvs_result ret = kvs_store_kvp(path_ks_handle, &kvskey, &kvsvalue, &option);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "store tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
+                  ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+
+    #endif
+
     //cache keys for listing (till iterator issue is fixed)
     if (listing_with_cached_keys) {
       std::string key_str ((char*) n_key->key, n_key->length);
@@ -445,33 +615,38 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     }
 
   } else { //Async
-    while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
-      smg_warn(logger, "store tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
+    #ifdef SAMSUNG_API
+      while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
+        smg_warn(logger, "store tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
                 n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-      usleep(1);
-    }
-    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
-      smg_error(logger, "In store: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
-                queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+        usleep(1);
+      }
+      if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
+        smg_error(logger, "In store: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
+                  queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
 
-    put_ctx.private1 = (void*) post_fn;
-    put_ctx.private2 = (void*) this;
-    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
-    kvskey->key = n_key->key;
-    kvskey->length = n_key->length;
-    kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
-    kvsvalue->value = n_value->value;
-    kvsvalue->length = (uint32_t)n_value->length;
-    kvsvalue->actual_value_size = kvsvalue->offset = 0;
+      put_ctx.private1 = (void*) post_fn;
+      put_ctx.private2 = (void*) this;
+      kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+      kvskey->key = n_key->key;
+      kvskey->length = n_key->length;
+      kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
+      kvsvalue->value = n_value->value;
+      kvsvalue->length = (uint32_t)n_value->length;
+      kvsvalue->actual_value_size = kvsvalue->offset = 0;
     
-    int ret = kvs_store_tuple_async(path_cont_handle, kvskey, kvsvalue, &put_ctx, kvs_aio_completion);
+      int ret = kvs_store_tuple_async(path_cont_handle, kvskey, kvsvalue, &put_ctx, kvs_aio_completion);
 
-    if(ret != KVS_SUCCESS ) {
-      smg_error(logger, "store tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "store tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+      nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
+    #else
+      return NKV_NOT_SUPPORTED;
+    #endif
+
   }
 
   return NKV_SUCCESS;
@@ -493,7 +668,6 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "nkv_value->value = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-
   if ((n_value->length > NKV_MAX_VALUE_LENGTH) || (n_value->length == 0)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
@@ -503,38 +677,67 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
 
-  kvs_retrieve_option option;
-  memset(&option, 0, sizeof(kvs_retrieve_option));
-  option.kvs_retrieve_decompress = false;
-  option.kvs_retrieve_delete = false;
+  #ifdef SAMSUNG_API
+    kvs_retrieve_option option;
+    memset(&option, 0, sizeof(kvs_retrieve_option));
+    option.kvs_retrieve_decompress = false;
+    option.kvs_retrieve_delete = false;
 
-  smg_info(logger, "Retrieve option:: decompression = %d, decryption = %d, compare crc = %d, delete = %d, is_async = %d",
-          n_opt->nkv_retrieve_decompress, n_opt->nkv_retrieve_decrypt, n_opt->nkv_compare_crc, n_opt->nkv_retrieve_delete,
-          post_fn? 1: 0);
+    smg_info(logger, "Retrieve option:: decompression = %d, decryption = %d, compare crc = %d, delete = %d, is_async = %d",
+            n_opt->nkv_retrieve_decompress, n_opt->nkv_retrieve_decrypt, n_opt->nkv_compare_crc, n_opt->nkv_retrieve_delete,
+            post_fn? 1: 0);
 
-  if (n_opt->nkv_retrieve_decompress) {
-    option.kvs_retrieve_decompress = true;
-  }
-  if (n_opt->nkv_retrieve_delete) {
-    option.kvs_retrieve_delete = true;
-  }
+    if (n_opt->nkv_retrieve_decompress) {
+      option.kvs_retrieve_decompress = true;
+    }
+    if (n_opt->nkv_retrieve_delete) {
+      option.kvs_retrieve_delete = true;
+    }
 
-  kvs_retrieve_context ret_ctx = {option, 0, 0};
+    kvs_retrieve_context ret_ctx = {option, 0, 0};
+  #else
+    kvs_option_retrieve option;
+    if (n_opt->nkv_retrieve_delete) {
+      option.kvs_retrieve_delete = true;
+    } else {
+      option.kvs_retrieve_delete = false;
+    }
+  #endif
+
   if (!post_fn) {
-    const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
     kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
 
-    int ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue, &ret_ctx);
-    if(ret != KVS_SUCCESS ) {
-      if (ret != KVS_ERR_KEY_NOT_EXIST) {
-        smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      } else {
-        smg_info(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      }
-      return map_kvs_err_code_to_nkv_err_code(ret);
+    #ifdef SAMSUNG_API
+      const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+      int ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue, &ret_ctx);
+      if(ret != KVS_SUCCESS ) {
+        if (ret != KVS_ERR_KEY_NOT_EXIST) {
+          smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        } else {
+          smg_info(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        }
+        return map_kvs_err_code_to_nkv_err_code(ret);
     }
+
+    #else
+      kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};
+      kvs_result ret = kvs_retrieve_kvp(path_ks_handle, &kvskey, &option, &kvsvalue);
+      if(ret != KVS_SUCCESS ) {
+        if (ret != KVS_ERR_KEY_NOT_EXIST) {
+          smg_error(logger, "Retrieve kvp failed with error 0x%x , key = %s, dev_path = %s, ip = %s",
+                    ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+        } else {
+          smg_info(logger, "Retrieve kvp failed with error 0x%x , key = %s, dev_path = %s, ip = %s",
+                    ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+        }
+
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+
+    #endif
+
 
     n_value->actual_length = kvsvalue.actual_value_size;
     if (n_value->actual_length == 0) {
@@ -542,12 +745,24 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
                 n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue.length);
 
       kvs_value kvsvalue_retry = { n_value->value, (uint32_t)n_value->length, 0, 0};
-      ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue_retry, &ret_ctx);
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s, passed_length = %u",
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue_retry.length);
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
+ 
+      #ifdef SAMSUNG_API
+        ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue_retry, &ret_ctx);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s, passed_length = %u",
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue_retry.length);
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+      #else
+        kvs_result ret = kvs_retrieve_kvp(path_ks_handle, &kvskey, &option, &kvsvalue_retry);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "Retrieve tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
+                    ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+
+      #endif
+      
 
       n_value->actual_length = kvsvalue_retry.actual_value_size;
       if (n_value->actual_length == 0) {
@@ -558,34 +773,37 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     }
     assert(NULL != n_value->value);
   } else {//Async
-    while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
-      smg_warn(logger, "Retrieve tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
-                n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-      usleep(1);
-    }
-    if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
-      smg_error(logger, "In retrieve: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
-                queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+    #ifdef SAMSUNG_API
+      while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
+        smg_warn(logger, "Retrieve tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
+                  n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+        usleep(1);
+      }
+      if (queue_depth_monitor_required && (nkv_async_path_cur_qd < (uint32_t)queue_depth_threshold))
+        smg_error(logger, "In retrieve: outstanding QD is going below threashold = %d, key = %s, dev_path = %s, cur_qd = %u, max_qd = %u",
+                  queue_depth_threshold, n_key->key, dev_path.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
 
-    ret_ctx.private1 = (void*) post_fn;
-    ret_ctx.private2 = (void*) this;
-    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
-    kvskey->key = n_key->key;
-    kvskey->length = n_key->length;
-    kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
-    kvsvalue->value = n_value->value;
-    kvsvalue->length = (uint32_t)n_value->length;
-    kvsvalue->actual_value_size = kvsvalue->offset = 0;
+      ret_ctx.private1 = (void*) post_fn;
+      ret_ctx.private2 = (void*) this;
+      kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+      kvskey->key = n_key->key;
+      kvskey->length = n_key->length;
+      kvs_value *kvsvalue = (kvs_value*)malloc(sizeof(kvs_value));
+      kvsvalue->value = n_value->value;
+      kvsvalue->length = (uint32_t)n_value->length;
+      kvsvalue->actual_value_size = kvsvalue->offset = 0;
 
-    int ret = kvs_retrieve_tuple_async(path_cont_handle, kvskey, kvsvalue, &ret_ctx, kvs_aio_completion);
+      int ret = kvs_retrieve_tuple_async(path_cont_handle, kvskey, kvsvalue, &ret_ctx, kvs_aio_completion);
 
-    if(ret != KVS_SUCCESS ) {
-      smg_error(logger, "retrieve tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
-
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "retrieve tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+      nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
+    #else
+      return NKV_NOT_SUPPORTED;
+    #endif
   }
 
   return NKV_SUCCESS;
@@ -662,16 +880,33 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
 
-  const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
-  kvs_delete_context del_ctx = { {false}, 0, 0};
+  #ifdef SAMSUNG_API
+    const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+    kvs_delete_context del_ctx = { {false}, 0, 0};
+  #else
+    kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};
+    kvs_option_delete option = {false};
+  #endif
 
   if (!post_fn) {
-    int ret = kvs_delete_tuple(path_cont_handle, &kvskey, &del_ctx);
-    if(ret != KVS_SUCCESS ) {
-      smg_error(logger, "Delete tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
+
+    #ifdef SAMSUNG_API
+      int ret = kvs_delete_tuple(path_cont_handle, &kvskey, &del_ctx);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "Delete tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+    #else
+      kvs_result ret = kvs_delete_kvp(path_ks_handle, &kvskey, &option);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "Delete tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
+                  ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+
+    #endif
+
     if (listing_with_cached_keys) {
       std::string key_str ((char*) n_key->key, n_key->length);
       std::size_t found = key_str.find(iter_prefix);
@@ -740,25 +975,30 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
 
   } else {
 
-    while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
-      smg_warn(logger, "Delete tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
-                n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-      usleep(1);
-    }
-    del_ctx.private1 = (void*) post_fn;
-    del_ctx.private2 = (void*) this;
-    kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
-    kvskey->key = n_key->key;
-    kvskey->length = n_key->length;
+    #ifdef SAMSUNG_API
+      while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
+        smg_warn(logger, "Delete tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
+                  n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
+        usleep(1);
+      }
+      del_ctx.private1 = (void*) post_fn;
+      del_ctx.private2 = (void*) this;
+      kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
+      kvskey->key = n_key->key;
+      kvskey->length = n_key->length;
 
-    int ret = kvs_delete_tuple_async(path_cont_handle, kvskey, &del_ctx, kvs_aio_completion);
+      int ret = kvs_delete_tuple_async(path_cont_handle, kvskey, &del_ctx, kvs_aio_completion);
 
-    if(ret != KVS_SUCCESS ) {
-      smg_error(logger, "delete tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "delete tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+      nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
+
+    #else
+      return NKV_NOT_SUPPORTED;
+    #endif
 
   }
   
@@ -1112,46 +1352,27 @@ void NKVTargetPath::nkv_path_thread_func(int32_t what_work) {
   } 
 
   if (what_work == 0 && listing_with_cached_keys) {
-    kvs_iterator_context iter_ctx_open;
-    iter_ctx_open.bitmask = 0xffffffff;
-    unsigned int PREFIX_KV = 0;
-    for (int i = 0; i < 4; i++){    
-      PREFIX_KV |= (iter_prefix[i] << i*8);
-    }
+    #ifdef SAMSUNG_API
+      kvs_iterator_context iter_ctx_open;
+      iter_ctx_open.bitmask = 0xffffffff;
+      unsigned int PREFIX_KV = 0;
+      for (int i = 0; i < 4; i++){    
+        PREFIX_KV |= (iter_prefix[i] << i*8);
+      }
 
-    iter_ctx_open.bit_pattern = PREFIX_KV;
-    smg_info(logger, "nkv_path_thread_func::Opening iterator context with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x, dev_path = %s, ip = %s",
-             iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern, dev_path.c_str(), path_ip.c_str());
-    iter_ctx_open.private1 = NULL;
-    iter_ctx_open.private2 = NULL;
-    iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
+      iter_ctx_open.bit_pattern = PREFIX_KV;
+      smg_info(logger, "nkv_path_thread_func::Opening iterator context with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x, dev_path = %s, ip = %s",
+               iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern, dev_path.c_str(), path_ip.c_str());
+      iter_ctx_open.private1 = NULL;
+      iter_ctx_open.private2 = NULL;
+      iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
 
-    iterator_info* iter_info = new iterator_info(); 
-    assert(iter_info != NULL);
+      iterator_info* iter_info = new iterator_info(); 
+      assert(iter_info != NULL);
  
-    int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
-    if(ret != KVS_SUCCESS) {
-      if (ret != KVS_ERR_ITERATOR_OPEN) {
-        smg_error(logger, "nkv_path_thread_func::iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
-                  path_ip.c_str(), ret, kvs_errstr(ret));
-        if (iter_info) {
-          delete(iter_info);
-          iter_info = NULL;
-        }
-        return ;
-      } else {
-        smg_warn(logger, "nkv_path_thread_func::Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s",
-                 dev_path.c_str(), path_ip.c_str());
-        kvs_iterator_context iter_ctx_close;
-        iter_ctx_close.private1 = NULL;
-        iter_ctx_close.private2 = NULL;
-
-        ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
-        if(ret != KVS_SUCCESS) {
-          smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
-        }
-        ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
-        if(ret != KVS_SUCCESS) {
+      int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+      if(ret != KVS_SUCCESS) {
+        if (ret != KVS_ERR_ITERATOR_OPEN) {
           smg_error(logger, "nkv_path_thread_func::iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
                     path_ip.c_str(), ret, kvs_errstr(ret));
           if (iter_info) {
@@ -1159,67 +1380,173 @@ void NKVTargetPath::nkv_path_thread_func(int32_t what_work) {
             iter_info = NULL;
           }
           return ;
+        } else {
+          smg_warn(logger, "nkv_path_thread_func::Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s",
+                   dev_path.c_str(), path_ip.c_str());
+          kvs_iterator_context iter_ctx_close;
+          iter_ctx_close.private1 = NULL;
+          iter_ctx_close.private2 = NULL;
 
+          ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+          if(ret != KVS_SUCCESS) {
+            smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+          }
+          ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+          if(ret != KVS_SUCCESS) {
+            smg_error(logger, "nkv_path_thread_func::iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                      path_ip.c_str(), ret, kvs_errstr(ret));
+            if (iter_info) {
+              delete(iter_info);
+              iter_info = NULL;
+            }
+            return ;
+
+          }
         }
       }
-    }
 
-    /* Do iteration */
-    static int total_entries = 0;
-    iter_info->iter_list.size = iter_buff;
-    uint8_t *buffer;
-    buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
-    memset(buffer, 0, iter_buff);
-    iter_info->iter_list.it_list = (uint8_t*) buffer;
-
-    kvs_iterator_context iter_ctx_next;
-    iter_ctx_next.private1 = iter_info;
-    iter_ctx_next.private2 = NULL;
-
-    iter_info->iter_list.end = 0;
-    iter_info->iter_list.num_entries = 0;
-
-    while(1) {
+      /* Do iteration */
+      static int total_entries = 0;
       iter_info->iter_list.size = iter_buff;
-      int ret = kvs_iterator_next(path_cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
+      uint8_t *buffer;
+      buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
+      memset(buffer, 0, iter_buff);
+      iter_info->iter_list.it_list = (uint8_t*) buffer;
+
+      kvs_iterator_context iter_ctx_next;
+      iter_ctx_next.private1 = iter_info;
+      iter_ctx_next.private2 = NULL;
+
+      iter_info->iter_list.end = 0;
+      iter_info->iter_list.num_entries = 0;
+
+      while(1) {
+        iter_info->iter_list.size = iter_buff;
+        int ret = kvs_iterator_next(path_cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "nkv_path_thread_func::iterator next fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), path_ip.c_str(),
+                    ret, kvs_errstr(ret));
+          break;
+        }
+        total_entries += iter_info->iter_list.num_entries;
+        initialize_iter_cache (iter_info); 
+        smg_info(logger, "nkv_path_thread_func::iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated = %u, key prefixes populated = %u",
+                 dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+
+        if(iter_info->iter_list.end) {
+          smg_info(logger, "nkv_path_thread_func::Done with all keys on dev_path = %s, ip = %s. Total: %u, keys populated = %u, key prefixes populated = %u",
+                   dev_path.c_str(), path_ip.c_str(), total_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+          break;
+
+        } else {
+          memset(iter_info->iter_list.it_list, 0,  iter_buff);
+        }
+        if (nkv_path_stopping) {
+          smg_info(logger, "nkv_path_thread_func::Thread is stopping on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+          break;
+        }
+      }
+
+      kvs_iterator_context iter_ctx_close;
+      iter_ctx_close.private1 = NULL;
+      iter_ctx_close.private2 = NULL;
+
+      ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
       if(ret != KVS_SUCCESS) {
-        smg_error(logger, "nkv_path_thread_func::iterator next fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), path_ip.c_str(),
-                  ret, kvs_errstr(ret));
-        break;
+        smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+      }   
+
+      if(buffer) kvs_free(buffer);
+      if (iter_info) {
+        delete(iter_info);
+        iter_info = NULL;
       }
-      total_entries += iter_info->iter_list.num_entries;
-      initialize_iter_cache (iter_info); 
-      smg_info(logger, "nkv_path_thread_func::iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated = %u, key prefixes populated = %u",
-               dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+    #else
+      struct iterator_info *iter_info = (struct iterator_info *)malloc(sizeof(struct iterator_info));
+      iter_info->g_iter_mode.iter_type = KVS_ITERATOR_KEY;
 
-      if(iter_info->iter_list.end) {
-        smg_info(logger, "nkv_path_thread_func::Done with all keys on dev_path = %s, ip = %s. Total: %u, keys populated = %u, key prefixes populated = %u",
-                 dev_path.c_str(), path_ip.c_str(), total_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
-        break;
+      kvs_result ret;
+      static int total_entries = 0;
 
-      } else {
-        memset(iter_info->iter_list.it_list, 0,  iter_buff);
+      /* Open iterator */
+      kvs_key_group_filter iter_fltr;
+
+      iter_fltr.bitmask[0] = 0xffffffff & 0xff;
+      iter_fltr.bitmask[1] = (0xffffffff & 0xff00) >> 8;
+      iter_fltr.bitmask[2] = (0xffffffff & 0xff0000) >> 16;
+      iter_fltr.bitmask[3] = (0xffffffff & 0xff000000) >> 24;
+      unsigned int PREFIX_KV = 0;
+      for (int i = 0; i < 4; i++){
+        PREFIX_KV |= (iter_prefix[i] << i*8);
       }
-      if (nkv_path_stopping) {
-        smg_info(logger, "nkv_path_thread_func::Thread is stopping on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
-        break;
+
+      iter_fltr.bit_pattern[0] = PREFIX_KV & 0xff;
+      iter_fltr.bit_pattern[1] = (PREFIX_KV & 0xff00) >> 8;
+      iter_fltr.bit_pattern[2] = (PREFIX_KV & 0xff0000) >> 16;
+      iter_fltr.bit_pattern[3] = (PREFIX_KV & 0xff000000) >> 24;
+
+      smg_warn(logger, "Creating iter with iter_prefix = %s, p_kv = 0x%x, bitmask[0] = 0x%x, bitmask[1] = 0x%x, bitmask[2] = 0x%x, bitmask[3] = 0x%x, bit_pattern[0] = 0x%x, bit_pattern[1] = 0x%x, bit_pattern[2] = 0x%x, bit_pattern[3] = 0x%x, dev_path = %s, ip = %s",
+               iter_prefix.c_str(), PREFIX_KV, iter_fltr.bitmask[0], iter_fltr.bitmask[1], iter_fltr.bitmask[2], iter_fltr.bitmask[3], iter_fltr.bit_pattern[0],
+               iter_fltr.bit_pattern[1], iter_fltr.bit_pattern[2], iter_fltr.bit_pattern[3], dev_path.c_str(), path_ip.c_str());
+
+      ret = kvs_create_iterator(path_ks_handle, &(iter_info->g_iter_mode), &iter_fltr, &(iter_info->iter_handle));
+      if(ret != KVS_SUCCESS) {
+        smg_error(logger, "nkv_path_thread_func::iterator creation fails on dev_path = %s, ip = %s with error 0x%x \n", dev_path.c_str(),
+                  path_ip.c_str(), ret);
+        free(iter_info);
+        return ;
       }
-    }
+      /* Do iteration */
+      iter_info->iter_list.size = iter_buff;
+      uint8_t *buffer;
+      buffer =(uint8_t*)kvs_malloc(iter_buff, 4096);
+      iter_info->iter_list.it_list = (uint8_t*) buffer;
 
-    kvs_iterator_context iter_ctx_close;
-    iter_ctx_close.private1 = NULL;
-    iter_ctx_close.private2 = NULL;
+      iter_info->iter_list.end = 0;
+      iter_info->iter_list.num_entries = 0;
 
-    ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
-    if(ret != KVS_SUCCESS) {
-      smg_error(logger, "nkv_path_thread_func::Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
-    }
+      while(1) {
+        iter_info->iter_list.size = iter_buff;
+        memset(iter_info->iter_list.it_list, 0, iter_buff);
+        ret = kvs_iterate_next(path_ks_handle, iter_info->iter_handle, &(iter_info->iter_list));
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "nkv_path_thread_func::iterator next fails on dev_path = %s, ip = %s with error 0x%x \n", dev_path.c_str(), path_ip.c_str(),
+                    ret);
+          free(iter_info);
+          kvs_free(buffer);
+          return ;
+        }
+        
+        total_entries += iter_info->iter_list.num_entries;
+        initialize_iter_cache (iter_info); 
+        smg_info(logger, "nkv_path_thread_func::iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated = %u, key prefixes populated = %u",
+                 dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
 
-    if(buffer) kvs_free(buffer);
-    if (iter_info) {
-      delete(iter_info);
-      iter_info = NULL;
-    }
+        if(iter_info->iter_list.end) {
+          smg_info(logger, "nkv_path_thread_func::Done with all keys on dev_path = %s, ip = %s. Total: %u, keys populated = %u, key prefixes populated = %u",
+                   dev_path.c_str(), path_ip.c_str(), total_entries, nkv_num_keys.load(), nkv_num_key_prefixes.load());
+          break;
+        } else {
+          memset(iter_info->iter_list.it_list, 0,  iter_buff);
+        }
+        if (nkv_path_stopping) {
+          smg_info(logger, "nkv_path_thread_func::Thread is stopping on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+          break;
+        }
+      }
+
+      /* Close iterator */
+      ret = kvs_delete_iterator(path_ks_handle, iter_info->iter_handle);
+      if(ret != KVS_SUCCESS) {
+        smg_error(logger, "nkv_path_thread_func::Failed to delete iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+        kvs_free(buffer);
+        free(iter_info);
+        return ;
+      }
+  
+      if(buffer) kvs_free(buffer);
+      if(iter_info) free(iter_info);
+    #endif
     smg_info(logger, "nkv_path_thread_func::Finished iteration job for dev_path = %s, ip = %s, exiting the thread", dev_path.c_str(), path_ip.c_str());
   } else {
     smg_error(logger, "nkv_path_thread_func::Invalid work order = %d, exiting thread", what_work);
@@ -1438,125 +1765,121 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
     return stat;  
   }
 #endif
+  #ifdef SAMSUNG_API
+    //Disk based iteration
+    if (0 == iter_info->network_path_hash_iterating) {
+      smg_info(logger, "Opening iterator and creating handle on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
 
-  //Disk based iteration
-  if (0 == iter_info->network_path_hash_iterating) {
-    smg_info(logger, "Opening iterator and creating handle on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+      kvs_iterator_context iter_ctx_open;
 
-    kvs_iterator_context iter_ctx_open;
+      iter_ctx_open.bitmask = 0xffffffff;
+      unsigned int PREFIX_KV = 0;
+      for (int i = 0; i < 4; i++){
+        PREFIX_KV |= (iter_prefix[i] << i*8);
+      }
 
-    iter_ctx_open.bitmask = 0xffffffff;
-    //iter_ctx_open.bitmask = 0xffff0000;
-    //char prefix_str[5] = iter_prefix.c_str();
-    //char prefix_str[5] = "0000";
-    unsigned int PREFIX_KV = 0;
-    for (int i = 0; i < 4; i++){
-      //PREFIX_KV |= (prefix_str[i] << i*8);
-      PREFIX_KV |= (iter_prefix[i] << i*8);
+      iter_ctx_open.bit_pattern = PREFIX_KV;
+      smg_info(logger, "Opening iterator with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x", 
+               iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern);
+      iter_ctx_open.private1 = NULL;
+      iter_ctx_open.private2 = NULL;
+
+      iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
+      //Lock because we can have only one iterator open for the same prefix/bitmask at one time
+      iter_mtx.lock();
+      int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+      if(ret != KVS_SUCCESS) {
+        if (ret != KVS_ERR_ITERATOR_OPEN) {
+          smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                    path_ip.c_str(), ret, kvs_errstr(ret));
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        } else {
+          smg_warn(logger, "Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s, network_path_hash_iterating = %u",
+                   dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating);
+          kvs_iterator_context iter_ctx_close;
+          iter_ctx_close.private1 = NULL;
+          iter_ctx_close.private2 = NULL;
+
+          ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+          if(ret != KVS_SUCCESS) {
+            smg_error(logger, "Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
+          }
+          ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
+          if(ret != KVS_SUCCESS) {
+            smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
+                      path_ip.c_str(), ret, kvs_errstr(ret));
+            return map_kvs_err_code_to_nkv_err_code(ret);
+
+          }
+        }
+      }
+      iter_info->network_path_hash_iterating = path_hash;
+    } else {
+      smg_info(logger, "Iterator context is already opened on dev_path = %s, ip = %s, network_path_hash_iterating = %u", 
+               dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating);
     }
 
-    iter_ctx_open.bit_pattern = PREFIX_KV;
-    smg_info(logger, "Opening iterator with iter_prefix = %s, bitmask = 0x%x, bit_pattern = 0x%x", 
-             iter_prefix.c_str(), iter_ctx_open.bitmask, iter_ctx_open.bit_pattern);
-    iter_ctx_open.private1 = NULL;
-    iter_ctx_open.private2 = NULL;
+    /* Do iteration */
+    static int total_entries = 0;
+    iter_info->iter_list.size = iter_buff;
+    uint8_t *buffer;
+    buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
+    memset(buffer, 0, iter_buff);
+    iter_info->iter_list.it_list = (uint8_t*) buffer;
 
-    iter_ctx_open.option.iter_type = KVS_ITERATOR_KEY;
-    //Lock because we can have only one iterator open for the same prefix/bitmask at one time
-    iter_mtx.lock();
-    int ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
-    if(ret != KVS_SUCCESS) {
-      if (ret != KVS_ERR_ITERATOR_OPEN) {
-        smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
-                  path_ip.c_str(), ret, kvs_errstr(ret));
+    kvs_iterator_context iter_ctx_next;
+    iter_ctx_next.private1 = iter_info;
+    iter_ctx_next.private2 = NULL;
+
+    iter_info->iter_list.end = 0;
+    iter_info->iter_list.num_entries = 0;  
+
+    while(1) {
+      iter_info->iter_list.size = iter_buff;
+      int ret = kvs_iterator_next(path_cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
+      if(ret != KVS_SUCCESS) {
+        smg_error(logger, "iterator next fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), path_ip.c_str(),
+                  ret, kvs_errstr(ret));
+        if(buffer) kvs_free(buffer);
         return map_kvs_err_code_to_nkv_err_code(ret);
-      } else {
-        smg_warn(logger, "Iterator context is already opened, closing and reopening on dev_path = %s, ip = %s, network_path_hash_iterating = %u",
-                 dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating);
+      }
+      total_entries += iter_info->iter_list.num_entries;
+
+      stat = find_keys_from_path(max_keys, keys, iter_info, num_keys_iterted, prefix, delimiter);
+      smg_info(logger, "iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated so far = %u",
+               dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, *num_keys_iterted);
+
+      if(iter_info->iter_list.end) {
+        smg_info(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u, this batch = %u", 
+                  dev_path.c_str(), path_ip.c_str(), total_entries, *num_keys_iterted);
+        /* Close iterator */
         kvs_iterator_context iter_ctx_close;
         iter_ctx_close.private1 = NULL;
         iter_ctx_close.private2 = NULL;
 
-        ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
+        int ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
         if(ret != KVS_SUCCESS) {
           smg_error(logger, "Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
         }
-        ret = kvs_open_iterator(path_cont_handle, &iter_ctx_open, &iter_info->iter_handle);
-        if(ret != KVS_SUCCESS) {
-          smg_error(logger, "iterator open fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(),
-                    path_ip.c_str(), ret, kvs_errstr(ret));
-          return map_kvs_err_code_to_nkv_err_code(ret);
-
-        }
-      }
-    }
-    iter_info->network_path_hash_iterating = path_hash;
-  } else {
-    smg_info(logger, "Iterator context is already opened on dev_path = %s, ip = %s, network_path_hash_iterating = %u", 
-             dev_path.c_str(), path_ip.c_str(), iter_info->network_path_hash_iterating);
-  }
-
-  /* Do iteration */
-  static int total_entries = 0;
-  iter_info->iter_list.size = iter_buff;
-  uint8_t *buffer;
-  buffer =(uint8_t*) kvs_malloc(iter_buff, 4096);
-  memset(buffer, 0, iter_buff);
-  iter_info->iter_list.it_list = (uint8_t*) buffer;
-
-  kvs_iterator_context iter_ctx_next;
-  iter_ctx_next.private1 = iter_info;
-  iter_ctx_next.private2 = NULL;
-
-  iter_info->iter_list.end = 0;
-  iter_info->iter_list.num_entries = 0;  
-
-  while(1) {
-    iter_info->iter_list.size = iter_buff;
-    int ret = kvs_iterator_next(path_cont_handle, iter_info->iter_handle, &iter_info->iter_list, &iter_ctx_next);
-    if(ret != KVS_SUCCESS) {
-      smg_error(logger, "iterator next fails on dev_path = %s, ip = %s with error 0x%x - %s\n", dev_path.c_str(), path_ip.c_str(),
-                ret, kvs_errstr(ret));
-      if(buffer) kvs_free(buffer);
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    total_entries += iter_info->iter_list.num_entries;
-    //*num_keys_iterted += iter_info->iter_list.num_entries;
-
-    stat = find_keys_from_path(max_keys, keys, iter_info, num_keys_iterted, prefix, delimiter);
-    smg_info(logger, "iterator next successful on dev_path = %s, ip = %s. Total: %u, this batch = %u, keys populated so far = %u",
-             dev_path.c_str(), path_ip.c_str(), total_entries, iter_info->iter_list.num_entries, *num_keys_iterted);
-
-    if(iter_info->iter_list.end) {
-      smg_info(logger, "Done with all keys on dev_path = %s, ip = %s. Total: %u, this batch = %u", 
-                dev_path.c_str(), path_ip.c_str(), total_entries, *num_keys_iterted);
-      /* Close iterator */
-      kvs_iterator_context iter_ctx_close;
-      iter_ctx_close.private1 = NULL;
-      iter_ctx_close.private2 = NULL;
-
-      int ret = kvs_close_iterator(path_cont_handle, iter_info->iter_handle, &iter_ctx_close);
-      if(ret != KVS_SUCCESS) {
-        smg_error(logger, "Failed to close iterator on dev_path = %s, ip = %s", dev_path.c_str(), path_ip.c_str());
-      }
-      iter_mtx.unlock();
-      iter_info->visited_path.insert(path_hash);
-      iter_info->network_path_hash_iterating = 0;
+        iter_mtx.unlock();
+        iter_info->visited_path.insert(path_hash);
+        iter_info->network_path_hash_iterating = 0;
  
-      break;
-
-    } else {
-      if ((*max_keys - *num_keys_iterted) < iter_info->iter_list.num_entries) {
-        smg_warn(logger,"Probably not enough out buffer space to accomodate next set of keys for dev_path = %s, ip = %s, remaining key space = %u, avg number of entries per call = %u",
-                 dev_path.c_str(), path_ip.c_str(), (*max_keys - *num_keys_iterted), iter_info->iter_list.num_entries);
-        *max_keys = *num_keys_iterted;
-        stat = NKV_ITER_MORE_KEYS;
         break;
+
+      } else {
+        if ((*max_keys - *num_keys_iterted) < iter_info->iter_list.num_entries) {
+          smg_warn(logger,"Probably not enough out buffer space to accomodate next set of keys for dev_path = %s, ip = %s, remaining key space = %u, avg number of entries per call = %u",
+                   dev_path.c_str(), path_ip.c_str(), (*max_keys - *num_keys_iterted), iter_info->iter_list.num_entries);
+          *max_keys = *num_keys_iterted;
+          stat = NKV_ITER_MORE_KEYS;
+          break;
+        }
+        memset(iter_info->iter_list.it_list, 0,  iter_buff);
       }
-      memset(iter_info->iter_list.it_list, 0,  iter_buff);
     }
-  }
-  if(buffer) kvs_free(buffer);
+    if(buffer) kvs_free(buffer);
+  #endif
   return stat;
 
 }

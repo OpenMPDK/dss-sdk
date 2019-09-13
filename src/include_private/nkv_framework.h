@@ -82,6 +82,9 @@
     std::unordered_set<std::string> dir_entries_added;
     kvs_iterator_handle iter_handle;
     kvs_iterator_list iter_list;
+    #ifndef SAMSUNG_API
+      kvs_option_iterator g_iter_mode;
+    #endif
     uint64_t network_path_hash_iterating;
     int32_t all_done;
     //For cached based listing
@@ -112,8 +115,13 @@
 
   class NKVTargetPath {
     kvs_device_handle path_handle;
-    kvs_container_context path_cont_ctx;
-    kvs_container_handle path_cont_handle;
+    #ifdef SAMSUNG_API
+      kvs_container_context path_cont_ctx;
+      kvs_container_handle path_cont_handle;
+    #else
+      kvs_key_space_name   path_ks_name;
+      kvs_key_space_handle path_ks_handle;
+    #endif
     std::thread path_thread_iter;
     std::thread path_thread_cache;
   public:
@@ -187,10 +195,14 @@
         nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
         wait_for_thread_completion();
       }
-
-      kvs_result ret = kvs_close_container(path_cont_handle);
-      assert(ret == KVS_SUCCESS);
-      //kvs_delete_container(path_handle, path_cont_name.c_str());
+      kvs_result ret;
+      #ifdef SAMSUNG_API
+        ret = kvs_close_container(path_cont_handle);
+        assert(ret == KVS_SUCCESS);
+      #else
+        kvs_close_key_space(path_ks_handle);
+        kvs_delete_key_space(path_handle, &path_ks_name);
+      #endif
 
       ret = kvs_close_device(path_handle);
       assert(ret == KVS_SUCCESS);
@@ -207,29 +219,52 @@
     }
     
     bool open_path(const std::string& app_name) {
-      kvs_result ret = kvs_open_device(dev_path.c_str(), &path_handle);
+      kvs_result ret = kvs_open_device((char*)dev_path.c_str(), &path_handle);
       if(ret != KVS_SUCCESS) {
-        smg_error(logger, "Path open failed, path = %s, error = %s", dev_path.c_str(), kvs_errstr(ret));
+        #ifdef SAMSUNG_API
+          smg_error(logger, "Path open failed, path = %s, error = %s", dev_path.c_str(), kvs_errstr(ret));
+        #else
+          smg_error(logger, "Path open failed, path = %s, error = %d", dev_path.c_str(), ret);
+        #endif
         return false;
       }
       smg_info(logger,"** Path open successful for path = %s **", dev_path.c_str());
       //For now device supports single container only..
       path_cont_name = "nkv_" + app_name;
-      ret = kvs_create_container(path_handle, path_cont_name.c_str(), 0, &path_cont_ctx);      
-      if(ret != KVS_SUCCESS) {
-        smg_error(logger, "Path container creation failed, path = %s, container name = %s, error = %s", 
-                 dev_path.c_str(), path_cont_name.c_str(), kvs_errstr(ret));
-        return false;
-      }
+      #ifdef SAMSUNG_API 
+        ret = kvs_create_container(path_handle, path_cont_name.c_str(), 0, &path_cont_ctx);      
+        if (ret != KVS_SUCCESS) {
+          smg_error(logger, "Path container creation failed, path = %s, container name = %s, error = %s", 
+                   dev_path.c_str(), path_cont_name.c_str(), kvs_errstr(ret));
+          return false;
+        }
+      #else
+        kvs_option_key_space option = {KVS_KEY_ORDER_ASCEND};
+        path_ks_name.name = (char*)path_cont_name.c_str();
+        path_ks_name.name_len = path_cont_name.length();
+  
+        kvs_create_key_space(path_handle, &path_ks_name, 0, option);
+
+      #endif
       smg_info(logger,"** Path container creation successful for path = %s, container name = %s **", 
               dev_path.c_str(), path_cont_name.c_str());
 
-      ret = kvs_open_container(path_handle, path_cont_name.c_str(), &path_cont_handle);
-      if(ret != KVS_SUCCESS) {
-        smg_error(logger, "Path open container failed, path = %s, container name = %s, error = %s",
-                 dev_path.c_str(), path_cont_name.c_str(), kvs_errstr(ret));
-        return false;
-      }
+      #ifdef SAMSUNG_API
+        ret = kvs_open_container(path_handle, path_cont_name.c_str(), &path_cont_handle);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "Path open container failed, path = %s, container name = %s, error = %s",
+                   dev_path.c_str(), path_cont_name.c_str(), kvs_errstr(ret));
+          return false;
+        }
+      #else
+        ret = kvs_open_key_space(path_handle, (char*)path_cont_name.c_str(), &path_ks_handle);
+        if(ret != KVS_SUCCESS) {
+          smg_error(logger, "Path open key_space failed, path = %s, container name = %s, error = %d",
+                   dev_path.c_str(), path_cont_name.c_str(), ret);
+          return false;
+        }
+
+      #endif
       smg_info(logger,"** Path open container successful for path = %s, container name = %s **",
               dev_path.c_str(), path_cont_name.c_str());
 
