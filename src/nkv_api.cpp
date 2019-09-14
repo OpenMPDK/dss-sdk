@@ -272,7 +272,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         options.aio.iocoremask = 0;
         options.memory.use_dpdk = 0;
         options.aio.queuedepth = nkv_container_path_qd;
-        const char *emulconfigfile = "./kvssd_emul.conf";
+        const char *emulconfigfile = "../kvssd_emul.conf";
         options.emul_config_file =  emulconfigfile;
       #endif
 
