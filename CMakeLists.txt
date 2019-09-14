@@ -4,6 +4,7 @@ project (libnkvapi C CXX)
 option(NKV_WITH_EMU "Enable NKV with Emulator support" OFF)
 option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" OFF)
 option(NKV_WITH_SPDK "Enable NKV with SPDK Driver support" OFF)
+option(NKV_WITH_SAMSUNG_API "Enable NKV with SAMSUNG openmpdk api support" OFF)
 
 set(CMAKE_C_FLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
 set(CMAKE_CXX_FLAGS "-O3 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
@@ -26,8 +27,11 @@ link_directories(${LOG_LIBRARY_DIR})
 
 #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/ ${CMAKE_BINARY_DIR}/lib)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
-set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
-add_definitions(-DSAMSUNG_API)
+
+if(NKV_WITH_SAMSUNG_API)
+  set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
+  add_definitions(-DSAMSUNG_API)
+endif()
 
 if(NKV_WITH_KDD)
   set(WITH_KDD ON CACHE BOOL "Enable KDD functionality" FORCE)
@@ -95,7 +99,8 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/disk_stats.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/start.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
-	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/kvssd_emul.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/kvssd_emul.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/env_init.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
 	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/

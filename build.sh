@@ -2,15 +2,15 @@
 
 if [ $# -eq 0 ]
 then
-  echo "No arguments supplied, argument should be either 'kdd' or 'emul'"
+  echo "No arguments supplied, argument should be either 'kdd', 'kdd-samsung' or 'emul'"
   exit
 fi
 
-if [ $1 == 'kdd' ] || [ $1 == 'emul' ]
+if [ $1 == 'kdd' ] || [ $1 == 'emul' ] || [ $1 == 'kdd-samsung' ]
 then
   echo "Building NKV with : $1"
 else
-  echo "Build argument should be either 'kdd' or 'emul'"
+  echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung'"
   exit
 fi
 
@@ -29,7 +29,6 @@ fi
 
 rm -rf $OD
 mkdir $OD
-
 cd ${OD}
 if [ $1 == 'kdd' ]
 then
@@ -37,6 +36,9 @@ then
 elif [ $1 == 'emul' ]
 then
   cmake $CWD -DNKV_WITH_EMU=ON
+elif [ $1 == 'kdd-samsung' ]
+then
+  cmake $CWD -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON
 else
   echo "Build argument should be either 'kdd' or 'emul'"
   exit
