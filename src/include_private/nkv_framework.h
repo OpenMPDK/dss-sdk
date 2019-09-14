@@ -1114,16 +1114,14 @@
     
    /* Function Name: update_container
     * Params       : <string> -Address of Remote Mount Path
-    *                <int32_t>-Port of Remote Mount Path 
-    *                <string> -nqn for subsystem
     *                <int32_t>-Rremote Mount Path status
     * Return       : <bool>  Updated Mount Path or Not
     * Description  : Update remote mount path status based on the address received from event.
     *                Invoked from event handler.
     */
-    bool update_container(std::string& subsystem_address,
-                          int32_t subsystem_port,
-                          std::string& subsystem_nqn, 
+    bool update_container(std::string category,
+                          std::string node_name,
+                          boost::property_tree::ptree& args,
                           int32_t remote_path_status) {
 
       bool is_nkv_data_structure_updated =  false;
@@ -1136,22 +1134,44 @@
         // Iterate each path of a subsystem
         for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
           NKVTargetPath* target_path_ptr = p_iter->second;
-                    
-          // Check path if matches and update status accordingly
-          if (target_path_ptr->path_ip == subsystem_address && 
-              target_path_ptr->path_port ==  subsystem_port &&
-              target_ptr->target_container_name == subsystem_nqn ) {
-                
+          
+          bool skip = true;
+          // Target: Check only node name
+          if ( category == "TARGET" ){
+            if ( node_name == target_ptr->target_node_name ) {
+              skip = false;
+            }
+          }
+          else if ( category == "SUBSYSTEM" ) {
+            // Subsystem: Check onluy nqn
+            if (  target_ptr->target_container_name == args.get<std::string>("nqn", "") ) {
+              skip = false;
+            } 
+          }
+          else if ( category == "NETWORK" ) {
+            std::cout<<target_path_ptr->path_ip<<":"<<target_path_ptr->path_port<<":"<<target_ptr->target_container_name<<std::endl;
+            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") && 
+                target_path_ptr->path_port == args.get<int32_t>("port", 1024) &&
+                target_ptr->target_container_name == args.get<std::string>("nqn", "")) {
+              skip = false;
+            }
+          }  
+        
+          smg_debug(logger, "Remote PATH = %s , STATUS = %d , EVENT STATUS = %d",
+                   (target_path_ptr->dev_path).c_str(),  target_path_ptr->path_status, remote_path_status);
+
+          // NIC: Check path if matches and update status accordingly
+          if (! skip) {
             if ( target_path_ptr->path_status !=  remote_path_status ) {
                  target_path_ptr->path_status = remote_path_status;
                  // Update a variable to indicate there has been a change in NKV data-struture
                  is_nkv_data_structure_updated = true;
                               
               if ( remote_path_status ) {
-                smg_alert(logger,"Remote mount path %s is up for IO", (target_path_ptr->dev_path).c_str());
+                smg_alert(logger,"Remote mount path %s is UP for IO", (target_path_ptr->dev_path).c_str());
               }
               else {
-                smg_alert(logger,"Remote mount path %s is down for IO", (target_path_ptr->dev_path).c_str());
+                smg_alert(logger,"Remote mount path %s is DOWN for IO", (target_path_ptr->dev_path).c_str());
               }
             }
           } // End of checking subsystem paths

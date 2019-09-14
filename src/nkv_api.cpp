@@ -67,10 +67,13 @@ void event_handler_thread(std::string event_subscribe_channel,
     if (rc != 0) {
         smg_error(logger, "Error on setting thread name on nkv_handle ");
     }
+    // Get channels
     std::vector<std::string> channels;
     boost::split(channels, event_subscribe_channel , boost::is_any_of(","));
 
     try{
+        // Populate event map and start event receiver function.
+        event_mapping();
         receive_events(event_queue, mq_address, channels, nkv_event_polling_interval, nkv_handle);
     }
     catch (std::exception& e) {
