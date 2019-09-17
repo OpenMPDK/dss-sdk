@@ -1,29 +1,57 @@
-#This README file will help user to get familiar with high level directory structure of the NKV client library stack.
+# SDK for Samsung-KV Device(s) - Network KV (NKV) API
 
-Root Directory structure contains the following..
 
-  README_INSTALL.txt  --> README for the installation and run test application on top of KV device(s)
-  README              --> README for NKV project
-  config              --> Sample config file to run NKV app
-  build.sh            --> Script for Building entire NKV stack (including openmpdk) 
-  spec                --> NKV spec document for application Integration
-  include             --> Header files for application Integration
-  src                 --> NKV library source code
-  CMakeLists.txt      --> Cmake file (will be invoked by build.sh script)
+## Root Directory Structure
 
-'src' directory is containing the following..
+  * README_INSTALL.txt  --> README for the installation and run test application on top of KV device(s)
+  * README              --> README for NKV project
+  * config              --> Sample config file to run NKV app
+  * build.sh            --> Script for Building entire NKV stack (including openmpdk) 
+  * spec                --> NKV spec document for application Integration
+  * include             --> Header files for application Integration
+  * CMakeLists.txt      --> Cmake file (will be invoked by build.sh script)
+  * src                 --> NKV library source code
+	  * include_private     --> Include files for internal use
+	  * nkv_api.cpp         --> Library entry point
+	  * test                --> Directory containing sample test application code
+	  * nkv_framework.cpp   --> Library framework implementation
+	  * openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with KV devices
+	  * logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+	
+## Checking out the source
 
-  include_private     --> Include files for internal use
-  nkv_api.cpp         --> Library entry point
-  test                --> Directory containing sample test application code
-  nkv_framework.cpp   --> Library framework implementation 
-  openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with
-                          local KV devices. Added as submodule here.
-  logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+You can clone from github with
 
-Building NKV
- go to source directory
- and run the following: ./build.sh kdd
- the above build will create build directory "$cwd../$cmdname_out" for build output and builds it.
- build generates nkv bins "nkv-sdk-bin-TIMESTAMP.tgz" which contains shared libraries and cli test tool
- The above shared libraries are used to integrate with MINIO S3 APP server, refer minio for more info https://github.com/minio/minio/blob/nkv/docs/nkv/README.md 
+	git clone --recursive git@github.com/OpenMPDK/NKV.git
+
+or, if you are not a github user,
+
+	git clone --recursive https://github.com/OpenMPDK/NKV.git
+
+## Prerequisites
+
+### Install dependent packages
+
+	sudo yum group install "Development Tools"
+	sudo yum install cmake boost-devel numactl-devel tbb-devel libcurl-devel
+
+## Building SDK
+
+   # SNIA compatible openmpdk APIs
+	cd NKV/
+	sudo ./build.sh kdd
+
+   # Samsung openmpdk APIs
+        cd NKV/
+        sudo ./build.sh kdd-samsung
+
+   # SNIA compatible openmpdk apis with emulator support
+        cd NKV/
+        sudo ./build.sh emul
+
+
+   * the above build script creates build directory, just above current working directory with appending **\_out** and builds under it. ex)"NKV/../NKV_out"
+   * build generates nkv bins "nkv-sdk-bin-TIMESTAMP.tgz" which contains shared libraries and cli test tool
+   * SNIA compatible binaries doesn't support async APIs for NKV yet
+   * The above shared libraries are used to integrate with MINIO S3 APP server, refer [minio](https://github.com/minio/minio/blob/nkv/docs/nkv/README.md) for more info
+
