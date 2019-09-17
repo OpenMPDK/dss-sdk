@@ -69,7 +69,7 @@ void receive_events(std::queue<std::string>& event_queue,
 void add_events(std::queue<std::string>& event_queue, std::string& event);
 bool action_manager(std::queue<std::string>& event_queue);
 bool update_nkv_targets(ptree&);
-void event_mapping();
+bool event_mapping();
 
 int MESSAGE_BUFFER_SIZE = 5;
 const int bubble_poll_timeout = 1;
@@ -173,7 +173,7 @@ void receive_events(std::queue<std::string>& event_queue,
  */
 void add_events(std::queue<std::string>& event_queue, std::string& event)
 {
-  smg_warn(logger,"EVENT = %s", event.c_str());
+  smg_debug(logger,"EVENT RECEIVED = %s", event.c_str());
   event_queue.push(event);
 }
 
@@ -251,16 +251,27 @@ bool update_nkv_targets(ptree& event_tree)
 
 /* Function Name: event_mapping
  * Params       : None
- * Return       : None
+ * Return       : true/false
  * Description  : Update event_map shared data strcuture.
+ *                Default location of event_mapping.json <repo>/config/event_mapping.json
+ *                Either copy the same file to present execution directory or specify file
+ *                path to the EVENT_MAP_PATH environment variable.
  */
-void event_mapping() 
+bool event_mapping() 
 {
-  // Read event mapping
+  std::string event_map_path("event_mapping.json");
   try {
-    boost::property_tree::read_json("event_mapping.json", event_map);
+    if ( const char* env_event_map_path = std::getenv("EVENT_MAP_PATH") ) {
+      event_map_path = env_event_map_path;
+    }
+    boost::property_tree::read_json(event_map_path, event_map);
+    smg_alert(logger,"Reading event_map from %s", event_map_path.c_str());
   }
   catch (std::exception& e) {
-    smg_error(logger, "%s%s", "Error reading event_map file ... ", e.what()); 
+    smg_error(logger, "%s%s", "event_map reading FAILED - ", e.what());
+    smg_warn(logger, "%s or %s" ,"Copy event_mapping.json to execution directory",
+                      "Set EVENT_MAP_PATH env variable with that file path."); 
+    return false;
   }
+  return true;
 }

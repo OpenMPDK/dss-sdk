@@ -73,8 +73,12 @@ void event_handler_thread(std::string event_subscribe_channel,
 
     try{
         // Populate event map and start event receiver function.
-        event_mapping();
-        receive_events(event_queue, mq_address, channels, nkv_event_polling_interval, nkv_handle);
+        if ( event_mapping() ) {
+          receive_events(event_queue, mq_address, channels, nkv_event_polling_interval, nkv_handle);
+        }
+        else {
+          smg_error(logger,"Event Handler initiation FAILED.");
+        }
     }
     catch (std::exception& e) {
         smg_error(logger, "Event Receiver Failed- %s", e.what());
