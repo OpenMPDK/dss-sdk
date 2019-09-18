@@ -33,7 +33,7 @@ or, if you are not a github user,
 ### Install dependent packages
 
 	sudo yum group install "Development Tools"
-	sudo yum install cmake boost-devel numactl-devel tbb-devel libcurl-devel
+	sudo yum install cmake boost-devel numactl-devel tbb-devel libcurl-devel zeromq-devel
 
 ## Building SDK
 
