@@ -343,7 +343,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_event_thread = std::thread(event_handler_thread, 
                                      pt.get<std::string>("event_subscribe_channel"),
                                      pt.get<std::string>("mq_address"),
-                                     pt.get<int32_t>("nkv_event_polling_interval_in_sec", 10),
+                                     pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60),
                                      *nkv_handle
                                     );
   }

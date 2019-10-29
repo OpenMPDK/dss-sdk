@@ -27,6 +27,24 @@ else
   yum install boost-devel
 fi
 
+# libcurl installation
+if [  $(yum list installed | cut -f1 -d" " | grep --extended '^libcurl-devel' | wc -l) -eq 0 ]; then
+  echo "yum install libcurl-devel"
+  yum install libcurl-devel
+fi
+
+#libnuma installation
+if [ $(yum list installed | cut -f1 -d" " | grep --extended '^numactl-devel' | wc -l) -eq 0 ]; then
+  echo "yum install numactl-devel"
+  yum install numactl-devel
+fi
+
+#intel tbb installation , required for OpenMPDK
+if [ $(yum list installed | cut -f1 -d" " | grep --extended '^tbb-devel' | wc -l) -eq 0 ]; then
+  echo "yum install tbb-devel"
+  yum install tbb-devel
+fi
+
 rm -rf $OD
 mkdir $OD
 cd ${OD}

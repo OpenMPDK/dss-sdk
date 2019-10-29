@@ -50,6 +50,9 @@
 #include <unistd.h>
 #include <queue>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
+
 
 using namespace std;
 using namespace boost::filesystem;
@@ -59,7 +62,7 @@ using boost::property_tree::write_json;
 
 
 extern c_smglogger* logger;
-
+std::mutex _mtx;
 
 void receive_events(std::queue<std::string>& event_queue,
           std::string& mq_address,
@@ -174,6 +177,7 @@ void receive_events(std::queue<std::string>& event_queue,
 void add_events(std::queue<std::string>& event_queue, std::string& event)
 {
   smg_debug(logger,"EVENT RECEIVED = %s", event.c_str());
+  std::lock_guard<std::mutex> lock(_mtx);
   event_queue.push(event);
 }
 
@@ -195,8 +199,12 @@ bool action_manager(std::queue<std::string>& event_queue)
 {
   bool status = true;
   if ( ! event_queue.empty() ) {
-    std::string event = event_queue.front();
-    event_queue.pop();
+    std::string event;
+    {
+      std::lock_guard<std::mutex> lock(_mtx);
+      event = event_queue.front();
+      event_queue.pop();
+    }
     // Process event as required 
     ptree event_tree;
     try{
