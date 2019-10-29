@@ -230,7 +230,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
-      nkv_event_handler = pt.get<int>("nkv_event_handler", 0);
+      nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     if (!nkv_is_on_local_kv) {

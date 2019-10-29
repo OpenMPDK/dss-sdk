@@ -42,7 +42,6 @@
 #include "csmglogger.h"
 #include "nkv_utils.h"
 #include "nkv_framework.h"
-//#include "auto_discovery.h"
 #include <unistd.h>
 #include <zmqpp/zmqpp.hpp>
 #include <string>
@@ -94,9 +93,9 @@ void receive_events(std::queue<std::string>& event_queue,
   zmqpp::socket subscriber (context, zmqpp::socket_type::subscribe);
   std::string subscribed_channel;
   for( auto& event_subscribe_channel: event_subscribe_channels) {
-  boost::trim(event_subscribe_channel);
-  subscribed_channel.append("\n\t\t\t\t\t\t\t[" + event_subscribe_channel + "]");
-  subscriber.set(zmqpp::socket_option::subscribe, event_subscribe_channel);
+    boost::trim(event_subscribe_channel);
+    subscribed_channel.append("\n\t\t\t\t\t\t\t[" + event_subscribe_channel + "]");
+    subscriber.set(zmqpp::socket_option::subscribe, event_subscribe_channel);
   }
   smg_alert(logger, "Receving events to the following subscribed channels ... %s", subscribed_channel.c_str());
 
@@ -125,44 +124,36 @@ void receive_events(std::queue<std::string>& event_queue,
   //response.connect(ADDRESS_PORT_RESPONSE);
   smg_alert(logger, "Receiving events from %s", mq_address.c_str());
   
-  try
-  {
-  while(1)
-  {
-    poller.add(subscriber, ZMQ_POLLIN);
-    int event = poller.poll(max_poll_timeout);
-    zmqpp::message message;
+  try {
+    while(1) {
+      poller.add(subscriber, ZMQ_POLLIN);
+      int event = poller.poll(max_poll_timeout);
+      zmqpp::message message;
     
-    if (event & ZMQ_POLLIN){
-      subscriber.receive(message);
-      //cout<< "Received Text:"<<message.get(0)<<endl;
-      smg_info(logger, "*** Received Event:%s", (message.get(0)).c_str() );
-      std::vector<string> lines;
-      //split_lines((message.get(0)).c_str(), " ", lines);
-      std::string line = message.get(0);
-      boost::split(lines, line , [](char c){return c== '=';});
+      if (event & ZMQ_POLLIN) {
+        subscriber.receive(message);
+        smg_info(logger, "*** Received Event:%s", (message.get(0)).c_str() );
+        std::vector<string> lines;
+        std::string line = message.get(0);
+        boost::split(lines, line , [](char c){return c== '=';});
 
-      // Need to add event to the queue if that matches with selected channel
-      add_events(event_queue, lines[1]);
+        // Need to add event to the queue if that matches with selected channel
+        add_events(event_queue, lines[1]);
 
-    }
-    else
-    {
-      //subscriber.connect(ADDRESS_PORT_READ);
-      subscriber.connect(mq_address.c_str());
-    }
+      } else {
+        subscriber.connect(mq_address.c_str());
+      }
     
-    std::this_thread::sleep_for (std::chrono::seconds(nkv_event_polling_interval));
+      std::this_thread::sleep_for (std::chrono::seconds(nkv_event_polling_interval));
  
-    if( nkv_stopping ){
-      smg_alert(logger, "Stopping event_receiver for NKV = %u ", nkv_handle);
-      break;
-    }
+      if( nkv_stopping ){
+        smg_alert(logger, "Stopping event_receiver for NKV = %u ", nkv_handle);
+        break;
+      }
+    } // End of while
   }
-  }
-  catch(std::exception const& e)
-  {
-  smg_error(logger, "EXCEPTION: %s", e.what());
+  catch(std::exception const& e) {
+    smg_error(logger, "EXCEPTION: %s", e.what());
   }
 
    zmq_close(subscriber);
@@ -207,7 +198,7 @@ bool action_manager(std::queue<std::string>& event_queue)
     }
     // Process event as required 
     ptree event_tree;
-    try{
+    try {
       std::istringstream is (event.c_str());
       read_json(is, event_tree);
 
@@ -217,8 +208,7 @@ bool action_manager(std::queue<std::string>& event_queue)
     catch (std::exception const& e) {
       smg_error(logger, "%s", e.what());
     }
-  }
-  else{
+  } else {
     smg_debug(logger, "*** Event Queue is empty!!");
     status = false;
   }  
@@ -248,8 +238,7 @@ bool update_nkv_targets(ptree& event_tree)
   if ( nkv_cnt_list ) {
     // Update remote mount paths status 
     return nkv_cnt_list->update_container( category, event_tree.get<std::string>("node", ""), args , status );
-  }
-  else{
+  } else {
     smg_error(logger, "Empty target container list ...");
     return false;
   }
