@@ -69,7 +69,7 @@ void receive_events(std::queue<std::string>& event_queue,
           int32_t nkv_event_polling_interval,
           uint64_t nkv_handle);
 void add_events(std::queue<std::string>& event_queue, std::string& event);
-bool action_manager(std::queue<std::string>& event_queue);
+void action_manager(std::queue<std::string>& event_queue);
 bool update_nkv_targets(ptree&);
 bool event_mapping();
 
@@ -175,7 +175,7 @@ void add_events(std::queue<std::string>& event_queue, std::string& event)
 
 /* Function Name: action_manager
  * Params     : std::queue<std::string>&  - A shared quque
- * Returns    : bool 
+ * Returns    : None 
  * Description  : Works in a different thread, read event from event_queue and
  *        update internal datastructure
  *
@@ -186,34 +186,36 @@ void add_events(std::queue<std::string>& event_queue, std::string& event)
  *    "timestamp": "123456"
  *   }
  */
-bool action_manager(std::queue<std::string>& event_queue)
+void action_manager(std::queue<std::string>& event_queue)
 {
-  bool status = true;
-  if ( ! event_queue.empty() ) {
+  uint32_t event_queue_size = 0;
+  {
+    std::lock_guard<std::mutex> lock(_mtx);
+    event_queue_size = event_queue.size();
+  }
+  
+  while (is_event_mapping_done && event_queue_size ) {
     std::string event;
     {
       std::lock_guard<std::mutex> lock(_mtx);
       event = event_queue.front();
       event_queue.pop();
     }
+    
     // Process event as required 
     ptree event_tree;
     try {
       std::istringstream is (event.c_str());
       read_json(is, event_tree);
-
+      
       // Look at the nkv internal data_structure
-      status = update_nkv_targets(event_tree);
+      update_nkv_targets(event_tree);
+      event_queue_size--;
     }
     catch (std::exception const& e) {
       smg_error(logger, "%s", e.what());
     }
-  } else {
-    smg_debug(logger, "*** Event Queue is empty!!");
-    status = false;
-  }  
-
-  return status;
+  } 
 }
 
 /* Function Name: update_nkv_config
@@ -225,16 +227,12 @@ bool action_manager(std::queue<std::string>& event_queue)
 
 bool update_nkv_targets(ptree& event_tree) 
 {
-  //smg_debug(logger, "Event:<%s> Updating path for %s:%s:%s", 
-  //          event_name.c_str(), address.c_str(), port.c_str(), nqn.c_str());
-  
   std::string event_name = event_tree.get<std::string>("name");
   ptree args = event_tree.get_child("args");
   
-  
   std::string category = event_map.get<std::string>(event_name+".CATEGORY", "");
   int32_t     status   = event_map.get<int32_t>(event_name+".STATUS", 0);
- 
+  
   if ( nkv_cnt_list ) {
     // Update remote mount paths status 
     return nkv_cnt_list->update_container( category, event_tree.get<std::string>("node", ""), args , status );
@@ -270,5 +268,6 @@ bool event_mapping()
                       "Set EVENT_MAP_PATH env variable with that file path."); 
     return false;
   }
+  is_event_mapping_done = true;
   return true;
 }
