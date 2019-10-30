@@ -78,7 +78,7 @@ const int bubble_poll_timeout = 1;
 const int max_poll_timeout = 1000;
 
 boost::property_tree::ptree event_map;
-bool is_event_mapping_done = false;
+std::atomic<bool> is_event_mapping_done (false);
 
 
 void receive_events(std::queue<std::string>& event_queue,
@@ -194,7 +194,7 @@ void action_manager(std::queue<std::string>& event_queue)
     event_queue_size = event_queue.size();
   }
   
-  while (is_event_mapping_done && event_queue_size ) {
+  while (is_event_mapping_done.load(std::memory_order_relaxed) && event_queue_size ) {
     std::string event;
     {
       std::lock_guard<std::mutex> lock(_mtx);
@@ -268,6 +268,6 @@ bool event_mapping()
                       "Set EVENT_MAP_PATH env variable with that file path."); 
     return false;
   }
-  is_event_mapping_done = true;
+  is_event_mapping_done.store(true, std::memory_order_relaxed);
   return true;
 }
