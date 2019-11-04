@@ -6,3 +6,9 @@
 	path = src/logger/log4cpp
 	url = https://github.com/orocos-toolchain/log4cpp.git
 	branch = stable
+[submodule "src/zeromq/libzmq"]
+	path = src/zeromq/libzmq
+	url = https://github.com/zeromq/libzmq.git
+[submodule "src/zeromq/zmqpp"]
+	path = src/zeromq/zmqpp
+	url = https://github.com/zeromq/zmqpp.git
