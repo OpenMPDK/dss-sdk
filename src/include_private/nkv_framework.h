@@ -131,7 +131,7 @@
     int32_t path_port;
     int32_t addr_family;
     int32_t path_speed;
-    int32_t path_status;
+    std::atomic<int32_t> path_status;
     int32_t path_numa_aligned;
     int32_t path_type;
     int32_t path_id;
@@ -343,13 +343,17 @@
       pathMap.clear();      
     }
 
+    std::unordered_map<uint64_t, NKVTargetPath*>& get_path_map() {
+        return pathMap;
+    }
+
     void set_ss_status (int32_t p_status) {
       ss_status = p_status;
     }
     
     void set_space_avail_percent (float p_space) {
       ss_space_avail_percent = p_space;
-    }
+    } 
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
                                 void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
@@ -601,7 +605,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           nkv_path_stat p_stat = {0};
           if (!path_stat_collection) {
              smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection disabled !!",
@@ -639,7 +643,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_info(logger, "wait_or_detach_path_thread for path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
 
           if (will_wait) {
             one_path->wait_for_thread_completion();          
@@ -667,7 +671,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Inspecting path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           if (one_path->path_ip.empty() || one_path->dev_path.empty()) {
             smg_error(logger, "No IP or mount point (for TCP over KDD only) provided !");
             return false;
@@ -711,7 +715,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Opening path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,(one_path->path_status).load(std::memory_order_relaxed));
   
           if (!one_path->open_path(app_name))
             return false;        
@@ -738,7 +742,7 @@
           transportlist[cur_pop_index].port = one_path->path_port;
           transportlist[cur_pop_index].addr_family = one_path->addr_family;
           transportlist[cur_pop_index].speed = one_path->path_speed;
-          transportlist[cur_pop_index].status = one_path->path_status;
+          transportlist[cur_pop_index].status = (one_path->path_status).load(std::memory_order_relaxed);
           one_path->path_ip.copy(transportlist[cur_pop_index].ip_addr, one_path->path_ip.length());
           one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
 
@@ -1108,7 +1112,71 @@
     }
  
     
-    //To Do, event threads etc. etc. 
+   /* Function Name: update_container
+    * Params       : <string> -Address of Remote Mount Path
+    *                <int32_t>-Rremote Mount Path status
+    * Return       : <bool>  Updated Mount Path or Not
+    * Description  : Update remote mount path status based on the address received from event.
+    *                Invoked from event handler.
+    */
+    bool update_container(std::string category,
+                          std::string node_name,
+                          boost::property_tree::ptree& args,
+                          int32_t remote_path_status) {
+
+      bool is_nkv_data_structure_updated =  false;
+
+      // Iterate container list which contain the list of subsystems 
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* target_ptr = m_iter->second;
+        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map(); 
+
+        // Iterate each path of a subsystem
+        for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
+          NKVTargetPath* target_path_ptr = p_iter->second;
+          
+          bool skip = true;
+          // Target: Check only node name
+          if ( category == "TARGET" ){
+            if ( node_name == target_ptr->target_node_name ) {
+              skip = false;
+            }
+          }
+          else if ( category == "SUBSYSTEM" ) {
+            // Subsystem: Check only nqn
+            if (  target_ptr->target_container_name == args.get<std::string>("nqn", "") ) {
+              skip = false;
+            } 
+          }
+          else if ( category == "NETWORK" ) {
+            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") && 
+                target_path_ptr->path_port == args.get<int32_t>("port", 1024) &&
+                target_ptr->target_container_name == args.get<std::string>("nqn", "")) {
+              skip = false;
+            }
+          }  
+        
+          smg_debug(logger, "Remote PATH = %s , STATUS = %d , EVENT STATUS = %d",
+                  (target_path_ptr->dev_path).c_str(),  (target_path_ptr->path_status).load(std::memory_order_relaxed), remote_path_status);
+          // NIC: Check path if matches and update status accordingly
+          if (! skip) {
+            if ( (target_path_ptr->path_status).load(std::memory_order_relaxed) !=  remote_path_status ) {
+                 (target_path_ptr->path_status).store(remote_path_status, std::memory_order_relaxed);
+                 is_nkv_data_structure_updated = true; 
+                              
+              if ( remote_path_status ) {
+                smg_alert(logger,"Remote mount path %s is UP for IO", (target_path_ptr->dev_path).c_str());
+              }
+              else {
+                smg_alert(logger,"Remote mount path %s is DOWN for IO", (target_path_ptr->dev_path).c_str());
+              }
+            }
+          } // End of checking subsystem paths
+        } // End of transporter path iteration
+      } // End of iteration of subsystems
+
+      return is_nkv_data_structure_updated;
+    } 
 
   };
 
