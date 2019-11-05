@@ -29,7 +29,6 @@ Dependency:
 yum install boost-devel
 yum install jemalloc-devel
 yum install libcurl-devel
-yum install zeromq-devel
 
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.

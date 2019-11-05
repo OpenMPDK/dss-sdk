@@ -17,6 +17,7 @@
 	  * nkv_framework.cpp   --> Library framework implementation
 	  * openmpdk            --> openmpdk is the Samsung opensource driver code base for communicating with KV devices
 	  * logger              --> Log wrapper on top of log4cpp, log4cpp is added as submodule underneath
+	  * zeromq              --> MQ library used for event notification. libzmq,zmqpp is added as submodule underneath 
 	
 ## Checking out the source
 
@@ -27,6 +28,11 @@ You can clone from github with
 or, if you are not a github user,
 
 	git clone --recursive https://github.com/OpenMPDK/NKV.git
+
+Update submodules as below
+	cd nkv-sdk
+	git submodule init 
+	git submodule update
 
 ## Prerequisites
 
