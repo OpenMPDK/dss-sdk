@@ -37,8 +37,10 @@
 #include "nkv_framework.h"
 #include "cluster_map.h"
 #include "auto_discovery.h"
+#include "event_handler.h"
 #include <pthread.h>
 #include <sstream>
+#include<queue>
 
 thread_local int32_t core_running_app_thread = -1;
 std::atomic<int32_t> nkv_app_thread_count(0);
@@ -49,13 +51,46 @@ std::atomic<uint64_t> nkv_app_list_count(0);
 
 int32_t core_to_pin = -1;
 std::thread nkv_thread;
+std::thread nkv_event_thread;
+int32_t nkv_event_polling_interval_in_sec;
 int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 int32_t nkv_dummy_path_stat;
+int32_t nkv_event_handler;
 std::condition_variable cv_global;
 std::mutex mtx_global;
 std::mutex mtx_stat;
 std::string config_path;
+std::queue<std::string> event_queue;
+
+
+void event_handler_thread(std::string event_subscribe_channel, 
+                          std::string mq_address,
+                          int32_t nkv_event_polling_interval,
+                          uint64_t nkv_handle) {
+    int rc = pthread_setname_np(pthread_self(), "nkv_event_thread");
+    if (rc != 0) {
+        smg_error(logger, "Error on setting thread name on nkv_handle ");
+    }
+    // Get channels
+    std::vector<std::string> channels;
+    boost::split(channels, event_subscribe_channel , boost::is_any_of(","));
+
+    try{
+        // Populate event map and start event receiver function.
+        if ( event_mapping() ) {
+          receive_events(event_queue, mq_address, channels, nkv_event_polling_interval, nkv_handle);
+        }
+        else {
+          smg_error(logger,"Event Handler initiation FAILED.");
+        }
+    }
+    catch (std::exception& e) {
+        smg_error(logger, "Event Receiver Failed- %s", e.what());
+    }
+
+}
+
 
 void nkv_thread_func (uint64_t nkv_handle) {
   int rc = pthread_setname_np(pthread_self(), "nkv_stat_thr");
@@ -90,6 +125,10 @@ void nkv_thread_func (uint64_t nkv_handle) {
     }
     catch (std::exception& e) {
       smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
+    }
+    // Event Handler - Action Manager function
+    if( nkv_event_handler ) {
+      action_manager(event_queue);
     }
 
     try {
@@ -210,6 +249,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
+      nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     if (!nkv_is_on_local_kv) {
@@ -311,10 +351,22 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
   }
-  if (nkv_stat_thread_needed) {
+  if (nkv_stat_thread_needed || nkv_event_handler) {
     smg_info(logger, "Creating stat thread for nkv, app = %s", app_uuid);
     nkv_thread = std::thread(nkv_thread_func, *nkv_handle); 
   }
+
+  // Add event_handler_thread
+  if (! nkv_is_on_local_kv && nkv_event_handler) {
+      smg_alert(logger,"Creating event handler thread for nkv");
+      nkv_event_thread = std::thread(event_handler_thread, 
+                                     pt.get<std::string>("event_subscribe_channel"),
+                                     pt.get<std::string>("mq_address"),
+                                     pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60),
+                                     *nkv_handle
+                                    );
+  }
+
   if (listing_with_cached_keys) {
     bool will_wait = nkv_listing_wait_till_cache_init ? true:false;
     auto start = std::chrono::steady_clock::now();
@@ -337,6 +389,7 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   if (nkv_stat_thread_needed) {
     cv_global.notify_all();
     nkv_thread.join();
+    nkv_event_thread.join();
   }
   while (nkv_pending_calls) {
     usleep(SLEEP_FOR_MICRO_SEC);
