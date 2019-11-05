@@ -37,6 +37,14 @@
 #define NKV_UTILS_H
 
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <set>
+#include <list>
+#include <atomic>
+#include <mutex>
+#include <functional>
+
 #include <memory>
 #include <string>
 #include <array>
@@ -47,11 +55,65 @@
 #include "nkv_result.h"
 #include "csmglogger.h"
 
+using namespace std;
+
 extern c_smglogger* logger;
 #define NKV_DEFAULT_STAT_FILE "./disk_stats.py"
 
 int32_t nkv_cmd_exec(const char* cmd, std::string& result); 
 
 nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_stat);
+
+template<typename K, typename V>
+  class nkv_lruCache {
+  public:
+    typedef pair<K,V> key_value_pair_t;
+    typedef typename list<key_value_pair_t>::iterator list_iterator_t;
+    nkv_lruCache(uint64_t size) : _max_size(size) {}
+
+    void put (const K& key, const V& val) {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      auto it = _cache_map.find(key);
+      if ( it != _cache_map.end()) {
+        _cache_list.erase(it->second);
+        _cache_map.erase(it);
+      }
+      _cache_list.push_front(key_value_pair_t(key, val));
+      _cache_map[key] = _cache_list.begin();
+      if (_cache_map.size() > _max_size) {
+        auto last = _cache_list.end();
+        last--;
+        _cache_map.erase(last->key);
+        _cache_list.pop_back();
+      }
+    }
+
+    const V& get(const K& key) {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      auto it = _cache_map.find(key);
+      if (it == _cache_map.end()) {
+        throw range_error ("There is no such key");
+      } else {
+        _cache_list.splice(_cache_list.begin(), _cache_list, it->second);
+        return it->second->second;
+      }
+    }
+
+    bool exists(const K& key) {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      return (_cache_map.find(key) == _cache_map.end());
+    }
+
+    uint64_t size() {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      return _cache_map.size();
+    }
+
+  private:
+    unordered_map<K, list_iterator_t> _cache_map;
+    list<key_value_pair_t> _cache_list;
+    uint64_t _max_size;
+    std::mutex lru_lock;
+  };
 
 #endif

@@ -514,7 +514,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
-  if (nkv_dynamic_logging) {
+  if (nkv_dynamic_logging == 2) {
     smg_alert(logger, "NKV store request for key = %s, key_length = %u, value_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, n_value->length, dev_path.c_str(), path_ip.c_str());
   }
@@ -672,7 +672,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
-  if (nkv_dynamic_logging) {
+  if (nkv_dynamic_logging == 2) {
     smg_alert(logger, "NKV retrieve request for key = %s, key_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
@@ -875,7 +875,7 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
-  if (nkv_dynamic_logging) {
+  if (nkv_dynamic_logging == 2) {
     smg_alert(logger, "NKV delete request for key = %s, key_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
@@ -1574,7 +1574,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
     }*/
     int32_t shard_id = 0;
     if (0 == iter_info->network_path_hash_iterating) {
-      if (nkv_dynamic_logging) {
+      if (nkv_dynamic_logging == 2) {
         smg_alert(logger, "NKV listing request for prefix = %s, delimiter = %s, dev_path = %s, ip = %s",
                  prefix ? prefix: "NULL", delimiter ? delimiter:"NULL", dev_path.c_str(), path_ip.c_str());
       }

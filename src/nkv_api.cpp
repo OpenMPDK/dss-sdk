@@ -42,6 +42,11 @@
 
 thread_local int32_t core_running_app_thread = -1;
 std::atomic<int32_t> nkv_app_thread_count(0);
+std::atomic<uint64_t> nkv_app_put_count(0);
+std::atomic<uint64_t> nkv_app_get_count(0);
+std::atomic<uint64_t> nkv_app_del_count(0);
+std::atomic<uint64_t> nkv_app_list_count(0);
+
 int32_t core_to_pin = -1;
 std::thread nkv_thread;
 int32_t nkv_stat_thread_polling_interval;
@@ -88,8 +93,16 @@ void nkv_thread_func (uint64_t nkv_handle) {
     }
 
     try {
+      int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
       nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      if (nkv_dynamic_logging_old != nkv_dynamic_logging) {
+        nkv_app_put_count = 0;
+        nkv_app_get_count = 0;
+        nkv_app_del_count = 0;
+        nkv_app_list_count = 0;
+      }
+
       if (nkv_dynamic_logging) 
         smg_alert(logger, "## NKV debugging is ON ##");
       else
@@ -98,7 +111,13 @@ void nkv_thread_func (uint64_t nkv_handle) {
     catch (std::exception& e) {
       smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
     }
-    smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
+    if (nkv_dynamic_logging) {
+      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d, Num PUTs = %u, Num GETs = %u, Num LISTs = %u, Num DELs = %u", 
+                listing_with_cached_keys, nkv_listing_cache_num_shards, nkv_app_put_count.load(), nkv_app_get_count.load(), 
+                nkv_app_list_count.load(), nkv_app_del_count.load());
+    } else {
+      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
+    }
     nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
     
@@ -493,6 +512,10 @@ done:
 
 nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_put_count.fetch_add(1, std::memory_order_relaxed);
+  }
+
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_STORE_OP);
   if (stat != NKV_SUCCESS)
     smg_error(logger, "NKV store operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d", 
@@ -505,6 +528,9 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
 
 nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_get_count.fetch_add(1, std::memory_order_relaxed);
+  }
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_RETRIEVE_OP);
   if (stat != NKV_SUCCESS) {
     if (stat != NKV_ERR_KEY_NOT_EXIST) {
@@ -528,6 +554,9 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
 
 nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_del_count.fetch_add(1, std::memory_order_relaxed);
+  }
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, NULL, NULL, NKV_DELETE_OP);
   if (stat != NKV_SUCCESS)
     smg_error(logger, "NKV delete operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
@@ -630,6 +659,10 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
     smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = list_keys !!", nkv_handle);
     stat = NKV_ERR_HANDLE_INVALID;
     goto done;
+  }
+
+  if (nkv_dynamic_logging) {
+    nkv_app_list_count.fetch_add(1, std::memory_order_relaxed);
   }
 
   if (ioctx->is_pass_through) {

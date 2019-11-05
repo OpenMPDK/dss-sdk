@@ -33,14 +33,16 @@
 
 #ifndef NKV_FRAMEWORK_H
 #define NKV_FRAMEWORK_H
-#include <unordered_map>
+
+/*#include <unordered_map>
 #include <unordered_set>
 #include <set>
 #include <list>
 #include <string>
 #include <atomic>
 #include <mutex>
-#include <functional>
+#include <functional>*/
+
 #include <thread>
 #include "kvs_api.h"
 #include "nkv_utils.h"
@@ -139,19 +141,7 @@
     int32_t core_to_pin;
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
-    std::unordered_set<std::string> cached_keys;
-    std::unordered_set<std::string> iter_key_set;
-    std::unordered_set<std::string> deleted_cached_keys;
-    //std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::unordered_set<std::string>* > listing_keys; 
-    //std::unordered_map<std::string, std::list<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::vector<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::set<std::string> > listing_keys; 
-    //std::unordered_map<std::size_t, std::set<std::string> > listing_keys; 
     std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
-    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
-    std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
-    std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
     std::atomic<uint32_t> nkv_outstanding_iter_on_path;
     std::atomic<uint32_t> nkv_path_stopping;
     std::atomic<uint64_t> nkv_num_key_prefixes;
@@ -171,13 +161,7 @@
       nkv_async_path_cur_qd = 0;
       core_to_pin = -1;
       path_numa_node = -1;
-      cached_keys.clear();
-      iter_key_set.clear();
-      deleted_cached_keys.clear();
-      //listing_keys.clear();
-      //listing_keys.reserve(50000000);
-      listing_keys_sub_prefix.clear();
-      listing_keys_track_iter.reserve(4096);
+
       nkv_outstanding_iter_on_path = 0;
       nkv_path_stopping = 0;
       nkv_num_key_prefixes = 0;
@@ -770,10 +754,12 @@
     std::string app_name;
     uint64_t instance_uuid;
     uint64_t nkv_handle;
+    nkv_lruCache<std::string, nkv_value*> cnt_cache;
 
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
-                    cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), nkv_handle(n_handle)  {
+                    cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
+                    nkv_handle(n_handle), cnt_cache(1024)  {
 
 
     }
@@ -806,7 +792,12 @@
       } else {
         smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;
-      } 
+      }
+      
+      //Populate cache for meta keys
+      if (stat == NKV_SUCCESS) {
+
+      }
       return stat;
     }
 
