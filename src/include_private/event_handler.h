@@ -188,19 +188,11 @@ void add_events(std::queue<std::string>& event_queue, std::string& event)
  */
 void action_manager(std::queue<std::string>& event_queue)
 {
-  uint32_t event_queue_size = 0;
-  {
-    std::lock_guard<std::mutex> lock(_mtx);
-    event_queue_size = event_queue.size();
-  }
-  
-  while (is_event_mapping_done.load(std::memory_order_relaxed) && event_queue_size ) {
-    std::string event;
-    {
-      std::lock_guard<std::mutex> lock(_mtx);
-      event = event_queue.front();
-      event_queue.pop();
-    }
+  std::lock_guard<std::mutex> lock(_mtx);
+  while (is_event_mapping_done.load(std::memory_order_relaxed) && event_queue.size() ) {
+    
+    std::string event = event_queue.front();
+    event_queue.pop();
     
     // Process event as required 
     ptree event_tree;
@@ -210,10 +202,9 @@ void action_manager(std::queue<std::string>& event_queue)
       
       // Look at the nkv internal data_structure
       update_nkv_targets(event_tree);
-      event_queue_size--;
     }
     catch (std::exception const& e) {
-      smg_error(logger, "%s", e.what());
+      smg_error(logger, "%s - %s", event_tree.get<std::string>("name").c_str(), e.what());
     }
   } 
 }
@@ -236,12 +227,10 @@ bool update_nkv_targets(ptree& event_tree)
   if ( nkv_cnt_list ) {
     // Update remote mount paths status 
     return nkv_cnt_list->update_container( category, event_tree.get<std::string>("node", ""), args , status );
-  } else {
-    smg_error(logger, "Empty target container list ...");
-    return false;
   }
 
-  return true;
+  smg_error(logger, "Empty target container list ...");
+  return false;
 }
 
 /* Function Name: event_mapping

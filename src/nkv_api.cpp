@@ -332,7 +332,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
   }
-  if (nkv_stat_thread_needed) {
+  if (nkv_stat_thread_needed || nkv_event_handler) {
     smg_info(logger, "Creating stat thread for nkv, app = %s", app_uuid);
     nkv_thread = std::thread(nkv_thread_func, *nkv_handle); 
   }
