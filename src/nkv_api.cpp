@@ -122,7 +122,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
       smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
     }
     // Event Handler - Action Manager function
-    if( nkv_event_handler ) {
+    if(nkv_event_handler && !nkv_is_on_local_kv) {
       action_manager(event_queue);
     }
 
@@ -370,6 +370,8 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   if (nkv_stat_thread_needed) {
     cv_global.notify_all();
     nkv_thread.join();
+  }
+  if (nkv_event_handler && !nkv_is_on_local_kv) {
     nkv_event_thread.join();
   }
   while (nkv_pending_calls) {
