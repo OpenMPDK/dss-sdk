@@ -114,6 +114,7 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/spec/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/spec
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_emul.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_remote.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/event_mapping.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/disk_stats.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
