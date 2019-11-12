@@ -41,6 +41,7 @@ std::atomic<bool> is_kvs_initialized (false);
 std::atomic<uint32_t> nkv_async_path_max_qd(512);
 std::atomic<uint64_t> nkv_num_async_submission (0);
 std::atomic<uint64_t> nkv_num_async_completion (0);
+std::atomic<uint64_t> nkv_num_read_cache_miss (0);
 c_smglogger* logger = NULL;
 NKVContainerList* nkv_cnt_list = NULL;
 int32_t core_pinning_required = 0;
@@ -60,6 +61,8 @@ int32_t nkv_listing_need_cache_stat  = 1;
 int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
 int32_t path_stat_collection = 1;
+int32_t nkv_use_read_cache = 0;
+int32_t nkv_read_cache_size = 1024;
 
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;

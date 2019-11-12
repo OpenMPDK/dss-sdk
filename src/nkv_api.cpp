@@ -140,6 +140,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
         nkv_app_get_count = 0;
         nkv_app_del_count = 0;
         nkv_app_list_count = 0;
+        nkv_num_read_cache_miss = 0;
       }
 
       if (nkv_dynamic_logging) 
@@ -151,9 +152,9 @@ void nkv_thread_func (uint64_t nkv_handle) {
       smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
     }
     if (nkv_dynamic_logging) {
-      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d, Num PUTs = %u, Num GETs = %u, Num LISTs = %u, Num DELs = %u", 
+      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d, Num PUTs = %u, Num GETs = %u, Num LISTs = %u, Num DELs = %u, Num Misses = %u", 
                 listing_with_cached_keys, nkv_listing_cache_num_shards, nkv_app_put_count.load(), nkv_app_get_count.load(), 
-                nkv_app_list_count.load(), nkv_app_del_count.load());
+                nkv_app_list_count.load(), nkv_app_del_count.load(), nkv_num_read_cache_miss.load());
     } else {
       smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
     }
@@ -250,6 +251,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
       nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
+      nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
+      nkv_read_cache_size = pt.get<int>("nkv_read_cache_size", 1024);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     if (!nkv_is_on_local_kv) {

@@ -83,7 +83,7 @@ template<typename K, typename V>
       if (_cache_map.size() > _max_size) {
         auto last = _cache_list.end();
         last--;
-        _cache_map.erase(last->key);
+        _cache_map.erase(last->first);
         _cache_list.pop_back();
       }
     }
@@ -98,6 +98,16 @@ template<typename K, typename V>
         return it->second->second;
       }
     }
+
+    void del (const K& key) {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      auto it = _cache_map.find(key);
+      if ( it != _cache_map.end()) {
+        _cache_list.erase(it->second);
+        _cache_map.erase(it);
+      }
+    }
+
 
     bool exists(const K& key) {
       std::lock_guard<std::mutex> lck (lru_lock);
