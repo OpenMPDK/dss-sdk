@@ -40,7 +40,7 @@
 #include "event_handler.h"
 #include <pthread.h>
 #include <sstream>
-#include<queue>
+#include <queue>
 
 thread_local int32_t core_running_app_thread = -1;
 std::atomic<int32_t> nkv_app_thread_count(0);
@@ -51,7 +51,7 @@ int32_t nkv_event_polling_interval_in_sec;
 int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 int32_t nkv_dummy_path_stat;
-int32_t nkv_event_handler;
+int32_t nkv_event_handler = 0;
 std::condition_variable cv_global;
 std::mutex mtx_global;
 std::mutex mtx_stat;
@@ -63,9 +63,9 @@ void event_handler_thread(std::string event_subscribe_channel,
                           std::string mq_address,
                           int32_t nkv_event_polling_interval,
                           uint64_t nkv_handle) {
-    int rc = pthread_setname_np(pthread_self(), "nkv_event_thread");
+    int rc = pthread_setname_np(pthread_self(), "nkv_event_thr");
     if (rc != 0) {
-        smg_error(logger, "Error on setting thread name on nkv_handle ");
+        smg_error(logger, "Error on setting thread name on nkv_handle = %u , rc=%d", nkv_handle,rc);
     }
     // Get channels
     std::vector<std::string> channels;
@@ -122,7 +122,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
       smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
     }
     // Event Handler - Action Manager function
-    if(nkv_event_handler && !nkv_is_on_local_kv) {
+    if(nkv_event_handler) {
       action_manager(event_queue);
     }
 
@@ -195,13 +195,17 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   }
 
   int32_t connect_fm = 0;
+  std::string fm_address;
+  std::string fm_endpoint;
   int32_t nkv_transport = 0;
   int32_t min_container = 0;
   int32_t min_container_path = 0;
   int32_t nkv_container_path_qd = 32;
   int32_t nkv_app_thread_core = -1;
+  std::string event_subscribe_channel;
+  std::string mq_address;
+  
   try {
-    connect_fm = pt.get<int>("contact_fm");
     //0 = Local KV, 1 = nvmeOverTCPKernel, 2 = nvmeOverTCPSPDK, 3 = nvmeOverRDMAKernel, 4 = nvmeOverRDMASPDK
     nkv_transport = pt.get<int>("nkv_transport");
     min_container = pt.get<int>("min_container_required");
@@ -230,9 +234,22 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
-      nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
+    // switches for auto discovery and events, not applicable for local KV
+    if (! nkv_is_on_local_kv ) { 
+      connect_fm = pt.get<int>("contact_fm", 0);
+      if (! connect_fm ) {
+        smg_alert(logger, "Reading cluster map information from %s", config_path.c_str());
+      }
+      fm_address  = pt.get<std::string>("fm_address");
+      fm_endpoint = pt.get<std::string>("fm_endpoint");
+      nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
+      event_subscribe_channel = pt.get<std::string>("event_subscribe_channel");
+      mq_address = pt.get<std::string>("mq_address");
+      nkv_event_polling_interval_in_sec = pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60);
+    }
+
     if (!nkv_is_on_local_kv) {
       path_stat_collection = 0;
     }
@@ -261,14 +278,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         return NKV_ERR_CONFIG;
     } else if (connect_fm) {
         // Add logic to contact FM and then give that json ptree to the parse_add_container call
-        std::string fm_address  = pt.get<std::string>("fm_address");
-        std::string fm_endpoint = pt.get<std::string>("fm_endpoint");
-        const long time_out     = pt.get<long>("fm_connection_timeout");
+        const long fm_connection_timeout     = pt.get<long>("fm_connection_timeout", 60);
         std::string url = fm_address + fm_endpoint;
 
         ClusterMap* cm = new ClusterMap(url);
         std::string response("");
-        bool ret = cm->get_response(response, time_out);
+        bool ret = cm->get_response(response, fm_connection_timeout);
 
         if (ret){
           if ( ! cm->get_clustermap(pt)) {
@@ -338,12 +353,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   }
 
   // Add event_handler_thread
-  if (! nkv_is_on_local_kv && nkv_event_handler) {
+  if (nkv_event_handler) {
       smg_alert(logger,"Creating event handler thread for nkv");
       nkv_event_thread = std::thread(event_handler_thread, 
-                                     pt.get<std::string>("event_subscribe_channel"),
-                                     pt.get<std::string>("mq_address"),
-                                     pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60),
+                                     event_subscribe_channel,
+                                     mq_address,
+                                     nkv_event_polling_interval_in_sec,
                                      *nkv_handle
                                     );
   }
@@ -371,7 +386,7 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
     cv_global.notify_all();
     nkv_thread.join();
   }
-  if (nkv_event_handler && !nkv_is_on_local_kv) {
+  if (nkv_event_handler) {
     nkv_event_thread.join();
   }
   while (nkv_pending_calls) {
