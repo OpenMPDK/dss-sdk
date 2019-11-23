@@ -777,8 +777,30 @@ do {
     char input;
     std::cin >> input;*/
 
-    nkv_close (nkv_handle, instance_uuid);
-    return 0;
+    if (parent_op_type == 5) {
+      std::cout << "Enter op_type:" << std::endl;
+      std::cin>> op_type;
+      if (op_type == -1)
+        break;
+
+      std::cout << "Enter num_ios:" << std::endl;
+      std::cin>> num_ios;
+
+      std::cout << "Enter key prefix:" << std::endl;
+      std::cin>> key_beginning;
+
+      if (key_delimiter) {
+        std::cout << "Enter key delimiter:" << std::endl;
+        std::cin>> key_delimiter;
+      }
+
+      smg_alert (logger, "Running with op_type = %d, num_ios = %u, key_beginning = %s, key_delimiter = %s", op_type, num_ios, key_beginning, key_delimiter);
+      continue;
+
+    } else {
+      nkv_close (nkv_handle, instance_uuid);
+      return 0;
+    }
   
   }
 

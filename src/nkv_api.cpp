@@ -253,6 +253,9 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
       nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
       nkv_read_cache_size = pt.get<int>("nkv_read_cache_size", 1024);
+      nkv_read_cache_shard_size = pt.get<int>("nkv_read_cache_shard_size", 1024);
+      nkv_data_cache_size_threshold = pt.get<int>("nkv_data_size_threshold", 4096);
+      nkv_use_data_cache = pt.get<int>("nkv_use_data_cache", 0);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     if (!nkv_is_on_local_kv) {

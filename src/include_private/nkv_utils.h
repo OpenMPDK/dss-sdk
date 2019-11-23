@@ -69,9 +69,11 @@ template<typename K, typename V>
   public:
     typedef pair<K,V> key_value_pair_t;
     typedef typename list<key_value_pair_t>::iterator list_iterator_t;
-    nkv_lruCache(uint64_t size) : _max_size(size) {}
+    nkv_lruCache(uint64_t size) : _max_size(size) {
+      smg_warn(logger, "## LRU Readcache size = %u", _max_size);
+    }
 
-    void put (const K& key, const V& val) {
+    void put (const K& key, const V&& val) {
       std::lock_guard<std::mutex> lck (lru_lock);
       auto it = _cache_map.find(key);
       if ( it != _cache_map.end()) {
@@ -81,6 +83,7 @@ template<typename K, typename V>
       _cache_list.push_front(key_value_pair_t(key, val));
       _cache_map[key] = _cache_list.begin();
       if (_cache_map.size() > _max_size) {
+        smg_warn(logger, "## Cache eviction !! size = %u, max_size = %u", _cache_map.size(), _max_size);
         auto last = _cache_list.end();
         last--;
         _cache_map.erase(last->first);
@@ -88,7 +91,7 @@ template<typename K, typename V>
       }
     }
 
-    const V& get(const K& key) {
+    /*const V& get(const K& key) {
       std::lock_guard<std::mutex> lck (lru_lock);
       auto it = _cache_map.find(key);
       if (it == _cache_map.end()) {
@@ -97,7 +100,21 @@ template<typename K, typename V>
         _cache_list.splice(_cache_list.begin(), _cache_list, it->second);
         return it->second->second;
       }
+    }*/
+
+    const V& get(const K& key, bool& exists) {
+      std::lock_guard<std::mutex> lck (lru_lock);
+      auto it = _cache_map.find(key);
+      if (it == _cache_map.end()) {
+        exists = false;
+        
+      } else {
+        _cache_list.splice(_cache_list.begin(), _cache_list, it->second);
+        exists = true;
+        return it->second->second;
+      }
     }
+
 
     void del (const K& key) {
       std::lock_guard<std::mutex> lck (lru_lock);

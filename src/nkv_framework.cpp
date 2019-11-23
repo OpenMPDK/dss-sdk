@@ -62,7 +62,10 @@ int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
 int32_t path_stat_collection = 1;
 int32_t nkv_use_read_cache = 0;
+int32_t nkv_use_data_cache = 0;
 int32_t nkv_read_cache_size = 1024;
+int32_t nkv_read_cache_shard_size = 1024;
+int32_t nkv_data_cache_size_threshold = 4096;
 
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;
@@ -577,9 +580,26 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
 
     #endif
 
+    std::string key_str ((char*) n_key->key, n_key->length);
+    if (nkv_use_read_cache) {
+      std::size_t found = key_str.find(iter_prefix);
+      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->length <= nkv_data_cache_size_threshold)) {
+
+        std::size_t key_prefix = std::hash<std::string>{}(key_str);
+        int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
+        void* c_buffer = malloc(n_value->length);
+        memcpy(c_buffer, n_value->value, n_value->length);
+        nkv_value_wrapper nkvvalue (c_buffer, n_value->length, n_value->length);
+        /*smg_warn(logger, "Cache put, path_hash = %u, shard_id = %d, key = %s, nkvvalue = %s, nkvlength = %u, value = %s, length = %u",
+                  container_path_hash, shard_id, key_str.c_str(), (char*)nkvvalue.value, nkvvalue.actual_length, (char*)value->value, value->actual_length);*/
+        cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+      }
+    }
+
+
     //cache keys for listing (till iterator issue is fixed)
     if (listing_with_cached_keys) {
-      std::string key_str ((char*) n_key->key, n_key->length);
+      //std::string key_str ((char*) n_key->key, n_key->length);
       std::size_t found = key_str.find(iter_prefix);
       if (found != std::string::npos && found == 0) {
         std::vector<std::string> dir_entries; 
@@ -679,6 +699,34 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_alert(logger, "NKV retrieve request for key = %s, key_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
+  int32_t shard_id = -1;
+  std::string key_str ((char*) n_key->key, n_key->length);
+  if (nkv_use_read_cache) {
+    std::size_t found = key_str.find(iter_prefix);
+    if ((found != std::string::npos && found == 0) || (nkv_use_data_cache)) {
+      bool cache_hit = false;
+      std::size_t key_prefix = std::hash<std::string>{}(key_str);
+      shard_id = key_prefix % nkv_read_cache_shard_size;
+      const nkv_value_wrapper& nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
+      if (cache_hit) {
+        if (nkvvalue.actual_length != 0) {
+          memcpy(n_value->value, nkvvalue.value, nkvvalue.actual_length);
+          n_value->length = nkvvalue.length;
+          n_value->actual_length = nkvvalue.actual_length;
+          /*smg_warn(logger, "Cache get, shard_id = %d, key = %s, dev_path = %s, ip = %s",
+                    shard_id, key_str.c_str(), dev_path.c_str(), path_ip.c_str());*/
+          return NKV_SUCCESS;
+        } else {
+          return map_kvs_err_code_to_nkv_err_code(KVS_ERR_KEY_NOT_EXIST);
+        }  
+      } else {
+        smg_warn(logger, "Cache miss !! key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+      }
+    } else {
+      smg_warn(logger, "Cache miss, data key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+    }
+  }
+
 
   #ifdef SAMSUNG_API
     kvs_retrieve_option option;
@@ -734,6 +782,16 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
         } else {
           smg_info(logger, "Retrieve kvp failed with error 0x%x , key = %s, dev_path = %s, ip = %s",
                     ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+
+          if (nkv_use_read_cache) {
+            std::size_t found = key_str.find(iter_prefix);
+            if (found != std::string::npos && found == 0) {
+              nkv_value_wrapper nkvvalue (NULL, 0, 0);
+              smg_info(logger, "Cache put non-existence, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+            }
+          }
+
         }
 
         return map_kvs_err_code_to_nkv_err_code(ret);
@@ -774,6 +832,21 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
       }
     }
+    if (nkv_use_read_cache && n_value->actual_length > 0) {
+      std::size_t found = key_str.find(iter_prefix);
+      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->actual_length <= nkv_data_cache_size_threshold)) {
+      //if (found != std::string::npos && found == 0) {n
+        void* c_buffer = malloc(n_value->actual_length);
+        memcpy(c_buffer, n_value->value, n_value->actual_length);
+
+        nkv_value_wrapper nkvvalue (c_buffer, n_value->actual_length, n_value->actual_length);
+        smg_info(logger, "Cache put after get, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+        cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+      } else {
+        smg_warn(logger, "data key = %s, length = %u, dev_path = %s, ip = %s", key_str.c_str(), n_value->actual_length, dev_path.c_str(), path_ip.c_str());
+      }
+    }
+    
     assert(NULL != n_value->value);
   } else {//Async
     #ifdef SAMSUNG_API
@@ -909,12 +982,24 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
       }
 
     #endif
-
+    std::string key_str ((char*) n_key->key, n_key->length);
+    if (nkv_use_read_cache) {
+      std::size_t found = key_str.find(iter_prefix);
+      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache )) {
+      
+        std::size_t key_prefix = std::hash<std::string>{}(key_str);
+        int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
+        /*smg_warn(logger, "Cache delete, shard_id = %d, key = %s, dev_path = %s, ip = %s",
+                  shard_id, key_str.c_str(), dev_path.c_str(), path_ip.c_str());*/
+        cnt_cache[shard_id].del(key_str);
+      }
+    }
+ 
     if (listing_with_cached_keys) {
-      std::string key_str ((char*) n_key->key, n_key->length);
+      //std::string key_str ((char*) n_key->key, n_key->length);
       std::size_t found = key_str.find(iter_prefix);
       if (found != std::string::npos && found == 0) {
-     
+
       #if 0
         int32_t num_keys_deleted = 0;
         int32_t num_cache_keys = 0;

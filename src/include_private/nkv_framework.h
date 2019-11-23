@@ -81,6 +81,10 @@
   extern int32_t path_stat_collection;
   extern int32_t nkv_use_read_cache;
   extern int32_t nkv_read_cache_size;
+  extern int32_t nkv_read_cache_shard_size;
+  extern int32_t nkv_data_cache_size_threshold;
+  extern int32_t nkv_use_data_cache;
+  
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -115,6 +119,53 @@
       }
     }
   } iterator_info;
+
+  struct nkv_value_wrapper {
+    void *value;
+    uint64_t length;
+    uint64_t actual_length;
+    nkv_value_wrapper(void* pval, uint64_t plength, uint64_t pactual_length) : value(pval),
+                                                                               length(plength),
+                                                                               actual_length(pactual_length) {}
+
+    ~nkv_value_wrapper() {
+      if (value) {
+        free (value);
+        value = NULL;
+      }
+      length = 0;
+      actual_length = 0;
+    }
+
+    nkv_value_wrapper(const nkv_value_wrapper& other) {
+      value = malloc (other.length);
+      memcpy(value, other.value, other.length);
+      length = other.length;
+      actual_length = other.actual_length;
+  }
+
+
+    nkv_value_wrapper (nkv_value_wrapper&& other) : value (other.value), length(other.length), actual_length(other.actual_length) {
+      other.value = NULL;
+      other.length = 0;
+      other.actual_length = 0;
+    }
+
+    nkv_value_wrapper& operator=(nkv_value_wrapper&& other) {
+      if (this != &other) {
+        value = other.value;
+        length = other.length;
+        actual_length = other.actual_length;
+        other.value = NULL;
+        other.length = 0;
+        other.actual_length = 0;
+      }
+      return *this;
+    }
+
+
+  };
+
 
   //Aio call back function
   void nkv_aio_completion (nkv_aio_construct* ops, int32_t num_op);
@@ -155,6 +206,7 @@
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
     std::condition_variable cv_path;
+    nkv_lruCache<std::string, nkv_value_wrapper>* cnt_cache;
 
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
@@ -176,6 +228,7 @@
         pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
       }
       listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
+      cnt_cache = new nkv_lruCache<std::string, nkv_value_wrapper> [nkv_read_cache_shard_size](nkv_read_cache_size);
     }
 
     ~NKVTargetPath() {
@@ -199,6 +252,7 @@
       }
       delete[] cache_rw_lock_list;
       delete[] listing_keys;
+      delete[] cnt_cache;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
     }
 
@@ -755,25 +809,6 @@
 
   };
 
-  struct nkv_value_wrapper {
-    void *value;
-    uint64_t length;
-    uint64_t actual_length;
-    nkv_value_wrapper(void* pval, uint64_t plength, uint64_t pactual_length) : value(pval), 
-                                                                               length(plength), 
-                                                                               actual_length(pactual_length) {}
-
-    ~nkv_value_wrapper() {
-      if (value) {
-        free (value);
-        value = NULL;
-      }
-      length = 0;
-      actual_length = 0;
-    }
-
-  };
-
   class NKVContainerList {
     std::unordered_map<uint64_t, NKVTarget*> cnt_list;
     //std::unordered_map<std::size_t, NKVTarget*> cnt_list;
@@ -781,12 +816,11 @@
     std::string app_name;
     uint64_t instance_uuid;
     uint64_t nkv_handle;
-    nkv_lruCache<std::string, nkv_value_wrapper> cnt_cache;
 
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
                     cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
-                    nkv_handle(n_handle), cnt_cache(nkv_read_cache_size)  {
+                    nkv_handle(n_handle) {
 
 
     }
@@ -808,7 +842,6 @@
     nkv_result nkv_send_io(uint64_t container_hash, uint64_t container_path_hash, const nkv_key* key, void* opt, 
                            nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
       nkv_result stat = NKV_SUCCESS;
-      bool cache_hit = false;
 
       auto c_iter = cnt_list.find(container_hash);
       if (c_iter == cnt_list.end()) {
@@ -816,61 +849,47 @@
         return NKV_ERR_NO_CNT_FOUND;
       }
 
-      if (nkv_use_read_cache && which_op == NKV_RETRIEVE_OP) {
-        std::string key_str ((char*) key->key, key->length);
-        std::size_t found = key_str.find(iter_prefix);
-        if (found != std::string::npos && found == 0) {
-          //Meta keys, check if it is present in lru cache
-          try {
-            nkv_value_wrapper nkvvalue = cnt_cache.get(key_str); 
-            value->value = nkvvalue.value;
-            value->length = nkvvalue.length;
-            value->actual_length = nkvvalue.actual_length;
-            cache_hit = true;
-          } catch (std::range_error) {
-            smg_warn(logger, "Cache miss !!, key = %s", key_str.c_str());
-            if (nkv_dynamic_logging) {
-              nkv_num_read_cache_miss.fetch_add(1, std::memory_order_relaxed);
-            }
-            
-          } catch (std::exception) {
-            smg_error(logger, "Cache generic error !!, key = %s", key_str.c_str());
-          }
-        }
+      NKVTarget* one_cnt = c_iter->second;
+      if (one_cnt) {
+        stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
+      } else {
+        smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
+        return NKV_ERR_NO_CNT_FOUND;
       }
 
-      if (!cache_hit) {
-        NKVTarget* one_cnt = c_iter->second;
-        if (one_cnt) {
-          stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
-        } else {
-          smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
-          return NKV_ERR_NO_CNT_FOUND;
-        }
-      }
       //Populate cache for meta keys
-      if (nkv_use_read_cache && (stat == NKV_SUCCESS) && (!cache_hit)) {
+      /*if (false && (stat == NKV_SUCCESS) && (!cache_hit)) {
         std::string key_str ((char*) key->key, key->length);
         std::size_t found = key_str.find(iter_prefix);
         if (found != std::string::npos && found == 0) {
           //Meta keys, check if it is present in lru cache
+          if (shard_id == -1) {
+            std::size_t key_prefix = std::hash<std::string>{}(key_str);
+            shard_id = key_prefix % nkv_read_cache_shard_size;
+          }
+          
           if (which_op != NKV_DELETE_OP) {
-            void* c_buffer = malloc(value->length);
-            memcpy(c_buffer, value->value, value->length);
             if (which_op == NKV_RETRIEVE_OP) {
-              nkv_value_wrapper nkvvalue (c_buffer, value->length, value->actual_length);
-              cnt_cache.put(key_str, nkvvalue);
+              void* c_buffer = malloc(value->actual_length);
+              memcpy(c_buffer, value->value, value->actual_length);
+
+              nkv_value_wrapper nkvvalue (c_buffer, value->actual_length, value->actual_length);
+              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+             
             } else {
+              void* c_buffer = malloc(value->length);
+              memcpy(c_buffer, value->value, value->length);
               nkv_value_wrapper nkvvalue (c_buffer, value->length, value->length);
-              cnt_cache.put(key_str, nkvvalue);
+              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
             }
           } else {
-            cnt_cache.del(key_str);
+            cnt_cache[shard_id].del(key_str);
           }
           
         }
           
-      }
+      }*/
+
       return stat;
     }
 
