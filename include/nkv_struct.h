@@ -160,6 +160,16 @@ typedef struct {
 } nkv_retrieve_option;
 
 typedef struct {
+  int8_t nkv_lock_priority:2;
+  int8_t nkv_lock_writer:1;
+  int8_t nkv_lock_blocking:1;
+  uint32_t nkv_lock_duration;
+  uint64_t nkv_lock_uuid;
+}nkv_lock_option;
+
+typedef nkv_lock_option nkv_unlock_option;
+
+typedef struct {
 
   //Using NKV in pass-through mode ? 0 – non-pass-through, 1 – pass-through
   int8_t is_pass_through;

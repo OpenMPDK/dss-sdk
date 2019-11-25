@@ -454,7 +454,7 @@ nkv_result nkv_send_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_k
     return NKV_ERR_NULL_INPUT;
   }
 
-  if (!value && which_op != NKV_DELETE_OP) {
+  if (!value && !(which_op == NKV_DELETE_OP || which_op == NKV_LOCK_OP || which_op == NKV_UNLOCK_OP)) {
     smg_error(logger, "value is NULL !!, nkv_handle = %u, op = %d", nkv_handle, which_op);
     return NKV_ERR_NULL_INPUT;
   }
@@ -539,6 +539,39 @@ nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv
 
 }
 
+nkv_result nkv_lock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_lock_option *opt) {
+
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_LOCK_OP);
+  if (stat != NKV_SUCCESS) {
+    if (stat != NKV_ERR_LOCK_KEY_LOCKED) {
+      smg_error(logger, "NKV lock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
+    } else {
+      smg_info(logger, "NKV lock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+                key ? (char*)key->key: "NULL", key ? key->length:0, stat);
+    }
+  }
+  else {
+    smg_info(logger, "NKV lock operation is successful for nkv_handle = %u, key = %s, key_length = %u", 
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0);
+  }
+  return stat;
+
+}
+
+nkv_result nkv_unlock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_unlock_option *opt) {
+
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_UNLOCK_OP);
+  if (stat != NKV_SUCCESS)
+    smg_error(logger, "NKV unlock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+              key ? (char*)key->key: "NULL", key ? key->length:0, stat);
+  else
+    smg_info(logger, "NKV unlock operation is successful for nkv_handle = %u, key = %s, key_length = %u", nkv_handle, 
+             key ? (char*)key->key: "NULL", key ? key->length:0);
+  return stat;
+
+}
+
 nkv_result nkv_store_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt,
                                 nkv_value* value, nkv_postprocess_function* post_fn) {
 
@@ -602,7 +635,45 @@ nkv_result nkv_delete_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, con
 
 }
 
-nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, const char* bucket_name, const char* prefix, 
+nkv_result nkv_lock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, nkv_lock_option *opt, nkv_postprocess_function* post_fn) {
+
+  if (!post_fn) {
+    smg_error(logger, "NKV lock async post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_LOCK_OP);
+    return NKV_ERR_NULL_INPUT;
+  }
+  if (!post_fn->nkv_aio_cb) {
+    smg_error(logger, "NKV lock async Call back function within post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_LOCK_OP);
+    return NKV_ERR_NULL_INPUT;
+  }
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_LOCK_OP, post_fn);
+  if (stat != NKV_SUCCESS)
+    smg_error(logger, "NKV lock async operation start failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
+  else
+    smg_info(logger, "NKV lock async operation start is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
+  return stat;
+
+}
+
+nkv_result nkv_unlock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, nkv_unlock_option *opt, nkv_postprocess_function* post_fn) {
+
+  if (!post_fn) {
+    smg_error(logger, "NKV unlock async post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_UNLOCK_OP);
+    return NKV_ERR_NULL_INPUT;
+  }
+  if (!post_fn->nkv_aio_cb) {
+    smg_error(logger, "NKV unlock async Call back function within post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_UNLOCK_OP);
+    return NKV_ERR_NULL_INPUT;
+  }
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_UNLOCK_OP, post_fn);
+  if (stat != NKV_SUCCESS)
+    smg_error(logger, "NKV unlock async operation start failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
+  else
+    smg_info(logger, "NKV unlock async operation start is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
+  return stat;
+
+}
+
+nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, const char* bucket_name, const char* prefix,
                                    const char* delimiter, const char* start_after, uint32_t* max_keys, nkv_key* keys, void** iter_context ) {
 
   if (!ioctx) {

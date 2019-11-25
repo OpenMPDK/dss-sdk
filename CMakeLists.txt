@@ -31,6 +31,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
 if(NKV_WITH_SAMSUNG_API)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
   add_definitions(-DSAMSUNG_API)
+  add_definitions(-DKVS_REMOTE)
 endif()
 
 if(NKV_WITH_KDD)

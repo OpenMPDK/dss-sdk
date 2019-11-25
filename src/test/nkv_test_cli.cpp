@@ -52,6 +52,8 @@ std::atomic<int> completed(0);
 #define NKV_TEST_META_VAL_LEN 4096
 #define NKV_TEST_META_KEY_LEN 60
 
+#define NKV_TEST_OP_LOCK_UNLOCK (6)
+
 struct nkv_thread_args{
   int id;
   uint32_t klen;
@@ -64,6 +66,8 @@ struct nkv_thread_args{
   uint64_t nkv_handle;
   nkv_store_option* s_option;
   nkv_retrieve_option* r_option;
+  nkv_lock_option* lock_option;
+  nkv_unlock_option* unlock_option;
   int check_integrity;
   int hex_dump;
 };
@@ -341,6 +345,27 @@ void *iothread(void *args)
         }
         break;
 
+      case NKV_TEST_OP_LOCK_UNLOCK: //Lock Unlock
+        {
+          status = nkv_lock_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->lock_option);
+          if (status != 0) {
+            smg_error(logger, "NKV lock KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+			return 0;
+          } else {
+            smg_info(logger, "NKV Lock successful, key = %s", (char*) nkvkey.key);
+          }
+
+          status = nkv_unlock_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->unlock_option);
+          if (status != 0) {
+            smg_error(logger, "NKV unlock KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+			return 0;
+          } else {
+            smg_info(logger, "NKV Unlock successful, key = %s", (char*) nkvkey.key);
+          }
+
+        }
+        break;
+
       default:
         smg_error(logger,"Unsupported operation provided, op = %d", targs->op_type);
     }
@@ -365,7 +390,7 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list\n");
+  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list 6: Lock&Unlock\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
@@ -651,6 +676,23 @@ do {
 
   nkv_retrieve_option r_option = {0};
 
+  nkv_lock_option lock_option;
+  nkv_unlock_option unlock_option;
+
+  //Lock options
+  lock_option.nkv_lock_priority = 0;
+  lock_option.nkv_lock_writer = 1;
+  lock_option.nkv_lock_blocking = 0;
+  lock_option.nkv_lock_duration = 100;
+  lock_option.nkv_lock_uuid = 12341234;
+
+  //Unlock options
+  unlock_option.nkv_lock_priority = 0;
+  unlock_option.nkv_lock_writer = 1;
+  unlock_option.nkv_lock_blocking = 0;
+  unlock_option.nkv_lock_duration = 100;
+  unlock_option.nkv_lock_uuid = 12341234;
+
   if (key_to_work != NULL) {
     smg_info(logger, "CLI will only work on key = %s, op = %d", key_to_work, op_type);
     assert(io_ctx_cnt == 1);
@@ -702,7 +744,6 @@ do {
 
         }
         break;
-
     }
     if (val)
       nkv_free(val);
@@ -748,6 +789,8 @@ do {
       args[i].nkv_handle = nkv_handle;
       args[i].s_option = &s_option;
       args[i].r_option = &r_option;
+      args[i].lock_option = &lock_option;
+      args[i].unlock_option = &unlock_option;
       args[i].check_integrity = check_integrity;
       args[i].hex_dump = hex_dump;
 

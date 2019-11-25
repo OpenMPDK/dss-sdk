@@ -238,6 +238,31 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
 nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key);
 
 
+/*! Acquire lock to a specified key in the container
+ *
+ *  This API synchronously tries to obtain a lock for the key specified in the container
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *  IN     key – Key for which the lock will be acquired
+ *  IN     opt - nkv_lock_option structure for specifying lock option
+ *
+ */
+
+nkv_result nkv_lock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_lock_option* opt);
+
+/*! Release lock to a specified key in the container
+ *
+ *  This API synchronously tries to obtain a unlock for the key specified in the container
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *  IN     key – Key for which the lock will be released
+ *  IN     opt - nkv_unlock_option structure for specifying unlock option
+ *
+ */
+
+nkv_result nkv_unlock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_unlock_option* opt);
+
+
 /*! Store a KV Pair to the container asynchronously
  *  
  *  This API stores a KV pair to the container in async way
@@ -282,6 +307,31 @@ nkv_result nkv_retrieve_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, c
 
 
 nkv_result nkv_delete_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, nkv_postprocess_function* post_fn);
+
+
+/*! Acquire lock to a specified key in the container
+ *
+ *  This API asynchronously tries to obtain a lock for the key specified in the container
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *  IN     key – Key for which the lock will be acquired
+ *  IN     opt - nkv_lock_option structure for specifying lock option
+ *
+ */
+
+nkv_result nkv_lock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_lock_option* opt);
+
+/*! Release lock to a specified key in the container
+ *
+ *  This API asynchronously tries to obtain a unlock for the key specified in the container
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *  IN     key – Key for which the lock will be released
+ *  IN     opt - nkv_unlock_option structure for specifying unlock option
+ *
+ */
+
+nkv_result nkv_unlock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_unlock_option* opt);
 
 
 /*! List the keys synchronously, returns NKV_ITER_MORE_KEYS if there are more keys to iterate and NKV_SUCCESS on complete.
