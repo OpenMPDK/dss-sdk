@@ -37,20 +37,60 @@
 #include "nkv_framework.h"
 #include "cluster_map.h"
 #include "auto_discovery.h"
+#include "event_handler.h"
 #include <pthread.h>
 #include <sstream>
+#include <queue>
 
 thread_local int32_t core_running_app_thread = -1;
 std::atomic<int32_t> nkv_app_thread_count(0);
+std::atomic<uint64_t> nkv_app_put_count(0);
+std::atomic<uint64_t> nkv_app_get_count(0);
+std::atomic<uint64_t> nkv_app_del_count(0);
+std::atomic<uint64_t> nkv_app_list_count(0);
+
 int32_t core_to_pin = -1;
 std::thread nkv_thread;
+std::thread nkv_event_thread;
+int32_t nkv_event_polling_interval_in_sec;
 int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 int32_t nkv_dummy_path_stat;
+int32_t nkv_event_handler = 0;
 std::condition_variable cv_global;
 std::mutex mtx_global;
 std::mutex mtx_stat;
 std::string config_path;
+std::queue<std::string> event_queue;
+
+
+void event_handler_thread(std::string event_subscribe_channel, 
+                          std::string mq_address,
+                          int32_t nkv_event_polling_interval,
+                          uint64_t nkv_handle) {
+    int rc = pthread_setname_np(pthread_self(), "nkv_event_thr");
+    if (rc != 0) {
+        smg_error(logger, "Error on setting thread name on nkv_handle = %u , rc=%d", nkv_handle,rc);
+    }
+    // Get channels
+    std::vector<std::string> channels;
+    boost::split(channels, event_subscribe_channel , boost::is_any_of(","));
+
+    try{
+        // Populate event map and start event receiver function.
+        if ( event_mapping() ) {
+          receive_events(event_queue, mq_address, channels, nkv_event_polling_interval, nkv_handle);
+        }
+        else {
+          smg_error(logger,"Event Handler initiation FAILED.");
+        }
+    }
+    catch (std::exception& e) {
+        smg_error(logger, "Event Receiver Failed- %s", e.what());
+    }
+
+}
+
 
 void nkv_thread_func (uint64_t nkv_handle) {
   int rc = pthread_setname_np(pthread_self(), "nkv_stat_thr");
@@ -86,10 +126,23 @@ void nkv_thread_func (uint64_t nkv_handle) {
     catch (std::exception& e) {
       smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what());
     }
+    // Event Handler - Action Manager function
+    if(nkv_event_handler) {
+      action_manager(event_queue);
+    }
 
     try {
+      int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
       nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      if (nkv_dynamic_logging_old != nkv_dynamic_logging) {
+        nkv_app_put_count = 0;
+        nkv_app_get_count = 0;
+        nkv_app_del_count = 0;
+        nkv_app_list_count = 0;
+        nkv_num_read_cache_miss = 0;
+      }
+
       if (nkv_dynamic_logging) 
         smg_alert(logger, "## NKV debugging is ON ##");
       else
@@ -98,7 +151,13 @@ void nkv_thread_func (uint64_t nkv_handle) {
     catch (std::exception& e) {
       smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
     }
-    smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
+    if (nkv_dynamic_logging) {
+      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d, Num PUTs = %u, Num GETs = %u, Num LISTs = %u, Num DELs = %u, Num Misses = %u", 
+                listing_with_cached_keys, nkv_listing_cache_num_shards, nkv_app_put_count.load(), nkv_app_get_count.load(), 
+                nkv_app_list_count.load(), nkv_app_del_count.load(), nkv_num_read_cache_miss.load());
+    } else {
+      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
+    }
     nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
     
@@ -156,13 +215,17 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   }
 
   int32_t connect_fm = 0;
+  std::string fm_address;
+  std::string fm_endpoint;
   int32_t nkv_transport = 0;
   int32_t min_container = 0;
   int32_t min_container_path = 0;
   int32_t nkv_container_path_qd = 32;
   int32_t nkv_app_thread_core = -1;
+  std::string event_subscribe_channel;
+  std::string mq_address;
+  
   try {
-    connect_fm = pt.get<int>("contact_fm");
     //0 = Local KV, 1 = nvmeOverTCPKernel, 2 = nvmeOverTCPSPDK, 3 = nvmeOverRDMAKernel, 4 = nvmeOverRDMASPDK
     nkv_transport = pt.get<int>("nkv_transport");
     min_container = pt.get<int>("min_container_required");
@@ -191,8 +254,27 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
+      nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
+      nkv_read_cache_size = pt.get<int>("nkv_read_cache_size", 1024);
+      nkv_read_cache_shard_size = pt.get<int>("nkv_read_cache_shard_size", 1024);
+      nkv_data_cache_size_threshold = pt.get<int>("nkv_data_size_threshold", 4096);
+      nkv_use_data_cache = pt.get<int>("nkv_use_data_cache", 0);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
+    // switches for auto discovery and events, not applicable for local KV
+    if (! nkv_is_on_local_kv ) { 
+      connect_fm = pt.get<int>("contact_fm", 0);
+      if (! connect_fm ) {
+        smg_alert(logger, "Reading cluster map information from %s", config_path.c_str());
+      }
+      fm_address  = pt.get<std::string>("fm_address");
+      fm_endpoint = pt.get<std::string>("fm_endpoint");
+      nkv_event_handler = pt.get<int>("nkv_event_handler", 1);
+      event_subscribe_channel = pt.get<std::string>("event_subscribe_channel");
+      mq_address = pt.get<std::string>("mq_address");
+      nkv_event_polling_interval_in_sec = pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60);
+    }
+
     if (!nkv_is_on_local_kv) {
       path_stat_collection = 0;
     }
@@ -221,14 +303,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         return NKV_ERR_CONFIG;
     } else if (connect_fm) {
         // Add logic to contact FM and then give that json ptree to the parse_add_container call
-        std::string fm_address  = pt.get<std::string>("fm_address");
-        std::string fm_endpoint = pt.get<std::string>("fm_endpoint");
-        const long time_out     = pt.get<long>("fm_connection_timeout");
+        const long fm_connection_timeout     = pt.get<long>("fm_connection_timeout", 60);
         std::string url = fm_address + fm_endpoint;
 
         ClusterMap* cm = new ClusterMap(url);
         std::string response("");
-        bool ret = cm->get_response(response, time_out);
+        bool ret = cm->get_response(response, fm_connection_timeout);
 
         if (ret){
           if ( ! cm->get_clustermap(pt)) {
@@ -292,10 +372,22 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
   }
-  if (nkv_stat_thread_needed) {
+  if (nkv_stat_thread_needed || nkv_event_handler) {
     smg_info(logger, "Creating stat thread for nkv, app = %s", app_uuid);
     nkv_thread = std::thread(nkv_thread_func, *nkv_handle); 
   }
+
+  // Add event_handler_thread
+  if (nkv_event_handler) {
+      smg_alert(logger,"Creating event handler thread for nkv");
+      nkv_event_thread = std::thread(event_handler_thread, 
+                                     event_subscribe_channel,
+                                     mq_address,
+                                     nkv_event_polling_interval_in_sec,
+                                     *nkv_handle
+                                    );
+  }
+
   if (listing_with_cached_keys) {
     bool will_wait = nkv_listing_wait_till_cache_init ? true:false;
     auto start = std::chrono::steady_clock::now();
@@ -318,6 +410,9 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   if (nkv_stat_thread_needed) {
     cv_global.notify_all();
     nkv_thread.join();
+  }
+  if (nkv_event_handler) {
+    nkv_event_thread.join();
   }
   while (nkv_pending_calls) {
     usleep(SLEEP_FOR_MICRO_SEC);
@@ -493,6 +588,10 @@ done:
 
 nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_put_count.fetch_add(1, std::memory_order_relaxed);
+  }
+
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_STORE_OP);
   if (stat != NKV_SUCCESS)
     smg_error(logger, "NKV store operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d", 
@@ -505,6 +604,9 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
 
 nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_get_count.fetch_add(1, std::memory_order_relaxed);
+  }
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_RETRIEVE_OP);
   if (stat != NKV_SUCCESS) {
     if (stat != NKV_ERR_KEY_NOT_EXIST) {
@@ -528,6 +630,9 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
 
 nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key) {
 
+  if (nkv_dynamic_logging) {
+    nkv_app_del_count.fetch_add(1, std::memory_order_relaxed);
+  }
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, NULL, NULL, NKV_DELETE_OP);
   if (stat != NKV_SUCCESS)
     smg_error(logger, "NKV delete operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
@@ -701,6 +806,10 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
     smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = list_keys !!", nkv_handle);
     stat = NKV_ERR_HANDLE_INVALID;
     goto done;
+  }
+
+  if (nkv_dynamic_logging) {
+    nkv_app_list_count.fetch_add(1, std::memory_order_relaxed);
   }
 
   if (ioctx->is_pass_through) {

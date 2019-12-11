@@ -33,14 +33,16 @@
 
 #ifndef NKV_FRAMEWORK_H
 #define NKV_FRAMEWORK_H
-#include <unordered_map>
+
+/*#include <unordered_map>
 #include <unordered_set>
 #include <set>
 #include <list>
 #include <string>
 #include <atomic>
 #include <mutex>
-#include <functional>
+#include <functional>*/
+
 #include <thread>
 #include "kvs_api.h"
 #include "nkv_utils.h"
@@ -61,6 +63,8 @@
   extern std::atomic<uint32_t> nkv_async_path_max_qd;
   extern std::atomic<uint64_t> nkv_num_async_submission;
   extern std::atomic<uint64_t> nkv_num_async_completion;
+  extern std::atomic<uint64_t> nkv_num_read_cache_miss;
+  
   //extern c_smglogger* logger;
   class NKVContainerList;
   extern NKVContainerList* nkv_cnt_list;
@@ -78,6 +82,12 @@
   extern int32_t nkv_listing_cache_num_shards;
   extern int32_t nkv_dynamic_logging;
   extern int32_t path_stat_collection;
+  extern int32_t nkv_use_read_cache;
+  extern int32_t nkv_read_cache_size;
+  extern int32_t nkv_read_cache_shard_size;
+  extern int32_t nkv_data_cache_size_threshold;
+  extern int32_t nkv_use_data_cache;
+  
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -113,6 +123,53 @@
     }
   } iterator_info;
 
+  struct nkv_value_wrapper {
+    void *value;
+    uint64_t length;
+    uint64_t actual_length;
+    nkv_value_wrapper(void* pval, uint64_t plength, uint64_t pactual_length) : value(pval),
+                                                                               length(plength),
+                                                                               actual_length(pactual_length) {}
+
+    ~nkv_value_wrapper() {
+      if (value) {
+        free (value);
+        value = NULL;
+      }
+      length = 0;
+      actual_length = 0;
+    }
+
+    nkv_value_wrapper(const nkv_value_wrapper& other) {
+      value = malloc (other.length);
+      memcpy(value, other.value, other.length);
+      length = other.length;
+      actual_length = other.actual_length;
+  }
+
+
+    nkv_value_wrapper (nkv_value_wrapper&& other) : value (other.value), length(other.length), actual_length(other.actual_length) {
+      other.value = NULL;
+      other.length = 0;
+      other.actual_length = 0;
+    }
+
+    nkv_value_wrapper& operator=(nkv_value_wrapper&& other) {
+      if (this != &other) {
+        value = other.value;
+        length = other.length;
+        actual_length = other.actual_length;
+        other.value = NULL;
+        other.length = 0;
+        other.actual_length = 0;
+      }
+      return *this;
+    }
+
+
+  };
+
+
   //Aio call back function
   void nkv_aio_completion (nkv_aio_construct* ops, int32_t num_op);
 
@@ -134,7 +191,7 @@
     int32_t path_port;
     int32_t addr_family;
     int32_t path_speed;
-    int32_t path_status;
+    std::atomic<int32_t> path_status;
     int32_t path_numa_aligned;
     int32_t path_type;
     int32_t path_id;
@@ -142,19 +199,7 @@
     int32_t core_to_pin;
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
-    std::unordered_set<std::string> cached_keys;
-    std::unordered_set<std::string> iter_key_set;
-    std::unordered_set<std::string> deleted_cached_keys;
-    //std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::unordered_set<std::string>* > listing_keys; 
-    //std::unordered_map<std::string, std::list<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::vector<std::string> > listing_keys; 
-    //std::unordered_map<std::string, std::set<std::string> > listing_keys; 
-    //std::unordered_map<std::size_t, std::set<std::string> > listing_keys; 
     std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
-    std::unordered_map<std::string, std::unordered_set<std::string> > listing_keys_sub_prefix; 
-    std::unordered_map<std::string, std::unordered_set<std::string> > delete_keys_sub_prefix; 
-    std::unordered_map<std::string, uint32_t> listing_keys_track_iter; 
     std::atomic<uint32_t> nkv_outstanding_iter_on_path;
     std::atomic<uint32_t> nkv_path_stopping;
     std::atomic<uint64_t> nkv_num_key_prefixes;
@@ -164,6 +209,7 @@
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
     std::condition_variable cv_path;
+    nkv_lruCache<std::string, nkv_value_wrapper>* cnt_cache;
 
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
@@ -174,13 +220,7 @@
       nkv_async_path_cur_qd = 0;
       core_to_pin = -1;
       path_numa_node = -1;
-      cached_keys.clear();
-      iter_key_set.clear();
-      deleted_cached_keys.clear();
-      //listing_keys.clear();
-      //listing_keys.reserve(50000000);
-      listing_keys_sub_prefix.clear();
-      listing_keys_track_iter.reserve(4096);
+
       nkv_outstanding_iter_on_path = 0;
       nkv_path_stopping = 0;
       nkv_num_key_prefixes = 0;
@@ -191,6 +231,7 @@
         pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
       }
       listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
+      cnt_cache = new nkv_lruCache<std::string, nkv_value_wrapper> [nkv_read_cache_shard_size](nkv_read_cache_size);
     }
 
     ~NKVTargetPath() {
@@ -214,6 +255,7 @@
       }
       delete[] cache_rw_lock_list;
       delete[] listing_keys;
+      delete[] cnt_cache;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
     }
 
@@ -348,13 +390,17 @@
       pathMap.clear();      
     }
 
+    std::unordered_map<uint64_t, NKVTargetPath*>& get_path_map() {
+        return pathMap;
+    }
+
     void set_ss_status (int32_t p_status) {
       ss_status = p_status;
     }
     
     void set_space_avail_percent (float p_space) {
       ss_space_avail_percent = p_space;
-    }
+    } 
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
                                 void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
@@ -612,7 +658,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           nkv_path_stat p_stat = {0};
           if (!path_stat_collection) {
              smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection disabled !!",
@@ -650,7 +696,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_info(logger, "wait_or_detach_path_thread for path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
 
           if (will_wait) {
             one_path->wait_for_thread_completion();          
@@ -678,7 +724,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Inspecting path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           if (one_path->path_ip.empty() || one_path->dev_path.empty()) {
             smg_error(logger, "No IP or mount point (for TCP over KDD only) provided !");
             return false;
@@ -722,7 +768,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Opening path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->path_status);
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,(one_path->path_status).load(std::memory_order_relaxed));
   
           if (!one_path->open_path(app_name))
             return false;        
@@ -749,7 +795,7 @@
           transportlist[cur_pop_index].port = one_path->path_port;
           transportlist[cur_pop_index].addr_family = one_path->addr_family;
           transportlist[cur_pop_index].speed = one_path->path_speed;
-          transportlist[cur_pop_index].status = one_path->path_status;
+          transportlist[cur_pop_index].status = (one_path->path_status).load(std::memory_order_relaxed);
           one_path->path_ip.copy(transportlist[cur_pop_index].ip_addr, one_path->path_ip.length());
           one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
 
@@ -784,7 +830,8 @@
 
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
-                    cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), nkv_handle(n_handle)  {
+                    cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
+                    nkv_handle(n_handle) {
 
 
     }
@@ -806,18 +853,54 @@
     nkv_result nkv_send_io(uint64_t container_hash, uint64_t container_path_hash, const nkv_key* key, void* opt, 
                            nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
       nkv_result stat = NKV_SUCCESS;
+
       auto c_iter = cnt_list.find(container_hash);
       if (c_iter == cnt_list.end()) {
         smg_error(logger,"No Container found for hash = %u, number of containers = %u", container_hash, cnt_list.size());
         return NKV_ERR_NO_CNT_FOUND;
       }
+
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
         stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
       } else {
         smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;
-      } 
+      }
+
+      //Populate cache for meta keys
+      /*if (false && (stat == NKV_SUCCESS) && (!cache_hit)) {
+        std::string key_str ((char*) key->key, key->length);
+        std::size_t found = key_str.find(iter_prefix);
+        if (found != std::string::npos && found == 0) {
+          //Meta keys, check if it is present in lru cache
+          if (shard_id == -1) {
+            std::size_t key_prefix = std::hash<std::string>{}(key_str);
+            shard_id = key_prefix % nkv_read_cache_shard_size;
+          }
+          
+          if (which_op != NKV_DELETE_OP) {
+            if (which_op == NKV_RETRIEVE_OP) {
+              void* c_buffer = malloc(value->actual_length);
+              memcpy(c_buffer, value->value, value->actual_length);
+
+              nkv_value_wrapper nkvvalue (c_buffer, value->actual_length, value->actual_length);
+              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+             
+            } else {
+              void* c_buffer = malloc(value->length);
+              memcpy(c_buffer, value->value, value->length);
+              nkv_value_wrapper nkvvalue (c_buffer, value->length, value->length);
+              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+            }
+          } else {
+            cnt_cache[shard_id].del(key_str);
+          }
+          
+        }
+          
+      }*/
+
       return stat;
     }
 
@@ -1119,7 +1202,71 @@
     }
  
     
-    //To Do, event threads etc. etc. 
+   /* Function Name: update_container
+    * Params       : <string> -Address of Remote Mount Path
+    *                <int32_t>-Rremote Mount Path status
+    * Return       : <bool>  Updated Mount Path or Not
+    * Description  : Update remote mount path status based on the address received from event.
+    *                Invoked from event handler.
+    */
+    bool update_container(std::string category,
+                          std::string node_name,
+                          boost::property_tree::ptree& args,
+                          int32_t remote_path_status) {
+
+      bool is_nkv_data_structure_updated =  false;
+
+      // Iterate container list which contain the list of subsystems 
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* target_ptr = m_iter->second;
+        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map(); 
+
+        // Iterate each path of a subsystem
+        for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
+          NKVTargetPath* target_path_ptr = p_iter->second;
+          
+          bool skip = true;
+          // Target: Check only node name
+          if ( category == "TARGET" ){
+            if ( node_name == target_ptr->target_node_name ) {
+              skip = false;
+            }
+          }
+          else if ( category == "SUBSYSTEM" ) {
+            // Subsystem: Check only nqn
+            if (  target_ptr->target_container_name == args.get<std::string>("nqn", "") ) {
+              skip = false;
+            } 
+          }
+          else if ( category == "NETWORK" ) {
+            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") && 
+                target_path_ptr->path_port == args.get<int32_t>("port", 1024) &&
+                target_ptr->target_container_name == args.get<std::string>("nqn", "")) {
+              skip = false;
+            }
+          }  
+        
+          smg_debug(logger, "Remote PATH = %s , STATUS = %d , EVENT STATUS = %d",
+                  (target_path_ptr->dev_path).c_str(),  (target_path_ptr->path_status).load(std::memory_order_relaxed), remote_path_status);
+          // NIC: Check path if matches and update status accordingly
+          if (! skip) {
+            if ( (target_path_ptr->path_status).load(std::memory_order_relaxed) !=  remote_path_status ) {
+                 (target_path_ptr->path_status).store(remote_path_status, std::memory_order_relaxed);
+                 is_nkv_data_structure_updated = true; 
+                              
+              if ( remote_path_status ) {
+                smg_alert(logger,"Remote mount path %s is UP for IO", (target_path_ptr->dev_path).c_str());
+              }
+              else {
+                smg_alert(logger,"Remote mount path %s is DOWN for IO", (target_path_ptr->dev_path).c_str());
+              }
+            }
+          } // End of checking subsystem paths
+        } // End of transporter path iteration
+      } // End of iteration of subsystems
+
+      return is_nkv_data_structure_updated;
+    } 
 
   };
 

@@ -53,7 +53,7 @@ extern "C" {
 #define NKV_MAX_LOCK_KEY_LENGTH 16 
 #define NKV_MAX_MOUNT_POINT_LENGTH 16 
 #define NKV_MAX_VALUE_LENGTH 2097152 //2MB value support 
-#define NKV_VERSION_INFO "nkv_api_v_1.0" //NKV version
+#define NKV_VERSION_INFO "nkv_api_v_1.1" //NKV version
 
 #ifdef __cplusplus
 } // extern "C"

@@ -90,14 +90,15 @@ bool update_mount_path(boost::property_tree::ptree & pt,
  */
 
 
-bool split_lines(const std::string& result, const char& delimitter, vector<string>& lines)
+bool split_lines(const std::string& result, char delimiter, vector<string>& lines)
 {
   std::stringstream data(result);
   if(! result.empty())    
   {
     string line;
-    while(getline(data, line, delimitter))
+    while(getline(data, line, delimiter))
     {
+      cout<<"Line:"<<line<<endl;
       boost::trim(line); // trim spaces
       lines.push_back(line);
     }

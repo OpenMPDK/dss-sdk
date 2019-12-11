@@ -27,6 +27,25 @@ link_directories(${LOG_LIBRARY_DIR})
 
 #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/ ${CMAKE_BINARY_DIR}/lib)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/logger/)
+#Building zeromq
+set( ZMQPP_LIBZMQ_CMAKE   true   CACHE BOOL "libzmq is build through cmake too" FORCE)
+set( ZEROMQ_LIB_DIR       ${CMAKE_BINARY_DIR}/lib/      CACHE PATH "The library directory for libzmq" FORCE)
+set( ZEROMQ_INCLUDE_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/libzmq/include      CACHE PATH "The include directory for ZMQ" FORCE)
+
+set( ZMQPP_BUILD_EXAMPLES false   CACHE BOOL "Build the ZMQPP examples" FORCE)
+set( ZMQPP_BUILD_CLIENT   false   CACHE BOOL "Build the ZMQPP client" FORCE)
+set( ZMQPP_BUILD_TESTS    false   CACHE BOOL "Build the ZMQPP tests" FORCE)
+
+set(BUILD_TESTS OFF CACHE BOOL "Whether or not to build the tests" FORCE)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/libzmq/)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/zmqpp/)
+add_dependencies(zmqpp libzmq)
+
+set(ZMQ_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/zmqpp/src ${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/libzmq/include)
+set(ZMQ_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib/)
+include_directories(${ZMQ_INCLUDE_DIR})
+link_directories(${ZMQ_LIBRARY_DIR})
 
 if(NKV_WITH_SAMSUNG_API)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
@@ -50,7 +69,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
-set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog)
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp)
 
 # SOURCE CODE
 SET(SOURCES_NKV_KDD
@@ -67,7 +86,7 @@ SET(HEADERS_NKV_KDD
 set(NKVAPI_CXXFLAGS "-std=c++11 -MMD -MP -Wall -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${NKVAPI_CFLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${NKVAPI_CXXFLAGS}")
-set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -march=native)
+set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -lsmglog -lzmq -lzmqpp -march=native)
 
 set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/include)
 set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/include_private)
@@ -76,7 +95,7 @@ set(NKV_REMOTE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/include)
 add_library(nkvapi SHARED ${SOURCES_NKV_KDD} ${HEADERS_NKV_KDD})
 target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${NKV_REMOTE_INCLUDE_DIR})
 target_link_libraries (nkvapi ${NKVAPI_LIBS})
-add_dependencies(nkvapi smglog)
+add_dependencies(nkvapi smglog zmqpp)
 add_dependencies(nkvapi kvapi)
 
 add_executable(nkv_test_cli ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp)
@@ -96,6 +115,8 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/spec/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/spec
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_emul.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_remote.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/event_mapping.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/disk_stats.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/start.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
@@ -105,7 +126,8 @@ add_custom_command(
 	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/sample_code_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/nkv_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/README_INSTALL.txt ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/
