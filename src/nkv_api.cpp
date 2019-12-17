@@ -549,8 +549,11 @@ nkv_result nkv_send_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_k
     return NKV_ERR_NULL_INPUT;
   }
 
-  if (!value && !(which_op == NKV_DELETE_OP || which_op == NKV_LOCK_OP || which_op == NKV_UNLOCK_OP)) {
-    smg_error(logger, "value is NULL !!, nkv_handle = %u, op = %d", nkv_handle, which_op);
+  if (!value && !(which_op == NKV_DELETE_OP || \
+			which_op == NKV_LOCK_OP || \
+			which_op == NKV_UNLOCK_OP)) {
+    smg_error(logger, "value is NULL !!, nkv_handle = %u, op = %d", \
+						nkv_handle, which_op);
     return NKV_ERR_NULL_INPUT;
   }
 
@@ -644,34 +647,50 @@ nkv_result nkv_delete_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv
 
 }
 
-nkv_result nkv_lock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_lock_option *opt) {
+nkv_result nkv_lock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, \
+				const nkv_key* key, const nkv_lock_option *opt)
+{
 
-  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_LOCK_OP);
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, \
+						NULL, NKV_LOCK_OP);
   if (stat != NKV_SUCCESS) {
     if (stat != NKV_ERR_LOCK_KEY_LOCKED) {
-      smg_error(logger, "NKV lock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+      smg_error(logger, \
+		"NKV lock operation failed for nkv_handle = %u,"\
+		" key = %s, key_length = %u, code = %d", nkv_handle, 
                  key ? (char*)key->key: "NULL", key ? key->length:0, stat);
     } else {
-      smg_info(logger, "NKV lock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+      smg_info(logger, \
+		"NKV lock operation failed for nkv_handle = %u, "\
+		"key = %s, key_length = %u, code = %d", nkv_handle, 
                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
     }
   }
   else {
-    smg_info(logger, "NKV lock operation is successful for nkv_handle = %u, key = %s, key_length = %u", 
+    smg_info(logger, \
+		"NKV lock operation is successful for nkv_handle = %u,"\
+		" key = %s, key_length = %u", 
              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0);
   }
   return stat;
 
 }
 
-nkv_result nkv_unlock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_unlock_option *opt) {
+nkv_result nkv_unlock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, \
+			const nkv_key* key, const nkv_unlock_option *opt)
+{
 
-  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_UNLOCK_OP);
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, \
+						opt, NULL, NKV_UNLOCK_OP);
   if (stat != NKV_SUCCESS)
-    smg_error(logger, "NKV unlock operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
+    smg_error(logger, \
+			"NKV unlock operation failed for nkv_handle = %u,"\
+			" key = %s, key_length = %u, code = %d", nkv_handle, 
               key ? (char*)key->key: "NULL", key ? key->length:0, stat);
   else
-    smg_info(logger, "NKV unlock operation is successful for nkv_handle = %u, key = %s, key_length = %u", nkv_handle, 
+    smg_info(logger, \
+			"NKV unlock operation is successful for nkv_handle = %u,"\
+			" key = %s, key_length = %u", nkv_handle, 
              key ? (char*)key->key: "NULL", key ? key->length:0);
   return stat;
 

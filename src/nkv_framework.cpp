@@ -885,24 +885,28 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
   return NKV_SUCCESS;
 }
 
-nkv_result NKVTargetPath::do_lock_io_from_path(const nkv_key* n_key, const nkv_lock_option* n_opt, nkv_postprocess_function* post_fn ) {
-
+nkv_result NKVTargetPath::do_lock_io_from_path(const nkv_key* n_key, \
+		const nkv_lock_option* n_opt, nkv_postprocess_function* post_fn )
+{
+#ifdef SAMSUNG_API && NKV_REMOTE
   if (!n_key || !n_key->key) {
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
 
   if ((n_key->length > NKV_MAX_LOCK_KEY_LENGTH) || (n_key->length == 0)) {
-    smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
+    smg_error(logger, "Wrong key length, supplied length = %d !!", \
+				n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
 
   if (nkv_dynamic_logging) {
-    smg_alert(logger, "NKV lock request for key = %s, key_length = %u, dev_path = %s, ip = %s",
-             (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
+    smg_alert(logger, "NKV lock request for key = %s, key_length = %u,"\
+					" dev_path = %s, ip = %s",
+            (char*) n_key->key, n_key->length, dev_path.c_str(), \
+			path_ip.c_str());
   }
 
-#ifdef SAMSUNG_API
   const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
   kvs_lock_context lock_ctx;
 
@@ -910,72 +914,51 @@ nkv_result NKVTargetPath::do_lock_io_from_path(const nkv_key* n_key, const nkv_l
   lock_ctx.option.kvs_blocking_lock  = n_opt->nkv_lock_blocking;
   lock_ctx.option.lock_priority = n_opt->nkv_lock_priority;
   lock_ctx.option.lock_duration = n_opt->nkv_lock_duration;
-#else
-#endif
 
   if(!post_fn) {//Sync
-    #ifdef SAMSUNG_API
-      int ret = kvs_lock_tuple(path_cont_handle, &kvskey, n_opt->nkv_lock_uuid, &lock_ctx);
+      int ret = kvs_lock_tuple(path_cont_handle, &kvskey, \
+					n_opt->nkv_lock_uuid, &lock_ctx);
       if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Lock tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        smg_error(logger, "Lock tuple failed with error 0x%x - %s, "\
+			"key = %s, dev_path = %s, ip = %s", 
+                  	ret, kvs_errstr(ret), n_key->key, \
+					dev_path.c_str(), path_ip.c_str());
         return map_kvs_err_code_to_nkv_err_code(ret);
       }
-	#else
-      return NKV_NOT_SUPPORTED;
-	#endif
   } else {//Async
-    #ifdef SAMSUNG_API
-	#if 0
-      while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
-        smg_warn(logger, "Lock tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
-                  n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-        usleep(1);
-      }
-      lock_ctx.private1 = (void*) post_fn;
-      lock_ctx.private2 = (void*) this;
-      kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
-      kvskey->key = n_key->key;
-      kvskey->length = n_key->length;
-
-      int ret = kvs_lock_tuple_async(path_cont_handle, kvskey, n_opt->nkv_lock_uuid, &lock_ctx, kvs_aio_completion);
-
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "lock tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-      nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
-	#else
-	  return NKV_NOT_SUPPORTED;
-	#endif
-
-	#else
       return NKV_NOT_SUPPORTED;
-	#endif
   }
 
   return NKV_SUCCESS;
+#else
+  return NKV_NOT_SUPPORTED;
+#endif
 }
 
-nkv_result NKVTargetPath::do_unlock_io_from_path(const nkv_key* n_key, const nkv_unlock_option* n_opt, nkv_postprocess_function* post_fn ) {
+nkv_result NKVTargetPath::do_unlock_io_from_path(const nkv_key* n_key, \
+		const nkv_unlock_option* n_opt, \
+		nkv_postprocess_function* post_fn )
+{
 
+#ifdef SAMSUNG_API && NKV_REMOTE
   if (!n_key || !n_key->key) {
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
 
   if ((n_key->length > NKV_MAX_LOCK_KEY_LENGTH) || (n_key->length == 0)) {
-    smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
+    smg_error(logger, "Wrong key length, supplied length = %d !!", \
+				n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
 
   if (nkv_dynamic_logging) {
-    smg_alert(logger, "NKV unlock request for key = %s, key_length = %u, dev_path = %s, ip = %s",
-             (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
+    smg_alert(logger, "NKV unlock request for key = %s, key_length = %u,"\
+						" dev_path = %s, ip = %s",
+             	(char*) n_key->key, n_key->length, dev_path.c_str(), \
+				path_ip.c_str());
   }
 
-#ifdef SAMSUNG_API
   const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
   kvs_lock_context unlock_ctx;
 
@@ -983,51 +966,25 @@ nkv_result NKVTargetPath::do_unlock_io_from_path(const nkv_key* n_key, const nkv
   unlock_ctx.option.kvs_blocking_lock  = n_opt->nkv_lock_blocking;
   unlock_ctx.option.lock_priority = n_opt->nkv_lock_priority;
   unlock_ctx.option.lock_duration = n_opt->nkv_lock_duration;
-#else
-#endif
 
   if(!post_fn) {//Sync
-    #ifdef SAMSUNG_API
-      int ret = kvs_unlock_tuple(path_cont_handle, &kvskey, n_opt->nkv_lock_uuid, &unlock_ctx);
+      int ret = kvs_unlock_tuple(path_cont_handle, &kvskey, \
+					n_opt->nkv_lock_uuid, &unlock_ctx);
       if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Unlock tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+        smg_error(logger, "Unlock tuple failed with error 0x%x - %s,"\
+				" key = %s, dev_path = %s, ip = %s", 
+                  	ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), \
+					path_ip.c_str());
         return map_kvs_err_code_to_nkv_err_code(ret);
       }
-	#else
-      return NKV_NOT_SUPPORTED;
-	#endif
   } else {//Async
-    #ifdef SAMSUNG_API
-	#if 0
-      while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
-        smg_warn(logger, "Lock tuple waiting on high qd, key = %s, dev_path = %s, ip = %s, cur_qd = %u, max_qd = %u",
-                  n_key->key, dev_path.c_str(), path_ip.c_str(), nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-        usleep(1);
-      }
-      unlock_ctx.private1 = (void*) post_fn;
-      unlock_ctx.private2 = (void*) this;
-      kvs_key *kvskey = (kvs_key*)malloc(sizeof(kvs_key));
-      kvskey->key = n_key->key;
-      kvskey->length = n_key->length;
-
-      int ret = kvs_unlock_tuple_async(path_cont_handle, kvskey, n_opt->nkv_lock_uuid, &unlock_ctx, kvs_aio_completion);
-
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "unlock tuple async start failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-      nkv_async_path_cur_qd.fetch_add(1, std::memory_order_relaxed);
-	#else
-	  return NKV_NOT_SUPPORTED;
-	#endif
-
-	#else
       return NKV_NOT_SUPPORTED;
-	#endif
   }
+
   return NKV_SUCCESS;
+#else
+  return NKV_NOT_SUPPORTED;
+#endif
 }
 
 bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix_p, std::string& key_prefix_val, bool root_prefix) {

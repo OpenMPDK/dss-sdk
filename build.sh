@@ -2,15 +2,15 @@
 
 if [ $# -eq 0 ]
 then
-  echo "No arguments supplied, argument should be either 'kdd', 'kdd-samsung' or 'emul'"
+  echo "No arguments supplied, argument should be either 'kdd', 'kdd-samsung' 'kdd-samsung-remote' or 'emul'"
   exit
 fi
 
-if [ $1 == 'kdd' ] || [ $1 == 'emul' ] || [ $1 == 'kdd-samsung' ]
+if [ $1 == 'kdd' ] || [ $1 == 'emul' ] || [ $1 == 'kdd-samsung' ] || [ $1 == 'kdd-samsung-remote' ]
 then
   echo "Building NKV with : $1"
 else
-  echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung'"
+  echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
   exit
 fi
 
@@ -57,8 +57,11 @@ then
 elif [ $1 == 'kdd-samsung' ]
 then
   cmake $CWD -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON
+elif [ $1 == 'kdd-samsung-remote' ]
+then
+  cmake $CWD -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON -DNKV_WITH_REMOTE=ON
 else
-  echo "Build argument should be either 'kdd' or 'emul'"
+  echo "Build argument should be either 'kdd' or 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
   exit
 fi
 make -j4

@@ -321,8 +321,10 @@
     nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
-    nkv_result do_lock_io_from_path (const nkv_key* key, const nkv_lock_option *opt, nkv_postprocess_function* post_fn); 
-    nkv_result do_unlock_io_from_path (const nkv_key* key, const nkv_unlock_option *opt, nkv_postprocess_function* post_fn); 
+    nkv_result do_lock_io_from_path (const nkv_key* key,
+		const nkv_lock_option *opt, nkv_postprocess_function* post_fn); 
+    nkv_result do_unlock_io_from_path (const nkv_key* key,
+		const nkv_unlock_option *opt, nkv_postprocess_function* post_fn); 
     nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
                                      const char* delimiter); 
     nkv_result find_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, const char* prefix,
@@ -435,10 +437,12 @@
             stat = one_p->do_delete_io_from_path(key, post_fn);
             break;
           case NKV_LOCK_OP:
-            stat = one_p->do_lock_io_from_path(key, (const nkv_lock_option*)opt, post_fn);
+            stat = one_p->do_lock_io_from_path(key, \
+						(const nkv_lock_option*)opt, post_fn);
             break;
           case NKV_UNLOCK_OP:
-            stat = one_p->do_unlock_io_from_path(key, (const nkv_unlock_option*)opt, post_fn);
+            stat = one_p->do_unlock_io_from_path(key, \
+						(const nkv_unlock_option*)opt, post_fn);
             break;
           default:
             smg_error(logger, "Unknown op, op = %d", which_op);

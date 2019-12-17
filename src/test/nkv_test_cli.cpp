@@ -347,27 +347,36 @@ void *iothread(void *args)
 
       case NKV_TEST_OP_LOCK_UNLOCK: //Lock Unlock
         {
-          status = nkv_lock_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->lock_option);
+          status = nkv_lock_kvp (targs->nkv_handle, \
+						&targs->ioctx[iter % targs->ioctx_cnt], \
+						&nkvkey, targs->lock_option);
           if (status != 0) {
-            smg_error(logger, "NKV lock KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+            smg_error(logger, "NKV lock KVP call failed !!, key = %s,"\
+						" error = %d", (char*) nkvkey.key, status);
 			return 0;
           } else {
-            smg_info(logger, "NKV Lock successful, key = %s", (char*) nkvkey.key);
+            smg_info(logger, "NKV Lock successful, key = %s", \
+						(char*) nkvkey.key);
           }
 
-          status = nkv_unlock_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->unlock_option);
+          status = nkv_unlock_kvp (targs->nkv_handle, \
+						&targs->ioctx[iter % targs->ioctx_cnt], \
+						&nkvkey, targs->unlock_option);
           if (status != 0) {
-            smg_error(logger, "NKV unlock KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+            smg_error(logger, "NKV unlock KVP call failed !!, key = %s,"\
+						" error = %d", (char*) nkvkey.key, status);
 			return 0;
           } else {
-            smg_info(logger, "NKV Unlock successful, key = %s", (char*) nkvkey.key);
+            smg_info(logger, "NKV Unlock successful, key = %s", \
+						(char*) nkvkey.key);
           }
 
         }
         break;
 
       default:
-        smg_error(logger,"Unsupported operation provided, op = %d", targs->op_type);
+        smg_error(logger,"Unsupported operation provided, op = %d", \
+							targs->op_type);
     }
     if (key_name)  
       nkv_free(key_name);
@@ -390,7 +399,9 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; 3: Put, Get and delete (only sync); 4: listing; 5: Put and list 6: Lock&Unlock\n");
+  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; "\
+					"3: Put, Get and delete (only sync); 4: listing; "\
+					"5: Put and list 6: Lock&Unlock\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
