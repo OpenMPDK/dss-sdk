@@ -261,6 +261,11 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_use_data_cache = pt.get<int>("nkv_use_data_cache", 0);
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
+    nkv_remote_listing = pt.get<int>("nkv_remote_listing", 0);
+    if (nkv_remote_listing) {
+
+      transient_prefix = pt.get<std::string>("transient_prefix_to_filter", "meta/.minio.sys/tmp/" );
+    }
     // switches for auto discovery and events, not applicable for local KV
     if (! nkv_is_on_local_kv ) { 
       connect_fm = pt.get<int>("contact_fm", 0);
@@ -388,7 +393,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
                                     );
   }
 
-  if (listing_with_cached_keys) {
+  if (listing_with_cached_keys && !nkv_remote_listing) {
     bool will_wait = nkv_listing_wait_till_cache_init ? true:false;
     auto start = std::chrono::steady_clock::now();
     nkv_cnt_list->wait_or_detach_thread (will_wait);
@@ -744,7 +749,7 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
   if (ioctx->is_pass_through) {
     uint64_t cnt_hash = ioctx->container_hash;
     uint64_t cnt_path_hash = ioctx->network_path_hash;
-    stat = nkv_cnt_list->nkv_list_keys(cnt_hash, cnt_path_hash, max_keys, keys, *iter_context, prefix, delimiter);
+    stat = nkv_cnt_list->nkv_list_keys(cnt_hash, cnt_path_hash, max_keys, keys, *iter_context, prefix, delimiter, start_after);
 
   } else {
     smg_error(logger, "Wrong input, nkv non-pass through mode is not supported yet, op = list_keys !");

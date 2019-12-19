@@ -70,6 +70,7 @@
   extern int32_t queue_depth_threshold;
   extern int32_t listing_with_cached_keys;
   extern std::string iter_prefix;
+  extern std::string transient_prefix;
   extern int32_t num_path_per_container_to_iterate;
   extern int32_t nkv_is_on_local_kv;
   extern std::string key_default_delimiter;
@@ -84,6 +85,7 @@
   extern int32_t nkv_read_cache_shard_size;
   extern int32_t nkv_data_cache_size_threshold;
   extern int32_t nkv_use_data_cache;
+  extern int32_t nkv_remote_listing;
   
 
   typedef struct iterator_info {
@@ -319,11 +321,13 @@
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
     nkv_result do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
-                                     const char* delimiter); 
+                                     const char* delimiter, const char* start_after); 
     nkv_result find_keys_from_path(uint32_t* max_keys, nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted, const char* prefix,
                                       const char* delimiter); 
     void filter_and_populate_keys_from_path(uint32_t* max_keys, nkv_key* keys, char* disk_key, uint32_t key_size, uint32_t* num_keys_iterted,
                                             const char* prefix, const char* delimiter, iterator_info*& iter_info, bool cached_keys = false);
+    nkv_result perform_remote_listing(const char* key_prefix_iter, const char* start_after, uint32_t* max_keys, 
+                                      nkv_key* keys, iterator_info*& iter_info, uint32_t* num_keys_iterted);
     int32_t parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs,
                                     std::vector<std::string>& prefixes, std::string& f_name);
     void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool need_lock = true);
@@ -463,7 +467,7 @@
     }
 
     nkv_result list_keys_from_path (uint64_t container_path_hash, uint32_t* max_keys, nkv_key* keys, void*& iter_context, const char* prefix,
-                                    const char* delimiter) {
+                                    const char* delimiter, const char* start_after) {
 
       nkv_result stat = NKV_SUCCESS;
       uint64_t current_path_hash = 0;
@@ -515,7 +519,7 @@
 
         NKVTargetPath* one_p = p_iter->second;
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter, start_after);
         if (stat != NKV_SUCCESS) {
           *max_keys = num_keys_iterted;
           if (stat != NKV_ITER_MORE_KEYS) {
@@ -547,7 +551,7 @@
         
         NKVTargetPath* one_p = p_iter->second; 
         assert(one_p != NULL);
-        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
+        stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter, start_after);
         if (stat != NKV_SUCCESS) {
           *max_keys = num_keys_iterted;
           if (stat != NKV_ITER_MORE_KEYS) {
@@ -582,7 +586,7 @@
           assert(one_p != NULL);
           smg_info(logger,"Start Iterating over path hash = %u, dev mount = %s, path ip = %s", one_p->path_hash,
                    one_p->dev_path.c_str(), one_p->path_ip.c_str());
-          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter);
+          stat = one_p->do_list_keys_from_path(&num_keys_iterted, iter_info, max_keys, keys, prefix, delimiter, start_after);
           
           if (stat != NKV_SUCCESS) {
             *max_keys = num_keys_iterted;
@@ -762,7 +766,7 @@
           if (!one_path->open_path(app_name))
             return false;        
 
-          if (listing_with_cached_keys) {
+          if (listing_with_cached_keys && !nkv_remote_listing) {
             one_path->start_thread();
           }
 
@@ -894,7 +898,7 @@
     }
 
     nkv_result nkv_list_keys (uint64_t container_hash, uint64_t container_path_hash, uint32_t* max_keys, 
-                              nkv_key* keys, void*& iter_context, const char* prefix, const char* delimiter) {
+                              nkv_key* keys, void*& iter_context, const char* prefix, const char* delimiter, const char* start_after) {
 
       nkv_result stat = NKV_SUCCESS;
       auto c_iter = cnt_list.find(container_hash);
@@ -904,7 +908,7 @@
       }
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
-        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context, prefix, delimiter);
+        stat = one_cnt->list_keys_from_path(container_path_hash, max_keys, keys, iter_context, prefix, delimiter, start_after);
       } else {
         smg_error(logger, "NULL Container found for hash = %u, op = list_keys!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;

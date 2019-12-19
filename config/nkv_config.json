@@ -23,6 +23,7 @@
   "nkv_read_cache_shard_size" : 512,
   "nkv_data_size_threshold" : 4096,
   "nkv_use_data_cache" : 0,
+  "nkv_remote_listing" : 0,
 
   "nkv_local_mounts": [
     {
