@@ -695,14 +695,14 @@ do {
   lock_option.nkv_lock_writer = 1;
   lock_option.nkv_lock_blocking = 0;
   lock_option.nkv_lock_duration = 100;
-  lock_option.nkv_lock_uuid = 12341234;
+  lock_option.nkv_lock_uuid = instance_uuid;
 
   //Unlock options
   unlock_option.nkv_lock_priority = 0;
   unlock_option.nkv_lock_writer = 1;
   unlock_option.nkv_lock_blocking = 0;
   unlock_option.nkv_lock_duration = 100;
-  unlock_option.nkv_lock_uuid = 12341234;
+  unlock_option.nkv_lock_uuid = instance_uuid;
 
   if (key_to_work != NULL) {
     smg_info(logger, "CLI will only work on key = %s, op = %d", key_to_work, op_type);

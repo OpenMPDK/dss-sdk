@@ -660,7 +660,7 @@ nkv_result nkv_lock_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, \
 		" key = %s, key_length = %u, code = %d", nkv_handle, 
                  key ? (char*)key->key: "NULL", key ? key->length:0, stat);
     } else {
-      smg_info(logger, \
+      smg_warn(logger, \
 		"NKV lock operation failed for nkv_handle = %u, "\
 		"key = %s, key_length = %u, code = %d", nkv_handle, 
                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
@@ -755,44 +755,6 @@ nkv_result nkv_delete_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, con
     smg_error(logger, "NKV delete async operation start failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
   else
     smg_info(logger, "NKV delete async operation start is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
-  return stat;
-
-}
-
-nkv_result nkv_lock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, nkv_lock_option *opt, nkv_postprocess_function* post_fn) {
-
-  if (!post_fn) {
-    smg_error(logger, "NKV lock async post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_LOCK_OP);
-    return NKV_ERR_NULL_INPUT;
-  }
-  if (!post_fn->nkv_aio_cb) {
-    smg_error(logger, "NKV lock async Call back function within post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_LOCK_OP);
-    return NKV_ERR_NULL_INPUT;
-  }
-  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_LOCK_OP, post_fn);
-  if (stat != NKV_SUCCESS)
-    smg_error(logger, "NKV lock async operation start failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
-  else
-    smg_info(logger, "NKV lock async operation start is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
-  return stat;
-
-}
-
-nkv_result nkv_unlock_kvp_async (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, nkv_unlock_option *opt, nkv_postprocess_function* post_fn) {
-
-  if (!post_fn) {
-    smg_error(logger, "NKV unlock async post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_UNLOCK_OP);
-    return NKV_ERR_NULL_INPUT;
-  }
-  if (!post_fn->nkv_aio_cb) {
-    smg_error(logger, "NKV unlock async Call back function within post_fn is NULL !!, nkv_handle = %u, op = %d", nkv_handle, NKV_UNLOCK_OP);
-    return NKV_ERR_NULL_INPUT;
-  }
-  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, opt, NULL, NKV_UNLOCK_OP, post_fn);
-  if (stat != NKV_SUCCESS)
-    smg_error(logger, "NKV unlock async operation start failed for nkv_handle = %u, key = %s, code = %d", nkv_handle, (char*)key->key, stat);
-  else
-    smg_info(logger, "NKV unlock async operation start is successful for nkv_handle = %u, key = %s", nkv_handle, (char*)key->key);
   return stat;
 
 }

@@ -864,6 +864,11 @@
         return NKV_ERR_NO_CNT_FOUND;
       }
 
+      if((which_op == NKV_LOCK_OP || which_op == NKV_UNLOCK_OP) \
+				&& (((nkv_lock_option *)opt)->nkv_lock_uuid != this->instance_uuid)) {
+			return NKV_ERR_LOCK_UUID_MISMATCH;
+      }
+
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
         stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
