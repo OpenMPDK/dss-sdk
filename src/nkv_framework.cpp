@@ -395,6 +395,21 @@ nkv_result NKVTargetPath::map_kvs_err_code_to_nkv_err_code (int32_t kvs_code) {
     case 0x20A:
       return NKV_ERR_MAXIMUM_VALUE_SIZE_LIMIT_EXCEEDED;
 
+    case KVS_ERR_KEY_IS_LOCKED:
+      return NKV_ERR_LOCK_KEY_LOCKED;
+
+    case KVS_ERR_LOCK_UUID_MISMATCH:
+      return NKV_ERR_LOCK_UUID_MISMATCH;
+
+    case KVS_ERR_NONEXIST_WRITER:
+      return NKV_ERR_LOCK_NO_WRITER;
+
+    case KVS_ERR_NONEXIST_READER:
+      return NKV_ERR_LOCK_NO_READER;
+
+    case KVS_ERR_LOCK_EXPIRED:
+      return NKV_ERR_LOCK_EXPIRED;
+
     default:
       return NKV_ERR_IO;
   }
@@ -890,6 +905,117 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
   }
 
   return NKV_SUCCESS;
+}
+
+nkv_result NKVTargetPath::do_lock_io_from_path(const nkv_key* n_key, \
+		const nkv_lock_option* n_opt, nkv_postprocess_function* post_fn )
+{
+#if(defined NKV_REMOTE && defined SAMSUNG_API)
+  if (!n_key || !n_key->key) {
+    smg_error(logger, "nkv_key->key = NULL !!");
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if (n_key->length == 0) {
+    smg_error(logger, "Wrong key length, supplied length = %d !!", \
+				n_key->length);
+    return NKV_ERR_KEY_LENGTH;
+  }
+
+  if (nkv_dynamic_logging) {
+    smg_alert(logger, "NKV lock request for key = %s, key_length = %u,"\
+					" dev_path = %s, ip = %s",
+            (char*) n_key->key, n_key->length, dev_path.c_str(), \
+			path_ip.c_str());
+  }
+
+  const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+  kvs_lock_context lock_ctx;
+
+  lock_ctx.option.kvs_reader_lock  = !n_opt->nkv_lock_writer;
+  lock_ctx.option.kvs_blocking_lock  = n_opt->nkv_lock_blocking;
+  lock_ctx.option.lock_priority = n_opt->nkv_lock_priority;
+  lock_ctx.option.lock_duration = n_opt->nkv_lock_duration;
+
+  if(!post_fn) {//Sync
+      int ret = kvs_lock_tuple(path_cont_handle, &kvskey, \
+					n_opt->nkv_lock_uuid, &lock_ctx);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "Lock tuple failed with error 0x%x - %s, "\
+			  "key = %s, dev_path = %s, ip = %s"\
+			  " options: blocking = %u lock_priority = %u"\
+			  " writer = %u duration = %u\n",
+                  	ret, kvs_errstr(ret), n_key->key, \
+					dev_path.c_str(), path_ip.c_str(),
+					n_opt->nkv_lock_blocking,
+					n_opt->nkv_lock_priority, n_opt->nkv_lock_writer,
+					n_opt->nkv_lock_duration);
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+  } else {//Async
+      return NKV_NOT_SUPPORTED;
+  }
+
+  return NKV_SUCCESS;
+#else
+  return NKV_NOT_SUPPORTED;
+#endif
+}
+
+nkv_result NKVTargetPath::do_unlock_io_from_path(const nkv_key* n_key, \
+		const nkv_unlock_option* n_opt, \
+		nkv_postprocess_function* post_fn )
+{
+
+#if(defined NKV_REMOTE && defined SAMSUNG_API)
+  if (!n_key || !n_key->key) {
+    smg_error(logger, "nkv_key->key = NULL !!");
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if (n_key->length == 0) {
+    smg_error(logger, "Wrong key length, supplied length = %d !!", \
+				n_key->length);
+    return NKV_ERR_KEY_LENGTH;
+  }
+
+  if (nkv_dynamic_logging) {
+    smg_alert(logger, "NKV unlock request for key = %s, key_length = %u,"\
+						" dev_path = %s, ip = %s",
+             	(char*) n_key->key, n_key->length, dev_path.c_str(), \
+				path_ip.c_str());
+  }
+
+  const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+  kvs_lock_context unlock_ctx;
+
+  unlock_ctx.option.kvs_reader_lock  = !n_opt->nkv_lock_writer;
+  unlock_ctx.option.kvs_blocking_lock  = n_opt->nkv_lock_blocking;
+  unlock_ctx.option.lock_priority = n_opt->nkv_lock_priority;
+  unlock_ctx.option.lock_duration = n_opt->nkv_lock_duration;
+
+  if(!post_fn) {//Sync
+      int ret = kvs_unlock_tuple(path_cont_handle, &kvskey, \
+					n_opt->nkv_lock_uuid, &unlock_ctx);
+      if(ret != KVS_SUCCESS ) {
+        smg_error(logger, "Unlock tuple failed with error 0x%x - %s,"\
+				" key = %s, dev_path = %s, ip = %s"\
+				" options: blocking = %u lock_priority = %u"\
+				" writer = %u duration = %u\n", 
+                  	ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), \
+					path_ip.c_str(), n_opt->nkv_lock_blocking, \
+					n_opt->nkv_lock_priority, n_opt->nkv_lock_writer,
+					n_opt->nkv_lock_duration);
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+  } else {//Async
+      return NKV_NOT_SUPPORTED;
+  }
+
+  return NKV_SUCCESS;
+#else
+  return NKV_NOT_SUPPORTED;
+#endif
 }
 
 bool NKVTargetPath::remove_from_iter_cache(std::string& key_prefix_p, std::string& key_prefix_val, bool root_prefix) {

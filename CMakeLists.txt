@@ -51,7 +51,9 @@ link_directories(${ZMQ_LIBRARY_DIR})
 if(NKV_WITH_SAMSUNG_API)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
   add_definitions(-DSAMSUNG_API)
+  add_definitions(-DKVS_REMOTE)
 endif()
+
 
 if(NKV_REMOTE)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
