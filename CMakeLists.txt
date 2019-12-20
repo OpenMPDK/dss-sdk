@@ -5,7 +5,7 @@ option(NKV_WITH_EMU "Enable NKV with Emulator support" OFF)
 option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" OFF)
 option(NKV_WITH_SPDK "Enable NKV with SPDK Driver support" OFF)
 option(NKV_WITH_SAMSUNG_API "Enable NKV with SAMSUNG openmpdk api support" OFF)
-option(NKV_REMOTE "Enable NKV with SAMSUNG openmpdk api support and REMOTE target support" OFF)
+option(NKV_WITH_REMOTE "Enable NKV with SAMSUNG openmpdk api support and REMOTE target support" OFF)
 
 set(CMAKE_C_FLAGS "-MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
 set(CMAKE_CXX_FLAGS "-O3 -g -std=c++11 -MMD -MP -Wall -DLINUX -D_FILE_OFFSET_BITS=64 -fPIC  -march=native")
@@ -55,7 +55,7 @@ if(NKV_WITH_SAMSUNG_API)
 endif()
 
 
-if(NKV_REMOTE)
+if(NKV_WITH_REMOTE)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
   set(KVS_REMOTE ON CACHE BOOL "Enable KVS Remote API functionality" FORCE)
   add_definitions(-DSAMSUNG_API)

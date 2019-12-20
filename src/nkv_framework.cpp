@@ -1239,10 +1239,16 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
     nkv_result stat = NKV_SUCCESS;
     char *value = NULL;
     kvs_key* kvskey_start = NULL;
-    kvs_key kvspkey = {(char*)key_prefix_iter, (kvs_key_t)strlen(key_prefix_iter)};
+    //kvs_key kvspkey = {(char*)key_prefix_iter, (kvs_key_t)strlen(key_prefix_iter)};
     kvs_key kvsskey = {0, 0};
     kvs_list_context ctx = {0,0};
-    uint32_t vlen = (*max_keys) * NKV_MAX_KEY_LENGTH;
+    uint32_t adjusted_max_key = *max_keys - *num_keys_iterted;
+    uint32_t vlen = adjusted_max_key * NKV_MAX_KEY_LENGTH;
+    if (vlen > NKV_MAX_VALUE_LENGTH) {
+      vlen = NKV_MAX_VALUE_LENGTH;
+      adjusted_max_key = (NKV_MAX_VALUE_LENGTH/NKV_MAX_KEY_LENGTH);
+      smg_warn(logger, "Max keys chunked, adjusted_max_key = %u, max_keys = %u", adjusted_max_key, *max_keys);
+    }
     value = (char*)kvs_malloc(vlen, 4096);
     if(value == NULL) {
       smg_error(logger,"Malloc failed, aborting.");
@@ -1252,74 +1258,93 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
 
     memset(value, 0, vlen);
     kvs_value kvsvalue = {value, vlen, 0, 0};
+    std::string next_start_key = iter_info->key_to_start_iter;
+    int ret = KVS_SUCCESS;
 
-    if (iter_info->key_to_start_iter.empty()) {
-      if(start_after) {
-        //Fix me, handle start_after as proper key, not only null terminated
-        //kvsskey = {start_after, strlen(start_after)};
-        //kvskey_start = &kvsskey;
+    do {
+      kvs_key kvspkey = {(char*)key_prefix_iter, (kvs_key_t)strlen(key_prefix_iter)};
+      if (next_start_key.empty()) {
+        if(start_after) {
+          //Fix me, handle start_after as proper key, not only null terminated
+          //kvsskey = {start_after, strlen(start_after)};
+          //kvskey_start = &kvsskey;
+        }
+      } else {
+        kvsskey.key = (void*)next_start_key.c_str();
+        kvsskey.length = next_start_key.length();
+        smg_warn(logger, "Providing start key = %s, start key length = %u, prefix = %s, dev_path = %s, ip = %s",
+                 kvsskey.key, kvsskey.length, kvspkey.key, dev_path.c_str(), path_ip.c_str());
+        kvskey_start = &kvsskey;
       }
-    } else {
-      kvsskey.key = (char*)iter_info->key_to_start_iter.c_str();
-      kvsskey.length = iter_info->key_to_start_iter.length();
-      smg_warn(logger, "Providing start key = %s, start key length = %u, prefix = %s, dev_path = %s, ip = %s",
-               kvsskey.key, kvsskey.length, kvspkey.key, dev_path.c_str(), path_ip.c_str());
-      kvskey_start = &kvsskey;
-    }
 
-    int max_keys_listed = 0;
-    uint32_t cur_index = *num_keys_iterted;
-    uint32_t lkey_len;
-    uint32_t lnr_keys;
+      int max_keys_listed = 0;
+      uint32_t cur_index = *num_keys_iterted;
+      uint32_t lkey_len;
+      uint32_t lnr_keys;
 
-    int ret = kvs_list_tuple(path_cont_handle, &kvspkey, kvskey_start, *max_keys, &kvsvalue, &ctx);
-    if(ret != KVS_SUCCESS) {
-      smg_error(logger, "Remote list tuple failed with error 0x%x, prefix = %s, dev_path = %s, ip = %s", 
-                ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    if (kvsvalue.actual_value_size == 0) {
-      smg_error(logger, "Remote list tuple completed with UNEXPECTED zero length listing 0x%x, prefix = %s, dev_path = %s, ip = %s", 
-                ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
-      return map_kvs_err_code_to_nkv_err_code(ret);
-    }
-    uint32_t *value_buffer = (uint32_t *)((void*)kvsvalue.value + kvsvalue.offset);
-    lnr_keys = *value_buffer;
-    value_buffer += 1; /* number of keys field consumed already*/
-    max_keys_listed += lnr_keys;
-    while(lnr_keys){
-      lkey_len = *value_buffer;
-      value_buffer += 1; /* key length field consumed already*/
-      assert(keys[cur_index].key != NULL);
-      uint32_t max_key_len = keys[cur_index].length;
-      if (max_key_len < lkey_len) {
-        smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
-                  max_key_len, lkey_len, dev_path.c_str(), path_ip.c_str());
+      ret = kvs_list_tuple(path_cont_handle, &kvspkey, kvskey_start, adjusted_max_key, &kvsvalue, &ctx);
+      if (ret != KVS_SUCCESS) {
+        if (ret != KVS_ERR_END_OF_LIST) {
+          smg_error(logger, "Remote list tuple failed with error 0x%x, prefix = %s, dev_path = %s, ip = %s", 
+                    ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        } else {
+          smg_info(logger, "Remote list tuple hitting EOL, error 0x%x, prefix = %s, dev_path = %s, ip = %s",
+                    ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
+          break;     
+        }
       }
-      assert(max_key_len >= lkey_len);
-      memcpy(keys[cur_index].key, value_buffer, lkey_len);
-      keys[cur_index].length = lkey_len;
-      smg_info(logger, "Added Remote key = %s, length = %u to the output buffer, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u",
-               (char*) keys[cur_index].key, keys[cur_index].length, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys);
-      cur_index++;
-      uint32_t k_dw = (lkey_len + 4 - 1) / 4; /* round to 4bytes */
-      if(--lnr_keys)
-        value_buffer += k_dw;
-    }
-    *num_keys_iterted = cur_index;
+
+      if (kvsvalue.actual_value_size == 0) {
+        smg_error(logger, "Remote list tuple completed with UNEXPECTED zero length listing 0x%x, prefix = %s, dev_path = %s, ip = %s", 
+                  ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
+        return map_kvs_err_code_to_nkv_err_code(ret);
+      }
+
+      uint32_t *value_buffer = (uint32_t *)((void*)kvsvalue.value + kvsvalue.offset);
+      lnr_keys = *value_buffer;
+      value_buffer += 1; /* number of keys field consumed already*/
+      max_keys_listed += lnr_keys;
+      while(lnr_keys){
+        lkey_len = *value_buffer;
+        value_buffer += 1; /* key length field consumed already*/
+        assert(keys[cur_index].key != NULL);
+        uint32_t max_key_len = keys[cur_index].length;
+        if (max_key_len < lkey_len) {
+          smg_error(logger, "Output buffer key length supplied (%u) is less than the actual key length (%u) ! dev_path = %s, ip = %s",
+                    max_key_len, lkey_len, dev_path.c_str(), path_ip.c_str());
+        }
+        assert(max_key_len >= lkey_len);
+        memcpy(keys[cur_index].key, value_buffer, lkey_len);
+        keys[cur_index].length = lkey_len;
+        smg_info(logger, "Added Remote key = %s, length = %u , total this batch = %u, dev_path = %s, ip = %s, added so far in this batch = %u, max_keys = %u",
+                 (char*) keys[cur_index].key, keys[cur_index].length, max_keys_listed, dev_path.c_str(), path_ip.c_str(), cur_index, *max_keys);
+        cur_index++;
+        uint32_t k_dw = (lkey_len + 4 - 1) / 4; /* round to 4bytes */
+        if(--lnr_keys)
+          value_buffer += k_dw;
+      }
+      *num_keys_iterted = cur_index;
+      next_start_key = std::string ((char*) keys[cur_index -1].key, keys[cur_index -1].length);
+      kvsvalue.length = vlen;
+      kvsvalue.actual_value_size = 0;
+      adjusted_max_key = *max_keys - *num_keys_iterted;
+
+    } while (ret == KVS_SUCCESS && *num_keys_iterted < *max_keys);      
 
     if(value) kvs_free(value);
 
-    if ((*max_keys - max_keys_listed) == 0) {
-      std::string next_start_key = std::string ((char*) keys[cur_index -1].key, keys[cur_index -1].length);
-      smg_warn(logger,"More remote keys for the prefix = %s, Num keys so far = %u, next start key = %s, start_key_len = %u, dev_path = %s, ip = %s",
+    if ((*max_keys - *num_keys_iterted) == 0) {
+      //std::string next_start_key = std::string ((char*) keys[cur_index -1].key, keys[cur_index -1].length);
+      smg_warn(logger,"More remote keys for the prefix = %s, Num keys = %u, start key = %s, start_key_len = %u, dev_path = %s, ip = %s",
                key_prefix_iter, *num_keys_iterted, next_start_key.c_str(), next_start_key.length(), dev_path.c_str(), path_ip.c_str());
       //*max_keys = max_keys_listed;
       stat = NKV_ITER_MORE_KEYS;
       iter_info->key_to_start_iter = next_start_key;
     } else {
-      smg_info(logger, "Remote key listing is completed, prefix = %s, max_keys = %u, listed in this set = %u, for dev_path = %s, ip = %s",
-               *max_keys, key_prefix_iter, max_keys_listed, dev_path.c_str(), path_ip.c_str());
+      smg_info(logger, "Remote key listing is completed, prefix = %s, max_keys = %u, listed total = %u, for dev_path = %s, ip = %s",
+               key_prefix_iter, *max_keys, *num_keys_iterted, dev_path.c_str(), path_ip.c_str());
+      //iter_info->key_to_start_iter.clear();
       //*max_keys = max_keys_listed;
     }
   
@@ -1996,7 +2021,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       if (stat == NKV_SUCCESS) {
         iter_info->visited_path.insert(path_hash);
         iter_info->network_path_hash_iterating = 0;
-        
+        iter_info->key_to_start_iter.clear();
       }
     }
     //cache_mtx.unlock();  
