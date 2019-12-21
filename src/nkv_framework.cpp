@@ -1285,8 +1285,13 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
       ret = kvs_list_tuple(path_cont_handle, &kvspkey, kvskey_start, adjusted_max_key, &kvsvalue, &ctx);
       if (ret != KVS_SUCCESS) {
         if (ret != KVS_ERR_END_OF_LIST) {
-          smg_error(logger, "Remote list tuple failed with error 0x%x, prefix = %s, dev_path = %s, ip = %s", 
+          if (ret == KVS_ERR_NONEXIST_PREFIX) {
+            smg_info(logger, "Remote list tuple hitting non existance prefix, error 0x%x, prefix = %s, dev_path = %s, ip = %s",
                     ret, key_prefix_iter, dev_path.c_str(), path_ip.c_str());
+            break;      
+          }
+          smg_error(logger, "Remote list tuple failed with error 0x%x, prefix = %s, start key = %s, start key length = %u, dev_path = %s, ip = %s", 
+                    ret, key_prefix_iter,kvsskey.key ? kvsskey.key: "NULL", kvsskey.length, dev_path.c_str(), path_ip.c_str());
           return map_kvs_err_code_to_nkv_err_code(ret);
         } else {
           smg_info(logger, "Remote list tuple hitting EOL, error 0x%x, prefix = %s, dev_path = %s, ip = %s",
