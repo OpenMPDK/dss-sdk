@@ -1252,9 +1252,7 @@
             } 
           }
           else if ( category == "NETWORK" ) {
-            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") && 
-                target_path_ptr->path_port == args.get<int32_t>("port", 1024) &&
-                target_ptr->target_container_name == args.get<std::string>("nqn", "")) {
+            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") ) { 
               skip = false;
             }
           }  
