@@ -513,6 +513,7 @@ void NKVTargetPath::populate_iter_cache(std::string& key_prefix_p, std::string& 
       assert (r == 0);
     }
   }
+  smg_info(logger, "Populated index cache with, key_prefix = %s, val = %s", key_prefix_p.c_str(), key_prefix_val.c_str());
 }
 
 
@@ -1264,6 +1265,7 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
     do {
       kvs_key kvspkey = {(char*)key_prefix_iter, (kvs_key_t)strlen(key_prefix_iter)};
       if (next_start_key.empty()) {
+        kvskey_start = NULL;
         if(start_after) {
           //Fix me, handle start_after as proper key, not only null terminated
           //kvsskey = {start_after, strlen(start_after)};
@@ -1282,6 +1284,10 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
       uint32_t lkey_len;
       uint32_t lnr_keys;
 
+      smg_info(logger, "Invoking remote listing with prefix = %s, prefix length = %u, start key = %s, start key length = %u, dev_path = %s, ip = %s",
+               kvspkey.key ? kvspkey.key: "NULL", kvspkey.length, (kvskey_start && kvskey_start->key)? kvskey_start->key: "NULL", 
+               kvskey_start ? kvskey_start->length: 0, dev_path.c_str(), path_ip.c_str());
+              
       ret = kvs_list_tuple(path_cont_handle, &kvspkey, kvskey_start, adjusted_max_key, &kvsvalue, &ctx);
       if (ret != KVS_SUCCESS) {
         if (ret != KVS_ERR_END_OF_LIST) {
@@ -1690,7 +1696,9 @@ int32_t NKVTargetPath::initialize_iter_cache (iterator_info*& iter_info) {
     key_size = *((unsigned int*)it_buffer);
     it_buffer += sizeof(unsigned int);
     std::string key_str ((const char*) it_buffer, key_size);
-    path_vec.emplace_back(key_str);
+    //path_vec.emplace_back(key_str);
+    path_vec.emplace_back(std::move(key_str));
+    //path_vec.emplace_back(std::string ((const char*) it_buffer, key_size));
     it_buffer += key_size;
   }
   return 0;
@@ -1919,6 +1927,7 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
       return NKV_SUCCESS;
     }
   }
+  
 
   if (listing_with_cached_keys) {
     /*std::string key_prefix_iter (NKV_ROOT_PREFIX);
@@ -1940,6 +1949,8 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
           local_listing = false;
         }
       }
+      smg_info(logger, "NKV listing request for prefix = %s, delimiter = %s, local_listing = %d, dev_path = %s, ip = %s",
+               prefix ? prefix: "NULL", delimiter ? delimiter:"NULL", local_listing, dev_path.c_str(), path_ip.c_str());   
 
       if (nkv_dynamic_logging == 2) {
         smg_alert(logger, "NKV listing request for prefix = %s, delimiter = %s, local_listing = %d, dev_path = %s, ip = %s",
@@ -1968,6 +1979,8 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
             smg_error(logger, "RW lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_prefix_iter.c_str());
             assert (r == 0);
           }
+          smg_info(logger, "do_list_keys_from_path:: No entry found against the prefix = %s, dev_path = %s, ip = %s",
+                   prefix ? prefix: "NULL",dev_path.c_str(), path_ip.c_str());
           return stat;
         }
       
