@@ -330,11 +330,14 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
 
 /* Function Name: get_nvme_mount_dir
  * Input Params : <string>, system block path "/sys/block"
- *                <unordered_map>, nqn_address_port mapping to nvme directory 
+ *                <unordered_map>, nqn_address_port mapping to nvme directory
+ *                <string>, subsystem_nqn_address_port 
  * Return       : <bool> Success/Failure
  * Description  : Get a mapping of nvme directory to unique "nqn:address:port". 
  *                Read address from /sys/block/nvme0n1/device/address
  *                And nqn from  /sys/block/nvme0n1/device/subsysnqn
+ *                Findout the mapping of nqn:address:port and correspoding device
+ *                path "/dev/nvme0n1" etc.
  */
 bool get_nvme_mount_dir(const std::string& sys_block_path, 
                          std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
