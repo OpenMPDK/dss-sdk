@@ -337,9 +337,11 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
  *                And nqn from  /sys/block/nvme0n1/device/subsysnqn
  */
 bool get_nvme_mount_dir(const std::string& sys_block_path, 
-                         std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir
+                         std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
+                         const std::string& subsystem_nqn_address_port = ""
                         )
 {
+  bool is_path_updated = false;
   path p(sys_block_path);
   if ( exists(p) && is_directory(p) ) {
     // Search for nvme directories
@@ -361,16 +363,26 @@ bool get_nvme_mount_dir(const std::string& sys_block_path,
           // Get subsystem nqn
           std::string sunsystem_nqn;
           get_subsystem_nqn(nvme_base_path, sunsystem_nqn);
-                    
-          if( ip_to_nvme_mount_dir.find(nvme_dir) == ip_to_nvme_mount_dir.end()) {
+                 
+          if ( ! sunsystem_nqn.empty() && ! address.empty() && ! port.empty() ) {  
             std::string nqn_address_port = sunsystem_nqn + ":" + address + ":" + port;
-            ip_to_nvme_mount_dir[nqn_address_port] = nvme_dir;
-          }
+            if ( ! subsystem_nqn_address_port.empty() ) {
+              if ( subsystem_nqn_address_port.compare(nqn_address_port) == 0 ) {
+                ip_to_nvme_mount_dir[nqn_address_port] = nvme_dir;
+                return true;
+              }
+            } else {
+              if( ip_to_nvme_mount_dir.find(nqn_address_port) == ip_to_nvme_mount_dir.end()) {
+                ip_to_nvme_mount_dir[nqn_address_port] = nvme_dir;
+                is_path_updated = true;
+              }
+            }
+          } // end of if (sunsystem_nqn && address && port)
         }
       } 
     } // end of for 
   }// end of if (Exist(p)
-  return true;
+  return is_path_updated;
 }
 
 
@@ -426,10 +438,13 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
           // When subsystem_ip_port from cluster map is not mounted, connect using nvme connect
           smg_info(logger, "Auto Discovery: %s is not mounted",subsystem_nqn_address_port.c_str() );
           if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port)) {
-            usleep(1000 * 10); // Add a sleep for connection to complete.
-            get_nvme_mount_dir(sys_base_path, ip_to_nvme); // Update ip_to_nvme mapping with new mounted remote disk.
-          }
-          else {  // In case nvme connect failed
+            usleep(10000); // Add a sleep for connection to complete.
+            // Update ip_to_nvme mapping with new mounted remote disk
+            if ( ! get_nvme_mount_dir(sys_base_path, ip_to_nvme, subsystem_nqn_address_port) ) {
+              smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", subsystem_nqn_address_port.c_str() );
+              is_remote_mount_exist = false;
+            }
+          } else {  // In case nvme connect failed
             is_remote_mount_exist = false;
           }
         }
