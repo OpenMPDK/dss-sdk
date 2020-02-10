@@ -390,10 +390,16 @@
              t_id(p_id), target_uuid(puuid), target_node_name(tgtNodeName), target_container_name(tgtCntName), target_hash(t_hash) {}
 
     ~NKVTarget() {
+      /*if ( ! ss_status ) {
+        for (auto m_iter = pathMap.begin(); m_iter != pathMap.end(); m_iter++) {
+          delete(m_iter->second);
+        }
+        pathMap.clear();    
+      }*/
       for (auto m_iter = pathMap.begin(); m_iter != pathMap.end(); m_iter++) {
         delete(m_iter->second);
       }
-      pathMap.clear();      
+      pathMap.clear();  
     }
 
     std::unordered_map<uint64_t, NKVTargetPath*>& get_path_map() {
@@ -403,6 +409,10 @@
     void set_ss_status (int32_t p_status) {
       ss_status = p_status;
     }
+
+    int32_t get_ss_status () {
+      return ss_status;
+    } 
     
     void set_space_avail_percent (float p_space) {
       ss_space_avail_percent = p_space;
@@ -668,11 +678,6 @@
           smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           nkv_path_stat p_stat = {0};
-          if (!path_stat_collection) {
-             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection disabled !!",
-                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
-             continue; 
-          }
           if (!nkv_is_on_local_kv) {
             smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
                        one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
@@ -687,7 +692,7 @@
                        (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes, p_stat.path_storage_util_percentage); 
 
           } else {
-             smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection failed !!",
+            smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection failed !!",
                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
           }
         } else {
@@ -695,7 +700,7 @@
           assert(0);
         }
       }
-      
+
     }
 
     void wait_or_detach_path_thread(bool will_wait) {
@@ -727,16 +732,23 @@
                  min_path_required, pathMap.size());
         return false;
       }
+      bool subsystem_status = true;
+      smg_debug(logger, "Minimum subsystem paths required = %d, available = %d",
+                 min_path_required, pathMap.size());
 
+      int32_t device_path_count = 0;
       for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Inspecting path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
-          if (one_path->path_ip.empty() || one_path->dev_path.empty()) {
+          // Check path_status as well
+          if (! one_path->path_ip.empty() && ! one_path->dev_path.empty()) {
+            device_path_count++;
+          } else {
             smg_error(logger, "No IP or mount point (for TCP over KDD only) provided !");
-            return false;
           }
+           
         } else {
           smg_error(logger, "NULL path found !!");
         }
@@ -745,7 +757,11 @@
       nkv_async_path_max_qd = (total_qd/pathMap.size());
 
       smg_alert(logger, "Max QD per path = %u", nkv_async_path_max_qd.load());
-      return true;
+
+      if ( device_path_count < (uint32_t) min_path_required ) {
+        subsystem_status = false;
+      }
+      return subsystem_status;
 
     }
 
@@ -770,26 +786,38 @@
       one_path->core_to_pin = core;
       return 0;
     }
-    
-    bool open_paths(const std::string& app_name) {
+
+    /* Function Name: open_paths
+     * Input        : <const std::string> = application name 
+     * Return       : <bool> Return success (true) / failure(false)
+     * Description  : Iterate over all the paths in the container and open those paths.
+     *                Success: if atleast one path is opend in the container.
+     */ 
+    bool open_paths(const std::string& app_name, uint32_t min_container_path=1) {
+      uint32_t container_path_count = 0;
+      bool is_container_valid = false;
       for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Opening path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,(one_path->path_status).load(std::memory_order_relaxed));
   
-          if (!one_path->open_path(app_name))
-            return false;        
-
-          if (listing_with_cached_keys && !nkv_remote_listing) {
-            one_path->start_thread();
+          if (one_path->open_path(app_name)) {
+            if (listing_with_cached_keys && !nkv_remote_listing) {
+              one_path->start_thread();
+            }
+            container_path_count++;
           }
 
         } else {
           smg_error(logger, "NULL path found while opening path !!");
         }
       }
-      return true;
+      // Check container has minimum open paths
+      if ( container_path_count >= min_container_path ) {
+        is_container_valid = true;
+      }
+      return is_container_valid;
     }
 
     int32_t populate_path_info(nkv_container_transport  *transportlist) {
@@ -874,7 +902,8 @@
       }
 
       NKVTarget* one_cnt = c_iter->second;
-      if (one_cnt) {
+      // A Subsystem UP is indicated by status 0
+      if (one_cnt && ! one_cnt->get_ss_status()) {
         stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
       } else {
         smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
@@ -957,58 +986,74 @@
       
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
-    bool open_container_paths(const std::string& app_name) {
+    bool open_container_paths(const std::string& app_name, uint32_t min_container=1, int32_t min_container_path=1) {
+      uint32_t valid_container_count= 0;
+      bool is_container_list_valid = true;
       for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
         NKVTarget* one_cnt = m_iter->second;
         if (one_cnt) {
-          smg_debug(logger, "Opening path for target node = %s, container name = %s",
-                   one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
-          if (!one_cnt->open_paths(app_name)) {
-            return false;
+          smg_alert(logger, "Opening path for target node = %s, container name = %s status=%d",
+                   one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str(),one_cnt->get_ss_status());
+          if ( !one_cnt->get_ss_status() && one_cnt->open_paths(app_name, min_container_path)) {
+            valid_container_count++;
           }
         } else {
           smg_error(logger, "Got NULL container while opening paths !!");
-          return false;
         }
       }
-      return true;
+      
+      if ( valid_container_count < min_container ) {
+        is_container_list_valid =false;
+      }
+      return is_container_list_valid;
     }
 
     bool verify_min_topology_exists (int32_t num_required_container, int32_t num_required_container_path) {
+      bool min_topology_exist = true;
       if (cnt_list.size() < (uint32_t) num_required_container) {
         smg_error(logger, "Not enough containers, minimum required = %d, available = %d",
                  num_required_container, cnt_list.size());
-        return false;
+        min_topology_exist = false;
       }
       else {
+        int32_t valid_container_count = cnt_list.size(); // subsystem count
         for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
           NKVTarget* one_cnt = m_iter->second;
           if (one_cnt) {
-            smg_debug(logger, "Inspecting target id = %d, target node = %s, container name = %s", 
+            smg_info(logger, "Inspecting target id = %d, target node = %s, container name = %s", 
                      one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str()); 
             if (!one_cnt->verify_min_path_exists(num_required_container_path)) {
-              return false; 
+              valid_container_count--;
+              one_cnt->set_ss_status(1);
+              smg_error(logger, "Minimum path doesn't exist for the container %s", one_cnt->target_container_name.c_str());
             }
           } else {
             smg_error(logger, "Got NULL container while adding path mount point !!");
-            return false;
+            valid_container_count--;
           }
         }
+        if ( valid_container_count < (uint32_t) num_required_container ) {
+          min_topology_exist = false;
+        }
       }
-      return true;
+      return min_topology_exist;
     }
 
     void collect_nkv_stat () {
-      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
-        NKVTarget* one_cnt = m_iter->second;
-        if (one_cnt) {
-          smg_debug(logger, "Collecting stat for target id = %d, target node = %s, container name = %s",
-                   one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
-          one_cnt->collect_nkv_path_stat();
-        } else {
-          smg_error(logger, "Got NULL container while collecting stat !!");
-          assert(0);
+      if ( path_stat_collection ) {
+        for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+          NKVTarget* one_cnt = m_iter->second;
+          if (one_cnt) {
+            smg_debug(logger, "Collecting stat for target id = %d, target node = %s, container name = %s",
+                     one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
+            one_cnt->collect_nkv_path_stat();
+          } else {
+            smg_error(logger, "Got NULL container while collecting stat !!");
+            assert(0);
+          }
         }
+      } else {
+          smg_warn(logger, "NKV Path Stats Collection is disabled! ...");
       }
     }
 
@@ -1170,14 +1215,16 @@
 
             uint64_t ss_p_hash = std::hash<std::string>{}(subsystem_address);
 
-            NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, subsystem_address, subsystem_port, subsystem_addr_fam, 
+            if (! one_cnt->get_ss_status() && subsystem_in_status ) {
+              NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, subsystem_address, subsystem_port, subsystem_addr_fam, 
                                                         subsystem_in_speed, subsystem_in_status, numa_aligned, subsystem_np_type);
-            assert(one_path != NULL);
-            smg_info(logger, "Adding path, hash = %u, address = %s, port = %d, fam = %d, speed = %d, status = %d, numa_aligned = %d",
+              assert(one_path != NULL);
+              smg_info(logger, "Adding path, hash = %u, address = %s, port = %d, fam = %d, speed = %d, status = %d, numa_aligned = %d",
                     ss_p_hash, subsystem_address.c_str(), subsystem_port, subsystem_addr_fam, subsystem_in_speed, subsystem_in_status, numa_aligned);
 
-            one_cnt->add_network_path(one_path, ss_p_hash);
-            path_id++;
+              one_cnt->add_network_path(one_path, ss_p_hash);
+              path_id++;
+            }
           }
 
           auto cnt_iter = cnt_list.find(ss_hash);
