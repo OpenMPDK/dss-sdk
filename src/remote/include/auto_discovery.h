@@ -324,7 +324,7 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
     subsystem_nqn = lines[0];
   }
   else {
-    smg_error(logger, "Couln't find subsystem nqn from %s", subsystem_nqn_file.c_str());
+    smg_error(logger, "AutoDiscovery:Couln't find subsystem nqn from %s", subsystem_nqn_file.c_str());
   }
 }
 
