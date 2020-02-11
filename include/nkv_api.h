@@ -357,6 +357,30 @@ nkv_result nkv_indexing_list_keys (uint64_t nkv_handle, nkv_io_context* ioctx, c
 nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nkv_path_stat* p_stat);
 
 
+/*! Get feature list of NKV
+ *   
+ *  IN     nkv_handle – A positive unique id for combination of nkv and 
+ *  the application(not instance).
+ *  IN/OUT features - nkv_feature_list structure is used to return the
+ *  feature list for NKV. Caller is responsible for allocating/deallocating the structure
+ *      
+ */
+
+nkv_result nkv_get_supported_feature_list(uint64_t nkv_handle, nkv_feature_list *features);
+
+/*! Set feature list of NKV
+ *
+ *  Application will use this API to set the supported feature list,
+ *  which config how NKV works. 
+ *  IN     nkv_handle – A positive unique id for combination of nkv and 
+ *  the application(not instance).
+ *  IN/OUT features - nkv_feature_list structure is used to be setted for 
+ *  the feature list. Caller is responsible for allocating/deallocating the structure
+ *      
+ */
+
+nkv_result nkv_set_supported_feature_list(uint64_t nkv_handle, nkv_feature_list *features);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

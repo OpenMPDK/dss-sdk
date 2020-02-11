@@ -36,6 +36,7 @@
 
 /*#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <set>
 #include <list>
 #include <string>
@@ -48,15 +49,16 @@
 #include "nkv_utils.h"
 #include <condition_variable>
 #include <pthread.h>
-
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
   #define NKV_RETRIEVE_OP   1
   #define NKV_DELETE_OP     2
+  #define MAX_PATH_PER_SUBSYS 4
+
+  #define AUTOTHROTTLING 0.7
   #define NKV_LIST_OP       3
   #define NKV_LOCK_OP       3
   #define NKV_UNLOCK_OP     4
-
   extern std::atomic<bool> nkv_stopping;
   extern std::atomic<uint64_t> nkv_pending_calls;
   extern std::atomic<bool> is_kvs_initialized;
@@ -89,7 +91,9 @@
   extern int32_t nkv_data_cache_size_threshold;
   extern int32_t nkv_use_data_cache;
   extern int32_t nkv_remote_listing;
-  
+
+  extern std::atomic<uint32_t> nic_load_balance;
+  extern std::atomic<uint32_t> nic_load_balance_policy;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -186,6 +190,8 @@
     #endif
     std::thread path_thread_iter;
     std::thread path_thread_cache;
+
+	//multiple_path Load Balance use only
   public:
     std::string path_cont_name;
     std::string dev_path;
@@ -210,14 +216,19 @@
     pthread_rwlock_t* cache_rw_lock_list;
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
+    std::atomic<uint32_t> pending_io_number;
+    std::atomic<uint64_t> pending_io_size;
+    std::atomic<uint64_t> pending_io_value;
     std::condition_variable cv_path;
     nkv_lruCache<std::string, nkv_value_wrapper>* cnt_cache;
 
   public:
-    NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, int32_t p_stat, 
-                  int32_t numa_aligned, int32_t p_type):
-                  path_ip(p_ip), path_port(port), addr_family(fam), path_speed(p_speed), path_status(p_stat),
-                  path_numa_aligned(numa_aligned), path_type(p_type), path_id(p_id), path_hash(p_hash) {
+    NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, 
+		  int32_t p_stat, int32_t numa_aligned, int32_t p_type):
+                  path_ip(p_ip), path_port(port), addr_family(fam), path_speed(p_speed), 
+				  path_status(p_stat), path_numa_aligned(numa_aligned), path_type(p_type), 
+				  path_id(p_id), path_hash(p_hash),pending_io_number(0), pending_io_size(0), 
+				  pending_io_value(0) {
 
       nkv_async_path_cur_qd = 0;
       core_to_pin = -1;
@@ -228,7 +239,7 @@
       nkv_num_key_prefixes = 0;
       nkv_num_keys = 0;
       cache_rw_lock_list = new pthread_rwlock_t[nkv_listing_cache_num_shards];
-      
+     
       for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
         pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
       }
@@ -368,14 +379,29 @@
       path_thread_cache.detach();
     }
     int32_t initialize_iter_cache (iterator_info*& iter_info);
-
+	
+    void load_balance_update_path_parameter(uint64_t size, int is_completed) {
+      if (is_completed == 0) {
+	this->pending_io_number.fetch_add(1, std::memory_order_relaxed);
+	this->pending_io_size.fetch_add(size, std::memory_order_relaxed);
+      } else {
+	this->pending_io_number.fetch_sub(1, std::memory_order_relaxed);
+	this->pending_io_size.fetch_sub(size, std::memory_order_relaxed);
+      }
+    }
   };
 
   class NKVTarget {
-  protected:
+  protected:	
+    //Multiple Load Balance use only
+    uint64_t verify_path;
+    uint64_t preferred_path_hash;
+    uint64_t path_array[MAX_PATH_PER_SUBSYS];
+    std::atomic<uint64_t> lb_rr_count;
+    int path_count;
+  public:
     //<ip_address hash, path> pair
     std::unordered_map<uint64_t, NKVTargetPath*> pathMap;
-  public:
     //Incremental Id
     uint32_t t_id;
     //Could be Hash of target_node_name:target_container_name if not coming from FM
@@ -387,7 +413,13 @@
     //Generated from target_uuid and passed to the app
     uint64_t target_hash;
     NKVTarget(uint32_t p_id, const std::string& puuid, const std::string& tgtNodeName, const std::string& tgtCntName, uint64_t t_hash) : 
-             t_id(p_id), target_uuid(puuid), target_node_name(tgtNodeName), target_container_name(tgtCntName), target_hash(t_hash) {}
+             verify_path(0), preferred_path_hash(0), lb_rr_count(0), path_count(0), t_id(p_id), 
+	     target_uuid(puuid), target_node_name(tgtNodeName), target_container_name(tgtCntName), 
+	     target_hash(t_hash) {
+	       for(int i = 0; i < MAX_PATH_PER_SUBSYS; i++) {
+		 path_array[i] = 0;
+	       }
+	     }
 
     ~NKVTarget() {
       for (auto m_iter = pathMap.begin(); m_iter != pathMap.end(); m_iter++) {
@@ -410,57 +442,102 @@
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
                                 void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
-      nkv_result stat = NKV_SUCCESS;
-      auto p_iter = pathMap.find(container_path_hash);
-      if (p_iter == pathMap.end()) {
-        smg_error(logger,"No Container path found for hash = %u", container_path_hash);
-        return NKV_ERR_NO_CNT_PATH_FOUND;
+      nkv_result stat = NKV_SUCCESS; 
+      NKVTargetPath* one_p = NULL;
+      std::unordered_set<uint64_t> visited_path;
+      uint32_t max_retry_count = path_count;
+      int stop_flag = 0;
+
+      if (nic_load_balance && container_path_hash != verify_path) {
+	smg_error(logger, "The container path hash %u not exists in the path)", container_path_hash);
+	return NKV_ERR_CNT_VERIFY_FAILED;
       }
-      NKVTargetPath* one_p = p_iter->second;
-      if (one_p) {
-        if (!post_fn) {
-          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, key_length = %u, op = %d, cur_qd = %u",
+
+      do {
+        if(nic_load_balance) {
+	  container_path_hash = this->load_balance_get_path(visited_path, stop_flag);
+	  if(stop_flag == 1) {
+            smg_error(logger,"Load Balancer cannot get a valid path for container name = %s,"
+		 "target node = %s, nkvtarget hash %u", target_container_name.c_str(), 
+		 target_node_name.c_str(), this->target_hash);
+	      return NKV_ERR_NO_CNT_PATH_FOUND;
+	  }
+        }  
+      	
+        auto p_iter = pathMap.find(container_path_hash);
+        if ( !nic_load_balance && p_iter == pathMap.end()) {
+          smg_error(logger,"Load Balancer cannot get a valid path for container name = %s, container hash = %u,"
+		 "target node = %s", target_container_name.c_str(), container_path_hash, 
+		target_node_name.c_str());
+       	  return NKV_ERR_NO_CNT_PATH_FOUND;
+        }
+      
+        one_p = p_iter->second;
+
+        if (one_p) {
+          if (!post_fn) {
+            smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s,"
+		  "path port = %d, key = %s, key_length = %u, op = %d, cur_qd = %u", 
                   one_p->dev_path.c_str(), target_container_name.c_str(), target_node_name.c_str(), one_p->path_ip.c_str(), 
                   one_p->path_port, (char*)key->key, key->length, which_op, one_p->nkv_async_path_cur_qd.load());
-        } else {
-          smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s, path port = %d, key = %s, key_length = %u, op = %d, cur_path_qd = %u, max_path_qd = %u",
+          } else {
+            smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s," 
+		  "path port = %d, key = %s, key_length = %u, op = %d, cur_path_qd = %u, max_path_qd = %u",
                   one_p->dev_path.c_str(), target_container_name.c_str(), target_node_name.c_str(), one_p->path_ip.c_str(),
                   one_p->path_port, (char*)key->key, key->length, which_op, one_p->nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
-          /*smg_warn(logger, "Sending IO to dev mount = %s, key = %s, op = %d, cur_qd = %u, cb_address = 0x%x, post_fn = 0x%x, pvt_1 = 0x%x",
+            /*smg_warn(logger, "Sending IO to dev mount = %s, key = %s, op = %d, cur_qd = %u, cb_address = 0x%x, post_fn = 0x%x, pvt_1 = 0x%x",
                   one_p->dev_path.c_str(), (char*)key->key, which_op, one_p->nkv_async_path_cur_qd.load(), post_fn->nkv_aio_cb, post_fn, post_fn->private_data_1);*/
-        }
+          }
 
-        switch(which_op) {
-          case NKV_STORE_OP:
-            stat = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
-            break;
-          case NKV_RETRIEVE_OP:
-            stat = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn);
-            break;
-          case NKV_DELETE_OP:
-            stat = one_p->do_delete_io_from_path(key, post_fn);
-            break;
-          case NKV_LOCK_OP:
-            stat = one_p->do_lock_io_from_path(key, \
+ 	  if (nic_load_balance) {
+	    if (which_op == NKV_STORE_OP || which_op == NKV_RETRIEVE_OP){
+	      one_p->load_balance_update_path_parameter(value->length, 0);
+	    } else if (which_op == NKV_DELETE_OP || which_op == NKV_LOCK_OP || which_op == NKV_UNLOCK_OP) {
+	      one_p->load_balance_update_path_parameter(0, 0);	
+	    }
+	  }
+
+          switch(which_op) {
+            case NKV_STORE_OP:
+              stat = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
+              break;
+            case NKV_RETRIEVE_OP:
+              stat = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn);
+              break;
+            case NKV_DELETE_OP:
+              stat = one_p->do_delete_io_from_path(key, post_fn);
+              break;
+            case NKV_LOCK_OP:
+              stat = one_p->do_lock_io_from_path(key, \
 						(const nkv_lock_option*)opt, post_fn);
-            break;
-          case NKV_UNLOCK_OP:
-            stat = one_p->do_unlock_io_from_path(key, \
+              break;
+            case NKV_UNLOCK_OP:
+              stat = one_p->do_unlock_io_from_path(key, \
 						(const nkv_unlock_option*)opt, post_fn);
-            break;
-          default:
-            smg_error(logger, "Unknown op, op = %d", which_op);
-            return NKV_ERR_WRONG_INPUT;
-        }
-   
-      } else {
-        smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
-        return NKV_ERR_NO_CNT_PATH_FOUND;
-      }
-      /*if (stat == NKV_SUCCESS && post_fn)
-        nkv_num_async_submission.fetch_add(1, std::memory_order_relaxed);*/
-      return stat;
+              break;
+            default:
+              smg_error(logger, "Unknown op, op = %d", which_op);
+              return NKV_ERR_WRONG_INPUT;
+          }  
 
+	  if (!post_fn) {
+	    if (which_op == NKV_STORE_OP || which_op == NKV_RETRIEVE_OP){
+	      one_p->load_balance_update_path_parameter(value->length, 1);
+	    } else if (which_op == NKV_DELETE_OP || which_op == NKV_LOCK_OP || which_op == NKV_UNLOCK_OP) {
+	      one_p->load_balance_update_path_parameter(0, 1);	
+	    }
+	  }
+   
+        } else {
+          smg_error(logger, "NULL Container path found for hash = %u!!", container_path_hash);
+          return NKV_ERR_NO_CNT_PATH_FOUND;
+        }
+        /*if (stat == NKV_SUCCESS && post_fn)
+          nkv_num_async_submission.fetch_add(1, std::memory_order_relaxed);*/
+
+      } while ( nic_load_balance && !post_fn && stat == NKV_ERR_IO && visited_path.size() < max_retry_count);
+      
+      return stat;
     }
     
     nkv_result get_path_mount_point (uint64_t container_path_hash, std::string& p_mount) {
@@ -768,7 +845,8 @@
       one_path->add_device_path(m_point);
       one_path->path_numa_node = numa;
       one_path->core_to_pin = core;
-      return 0;
+      
+	return 0;
     }
     
     bool open_paths(const std::string& app_name) {
@@ -808,6 +886,10 @@
           one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
 
           cur_pop_index++;
+	  if(nic_load_balance && one_path->path_status) {
+	    verify_path = one_path->path_hash;
+	    break;
+	  }
  
         } else {
           smg_error(logger, "NULL path found while opening path !!");
@@ -820,6 +902,138 @@
       }
       return cur_pop_index;
             
+    }
+
+    // Move to the protected - shouldn't be accessed by external
+    // Easy to extend if pre-select way is needed
+    uint64_t load_balance_get_path(std::unordered_set<uint64_t> &visited, int& flag); /*{
+      int visited_path_count = visited.size();
+      uint64_t selected_path = 0;
+
+      while (1) {
+	if (visited_path_count >= path_count)
+  	  break;
+
+	int err = load_balance_execute(selected_path);
+	if(err) {
+	  flag = 1;
+	  return 0;
+	}
+	if (visited.count(selected_path)) {
+	  continue;
+	}
+			
+	auto path = pathMap.find(selected_path);
+	if( path == pathMap.end()) {
+	  flag = 1;
+	  return 0;
+	} else {
+	  visited.insert(selected_path);
+	  visited_path_count ++;
+	  if(!path->second->path_status) {
+	    continue;
+	  }
+	  break;
+	}
+      }
+
+      return selected_path;
+    }*/
+
+    int load_balance_execute (uint64_t &path) {
+      int ret = 0;
+      uint64_t idx = 0;
+      NKVTargetPath* p = NULL;
+      switch(nic_load_balance_policy) {
+	// By default, it's RR policy
+	case 0:	
+	case 1:
+	  idx = lb_rr_count.load()%path_count;
+	  lb_rr_count.fetch_add(1, std::memory_order_relaxed);
+	  path = path_array[idx];
+	  break;
+	// Failover policy
+	case 2:
+	  // Make sure that preferred path must be valid inside pathMap. Guarantee before. not here
+	  // TODO: path selection based on different nic bandwidth 
+	  p = pathMap.find(preferred_path_hash)->second;
+	  if (!p->path_status) {
+      	    for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+	      uint64_t lookup_hash = p_iter->first;
+	      if ( lookup_hash == preferred_path_hash) {
+		continue;
+	      }
+
+	      if (p_iter->second->path_status) {
+		preferred_path_hash = lookup_hash;
+		break;
+	      }
+	    }
+	  }
+				
+	  path = preferred_path_hash;
+	  break;
+	// Least Queue Depth
+	case 3:
+          ret = load_balancer_helper_get_nextPath(path, 0);
+	  break;
+	// Least Block Size
+	case 4:
+	  ret = load_balancer_helper_get_nextPath(path, 1);
+	  break;
+	default:
+          smg_error(logger, "NKV multipath policy input is invalid! ");
+	  ret = 1;
+	  break;
+      }
+
+      return ret;
+    }
+
+    int load_balancer_helper_get_nextPath(uint64_t &path, int type) {
+      if (type != 0 && type != 1) {
+        smg_error(logger, "NKV multipath is not properly executed!");
+	return 1;	 	
+      }
+
+      int ret = 0;	  
+      
+      auto p_iter = pathMap.begin();
+      uint64_t mn_path{p_iter->first};
+      uint64_t mn{0};
+      if(type == 0) mn = p_iter->second->pending_io_number;
+      else mn = p_iter->second->pending_io_size;
+      ++p_iter;
+
+      for (; p_iter != pathMap.end(); ++p_iter) {
+	auto curr_path = p_iter->second;
+	if (type == 0 && mn > curr_path->pending_io_number) {
+	  mn_path = p_iter->first;
+	  mn = curr_path->pending_io_number;
+	}
+	else if(type == 1 && mn > curr_path->pending_io_size) {
+	  mn_path = p_iter->first;
+	  mn = curr_path->pending_io_size;
+	} 
+      }
+
+      path = mn_path;
+      return ret;
+
+    }
+  
+    void load_balance_initialize_cnt() {
+      int index = 0;
+
+      for(auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+	if (index == 0) {
+	  preferred_path_hash = p_iter->first;
+	}
+	path_array[index++] = p_iter->first;
+      } 
+      
+      path_count = index;
+      return;
     }
 
     int32_t get_object_async(const char* key, uint32_t key_len,  char* buff, uint32_t buff_len, void* cb);
@@ -835,7 +1049,6 @@
     std::string app_name;
     uint64_t instance_uuid;
     uint64_t nkv_handle;
-
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
                     cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
@@ -1070,6 +1283,7 @@
           }
 
         }
+
       }
       catch (std::exception& e) {
         smg_error(logger, "%s%s", "Error reading config file while adding path mount point, Error = ", e.what());
@@ -1077,7 +1291,7 @@
       } 
       return 0; 
     }
-  
+ 
     // This is for LKV based deployment
     int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt) {
       uint64_t ss_hash = std::hash<std::string>{}(host_name_ip);
@@ -1109,7 +1323,7 @@
 
           std::string h_path_str = host_name_ip + local_mount;
           uint64_t ss_p_hash = std::hash<std::string>{}(h_path_str);
-          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, -1, -1, -1);
+          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, 1, -1, -1);
           assert(one_path != NULL);
           one_path->add_device_path(local_mount);
           one_path->path_numa_node = numa_node_attached;
@@ -1183,7 +1397,8 @@
           auto cnt_iter = cnt_list.find(ss_hash);
           assert (cnt_iter == cnt_list.end());
           cnt_list[ss_hash] = one_cnt;
-
+		  one_cnt->load_balance_initialize_cnt();
+		  
           smg_info (logger, "Container added, hash = %u, id = %u, uuid = %s, Node name = %s , NQN name = %s , container count = %d",
                    ss_hash, cnt_id, subsystem_nqn_id.c_str(), target_server_name.c_str(), subsystem_nqn.c_str(), cnt_list.size());
           cnt_id++;
