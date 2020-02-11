@@ -266,6 +266,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
 
       transient_prefix = pt.get<std::string>("transient_prefix_to_filter", "meta/.minio.sys/tmp/" );
     }
+    if(!nkv_is_on_local_kv) {
+      nic_load_balance = pt.get<int>("nkv_load_balancer", 0);
+    }
+    if (nic_load_balance) {
+      nic_load_balance_policy = pt.get<int>("nkv_load_balancer_policy", 0); 
+    }
     // switches for auto discovery and events, not applicable for local KV
     if (! nkv_is_on_local_kv ) { 
       connect_fm = pt.get<int>("contact_fm", 0);
@@ -879,4 +885,53 @@ done:
   nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
   return stat;
 
+}
+
+nkv_result nkv_get_supported_feature_list(uint64_t nkv_handle, nkv_feature_list *features) {
+  if (!features) {
+    smg_error(logger, "feature list is NULL !!, nkv_handle = %u, op = nkv_get_supported_feature_list", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if(nkv_is_on_local_kv) {
+    smg_error(logger, "nkv_get_supported_feature_list is Not Supported in local NKV mode");
+	return NKV_ERR_MODE_NOT_SUPPORT;
+  }
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_path_stat !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  nkv_pending_calls.fetch_add(1, std::memory_order_relaxed);
+  features->nic_load_balance = nic_load_balance;
+  features->nic_load_balance_policy = nic_load_balance_policy;
+  nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
+	
+  return NKV_SUCCESS;
+}
+
+
+nkv_result nkv_set_supported_feature_list(uint64_t nkv_handle, nkv_feature_list *features) {
+  if (!features) {
+    smg_error(logger, "feature list is NULL !!, nkv_handle = %u, op = nkv_get_supported_feature_list", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+  
+  if(nkv_is_on_local_kv) {
+    smg_error(logger, "nkv_set_supported_feature_list is Not Supported in local NKV mode");
+	return NKV_ERR_MODE_NOT_SUPPORT;
+  }
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_path_stat !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  nkv_pending_calls.fetch_add(1, std::memory_order_relaxed);
+  nic_load_balance = features->nic_load_balance;
+  nic_load_balance_policy = features->nic_load_balance_policy;
+  nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
+  
+  return NKV_SUCCESS;
 }

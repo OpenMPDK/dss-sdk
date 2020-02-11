@@ -226,6 +226,8 @@ void *iothread(void *args)
   char *cmpval   = (char*)nkv_zalloc(targs->vlen); 
   nkv_result status = NKV_SUCCESS;
   //do_io(targs->id, targs->cont_hd, targs->count, targs->klen, targs->vlen, targs->op_type);
+
+
   for(int32_t iter = 0; iter < targs->count; iter++) {
     char *key_name   = (char*)nkv_malloc(targs->klen);
     memset(key_name, 0, targs->klen);
@@ -237,7 +239,7 @@ void *iothread(void *args)
     //char* val = (char*) calloc (targs->vlen, sizeof(char));
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, targs->vlen, 0 };
-
+    
     switch(targs->op_type) {
       case 0: /*PUT*/
         {
@@ -414,6 +416,8 @@ void usage(char *program)
   printf("-x      hex_dump        :  Inspect memory dump  \n");
   printf("-r      delimiter       :  delimiter for S3 like listing  \n");
   printf("-u      path_stat       :  Collect path/disk stat for all underlying path(s)/disk(s) \n");
+  printf("-l      multipath       :  0:disable 1:enable  \n");
+  printf("-f      multipath policy:  0/1:RR 2:Failover 3:Least Queue Depth 4:Least Block Size  \n");
   printf("==============\n");
 }
 
@@ -440,6 +444,9 @@ int main(int argc, char *argv[]) {
   int is_mixed = 0;
   int hex_dump = 0;
   bool get_stat = false;
+  int multipath_lb = 0;
+  int multipath_lb_policy = 0;
+  nkv_feature_list feature_list = {0, 0};
 
   logger = smg_acquire_logger("libnkv");
   if (!logger) {
@@ -447,7 +454,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f")) != -1) {
     switch(c) {
 
     case 'c':
@@ -511,6 +518,14 @@ int main(int argc, char *argv[]) {
       usage(argv[0]);
       smg_release_logger(logger);
       exit(0);
+      break;
+    case 'l':
+      multipath_lb = atoi(optarg);
+      feature_list.nic_load_balance = multipath_lb;
+      break;
+    case 'f':
+      multipath_lb_policy = atoi(optarg);
+      feature_list.nic_load_balance_policy = multipath_lb_policy;
       break;
     default:
       usage(argv[0]);
@@ -578,6 +593,13 @@ do {
     cntlist[i].transport_list = new nkv_container_transport[NKV_MAX_CONT_TRANSPORT];
     memset(cntlist[i].transport_list, 0, sizeof(nkv_container_transport)*NKV_MAX_CONT_TRANSPORT);
   }
+
+  status = nkv_set_supported_feature_list(nkv_handle, &feature_list);
+  status = nkv_get_supported_feature_list(nkv_handle, &feature_list);
+  smg_info(logger, "Load Balancer is %d. (1 enable, 0 disable). Policy is %d "
+   	   "(0 = round robin policy, 1 = failover policy, 2 = least queue depth,"
+     	   "3 = least queue size", feature_list.nic_load_balance,
+	   feature_list.nic_load_balance_policy);  
 
   status = nkv_physical_container_list (nkv_handle, index, cntlist, &cnt_count); 
   if (status != 0) {
@@ -779,6 +801,7 @@ do {
   }
 
   if (num_threads > 0) {
+
     nkv_thread_args args[num_threads];
     std::thread nkv_test_threads[num_threads];
     /*pthread_t tid[num_threads];
