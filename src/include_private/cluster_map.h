@@ -31,6 +31,9 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef NKV_CLUSTER_MAP_H
+#define NKV_CLUSTER_MAP_H
+
 #include<iostream>
 #include<memory>
 #include<string>
@@ -64,6 +67,9 @@ class ClusterMap
 
 
 };
+
+
+#endif
 
 
 
