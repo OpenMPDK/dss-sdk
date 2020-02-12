@@ -100,10 +100,11 @@ set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++
 
 set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/include)
 set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/include_private)
-set(NKV_REMOTE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/include)
+#set(NKV_REMOTE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/include)
 
 add_library(nkvapi SHARED ${SOURCES_NKV_KDD} ${HEADERS_NKV_KDD})
-target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${NKV_REMOTE_INCLUDE_DIR})
+target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR})
+#target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${NKV_REMOTE_INCLUDE_DIR})
 target_link_libraries (nkvapi ${NKVAPI_LIBS})
 add_dependencies(nkvapi smglog zmqpp)
 add_dependencies(nkvapi kvapi)

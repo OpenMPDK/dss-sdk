@@ -31,6 +31,9 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef NKV_EVENT_H
+#define NKV_EVENT_H
+
 #include <iostream>
 #include <stdlib.h>
 #include <boost/property_tree/ptree.hpp>
@@ -260,3 +263,5 @@ bool event_mapping()
   is_event_mapping_done.store(true, std::memory_order_relaxed);
   return true;
 }
+
+#endif
