@@ -86,6 +86,7 @@ SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_framework.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/cluster_map.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/auto_discovery.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_utils.cpp
 )
 

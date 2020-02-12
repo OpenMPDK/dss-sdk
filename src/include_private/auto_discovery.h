@@ -62,24 +62,6 @@ using namespace boost::filesystem;
 
 extern c_smglogger* logger;
 
-bool update_mount_path(boost::property_tree::ptree & pt, 
-                       std::string& nqn,
-                       std::string& target_node,
-                       std::string& ip_address,
-                       int32_t port,
-                       const std::string& mount_path,
-                       int32_t numa_node_attached
-                       );
-
-bool update_mount_path(boost::property_tree::ptree & pt, 
-                       std::string& nqn,
-                       std::string& target_node,
-                       std::string& ip_address,
-                       int32_t port,
-                       const std::string& mount_path,
-                       int32_t numa_node_attached
-                       );
-
 /************
  * Auto Discovery: Discover the remote mount path from the host machine.
  *                - One way executing a system command "nvme list | grep NKV | awk '{print $1}' "
@@ -92,27 +74,23 @@ bool update_mount_path(boost::property_tree::ptree & pt,
  *   Connect if some ip is not connected.
  */
 
+/* Function Name: update_mount_path
+* Parameters   : <boost::property_tree::ptree> , NKV configuration
+*                <std::string> , subsystem nqn
+* Return       : <bool> Success/Failure
+* Description  : Update mouunt path to the parse tree.
+*/
+bool update_mount_path(boost::property_tree::ptree & pt, 
+                       std::string& nqn,
+                       std::string& target_node,
+                       std::string& ip_address,
+                       int32_t port,
+                       const std::string& mount_path,
+                       int32_t numa_node_attached
+                       );
 
-bool split_lines(const std::string& result, char delimiter, vector<string>& lines)
-{
-  std::stringstream data(result);
-  if(! result.empty())    
-  {
-    string line;
-    while(getline(data, line, delimiter))
-    {
-      cout<<"Line:"<<line<<endl;
-      boost::trim(line); // trim spaces
-      lines.push_back(line);
-    }
-  }
-  else
-  {
-    smg_warn(logger,"Empty mount path");
-    return false;
-  }
-  return true;
-}
+
+bool split_lines(const std::string& result, char delimiter, vector<string>& lines);
 
 /* Function Name: nvme_discovery
  * Input Params : <string> , ip address
@@ -125,52 +103,7 @@ bool split_lines(const std::string& result, char delimiter, vector<string>& line
 void nvme_discovery(std::string ip_address,
                     std::string port,
                     std::string transport,
-                    std::unordered_map<std::string, std::vector<std::string>> discover_map)
-{
-  std::string nvme_discover_cmd = "nvme discover -t " + transport + " -a " + ip_address + " -s " + port;
-  std::string result;
-  // Run discover command
-  if (! nkv_cmd_exec( nvme_discover_cmd.c_str(), result) ) {
-    // Parse result
-    std::vector<std::string> lines;
-    if( split_lines(result, '\n', lines) ) {
-      std::string address;
-      std::string port;
-
-      std::string subsystem_nqn;
-            
-      for (const std::string& line: lines){
-        // traddr for address
-        if ( line.compare(0,6, "traddr") == 0 ){
-          std::vector<string> fields; // traddress: 10.1.20.1
-          split_lines(line, ':', fields);
-          address = fields[1];
-        }
-        // check trsvcid for port
-        else if( line.compare(0,7, "trsvcid") == 0 ){
-          std::vector<string> fields; // trsvcid: 1024
-          split_lines(line, ':', fields);
-          port = fields[1];
-        }
-        else if(line.compare(0,6, "subnqn") == 0){
-          std::vector<string> fields; // subnqn:  nqn.2018-04.samsung:msl-ssg-mp03-data
-          split_lines(line, ':', fields);
-          subsystem_nqn = fields[1];
-        }
-                
-        // Update data to discover map
-        if(! subsystem_nqn.empty() && ! address.empty() && ! port.empty() ) {
-          address = address + ":" + port; // address:port
-          discover_map[subsystem_nqn].push_back(address);
-          address = "";
-          port    = "";
-          subsystem_nqn = "";
-        }
-      } // End of for (const std::string& line: lines)
-    }
-
-  }// end of if (! nkv_cmd_exec())
-}
+                    std::unordered_map<std::string, std::vector<std::string>> discover_map);
 
 /* Function Name: nvme_connect
  * Input Params : <string> Subsystem NQN
@@ -181,26 +114,7 @@ void nvme_discovery(std::string ip_address,
  */
 bool nvme_connect(std::string subsystem_nqn,
                   std::string address,
-                  int32_t port)
-{
-  std::string connect_cmd("nvme connect -t tcp -a " + address + " -n " + subsystem_nqn + " -s " + std::to_string(port) + " 2>&1");
-  std::string error;
-  std::string nqn_address_port = subsystem_nqn + ":" + address + ":" + std::to_string(port);
-  if (nkv_cmd_exec(connect_cmd.c_str(), error)){
-    smg_error(logger,"Auto Discovery: %s" , error.c_str());
-    return false;
-  }
-  else{
-    if( error.rfind("Failed", 0) == 0 ){
-      smg_error(logger, "nvme connect FAILED for %s \n %s", nqn_address_port.c_str(), error.c_str());
-      return false;
-    }
-    else{
-      smg_alert(logger, "nvme connect SUCCESS for %s", nqn_address_port.c_str());
-    }
-  }
-  return true;
-}
+                  int32_t port);
 
 /* Function Name: nvme_disconnect
  * Input Params : <string> Subsystem NQN
@@ -209,30 +123,7 @@ bool nvme_connect(std::string subsystem_nqn,
  * Return       : <bool> Success/Failure
  * Description  : Perform NVME disconnect for a subsystem NQN.
  */
-bool nvme_disconnect(std::string subsystem_nqn)
-{
-  // Disconnect subsystem nqn first
-  std::string disconnect_cmd("nvme disconnect -n " + subsystem_nqn + " 2>&1");
-  smg_debug(logger, "Disconnect command for a Subsystem NQN %s:\n%s",subsystem_nqn.c_str(), disconnect_cmd.c_str());
-
-  std::string disconnect_result;
-
-  if ( nkv_cmd_exec(disconnect_cmd.c_str(), disconnect_result)){
-    smg_error(logger, "Auto Discovery: %s", disconnect_result.c_str());
-    return false;
-  }
-  else{
-    if( disconnect_result.rfind("Failed", 0) == 0 ){
-      smg_error(logger, "NVME disconnect failed - %s", disconnect_result.c_str());
-      return false;
-    }
-    else{
-      smg_info(logger, disconnect_result.c_str());
-    }
-  }
-  return true;
-}
-
+bool nvme_disconnect(std::string subsystem_nqn);
 
 /* Function Name: read_file
  * Input Params : <const string> complete file path 
@@ -241,30 +132,7 @@ bool nvme_disconnect(std::string subsystem_nqn)
  * Return       : <vector<string>> , List of lines
  * Description  : Read the sepcified number of lines from that file.
  */
-void read_file(const std::string& file_path, int32_t start_line, int32_t line_to_read, std::vector<std::string>& lines)
-{
-  ifstream fh (file_path);
-  int32_t index = 1;
-  try{
-    if (fh.is_open()) {
-      while(! fh.eof() ) {
-        if( index >= start_line && index < index + line_to_read ) {
-          std::string line;
-          getline (fh,line);
-          lines.push_back(line);
-          index++;
-        }
-      }
-      fh.close();
-    }
-    else {
-      smg_error(logger, "Auto Discovery: Couldn't open file %s", file_path.c_str());
-    }
-  }
-  catch(std::exception & e){
-    smg_error(logger, "Auto Discovery: %s", e.what());
-  }
-}
+void read_file(const std::string& file_path, int32_t start_line, int32_t line_to_read, std::vector<std::string>& lines);
 
 /* Function Name: get_address_port
  * Input Params : <const string> ,  Specify file name having address and port /sys/block/nvme0n1/device/address
@@ -273,20 +141,7 @@ void read_file(const std::string& file_path, int32_t start_line, int32_t line_to
  *                <string>, passed port gets updated
  * Description  : Read address and port from nvme address file. 
  */
-bool get_address_port( const std::string& file, std::string& address, std::string& port)
-{
-  std::string address_cmd = "head -1 " +  file  + " | cut -d ',' -f 1 | cut -d '=' -f 2";
-  if(nkv_cmd_exec(address_cmd.c_str(), address)){
-    return false;
-  }
-  boost::trim(address);
-  std::string port_cmd = "head -1 " +  file  + " | cut -d ',' -f 2 | cut -d '=' -f 2";
-  if(nkv_cmd_exec(port_cmd.c_str(), port)){
-    return false;
-  }
-  boost::trim(port);
-  return true;
-}
+bool get_address_port( const std::string& file, std::string& address, std::string& port);
 
 /* Function Name: get_numa_node
  * Input Params : <string>, Remote nvme base path /sys/block/nvme0n1
@@ -294,23 +149,7 @@ bool get_address_port( const std::string& file, std::string& address, std::strin
  * Description  : Read numa code from /sys/block/nvme0n1/device/numa_code
  *                Return numa code
  */
-int32_t get_numa_node(std::string& remote_nvme_path)
-{
-  const std::string numa_node_file = remote_nvme_path + NUMA_NODE_PATH;
-  int32_t numa_node_attached;
-  std::vector<std::string> lines;
-
-  read_file(numa_node_file, 1,1,lines);
-
-  if(lines.size()) {
-    numa_node_attached = std::stoi(lines[0], nullptr, 10);
-  }
-  else {
-    smg_error(logger, "Auto Discovery: Not able to read numa_node from %s", numa_node_file.c_str());
-    return -1;
-  }
-  return numa_node_attached;
-}
+int32_t get_numa_node(std::string& remote_nvme_path);
 
 /* Function Name: get_subsystem_nqn
  * Input Params : <string> , nvme nase path /sys/bolck/nvme0n1
@@ -318,18 +157,7 @@ int32_t get_numa_node(std::string& remote_nvme_path)
  * Return       : None
  * Description  : Get subsystem nqn name from /sys/block/nvme0n1/device/subsysnqn
  */
-void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
-{
-  const std::string subsystem_nqn_file = nvme_base_path + SUBSYSTEM_NQN_PATH;
-  std::vector<std::string> lines;
-  read_file(subsystem_nqn_file, 1,1,lines);
-  if(lines.size()) {
-    subsystem_nqn = lines[0];
-  }
-  else {
-    smg_error(logger, "AutoDiscovery:Couln't find subsystem nqn from %s", subsystem_nqn_file.c_str());
-  }
-}
+void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn);
 
 /* Function Name: get_nvme_mount_dir
  * Input Params : <string>, system block path "/sys/block"
@@ -345,209 +173,24 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
 bool get_nvme_mount_dir(const std::string& sys_block_path, 
                          std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
                          const std::string& subsystem_nqn_address_port = ""
-                        )
-{
-  bool is_path_updated = false;
-  path p(sys_block_path);
-  if ( exists(p) && is_directory(p) ) {
-    // Search for nvme directories
-    for( auto it = directory_iterator(p); it != directory_iterator(); it++) {
-            
-      if( is_directory( it->path() ) ){
-        std::string nvme_dir  = it->path().filename().string(); // nvme dir such as nvme0n1
-        if ( nvme_dir.compare(0,4,"nvme") == 0 ){
-          // Check ip address and port from the address file for each ip transport ip address
-          std::string nvme_base_path = sys_block_path + "/" + nvme_dir;
-          const std::string address_file   = nvme_base_path + "/device/address";
+                        );
 
-          std::string address;
-          std::string port;
-          if(! get_address_port(address_file, address, port)) {
-            smg_error(logger, "Auto Discovery: Unableto read address & port from %s", address_file.c_str() );
-          }
-
-          // Get subsystem nqn
-          std::string sunsystem_nqn;
-          get_subsystem_nqn(nvme_base_path, sunsystem_nqn);
-                 
-          if ( ! sunsystem_nqn.empty() && ! address.empty() && ! port.empty() ) {  
-            std::string nqn_address_port = sunsystem_nqn + ":" + address + ":" + port;
-            if ( ! subsystem_nqn_address_port.empty() ) {
-              if ( subsystem_nqn_address_port.compare(nqn_address_port) == 0 ) {
-                ip_to_nvme_mount_dir[nqn_address_port] = nvme_dir;
-                return true;
-              }
-            } else {
-              if( ip_to_nvme_mount_dir.find(nqn_address_port) == ip_to_nvme_mount_dir.end()) {
-                ip_to_nvme_mount_dir[nqn_address_port] = nvme_dir;
-                is_path_updated = true;
-              }
-            }
-          } // end of if (sunsystem_nqn && address && port)
-        }
-      } 
-    } // end of for 
-  }// end of if (Exist(p)
-  return is_path_updated;
-}
-
-
-// Nvme result , disconnect and connect.
 /* Function Name: get_remote_mount_path
  * Input Params : <boost::property_tree::ptree> , pass parse tree to be updated
  * Return       : <bool> Success/Failure
  * Description  : Update the parse tree/ NKV configuration with remote_mount_path and associated destails.
  *                such as address, port, nqn, numa_node, driver_thread_count and target machine.
  */
-bool add_remote_mount_path(boost::property_tree::ptree & pt)
-{
-  try
-  {
-    // Get /sys/block base path
-    const std::string sys_base_path = SYS_BLOCK_PATH;
 
-    // Get nvme mount information.
-    std::unordered_map<std::string, std::string> ip_to_nvme;
-    get_nvme_mount_dir(sys_base_path, ip_to_nvme);
+bool add_remote_mount_path(boost::property_tree::ptree & pt);
 
-    // Remove nkv_remote_mounts if exist
-    boost::optional< ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
-    if(is_node_exist) {
-      pt.erase("nkv_remote_mounts");
-    }
+/* Function Name: device_path_exist
+ * Parameters   : <std::String> - Remote device path , i.e /dev/nvme0n1
+ * Returns      : bool 
+ * Description  : Check if remote device path (/dev/nvme1n1 exist in the host machine?
+ *                On success return true
+ */
 
-
-    // Find remote mount path for each subsytem NQN
-    BOOST_FOREACH(boost::property_tree::ptree::value_type &subsystem, pt.get_child("subsystem_maps")) {
-      assert(subsystem.first.empty());
-      boost::property_tree::ptree subsystem_map = subsystem.second;
-      std::string target_server_name = subsystem_map.get<std::string>("target_server_name");
-      std::string subsystem_nqn      = subsystem_map.get<std::string>("subsystem_nqn");
-      int32_t subsystem_status       = subsystem_map.get<int32_t>("subsystem_status");
-
-      // Skip if subsystem is down
-      if ( subsystem_status ) {
-        smg_error(logger, "AutoDiscovery: Subsystem %s is down", subsystem_nqn.c_str() );
-	continue;
-      }
-
-      bool is_subsystem_down = true;
-
-      // For each address in the transport, look for corresponding remote host path.
-      BOOST_FOREACH(boost::property_tree::ptree::value_type &transport, subsystem_map.get_child("subsystem_transport")) {
-        assert(transport.first.empty());
-        boost::property_tree::ptree subsystem_transport = transport.second;
-        std::string subsystem_address = subsystem_transport.get<std::string>("subsystem_address");
-        int32_t subsystem_port = subsystem_transport.get<int>("subsystem_port");
-        int32_t subsystem_interface_status = subsystem_transport.get<int>("subsystem_interface_status");
-
-        // Skip if NIC is down
-        if ( ! subsystem_interface_status ) {
-          smg_error(logger, "AutoDiscovery: NIC %s id down", subsystem_address.c_str());
-          continue;
-        }
-        // Get nvme remote mount path
-        std::string remote_mount_path;
-        std::string remote_nvme_dir; // nvme0n1 etc. 
-        std::string subsystem_nqn_address_port = subsystem_nqn + ":" + subsystem_address + ":" + std::to_string(subsystem_port);             
-        bool is_remote_mount_exist = true;
-
-        // Check if mount path exist for that ip_address_port 
-        if(  ip_to_nvme.count(subsystem_nqn_address_port) == 0 ) {
-                    
-          // When subsystem_ip_port from cluster map is not mounted, connect using nvme connect
-          smg_info(logger, "Auto Discovery: %s is not mounted",subsystem_nqn_address_port.c_str() );
-          if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port)) {
-            usleep(1000 * 10); // Add a sleep for connection to complete.
-            // Update ip_to_nvme mapping with new mounted remote disk
-            if ( ! get_nvme_mount_dir(sys_base_path, ip_to_nvme, subsystem_nqn_address_port) ) {
-              smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", subsystem_nqn_address_port.c_str() );
-              is_remote_mount_exist = false;
-            }
-          } else {  // In case nvme connect failed
-            is_remote_mount_exist = false;
-          }
-        }
-        // Remote nvme mount paths
-        if( is_remote_mount_exist) {
-          remote_mount_path = "/dev/" + ip_to_nvme[subsystem_nqn_address_port];  // /dev/nvme01n1
-          std::string remote_nvme_path = sys_base_path + "/" + ip_to_nvme[subsystem_nqn_address_port];  // /sys/block/nvme0n1
-        
-          int32_t numa_node_attached = get_numa_node(remote_nvme_path);
-          smg_info(logger, "numa_node for %s is %d",subsystem_nqn_address_port.c_str(), numa_node_attached );
-          if ( update_mount_path(pt, subsystem_nqn,target_server_name,subsystem_address, subsystem_port, remote_mount_path, numa_node_attached) ) {
-            is_subsystem_down = false;
-          }
-        } else {
-          smg_error(logger, "AutoDiscovery: Subsystem Interface %s is down", subsystem_address.c_str());
-          transport.second.put<std::string>("subsystem_interface_status", "0");
-          subsystem.second = subsystem_map;
-        }
-      } // End of iteration of trasporter
-      // Update subsystem status if subsystem is down ( Subsystem UP =0, DOWN = 1 )
-      if ( is_subsystem_down ) {
-        smg_alert(logger, "AutoDiscovery:Subsystem %s is down", subsystem_nqn.c_str());
-        subsystem.second.put<std::string>("subsystem_status", "1");
-      }
-    }// Update into the property tree
-  }
-  catch ( std::exception & e) {
-    smg_error(logger, "Auto Discovery: %s", e.what());
-    return false;
-  }
-  return true;
-}
-
-/* Function Name: update_mount_path
-* Parameters   : <boost::property_tree::ptree> , NKV configuration
-*                <std::string> , subsystem nqn
-* Return       : <bool> Success/Failure
-* Description  : Update mouunt path to the parse tree.
-*/
-bool update_mount_path(boost::property_tree::ptree & pt, 
-                       std::string& nqn,
-                       std::string& target_node,
-                       std::string& ip_address,
-                       int32_t port,
-                       const std::string& mount_path,
-                       int32_t numa_node_attached
-                       )
-{
-  try
-  {
-
-    boost::optional< ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
-    
-    // Create a new child for mount path
-    boost::property_tree::ptree nkv_remote_element;
-    nkv_remote_element.put("mount_point", mount_path);
-    nkv_remote_element.put("remote_nqn_name", nqn);
-    nkv_remote_element.put("remote_target_node_name", target_node);
-    nkv_remote_element.put("nqn_transport_address", ip_address);
-    nkv_remote_element.put("nqn_transport_port", port);
-    nkv_remote_element.put("numa_node_attached", numa_node_attached);
-    nkv_remote_element.put("driver_thread_core", 26);
-
-       
-    if ( is_node_exist ) {
-      boost::property_tree::ptree& nkv_remote_mounts_tree  = pt.get_child("nkv_remote_mounts");
-      nkv_remote_mounts_tree.push_back(std::make_pair("",nkv_remote_element));
-    }
-    else {
-      boost::property_tree::ptree nkv_remote_mount;
-      nkv_remote_mount.push_back(std::make_pair("",nkv_remote_element));
-      pt.add_child("nkv_remote_mounts", nkv_remote_mount);
-    }
-    //boost::property_tree::write_json(std::cout, nkv_remote_mount_tree);
-  }
-  catch(exception& e) {
-    smg_error(logger, "Auto Discovery: %s", e.what());
-    return false;
-  }
-    
-  return true;
-} 
-
-
+bool device_path_exist(const std::string remote_device_path );
 
 #endif
