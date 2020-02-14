@@ -265,6 +265,10 @@
       dev_path = p_dev_path;
     }
     
+    int32_t get_target_path_status() {
+      return path_status.load(std::memory_order_relaxed);
+    }
+
     bool open_path(const std::string& app_name) {
       kvs_result ret = kvs_open_device((char*)dev_path.c_str(), &path_handle);
       if(ret != KVS_SUCCESS) {
@@ -725,7 +729,13 @@
 
     }
 
-
+    /* Function Name: verify_min_path_exists
+     * Input Args   : <int32_t> = Minimum paths required for a subsystem to
+     *                statisfy min path topology.
+     * Return       : <bool> = 1/0 = Min Path topology statisfied/ Failed
+     * Description  : Check if minimum number of paths available to satisfy 
+     *                min topology subsystem paths requirement.
+     */
     bool verify_min_path_exists(int32_t min_path_required) {
       if (pathMap.size() < (uint32_t) min_path_required) {
         smg_error(logger, "Not enough container path, minimum required = %d, available = %d",
@@ -793,29 +803,26 @@
      * Description  : Iterate over all the paths in the container and open those paths.
      *                Success: if atleast one path is opend in the container.
      */ 
-    bool open_paths(const std::string& app_name, uint32_t min_container_path=1) {
-      uint32_t container_path_count = 0;
+    bool open_paths(const std::string& app_name) {
       bool is_container_valid = false;
       for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Opening path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,(one_path->path_status).load(std::memory_order_relaxed));
-  
-          if (one_path->open_path(app_name)) {
-            if (listing_with_cached_keys && !nkv_remote_listing) {
-              one_path->start_thread();
+ 
+          if (one_path->get_target_path_status()) { 
+            if (one_path->open_path(app_name)) {
+              if (listing_with_cached_keys && !nkv_remote_listing) {
+                one_path->start_thread();
+              }
+              is_container_valid = true;
             }
-            container_path_count++;
           }
 
         } else {
           smg_error(logger, "NULL path found while opening path !!");
         }
-      }
-      // Check container has minimum open paths
-      if ( container_path_count >= min_container_path ) {
-        is_container_valid = true;
       }
       return is_container_valid;
     }
@@ -986,24 +993,19 @@
       
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
-    bool open_container_paths(const std::string& app_name, uint32_t min_container=1, int32_t min_container_path=1) {
-      uint32_t valid_container_count= 0;
-      bool is_container_list_valid = true;
+    bool open_container_paths(const std::string& app_name) {
+      bool is_container_list_valid = false;
       for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
         NKVTarget* one_cnt = m_iter->second;
         if (one_cnt) {
           smg_alert(logger, "Opening path for target node = %s, container name = %s status=%d",
                    one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str(),one_cnt->get_ss_status());
-          if ( !one_cnt->get_ss_status() && one_cnt->open_paths(app_name, min_container_path)) {
-            valid_container_count++;
+          if ( !one_cnt->get_ss_status() && one_cnt->open_paths(app_name)) {
+            is_container_list_valid = true;
           }
         } else {
           smg_error(logger, "Got NULL container while opening paths !!");
         }
-      }
-      
-      if ( valid_container_count < min_container ) {
-        is_container_list_valid =false;
       }
       return is_container_list_valid;
     }
@@ -1181,6 +1183,12 @@
     }
 
     // This is for Network KV based deployment
+    /* Function Name: parse_add_container
+     * Input Args   : <boost::property_tree::ptree> = ClusterMap information
+     * Return       : <int32_t> 0/1 = Success/failure
+     * Description  : Create a NKV-Host container list based on "subsystem_map" informaion
+     *                of ClusterMap. A container contains subsystem information.
+     */
     int32_t parse_add_container(boost::property_tree::ptree & pr) {
 
       int32_t cnt_id = 0;  
@@ -1215,16 +1223,14 @@
 
             uint64_t ss_p_hash = std::hash<std::string>{}(subsystem_address);
 
-            if (! one_cnt->get_ss_status() && subsystem_in_status ) {
-              NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, subsystem_address, subsystem_port, subsystem_addr_fam, 
+            NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, subsystem_address, subsystem_port, subsystem_addr_fam, 
                                                         subsystem_in_speed, subsystem_in_status, numa_aligned, subsystem_np_type);
-              assert(one_path != NULL);
-              smg_info(logger, "Adding path, hash = %u, address = %s, port = %d, fam = %d, speed = %d, status = %d, numa_aligned = %d",
+            assert(one_path != NULL);
+            smg_info(logger, "Adding path, hash = %u, address = %s, port = %d, fam = %d, speed = %d, status = %d, numa_aligned = %d",
                     ss_p_hash, subsystem_address.c_str(), subsystem_port, subsystem_addr_fam, subsystem_in_speed, subsystem_in_status, numa_aligned);
 
-              one_cnt->add_network_path(one_path, ss_p_hash);
-              path_id++;
-            }
+            one_cnt->add_network_path(one_path, ss_p_hash);
+            path_id++;
           }
 
           auto cnt_iter = cnt_list.find(ss_hash);

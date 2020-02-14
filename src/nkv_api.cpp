@@ -344,7 +344,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path)) {
     return NKV_ERR_CONFIG;
   } else {
-    smg_info(logger, "Topology verification is satisfied");
+    smg_info(logger, "Min subsystem/path topology verification is satisfied!");
   }
 
   if (*nkv_handle != 0 && *instance_uuid != 0) {
@@ -374,7 +374,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       smg_info(logger, "Setting environment for open mpdk is successful for app = %s", app_uuid);
     #endif
 
-    if(!nkv_cnt_list->open_container_paths(app_uuid, min_container, min_container_path))
+    if(!nkv_cnt_list->open_container_paths(app_uuid))
       return NKV_ERR_COMMUNICATION;
   } else {
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
