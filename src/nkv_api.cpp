@@ -374,7 +374,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       smg_info(logger, "Setting environment for open mpdk is successful for app = %s", app_uuid);
     #endif
 
-    if(!nkv_cnt_list->open_container_paths(app_uuid))
+    if(!nkv_cnt_list->open_container_paths())
       return NKV_ERR_COMMUNICATION;
   } else {
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");

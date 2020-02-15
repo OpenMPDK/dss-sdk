@@ -46,6 +46,7 @@
 #include <thread>
 #include "kvs_api.h"
 #include "nkv_utils.h"
+#include "auto_discovery.h"
 #include <condition_variable>
 #include <pthread.h>
 
@@ -322,7 +323,31 @@
 
       return true;
     }
-   
+  
+    bool close_path(){
+      smg_warn(logger, "Closing kvs_device_path %s", dev_path.c_str());
+      if (listing_with_cached_keys) {
+        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
+        wait_for_thread_completion();
+      }
+      kvs_result ret;
+      #ifdef SAMSUNG_API
+        ret = kvs_close_container(path_cont_handle);
+        assert(ret == KVS_SUCCESS);
+      #else
+        kvs_close_key_space(path_ks_handle);
+        kvs_delete_key_space(path_handle, &path_ks_name);
+      #endif
+
+      ret = kvs_close_device(path_handle);
+      assert(ret == KVS_SUCCESS);
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
+      }
+
+      return true;
+    }
+ 
     nkv_result map_kvs_err_code_to_nkv_err_code (int32_t kvs_code);
     nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
@@ -893,6 +918,10 @@
       return cnt_list.size();
     }
 
+    const std::string& get_nkv_app_name() {
+      return app_name;
+    }
+
     nkv_result nkv_send_io(uint64_t container_hash, uint64_t container_path_hash, const nkv_key* key, void* opt, 
                            nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
       nkv_result stat = NKV_SUCCESS;
@@ -993,7 +1022,7 @@
       
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
-    bool open_container_paths(const std::string& app_name) {
+    bool open_container_paths() {
       bool is_container_list_valid = false;
       for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
         NKVTarget* one_cnt = m_iter->second;
@@ -1285,7 +1314,11 @@
       // Iterate container list which contain the list of subsystems 
       for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
         NKVTarget* target_ptr = m_iter->second;
-        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map(); 
+        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map();
+        // Skip if the event doesn't belog to a target node.
+        if (node_name != target_ptr->target_node_name ) {
+          continue;
+        } 
 
         // Iterate each path of a subsystem
         for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
@@ -1319,10 +1352,40 @@
                  is_nkv_data_structure_updated = true; 
                               
               if ( remote_path_status ) {
-                smg_alert(logger,"Remote mount path %s is UP for IO", (target_path_ptr->dev_path).c_str());
-              }
-              else {
-                smg_alert(logger,"Remote mount path %s is DOWN for IO", (target_path_ptr->dev_path).c_str());
+                // target_path_ptr->dev_path , target_path_ptr->path_ip, target_path_ptr->path_port
+                // Check remote device path exist?
+                std::unordered_map<std::string, std::string> subsystem_nqn_to_nvme_dir;
+                std::string nqn_address_port =  target_ptr->target_container_name + ":" + target_path_ptr->path_ip 
+                                              + ":" + std::to_string(target_path_ptr->path_port);
+                bool remote_device_exist = false;
+                // Generally if subsystem/NIC is back within re-connection time period, then automatically
+                // gets mounted on the same remote mount point, else we need to perform nvme connect. 
+                if ( ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
+                  if (nvme_connect(target_ptr->target_container_name, target_path_ptr->path_ip, target_path_ptr->path_port)) {
+                    usleep(1000 * 10);
+                  }
+                } else {
+                  remote_device_exist = true;
+                }
+                
+                // Check mount point exist for an nqn:ip:port?
+                if ( ! remote_device_exist && ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
+                  smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", nqn_address_port.c_str() );
+                } else {
+                  std::string remote_device_path = "/dev/" + subsystem_nqn_to_nvme_dir[nqn_address_port];
+                  if ( remote_device_path.compare(target_path_ptr->dev_path) != 0 ) {
+                    target_path_ptr->dev_path = remote_device_path;
+		    smg_alert(logger, "New remote mount path %s", remote_device_path.c_str());
+                  }
+                  target_path_ptr->open_path(nkv_cnt_list->get_nkv_app_name());
+                  smg_alert(logger,"Remote mount path=%s,nqn=%s is UP for IO",
+                  (target_path_ptr->dev_path).c_str(), (target_ptr->target_container_name).c_str());
+                }
+              } else {
+                 // Close kvs_device_path
+                target_path_ptr->close_path();
+                smg_alert(logger,"Remote mount path=%s, nqn=%s is DOWN for IO",
+               (target_path_ptr->dev_path).c_str(), (target_ptr->target_container_name).c_str());
               }
             }
           } // End of checking subsystem paths

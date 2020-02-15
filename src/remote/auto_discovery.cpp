@@ -288,7 +288,7 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
 /* Function Name: get_nvme_mount_dir
  * Input Params : <string>, system block path "/sys/block"
  *                <unordered_map>, nqn_address_port mapping to nvme directory
- *                <string>, subsystem_nqn_address_port 
+ *                <string>, subsystem_nqn_address_port=> "subsystem_nqn:ipv4_address:port" 
  * Return       : <bool> Success/Failure
  * Description  : Get a mapping of nvme directory to unique "nqn:address:port". 
  *                Read address from /sys/block/nvme0n1/device/address
@@ -296,12 +296,13 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
  *                Findout the mapping of nqn:address:port and correspoding device
  *                path "/dev/nvme0n1" etc.
  */
-bool get_nvme_mount_dir(const std::string& sys_block_path, 
-                         std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
+bool get_nvme_mount_dir( std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
                          const std::string& subsystem_nqn_address_port = ""
-                        )
+                       )
 {
   bool is_path_updated = false;
+  const std::string sys_block_path = SYS_BLOCK_PATH;
+
   path p(sys_block_path);
   if ( exists(p) && is_directory(p) ) {
     // Search for nvme directories
@@ -360,7 +361,7 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
 
     // Get nvme mount information.
     std::unordered_map<std::string, std::string> ip_to_nvme;
-    get_nvme_mount_dir(sys_base_path, ip_to_nvme);
+    get_nvme_mount_dir(ip_to_nvme);
 
     // Remove nkv_remote_mounts if exist
     boost::optional< boost::property_tree::ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
@@ -412,7 +413,7 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
           if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port)) {
             usleep(1000 * 10); // Add a sleep for connection to complete.
             // Update ip_to_nvme mapping with new mounted remote disk
-            if ( ! get_nvme_mount_dir(sys_base_path, ip_to_nvme, subsystem_nqn_address_port) ) {
+            if ( ! get_nvme_mount_dir(ip_to_nvme, subsystem_nqn_address_port) ) {
               smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", subsystem_nqn_address_port.c_str() );
               is_remote_mount_exist = false;
             }
