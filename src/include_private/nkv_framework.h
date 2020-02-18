@@ -421,12 +421,6 @@
              t_id(p_id), target_uuid(puuid), target_node_name(tgtNodeName), target_container_name(tgtCntName), target_hash(t_hash) {}
 
     ~NKVTarget() {
-      /*if ( ! ss_status ) {
-        for (auto m_iter = pathMap.begin(); m_iter != pathMap.end(); m_iter++) {
-          delete(m_iter->second);
-        }
-        pathMap.clear();    
-      }*/
       for (auto m_iter = pathMap.begin(); m_iter != pathMap.end(); m_iter++) {
         delete(m_iter->second);
       }
@@ -836,7 +830,7 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Opening path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,(one_path->path_status).load(std::memory_order_relaxed));
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port,one_path->get_target_path_status());
  
           if (one_path->get_target_path_status()) { 
             if (one_path->open_path(app_name)) {
