@@ -323,28 +323,30 @@
 
       return true;
     }
-  
+ 
+    /* Function Name: close_path
+     * Input Args   : None
+     * Return       : <bool> = Path close success/failure
+     * Description  : Close the kv device path opened through openMPDK driver.
+     */ 
     bool close_path(){
       smg_warn(logger, "Closing kvs_device_path %s", dev_path.c_str());
-      if (listing_with_cached_keys) {
-        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
-        wait_for_thread_completion();
-      }
       kvs_result ret;
       #ifdef SAMSUNG_API
         ret = kvs_close_container(path_cont_handle);
-        assert(ret == KVS_SUCCESS);
+        if ( ret != KVS_SUCCESS ) {
+          smg_error(logger, "KVS container close failed for %s", dev_path.c_str());
+        }
       #else
         kvs_close_key_space(path_ks_handle);
         kvs_delete_key_space(path_handle, &path_ks_name);
       #endif
 
       ret = kvs_close_device(path_handle);
-      assert(ret == KVS_SUCCESS);
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
+      if ( ret != KVS_SUCCESS ) {
+        smg_error(logger, "KVS path close failed for %s", dev_path.c_str());
+        return false;     
       }
-
       return true;
     }
  
@@ -1378,14 +1380,14 @@
 		    smg_alert(logger, "New remote mount path %s", remote_device_path.c_str());
                   }
                   target_path_ptr->open_path(nkv_cnt_list->get_nkv_app_name());
-                  smg_alert(logger,"Remote mount path=%s,nqn=%s is UP for IO",
-                  (target_path_ptr->dev_path).c_str(), (target_ptr->target_container_name).c_str());
+                  smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is UP for IO",(target_path_ptr->dev_path).c_str(),
+                  (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
                 }
               } else {
                  // Close kvs_device_path
                 target_path_ptr->close_path();
-                smg_alert(logger,"Remote mount path=%s, nqn=%s is DOWN for IO",
-               (target_path_ptr->dev_path).c_str(), (target_ptr->target_container_name).c_str());
+                smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is DOWN for IO",(target_path_ptr->dev_path).c_str(),
+               (target_path_ptr->path_ip).c_str(), (target_ptr->target_container_name).c_str());
               }
             }
           } // End of checking subsystem paths
