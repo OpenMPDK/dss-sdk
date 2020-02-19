@@ -209,6 +209,19 @@ typedef struct {
 } nkv_path_stat; 
 
 typedef struct {
+	// Multipath Load Balance flag. 0 is disable, 1 is enable
+	uint32_t nic_load_balance;
+	
+	// Multipath Load Balance plicy
+	// 0 - Round Robin (default) 
+	// 1 - Failover policy 
+	// 2 - Least Queue Depth
+	// 3 - Least Queue Size
+	uint32_t nic_load_balance_policy;
+	
+} nkv_feature_list;
+
+typedef struct {
  
   int32_t opcode; 	// operation code, 0 = GET, 1 = PUT, 2= DEL
   nkv_key key; 	        // pointer for a key data structure 
