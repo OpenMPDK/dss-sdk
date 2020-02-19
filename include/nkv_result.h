@@ -79,8 +79,11 @@ typedef enum {
   NKV_ERR_LOCK_NO_WRITER = 0x22,
   NKV_ERR_LOCK_NO_READER = 0x23,
   NKV_ERR_LOCK_EXPIRED = 0x24,
-  NKV_NOT_SUPPORTED = 0x025
-  
+  NKV_NOT_SUPPORTED = 0x025, 
+  NKV_ERR_CNT_VERIFY_FAILED = 0x026, // When the load balancer is enabled, 
+	                                 // the container path hash is different 
+	                                 // from the container hash nkv exposed 
+  NKV_ERR_MODE_NOT_SUPPORT = 0x027   // The feature doesn't support 
 
 } nkv_result;  
 

@@ -69,6 +69,8 @@ int32_t nkv_read_cache_shard_size = 1024;
 int32_t nkv_data_cache_size_threshold = 4096;
 int32_t nkv_remote_listing = 0;
 
+std::atomic<uint32_t> nic_load_balance (0);
+std::atomic<uint32_t> nic_load_balance_policy (0);
 #define iter_buff (32*1024)
 std::string NKV_ROOT_PREFIX = "root" + key_default_delimiter;
 
@@ -182,6 +184,8 @@ void kvs_aio_completion (kvs_callback_context* ioctx) {
   }
   if (t_path) {
     t_path->nkv_async_path_cur_qd.fetch_sub(1, std::memory_order_relaxed);
+    //TODO: Update each path information in async mode when the op has been defined
+    //t_path->load_balance_update_path_parameter(ioctx->value->length, 1);
     smg_warn(logger, "cur_qd(%u)/max_qd(%u)", t_path->nkv_async_path_cur_qd.load(), nkv_async_path_max_qd.load());
   } else {
     smg_error(logger, "Async IO returned with null path pointer ! : op = %d, key = %s, result = 0x%x, err = %s\n",
@@ -2246,4 +2250,39 @@ nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, ite
   #endif
   return stat;
 
+}
+
+
+uint64_t NKVTarget::load_balance_get_path(std::unordered_set<uint64_t> &visited, int& flag) {
+  int visited_path_count = visited.size();
+  uint64_t selected_path = 0;
+
+  while (1) {
+    if (visited_path_count >= path_count)
+      break;
+
+    int err = load_balance_execute(selected_path);
+    if(err) {
+      flag = 1;
+      return 0;
+    }
+    if (visited.count(selected_path)) {
+      continue;
+    }
+			
+    auto path = pathMap.find(selected_path);
+    if( path == pathMap.end()) {
+      flag = 1;
+      return 0;
+    } else {
+      visited.insert(selected_path);
+      visited_path_count ++;
+      if(!path->second->path_status) {
+        continue;
+      }
+      break;
+    }
+  }
+  
+  return selected_path;
 }
