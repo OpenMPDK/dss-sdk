@@ -281,6 +281,10 @@
       return path_status.load(std::memory_order_relaxed);
     }
 
+    void set_target_path_status(int32_t status) {
+      path_status.store(status, std::memory_order_relaxed);
+    }
+
     bool open_path(const std::string& app_name) {
       kvs_result ret = kvs_open_device((char*)dev_path.c_str(), &path_handle);
       if(ret != KVS_SUCCESS) {
@@ -843,7 +847,6 @@
       bool subsystem_status = true;
       smg_debug(logger, "Minimum subsystem paths required = %d, available = %d",
                  min_path_required, pathMap.size());
-
       int32_t device_path_count = 0;
       for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
         NKVTargetPath* one_path = p_iter->second;
@@ -851,7 +854,8 @@
           smg_debug(logger, "Inspecting path with address = %s , dev_path = %s, port = %d, status = %d",
                    one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
           // Check path_status as well
-          if (! one_path->path_ip.empty() && ! one_path->dev_path.empty()) {
+          if (one_path->get_target_path_status() && ! one_path->path_ip.empty()
+              && ! one_path->dev_path.empty()) {
             device_path_count++;
           } else {
             smg_error(logger, "No IP or mount point (for TCP over KDD only) provided !");
@@ -916,6 +920,8 @@
                 one_path->start_thread();
               }
               is_container_valid = true;
+            } else {
+              one_path->set_target_path_status(0);
             }
           }
 
@@ -1238,8 +1244,12 @@
         if (one_cnt) {
           smg_alert(logger, "Opening path for target node = %s, container name = %s status=%d",
                    one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str(),one_cnt->get_ss_status());
-          if ( !one_cnt->get_ss_status() && one_cnt->open_paths(app_name)) {
-            is_container_list_valid = true;
+          if ( !one_cnt->get_ss_status() ) {
+            if( one_cnt->open_paths(app_name) ) {
+              is_container_list_valid = true;
+            } else {
+              one_cnt->set_ss_status(1);
+            }
           }
         } else {
           smg_error(logger, "Got NULL container while opening paths !!");
@@ -1256,13 +1266,13 @@
         min_topology_exist = false;
       }
       else {
-        int32_t valid_container_count = cnt_list.size(); // subsystem count
+        uint32_t valid_container_count = cnt_list.size(); // subsystem count
         for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
           NKVTarget* one_cnt = m_iter->second;
           if (one_cnt) {
             smg_info(logger, "Inspecting target id = %d, target node = %s, container name = %s", 
                      one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str()); 
-            if (!one_cnt->verify_min_path_exists(num_required_container_path)) {
+            if (! one_cnt->get_ss_status() && !one_cnt->verify_min_path_exists(num_required_container_path)) {
               valid_container_count--;
               one_cnt->set_ss_status(1);
               smg_error(logger, "Minimum path doesn't exist for the container %s", one_cnt->target_container_name.c_str());
@@ -1311,7 +1321,12 @@
       }
     }
 
-
+    /* Function Name: parse_add_path_mount_point
+     * Input Args   : <boost::property_tree::ptree> - ClusterMap with remote mounted paths
+     * Return       : <int32_t> - 0/1, Success/failure
+     * Description  : Populate container and NKVTragetPath with in container with remote
+     *                mount path information. and update path/ container status accordingly.
+     */
     int32_t parse_add_path_mount_point(boost::property_tree::ptree & pt) {
       try {
         BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_remote_mounts")) {
@@ -1512,8 +1527,9 @@
     * Params       : <string> -Address of Remote Mount Path
     *                <int32_t>-Rremote Mount Path status
     * Return       : <bool>  Updated Mount Path or Not
-    * Description  : Update remote mount path status based on the address received from event.
-    *                Invoked from event handler.
+    * Description  : Update remote mount path status based on the event received
+    *                from target cluster. This function gets invoked from event
+    *                handler.
     */
     bool update_container(std::string category,
                           std::string node_name,
@@ -1559,8 +1575,7 @@
           // NIC: Check path if matches and update status accordingly
           if (! skip) {
             if ( (target_path_ptr->path_status).load(std::memory_order_relaxed) !=  remote_path_status ) {
-                 (target_path_ptr->path_status).store(remote_path_status, std::memory_order_relaxed);
-                 is_nkv_data_structure_updated = true; 
+              is_nkv_data_structure_updated = true; 
                               
               if ( remote_path_status ) {
                 // target_path_ptr->dev_path , target_path_ptr->path_ip, target_path_ptr->path_port
@@ -1581,26 +1596,50 @@
                 
                 // Check mount point exist for an nqn:ip:port?
                 if ( ! remote_device_exist && ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
-                  smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", nqn_address_port.c_str() );
+                  smg_error(logger, "NVME device doesn't exist for %s", nqn_address_port.c_str() );
                 } else {
                   std::string remote_device_path = "/dev/" + subsystem_nqn_to_nvme_dir[nqn_address_port];
                   if ( remote_device_path.compare(target_path_ptr->dev_path) != 0 ) {
                     target_path_ptr->dev_path = remote_device_path;
 		    smg_alert(logger, "New remote mount path %s", remote_device_path.c_str());
                   }
-                  target_path_ptr->open_path(nkv_cnt_list->get_nkv_app_name());
-                  smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is UP for IO",(target_path_ptr->dev_path).c_str(),
-                  (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
+                  if ( target_path_ptr->open_path(nkv_cnt_list->get_nkv_app_name())) {
+                    smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is UP for IO",(target_path_ptr->dev_path).c_str(),
+                             (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
+                    // Update target path status to UP:
+                    target_path_ptr->set_target_path_status(remote_path_status);
+                  } else {
+                    smg_error(logger,"Remote mount path=%s ip=%s, nqn=%s opened failed!!", (target_path_ptr->dev_path).c_str(),
+                             (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
+                  }
                 }
               } else {
+                // Update target path status to down.
+                target_path_ptr->set_target_path_status(remote_path_status);
                  // Close kvs_device_path
                 target_path_ptr->close_path();
                 smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is DOWN for IO",(target_path_ptr->dev_path).c_str(),
-               (target_path_ptr->path_ip).c_str(), (target_ptr->target_container_name).c_str());
+                         (target_path_ptr->path_ip).c_str(), (target_ptr->target_container_name).c_str());
               }
             }
           } // End of checking subsystem paths
         } // End of transporter path iteration
+
+        // Update subsystem status
+        if ( is_nkv_data_structure_updated ) {
+          int32_t target_path_status = 0;
+          for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
+            NKVTargetPath* target_path_ptr = p_iter->second;
+            if ( target_path_ptr->get_target_path_status() ) {
+              target_path_status = 1;
+            }
+          }
+          if (! target_ptr->get_ss_status() ^ target_path_status ) {
+            target_ptr->set_ss_status(!target_path_status);
+            smg_alert(logger, "Subsystem=%s status changed to %d", (target_ptr->target_container_name).c_str(), target_path_status);      
+          }
+        }
+
       } // End of iteration of subsystems
 
       return is_nkv_data_structure_updated;

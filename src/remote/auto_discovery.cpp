@@ -402,7 +402,8 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
         // Get nvme remote mount path
         std::string remote_mount_path;
         std::string remote_nvme_dir; // nvme0n1 etc. 
-        std::string subsystem_nqn_address_port = subsystem_nqn + ":" + subsystem_address + ":" + std::to_string(subsystem_port);             
+        std::string subsystem_nqn_address_port = subsystem_nqn + ":" + 
+                    subsystem_address + ":" + std::to_string(subsystem_port);             
         bool is_remote_mount_exist = true;
 
         // Check if mount path exist for that ip_address_port 
@@ -428,7 +429,8 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
         
           int32_t numa_node_attached = get_numa_node(remote_nvme_path);
           smg_info(logger, "numa_node for %s is %d",subsystem_nqn_address_port.c_str(), numa_node_attached );
-          if ( update_mount_path(pt, subsystem_nqn,target_server_name,subsystem_address, subsystem_port, remote_mount_path, numa_node_attached) ) {
+          if ( update_mount_path(pt, subsystem_nqn,target_server_name, subsystem_address,
+               subsystem_port, remote_mount_path, numa_node_attached) ) {
             is_subsystem_down = false;
           }
         } else {

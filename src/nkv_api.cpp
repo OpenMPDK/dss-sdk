@@ -347,12 +347,6 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
 
-  if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path)) {
-    return NKV_ERR_CONFIG;
-  } else {
-    smg_info(logger, "Min subsystem/path topology verification is satisfied!");
-  }
-
   if (*nkv_handle != 0 && *instance_uuid != 0) {
     // All good, start initializing open_mpdk stuff
     #ifdef SAMSUNG_API
@@ -382,6 +376,13 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
 
     if(!nkv_cnt_list->open_container_paths())
       return NKV_ERR_COMMUNICATION;
+
+    // Minimum path topology verification
+    if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path)) {
+      return NKV_ERR_CONFIG;
+    } else {
+      smg_info(logger, "Min subsystem/path topology verification is satisfied!");
+    }
   } else {
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
