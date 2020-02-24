@@ -31,51 +31,8 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/foreach.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
-#include "csmglogger.h"
-#include "nkv_utils.h"
-#include <unistd.h>
 
-using namespace std;
-using namespace boost::filesystem;
-
-#ifndef LINUX_SYS_PATHS
-#define SYS_BLOCK_PATH "/sys/block"
-// /sys/block/nvme0n1/device/numa_node
-#define NUMA_NODE_PATH "/device/numa_node"
-// /sys/block/nvme0n1/device/subsysnqn
-#define SUBSYSTEM_NQN_PATH "/device/subsysnqn"
-#endif
-
-
-
-extern c_smglogger* logger;
-
-bool update_mount_path(boost::property_tree::ptree & pt, 
-                       std::string& nqn,
-                       std::string& target_node,
-                       std::string& ip_address,
-                       int32_t port,
-                       const std::string& mount_path,
-                       int32_t numa_node_attached
-                       );
-
-bool update_mount_path(boost::property_tree::ptree & pt, 
-                       std::string& nqn,
-                       std::string& target_node,
-                       std::string& ip_address,
-                       int32_t port,
-                       const std::string& mount_path,
-                       int32_t numa_node_attached
-                       );
+#include "auto_discovery.h"
 
 /************
  * Auto Discovery: Discover the remote mount path from the host machine.
@@ -324,14 +281,14 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
     subsystem_nqn = lines[0];
   }
   else {
-    smg_error(logger, "Couln't find subsystem nqn from %s", subsystem_nqn_file.c_str());
+    smg_error(logger, "AutoDiscovery:Couln't find subsystem nqn from %s", subsystem_nqn_file.c_str());
   }
 }
 
 /* Function Name: get_nvme_mount_dir
  * Input Params : <string>, system block path "/sys/block"
  *                <unordered_map>, nqn_address_port mapping to nvme directory
- *                <string>, subsystem_nqn_address_port 
+ *                <string>, subsystem_nqn_address_port=> "subsystem_nqn:ipv4_address:port" 
  * Return       : <bool> Success/Failure
  * Description  : Get a mapping of nvme directory to unique "nqn:address:port". 
  *                Read address from /sys/block/nvme0n1/device/address
@@ -339,12 +296,13 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
  *                Findout the mapping of nqn:address:port and correspoding device
  *                path "/dev/nvme0n1" etc.
  */
-bool get_nvme_mount_dir(const std::string& sys_block_path, 
-                         std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
+bool get_nvme_mount_dir( std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
                          const std::string& subsystem_nqn_address_port = ""
-                        )
+                       )
 {
   bool is_path_updated = false;
+  const std::string sys_block_path = SYS_BLOCK_PATH;
+
   path p(sys_block_path);
   if ( exists(p) && is_directory(p) ) {
     // Search for nvme directories
@@ -388,8 +346,6 @@ bool get_nvme_mount_dir(const std::string& sys_block_path,
   return is_path_updated;
 }
 
-
-// Nvme result , disconnect and connect.
 /* Function Name: get_remote_mount_path
  * Input Params : <boost::property_tree::ptree> , pass parse tree to be updated
  * Return       : <bool> Success/Failure
@@ -405,45 +361,60 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
 
     // Get nvme mount information.
     std::unordered_map<std::string, std::string> ip_to_nvme;
-    get_nvme_mount_dir(sys_base_path, ip_to_nvme);
+    get_nvme_mount_dir(ip_to_nvme);
 
     // Remove nkv_remote_mounts if exist
-    boost::optional< ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
+    boost::optional< boost::property_tree::ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
     if(is_node_exist) {
       pt.erase("nkv_remote_mounts");
     }
 
 
     // Find remote mount path for each subsytem NQN
-    BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("subsystem_maps")) {
-      assert(v.first.empty());
-      boost::property_tree::ptree subsystem_map = v.second;
+    BOOST_FOREACH(boost::property_tree::ptree::value_type &subsystem, pt.get_child("subsystem_maps")) {
+      assert(subsystem.first.empty());
+      boost::property_tree::ptree subsystem_map = subsystem.second;
       std::string target_server_name = subsystem_map.get<std::string>("target_server_name");
       std::string subsystem_nqn      = subsystem_map.get<std::string>("subsystem_nqn");
+      int32_t subsystem_status       = subsystem_map.get<int32_t>("subsystem_status");
+
+      // Skip if subsystem is down
+      if ( subsystem_status ) {
+        smg_error(logger, "AutoDiscovery: Subsystem %s is down", subsystem_nqn.c_str() );
+	continue;
+      }
+
+      bool is_subsystem_down = true;
 
       // For each address in the transport, look for corresponding remote host path.
-      BOOST_FOREACH(boost::property_tree::ptree::value_type &v, subsystem_map.get_child("subsystem_transport")) {
-        assert(v.first.empty());
-        boost::property_tree::ptree subsystem_transport = v.second;
+      BOOST_FOREACH(boost::property_tree::ptree::value_type &transport, subsystem_map.get_child("subsystem_transport")) {
+        assert(transport.first.empty());
+        boost::property_tree::ptree subsystem_transport = transport.second;
         std::string subsystem_address = subsystem_transport.get<std::string>("subsystem_address");
         int32_t subsystem_port = subsystem_transport.get<int>("subsystem_port");
+        int32_t subsystem_interface_status = subsystem_transport.get<int>("subsystem_interface_status");
 
+        // Skip if NIC is down
+        if ( ! subsystem_interface_status ) {
+          smg_error(logger, "AutoDiscovery: NIC %s id down", subsystem_address.c_str());
+          continue;
+        }
         // Get nvme remote mount path
         std::string remote_mount_path;
-        std::string remote_nvme_dir; // nvme0n1 etc.
-
-        std::string subsystem_nqn_address_port = subsystem_nqn + ":" + subsystem_address + ":" + std::to_string(subsystem_port);
-                
+        std::string remote_nvme_dir; // nvme0n1 etc. 
+        std::string subsystem_nqn_address_port = subsystem_nqn + ":" + 
+                    subsystem_address + ":" + std::to_string(subsystem_port);             
         bool is_remote_mount_exist = true;
+
         // Check if mount path exist for that ip_address_port 
         if(  ip_to_nvme.count(subsystem_nqn_address_port) == 0 ) {
                     
           // When subsystem_ip_port from cluster map is not mounted, connect using nvme connect
           smg_info(logger, "Auto Discovery: %s is not mounted",subsystem_nqn_address_port.c_str() );
           if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port)) {
-            usleep(10000); // Add a sleep for connection to complete.
+            usleep(1000 * 10); // Add a sleep for connection to complete.
             // Update ip_to_nvme mapping with new mounted remote disk
-            if ( ! get_nvme_mount_dir(sys_base_path, ip_to_nvme, subsystem_nqn_address_port) ) {
+            if ( ! get_nvme_mount_dir(ip_to_nvme, subsystem_nqn_address_port) ) {
               smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", subsystem_nqn_address_port.c_str() );
               is_remote_mount_exist = false;
             }
@@ -451,7 +422,6 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
             is_remote_mount_exist = false;
           }
         }
-                  
         // Remote nvme mount paths
         if( is_remote_mount_exist) {
           remote_mount_path = "/dev/" + ip_to_nvme[subsystem_nqn_address_port];  // /dev/nvme01n1
@@ -459,10 +429,21 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
         
           int32_t numa_node_attached = get_numa_node(remote_nvme_path);
           smg_info(logger, "numa_node for %s is %d",subsystem_nqn_address_port.c_str(), numa_node_attached );
-          update_mount_path(pt, subsystem_nqn,target_server_name,subsystem_address, subsystem_port, remote_mount_path, numa_node_attached);
+          if ( update_mount_path(pt, subsystem_nqn,target_server_name, subsystem_address,
+               subsystem_port, remote_mount_path, numa_node_attached) ) {
+            is_subsystem_down = false;
+          }
+        } else {
+          smg_error(logger, "AutoDiscovery: Subsystem Interface %s is down", subsystem_address.c_str());
+          transport.second.put<std::string>("subsystem_interface_status", "0");
+          subsystem.second = subsystem_map;
         }
-
       } // End of iteration of trasporter
+      // Update subsystem status if subsystem is down ( Subsystem UP =0, DOWN = 1 )
+      if ( is_subsystem_down ) {
+        smg_alert(logger, "AutoDiscovery:Subsystem %s is down", subsystem_nqn.c_str());
+        subsystem.second.put<std::string>("subsystem_status", "1");
+      }
     }// Update into the property tree
   }
   catch ( std::exception & e) {
@@ -490,7 +471,7 @@ bool update_mount_path(boost::property_tree::ptree & pt,
   try
   {
 
-    boost::optional< ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
+    boost::optional< boost::property_tree::ptree& > is_node_exist = pt.get_child_optional("nkv_remote_mounts");
     
     // Create a new child for mount path
     boost::property_tree::ptree nkv_remote_element;
@@ -520,5 +501,36 @@ bool update_mount_path(boost::property_tree::ptree & pt,
   }
     
   return true;
-} 
+}
 
+/* Function Name: device_path_exist
+ * Parameters   : <std::String> - Remote device path , i.e /dev/nvme0n1
+ * Returns      : bool 
+ * Description  : Check if remote device path (/dev/nvme1n1 exist in the host machine?
+ *                On success return true
+ */
+
+bool device_path_exist(const std::string remote_device_path )
+{
+  const std::string sys_block_path = SYS_BLOCK_PATH;
+
+  path p(sys_block_path);
+  if ( exists(p) && is_directory(p) ) {
+    // Search for nvme directories
+    for( auto it = directory_iterator(p); it != directory_iterator(); it++) {
+            
+      if( is_directory( it->path() ) ) {
+        std::string nvme_dir  = it->path().filename().string(); // nvme dir such as nvme0n1
+        if ( nvme_dir.compare(0,4,"nvme") == 0 ) {
+          // Check ip address and port from the address file for each ip transport ip address
+          std::string device_path = "/dev/" + nvme_dir;
+          if ( remote_device_path.compare( device_path ) == 0 ){
+            return true;
+          }
+        }
+      }
+    } // End of for
+  }
+  return false;
+}
+ 

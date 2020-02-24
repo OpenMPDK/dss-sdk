@@ -21,7 +21,7 @@
   "nkv_need_path_stat" : 0,
   "nkv_event_handler": 1,
   "nkv_event_polling_interval_in_sec": 60,
-  "event_subscribe_channel": "TARGET,SUBSYSTEM,NETWORK",
+  "event_subscribe_channel": "NETWORK,SUBSYSTEM,TARGET",
   "mq_address":"tcp://10.1.51.2:6001"
 }
 

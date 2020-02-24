@@ -323,12 +323,12 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
 
         if (ret){
           if ( ! cm->get_clustermap(pt)) {
-            nkv_cnt_list->parse_add_container(pt);
             smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
             if (! add_remote_mount_path(pt) ){
               smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
               return NKV_ERR_CONFIG;
             }
+            nkv_cnt_list->parse_add_container(pt);
 
           } else{
             smg_error(logger, "NKV: Falied to receive cluster map information ... ");
@@ -346,9 +346,6 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
 
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
-
-  if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path))
-    return NKV_ERR_CONFIG; 
 
   if (*nkv_handle != 0 && *instance_uuid != 0) {
     // All good, start initializing open_mpdk stuff
@@ -377,8 +374,15 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       smg_info(logger, "Setting environment for open mpdk is successful for app = %s", app_uuid);
     #endif
 
-    if(!nkv_cnt_list->open_container_paths(app_uuid))
+    if(!nkv_cnt_list->open_container_paths())
       return NKV_ERR_COMMUNICATION;
+
+    // Minimum path topology verification
+    if (!nkv_cnt_list->verify_min_topology_exists(min_container, min_container_path)) {
+      return NKV_ERR_CONFIG;
+    } else {
+      smg_info(logger, "Min subsystem/path topology verification is satisfied!");
+    }
   } else {
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
