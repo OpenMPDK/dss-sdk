@@ -62,6 +62,7 @@ int32_t nkv_listing_need_cache_stat  = 1;
 int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
 int32_t path_stat_collection = 1;
+int32_t path_stat_detailed = 0;
 int32_t nkv_use_read_cache = 0;
 int32_t nkv_use_data_cache = 0;
 int32_t nkv_read_cache_size = 1024;

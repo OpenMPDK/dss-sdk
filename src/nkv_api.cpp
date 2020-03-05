@@ -135,6 +135,9 @@ void nkv_thread_func (uint64_t nkv_handle) {
       int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
       nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
+      path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
+      path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
+
       if (nkv_dynamic_logging_old != nkv_dynamic_logging) {
         nkv_app_put_count = 0;
         nkv_app_get_count = 0;
@@ -253,6 +256,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 100);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
       path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
+      path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
       nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
       nkv_read_cache_size = pt.get<int>("nkv_read_cache_size", 1024);
@@ -903,7 +907,7 @@ nkv_result nkv_get_supported_feature_list(uint64_t nkv_handle, nkv_feature_list 
   }
 
   if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
-    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_path_stat !!", nkv_handle);
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_supported_feature_list !!", nkv_handle);
     return NKV_ERR_HANDLE_INVALID;
   }
 
@@ -928,7 +932,7 @@ nkv_result nkv_set_supported_feature_list(uint64_t nkv_handle, nkv_feature_list 
   }
 
   if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
-    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_get_path_stat !!", nkv_handle);
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_set_supported_feature_list !!", nkv_handle);
     return NKV_ERR_HANDLE_INVALID;
   }
 

@@ -70,6 +70,7 @@ struct nkv_thread_args{
   nkv_unlock_option* unlock_option;
   int check_integrity;
   int hex_dump;
+  int is_mixed;
 };
 
 void memHexDump (void *addr, int len) {
@@ -243,18 +244,175 @@ void *iothread(void *args)
     switch(targs->op_type) {
       case 0: /*PUT*/
         {
-          sprintf(val, "%0*d", klen, iter);
-          status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
-          if (status != 0) {
-            smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
-            return 0;
+      
+          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+            char*meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
+            sprintf(meta_key_1, "meta/bucket_%u/%u/1234/xl.json", targs->id, iter);
+            sprintf(meta_key_2, "meta/bucket_%u/%u/1234/part1.json", targs->id, iter);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+            char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            memset(meta_val_1, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_2, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_3, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_4, 0, NKV_TEST_META_VAL_LEN);
+            const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
+            sprintf(meta_val_1, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
+            sprintf(meta_val_2, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
+            sprintf(meta_val_3, "%s_%d_%u","nkv_test_meta1_bucket_xl.json", targs->id,iter);
+            sprintf(meta_val_4, "%s_%d_%u","nkv_test_meta1_bucket_part1.json", targs->id,iter);
+            nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN, 0 };
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta1, targs->s_option, &nkvvaluemeta1);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta1 successful, key = %s", (char*) nkvkeymeta1.key);
+            }
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta2, targs->s_option, &nkvvaluemeta2);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta2 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta2 successful, key = %s", (char*) nkvkeymeta2.key);
+            }
+
+            memset(meta_val_1, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_2, 0, NKV_TEST_META_VAL_LEN);
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta1, targs->r_option, &nkvvaluemeta1);
+            if (status != 0) {
+              smg_error(logger, "NKV Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta1.key,
+                      (char*) nkvvaluemeta1.value, nkvvaluemeta1.length, nkvvaluemeta1.actual_length);
+            }
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta2, targs->r_option, &nkvvaluemeta2);
+            if (status != 0) {
+              smg_error(logger, "NKV Retrieve meta2 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta2.key,
+                      (char*) nkvvaluemeta2.value, nkvvaluemeta2.length, nkvvaluemeta2.actual_length);
+            }
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta3, targs->s_option, &nkvvaluemeta3);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta3 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta3 successful, key = %s", (char*) nkvkeymeta3.key);
+            }
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta4, targs->s_option, &nkvvaluemeta4);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta4 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta4 successful, key = %s", (char*) nkvkeymeta4.key);
+            }
+            //Main put
+            sprintf(val, "%0*d", klen, iter);
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+            if (status != 0) {
+              smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store successful, key = %s", key_name);
+            }
+            //End
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta1);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta1 successful, key = %s", (char*) nkvkeymeta1.key);
+            }
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta2);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta2 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta2 successful, key = %s", (char*) nkvkeymeta2.key);
+            }
+
           } else {
-            smg_info(logger, "NKV Store successful, key = %s", key_name);
+
+            sprintf(val, "%0*d", klen, iter);
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+            if (status != 0) {
+              smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store successful, key = %s", key_name);
+            }
           }
         }
         break;
       case 1: /*GET*/
         {
+          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+
+            char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+            char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            memset(meta_val_3, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_4, 0, NKV_TEST_META_VAL_LEN);
+            const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
+            nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN, 0 };
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta3, targs->r_option, &nkvvaluemeta3);
+            if (status != 0) {
+              smg_error(logger, "NKV Retrieve meta3 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Retrieve meta3 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta3.key,
+                      (char*) nkvvaluemeta3.value, nkvvaluemeta3.length, nkvvaluemeta3.actual_length);
+            }
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta4, targs->r_option, &nkvvaluemeta4);
+
+            if (status != 0) {
+
+              smg_error(logger, "NKV Retrieve meta4 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+              return 0;
+
+            } else {
+              smg_info(logger, "NKV Retrieve meta4 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
+                      (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
+            }
+            
+          }
+
           status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
           if (status != 0) {
             smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
@@ -264,18 +422,138 @@ void *iothread(void *args)
                     (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
           }
 
+
+
         }
         break;
 
       case 2: /*DEL*/
         {
-          status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
-          if (status != 0) {
-            smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
-            return 0;
+          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+            char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+
+            char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            memset(meta_val_3, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_4, 0, NKV_TEST_META_VAL_LEN);
+            const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
+            nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN, 0 };
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta3, targs->r_option, &nkvvaluemeta3);
+            if (status != 0) {
+              smg_error(logger, "NKV Retrieve meta3 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Retrieve meta3 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta3.key,
+                      (char*) nkvvaluemeta3.value, nkvvaluemeta3.length, nkvvaluemeta3.actual_length);
+            }
+
+            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta4, targs->r_option, &nkvvaluemeta4);
+
+            if (status != 0) {
+
+              smg_error(logger, "NKV Retrieve meta4 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+              return 0;
+
+            } else {
+              smg_info(logger, "NKV Retrieve meta4 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
+                      (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
+            }
+
+            char*meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
+            memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
+            sprintf(meta_key_1, "meta/bucket_%u/%u/1234/xl.json", targs->id, iter);
+            sprintf(meta_key_2, "meta/bucket_%u/%u/1234/part1.json", targs->id, iter);
+
+            char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            memset(meta_val_1, 0, NKV_TEST_META_VAL_LEN);
+            memset(meta_val_2, 0, NKV_TEST_META_VAL_LEN);
+            const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
+            const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
+            sprintf(meta_val_1, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
+            sprintf(meta_val_2, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
+
+            nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta1, targs->s_option, &nkvvaluemeta1);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta1 successful, key = %s", (char*) nkvkeymeta1.key);
+            }
+
+            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta2, targs->s_option, &nkvvaluemeta2);
+            if (status != 0) {
+              smg_error(logger, "NKV Store meta2 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Store meta2 successful, key = %s", (char*) nkvkeymeta2.key);
+            }
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta3);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta3 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta3 successful, key = %s", (char*) nkvkeymeta1.key);
+            }
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta4);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta4 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta4 successful, key = %s", (char*) nkvkeymeta4.key);
+            }
+            //Main delete
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
+            }
+            //end
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta1);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta1 successful, key = %s", (char*) nkvkeymeta1.key);
+            }
+
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkeymeta2);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete meta2 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete meta2 successful, key = %s", (char*) nkvkeymeta2.key);
+            }
+
+
           } else {
-            smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
+            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
+            if (status != 0) {
+              smg_error(logger, "NKV Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
+            }
           }
+
         }
         break;
 
@@ -827,6 +1105,7 @@ do {
       args[i].unlock_option = &unlock_option;
       args[i].check_integrity = check_integrity;
       args[i].hex_dump = hex_dump;
+      args[i].is_mixed = is_mixed;
 
       /*cpu_set_t cpus;
       pthread_attr_init(attr);
