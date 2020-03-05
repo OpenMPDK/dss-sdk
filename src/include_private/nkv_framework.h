@@ -535,7 +535,14 @@
       
         one_p = p_iter->second;
 
+        // Fix checking path status before sending IO to that path
         if (one_p) {
+          if (! one_p->get_target_path_status() ) {
+            smg_error(logger, "Container Path down !!, Path ip=%s dev_path=%s status = %d", one_p->path_ip.c_str(),
+                      one_p->dev_path.c_str(), one_p->get_target_path_status());
+            stat = NKV_ERR_CNT_PATH_DOWN;
+            continue;
+          }
           if (!post_fn) {
             smg_info(logger, "Sending IO to dev mount = %s, container name = %s, target node = %s, path ip = %s,"
 		  "path port = %d, key = %s, key_length = %u, op = %d, cur_qd = %u", 
@@ -991,13 +998,15 @@
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
           smg_debug(logger, "Inspecting path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
+                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, one_path->get_target_path_status());
           // Check path_status as well
           if (one_path->get_target_path_status() && ! one_path->path_ip.empty()
               && ! one_path->dev_path.empty()) {
             device_path_count++;
           } else {
-            smg_error(logger, "No IP or mount point (for TCP over KDD only) provided !");
+            smg_error(logger, "Path DOWN address = %s , dev_path = %s, status = %d",
+                      one_path->path_ip.c_str(), one_path->dev_path.c_str(),
+                      one_path->get_target_path_status());
           }
            
         } else {
