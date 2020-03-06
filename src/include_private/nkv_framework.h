@@ -1744,17 +1744,16 @@
                 // Generally if subsystem/NIC is back within re-connection time period, then automatically
                 // gets mounted on the same remote mount point, else we need to perform nvme connect. 
                 if ( ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
-                  if (nvme_connect(target_ptr->target_container_name, target_path_ptr->path_ip, target_path_ptr->path_port)) {
-                    usleep(1000 * 10);
+                  if (nvme_connect(target_ptr->target_container_name, target_path_ptr->path_ip,
+                      target_path_ptr->path_port, target_path_ptr->path_type)) {
+                    remote_device_exist = true;
                   }
                 } else {
                   remote_device_exist = true;
                 }
                 
                 // Check mount point exist for an nqn:ip:port?
-                if ( ! remote_device_exist && ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
-                  smg_error(logger, "NVME device doesn't exist for %s", nqn_address_port.c_str() );
-                } else {
+                if ( remote_device_exist &&  get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
                   std::string remote_device_path = "/dev/" + subsystem_nqn_to_nvme_dir[nqn_address_port];
                   if ( remote_device_path.compare(target_path_ptr->dev_path) != 0 ) {
                     target_path_ptr->dev_path = remote_device_path;
@@ -1769,6 +1768,8 @@
                     smg_error(logger,"Remote mount path=%s ip=%s, nqn=%s opened failed!!", (target_path_ptr->dev_path).c_str(),
                              (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
                   }
+                } else {
+                  smg_error(logger, "NVME device doesn't exist for %s", nqn_address_port.c_str() );
                 }
               } else {
                 // Update target path status to down.

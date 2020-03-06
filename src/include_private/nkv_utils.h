@@ -59,6 +59,7 @@ using namespace std;
 
 extern c_smglogger* logger;
 #define NKV_DEFAULT_STAT_FILE "./disk_stats.py"
+#define TRANSPORT_PROTOCOL_SIZE 2
 
 int32_t nkv_cmd_exec(const char* cmd, std::string& result); 
 
@@ -142,5 +143,9 @@ template<typename K, typename V>
     uint64_t _max_size;
     std::mutex lru_lock;
   };
+
+// NKV transporter mapping
+extern std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE];
+bool get_nkv_transport_type(int32_t transport, std::string& transport_type);
 
 #endif

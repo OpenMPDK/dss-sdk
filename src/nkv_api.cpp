@@ -288,6 +288,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       event_subscribe_channel = pt.get<std::string>("event_subscribe_channel");
       mq_address = pt.get<std::string>("mq_address");
       nkv_event_polling_interval_in_sec = pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60);
+      nvme_connect_delay_in_mili_sec =  pt.get<uint32_t>("nvme_connect_delay_in_mili_sec", 20);
     }
 
     if (!nkv_is_on_local_kv) {
@@ -358,7 +359,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       kvs_init_env_opts(&options);
     #endif
 
-    if ((NKV_TRANSPORT_LOCAL_KERNEL == nkv_transport) || (NKV_TRANSPORT_NVMF_TCP_KERNEL == nkv_transport)) {
+    if ((NKV_TRANSPORT_LOCAL_KERNEL == nkv_transport) || (NKV_TRANSPORT_NVMF_TCP_KERNEL == nkv_transport
+         || NKV_TRANSPORT_NVMF_RDMA_KERNEL == nkv_transport)) {
       smg_info(logger,"**NKV transport is Over kernel**");
       #ifdef SAMSUNG_API
         options.aio.iocoremask = 0;

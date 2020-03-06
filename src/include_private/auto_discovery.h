@@ -61,6 +61,7 @@ using namespace boost::filesystem;
 
 
 extern c_smglogger* logger;
+extern uint32_t nvme_connect_delay_in_mili_sec;
 
 /************
  * Auto Discovery: Discover the remote mount path from the host machine.
@@ -109,12 +110,14 @@ void nvme_discovery(std::string ip_address,
  * Input Params : <string> Subsystem NQN
  *                <string> Transport IP Address
  *                <string> Transport PORT
+ *                <int32_t> Transport Protocol such as 0/1 => tcp/rdma
  * Return       : <bool> Success/Failure
  * Description  : Perform NVME connect for a transport ip and port.
  */
 bool nvme_connect(std::string subsystem_nqn,
                   std::string address,
-                  int32_t port);
+                  int32_t port,
+                  int32_t transport_type);
 
 /* Function Name: nvme_disconnect
  * Input Params : <string> Subsystem NQN
