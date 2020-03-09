@@ -33,6 +33,7 @@
 
 
 #include "auto_discovery.h"
+#include "nkv_utils.h"
 
 /************
  * Auto Discovery: Discover the remote mount path from the host machine.
@@ -46,6 +47,7 @@
  *   Connect if some ip is not connected.
  */
 
+uint32_t nvme_connect_delay_in_mili_sec = 20; // delay Mili second 
 
 bool split_lines(const std::string& result, char delimiter, vector<string>& lines)
 {
@@ -130,14 +132,22 @@ void nvme_discovery(std::string ip_address,
  * Input Params : <string> Subsystem NQN
  *                <string> Transport IP Address
  *                <string> Transport PORT
+ *                <string> Transport protocol such as tcp/rdma
  * Return       : <bool> Success/Failure
  * Description  : Perform NVME connect for a transport ip and port.
  */
 bool nvme_connect(std::string subsystem_nqn,
                   std::string address,
-                  int32_t port)
+                  int32_t port,
+                  int32_t transport_type)
 {
-  std::string connect_cmd("nvme connect -t tcp -a " + address + " -n " + subsystem_nqn + " -s " + std::to_string(port) + " 2>&1");
+  std::string transport_protocol;
+  if( ! get_nkv_transport_type(transport_type, transport_protocol)) {
+    return false;
+  }
+  std::string connect_cmd("nvme connect -t " + transport_protocol + " -a " + address +
+                    " -n " + subsystem_nqn + " -s " + std::to_string(port) + " 2>&1");
+  smg_debug(logger, "DEBUG: nvme_connect command- %s", connect_cmd.c_str());
   std::string error;
   std::string nqn_address_port = subsystem_nqn + ":" + address + ":" + std::to_string(port);
   if (nkv_cmd_exec(connect_cmd.c_str(), error)){
@@ -153,6 +163,10 @@ bool nvme_connect(std::string subsystem_nqn,
       smg_alert(logger, "nvme connect SUCCESS for %s", nqn_address_port.c_str());
     }
   }
+
+  smg_info(logger, "AutoDiscovery: Adding %d mili sceonds delay to establish remote mount point", nvme_connect_delay_in_mili_sec);
+  usleep( 1000 * nvme_connect_delay_in_mili_sec ); 
+
   return true;
 }
 
@@ -297,7 +311,7 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn)
  *                path "/dev/nvme0n1" etc.
  */
 bool get_nvme_mount_dir( std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
-                         const std::string& subsystem_nqn_address_port 
+                         const std::string& subsystem_nqn_address_port = ""
                        )
 {
   bool is_path_updated = false;
@@ -393,6 +407,7 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
         std::string subsystem_address = subsystem_transport.get<std::string>("subsystem_address");
         int32_t subsystem_port = subsystem_transport.get<int>("subsystem_port");
         int32_t subsystem_interface_status = subsystem_transport.get<int>("subsystem_interface_status");
+        int32_t transport_type = subsystem_transport.get<int>("subsystem_type"); 
 
         // Skip if NIC is down
         if ( ! subsystem_interface_status ) {
@@ -411,8 +426,7 @@ bool add_remote_mount_path(boost::property_tree::ptree & pt)
                     
           // When subsystem_ip_port from cluster map is not mounted, connect using nvme connect
           smg_info(logger, "Auto Discovery: %s is not mounted",subsystem_nqn_address_port.c_str() );
-          if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port)) {
-            usleep(1000 * 10); // Add a sleep for connection to complete.
+          if (nvme_connect(subsystem_nqn, subsystem_address, subsystem_port, transport_type)) {
             // Update ip_to_nvme mapping with new mounted remote disk
             if ( ! get_nvme_mount_dir(ip_to_nvme, subsystem_nqn_address_port) ) {
               smg_error(logger, "Auto Discovery: NVME device doesn't exist for %s", subsystem_nqn_address_port.c_str() );
