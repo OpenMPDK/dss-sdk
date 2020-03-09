@@ -96,3 +96,15 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
   return NKV_SUCCESS;
 }
 
+std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE] = {"tcp", "rdma"};
+
+bool get_nkv_transport_type(int32_t transport, std::string& transport_type)
+{
+  if ( transport >= TRANSPORT_PROTOCOL_SIZE ) {
+    smg_error(logger, "Wrong transport protocol=%d, Supported protocol tcp=0,rdma=1", transport);
+    return false;
+  }
+  transport_type = nkv_transport_mapping[transport];
+  return true;
+}
+
