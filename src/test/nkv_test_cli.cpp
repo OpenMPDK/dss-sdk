@@ -688,7 +688,7 @@ void usage(char *program)
   printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
   printf("-a      async_mode      :  Execution will be done in async mode  \n");
   printf("-w      working key     :  CLI will only work on the key passed  \n");
-  printf("-s      subsystem ip    :  CLI will send io to this ip only  \n");
+  printf("-s      mount_point     :  CLI will send io to this mount_point only  \n");
   printf("-t      threads         :  number of threads in case of sync IO  \n");
   printf("-d      mixed_io        :  small meta io before doing a big io  \n");
   printf("-x      hex_dump        :  Inspect memory dump  \n");
@@ -704,7 +704,7 @@ int main(int argc, char *argv[]) {
   char* config_path = NULL;
   char* host_name_ip = NULL;
   char* key_to_work = NULL;
-  char* subsystem_ip = NULL;
+  char* subsystem_mp = NULL;
   int32_t port = -1;
   uint64_t num_ios = 10;
   //int qdepth = 64;
@@ -775,7 +775,7 @@ int main(int argc, char *argv[]) {
       key_to_work = optarg;
       break;
     case 's':
-      subsystem_ip = optarg;
+      subsystem_mp = optarg;
       break;
     case 't':
       num_threads = atoi(optarg);
@@ -830,8 +830,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   if (key_to_work != NULL) {
-    if (!subsystem_ip) {
-      smg_error(logger,"Please provide an ip to send the io");
+    if (!subsystem_mp) {
+      smg_error(logger,"Please provide a mount_point to send the io");
       usage(argv[0]);
       exit(1);
 
@@ -905,7 +905,7 @@ do {
               cntlist[i].transport_list[p].port, cntlist[i].transport_list[p].addr_family, cntlist[i].transport_list[p].speed, 
               cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node, cntlist[i].transport_list[p].mount_point);
 
-      if (subsystem_ip && (0 != strcmp(cntlist[i].transport_list[p].ip_addr, subsystem_ip)))
+      if (subsystem_mp && (0 != strcmp(cntlist[i].transport_list[p].mount_point, subsystem_mp)))
         continue;
       io_ctx[io_ctx_cnt].is_pass_through = 1;
       io_ctx[io_ctx_cnt].container_hash = cntlist[i].container_hash;
@@ -1007,11 +1007,19 @@ do {
   if (key_to_work != NULL) {
     smg_info(logger, "CLI will only work on key = %s, op = %d", key_to_work, op_type);
     assert(io_ctx_cnt == 1);
+    char* key_name = NULL;
+    if (klen != 16) {
+      key_name   = (char*)nkv_malloc(klen);
+      memset(key_name, 0, klen);
+      sprintf(key_name, "%s", key_to_work);
+    } else {
 
-    klen = strlen (key_to_work);
+      klen = strlen (key_to_work);
+      key_name = key_to_work;
+    }
     char *val   = (char*)nkv_zalloc(vlen);
     memset(val, 0, vlen);
-    const nkv_key  nkvkey = { (void*)key_to_work, klen};
+    const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, vlen, 0 };
     
     switch(op_type) {
