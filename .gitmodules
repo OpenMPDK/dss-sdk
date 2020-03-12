@@ -1,15 +1,13 @@
-[submodule "src/openmpdk"]
-	path = src/openmpdk
-	#url = https://github.com/OpenMPDK/KVSSD.git
+[submodule "host/src/openmpdk"]
+	path = host/src/openmpdk
 	url = git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-openmpdk.git
-	branch = master
-[submodule "src/logger/log4cpp"]
-	path = src/logger/log4cpp
+        #url = https://github.com/OpenMPDK/KVSSD.git
+[submodule "host/src/logger/log4cpp"]
+	path = host/src/logger/log4cpp
 	url = https://github.com/orocos-toolchain/log4cpp.git
-	branch = stable
-[submodule "src/zeromq/libzmq"]
-	path = src/zeromq/libzmq
+[submodule "host/src/zeromq/libzmq"]
+	path = host/src/zeromq/libzmq
 	url = https://github.com/zeromq/libzmq.git
-[submodule "src/zeromq/zmqpp"]
-	path = src/zeromq/zmqpp
+[submodule "host/src/zeromq/zmqpp"]
+	path = host/src/zeromq/zmqpp
 	url = https://github.com/zeromq/zmqpp.git
