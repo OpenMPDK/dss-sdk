@@ -11,7 +11,8 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_BINARY_DIR}/src/logger/log4cpp/include)
 
 
 target_link_libraries(${PROJECT_NAME}
-    log4cpp
+    #log4cpp
+    orocos-log4cpp
 )
 
 #install(TARGETS ${PROJECT_NAME} DESTINATION ${INSTALL_LIB_DIR} )
