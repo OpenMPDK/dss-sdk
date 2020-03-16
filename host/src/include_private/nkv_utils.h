@@ -51,6 +51,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
 #include "nkv_struct.h"
 #include "nkv_result.h"
 #include "csmglogger.h"
@@ -147,5 +148,6 @@ template<typename K, typename V>
 // NKV transporter mapping
 extern std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE];
 bool get_nkv_transport_type(int32_t transport, std::string& transport_type);
+int32_t get_nkv_transport_value(std::string transport_type);
 
 #endif

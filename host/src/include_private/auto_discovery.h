@@ -173,7 +173,7 @@ void get_subsystem_nqn(std::string& nvme_base_path, std::string& subsystem_nqn);
  *                path "/dev/nvme0n1" etc.
  */
 bool get_nvme_mount_dir( std::unordered_map<std::string,std::string>& ip_to_nvme_mount_dir,
-                         const std::string& subsystem_nqn_address_port = ""
+                         const std::string& subsystem_nqn_address_port
                        );
 
 /* Function Name: get_remote_mount_path

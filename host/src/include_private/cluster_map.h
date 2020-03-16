@@ -39,10 +39,15 @@
 #include<string>
 #include<cstdint>
 #include<curl/curl.h>
+#include<sys/socket.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
 #include "csmglogger.h"
+#include "nkv_utils.h"
+
+#define HTTP_SUCCESS 200
 
 using boost::property_tree::ptree;
 using boost::property_tree::read_json;
@@ -50,23 +55,39 @@ using boost::property_tree::write_json;
 using namespace std;
 
 extern c_smglogger* logger;
+extern long REST_CALL_TIMEOUT;
 
 class ClusterMap
 {
-  const std::string URL;
-  std::string rest_response; // rest response
+  const std::string host;
+  const std::string endpoint; // root endpoint 
+  bool redfish_compliant;
+  std::string cluster_map; // rest json response in string
+  ptree cluster_map_json; // ClusterMap in JSON format.
   public:
   ClusterMap(){};
-  ClusterMap(std::string rest_url):URL(rest_url) {}
+  ClusterMap(std::string host, std::string endpoint, bool redfish_compliant ):
+             host(host),endpoint(endpoint), redfish_compliant(redfish_compliant) {}
   ~ClusterMap(){};
-  bool get_response(std::string& response, const long TIMEOUT=10);
+  bool process_clustermap();
   bool get_clustermap(ptree& clustermap);
-  const std::string& get_rest_url();
+  const std::string get_rest_url() const;
 
   //const std::string& get_cluster_status();
 
 
 };
+
+bool RESTful(std::string& response, std::string& URL);
+
+// Functions related to REDfish api
+bool redfish_api(ptree& cluster_map_json, const std::string& host, const std::string& endpoint);
+bool add_transporter(ptree& transporter, const std::string& host, std::string& interface_url);
+bool add_subsystem(ptree& subsystem, const std::string& host, std::string& url);
+bool is_subsystem(std::string& url);
+double get_subsystem_storage(std::string& url);
+bool get_transporter_address(ptree& transporter, ptree& interface_pt);
+
 
 
 #endif

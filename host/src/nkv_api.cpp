@@ -319,12 +319,13 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         return NKV_ERR_CONFIG;
     } else if (connect_fm) {
         // Add logic to contact FM and then give that json ptree to the parse_add_container call
-        const long fm_connection_timeout     = pt.get<long>("fm_connection_timeout", 60);
-        std::string url = fm_address + fm_endpoint;
-
-        ClusterMap* cm = new ClusterMap(url);
-        std::string response("");
-        bool ret = cm->get_response(response, fm_connection_timeout);
+        if ( pt.get<long>("fm_connection_timeout", 0 ) ) {
+          REST_CALL_TIMEOUT = pt.get<long>("fm_connection_timeout");
+        }
+        //std::string url = fm_address + fm_endpoint;
+        int32_t fm_redfish_compliant = pt.get<long>("fm_redfish_compliant", 1 );
+        ClusterMap* cm = new ClusterMap(fm_address, fm_endpoint, fm_redfish_compliant);
+        bool ret = cm->process_clustermap();
 
         if (ret){
           if ( ! cm->get_clustermap(pt)) {
@@ -340,7 +341,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
             return NKV_ERR_CONFIG;
           }
         } else{
-          smg_error(logger, "NKV: Response not recived from Fabric Manager ...");
+          smg_error(logger, "NKV: Falied to receive cluster map from Fabric Manager ...");
           return NKV_ERR_CONFIG;
         }
 

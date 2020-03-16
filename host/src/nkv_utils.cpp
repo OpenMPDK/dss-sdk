@@ -98,6 +98,13 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
 
 std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE] = {"tcp", "rdma"};
 
+/* Function Name: get_nkv_transport_type
+ * Input Agrs   : <int32_t> = transport value 0/1 => tcp/rdma
+ *                <std::string&> = transport type such as tcp,rdma etc.
+ * Return       : <bool> on success respective value is updated on transport var.
+ *                On failure a false is returned.
+ * Description  : Convert transport value to a corresponding string value.
+ */
 bool get_nkv_transport_type(int32_t transport, std::string& transport_type)
 {
   if ( transport >= TRANSPORT_PROTOCOL_SIZE ) {
@@ -106,5 +113,22 @@ bool get_nkv_transport_type(int32_t transport, std::string& transport_type)
   }
   transport_type = nkv_transport_mapping[transport];
   return true;
+}
+
+/* Function Name: get_nkv_transport_value
+ * Input Agrs   : <std::string&> = transport type such as tcp,rdma etc.
+ * Return       : <int32_t> on success respective value for transport type.
+ *                On failure -1.
+ * Description  : Convert transport type to a corresponding integer value.
+ */
+int32_t get_nkv_transport_value(std::string transport_type)
+{
+  for( int32_t index = 0; index < TRANSPORT_PROTOCOL_SIZE; index++) {
+    boost::to_lower(transport_type);
+    if ( nkv_transport_mapping[index] == transport_type ) {
+      return index;
+    }
+  }
+  return -1;
 }
 
