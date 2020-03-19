@@ -52,8 +52,17 @@ Build open_mpdk driver: ( Local NKV )
     nvme                   62347  0
     nvme_core              50009  0
 
-Istall open_mpdk driver: ( Remote NKV )
+Build and istall open_mpdk driver: ( Remote NKV )
 ---------------------
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v5.1
+ 2. make clean
+ 3. make all
+
+ Install:
+ 1. ./re_insmod.sh   // Disconnect all nvme remote device, remove driver module and insert to the kernel.
+
+ OR
+
  1. nvme disconnect-all
  2. sudo rmmod nvme-tcp; sudo rmmod nvme-fabrics;sudo rmmod nvme;sudo rmmod nvme-core
  3. cd nkv-sdk/openmpdk_driver/kernel_v5.1
