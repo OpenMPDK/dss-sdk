@@ -80,16 +80,6 @@ class ClusterMap
 
 bool RESTful(std::string& response, std::string& URL);
 
-// Functions related to REDfish api
-bool redfish_api(ptree& cluster_map_json, const std::string& host, const std::string& endpoint);
-bool add_transporter(ptree& transporter, const std::string& host, std::string& interface_url);
-bool add_subsystem(ptree& subsystem, const std::string& host, std::string& url);
-bool is_subsystem(std::string& url);
-double get_subsystem_storage(std::string& url);
-bool get_transporter_address(ptree& transporter, ptree& interface_pt);
-
-
-
 #endif
 
 
