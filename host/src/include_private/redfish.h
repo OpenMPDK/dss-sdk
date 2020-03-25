@@ -23,8 +23,8 @@ using namespace std;
 
 extern c_smglogger* logger;
 
-class Storage;
 class Subsystem;
+class Storage;
 class Interface;
 class Drive;
 
@@ -35,7 +35,6 @@ class Redfish
     std::string version; // To be added by Redfish team.
     std::string name;
     std::string description;
-    //std::vector<Subsystem*> subsystems;
     std::unordered_map<std::string, Subsystem*> subsystemsMap;
     
     const std::string host;
@@ -44,7 +43,7 @@ class Redfish
     Redfish(){}
     Redfish(std::string& _host, std::string& _endpoint):host(_host),endpoint(_endpoint){}
     Redfish(const std::string& _host, const std::string& _endpoint):host(_host),endpoint(_endpoint){}
-    ~Redfish(){}
+    ~Redfish();
     void process_redfish_api();
     bool get_clustermap(ptree& cluster_map);
     const std::string get_redfish_version() { return version; }
@@ -73,9 +72,9 @@ class Subsystem
   public:
   Subsystem(){}
   Subsystem(const std::string& host, const std::string& endpoint):host(host),endpoint(endpoint){}
-  ~Subsystem(){}
+  ~Subsystem();
   void get_subsystem_info(ptree& subsystem_pt) const;
-  void process_subsystem();
+  bool process_subsystem();
   bool add_interface(std::string interface_endpoint);
   bool add_storage();
   const std::string get_nqn() { return subsystem_nqn; }
@@ -87,22 +86,22 @@ class Storage
 {
   uint64_t capacity_bytes;
   double  percent_available;
-  std::unordered_map<uint64_t, Drive*> drivesMap;
+  std::unordered_map<std::string, Drive*> drivesMap;
   uint32_t drives_count;
   std::string id;
   std::string description;
   
-  const std::string subsystem_nqn;
   const std::string host;
   const std::string endpoint;
+  const std::string subsystem_nqn;
   public:
   Storage(){}
   Storage(const std::string& _host, const std::string& _endpoint, const std::string& _nqn):host(_host),
                                       endpoint(_endpoint), subsystem_nqn(_nqn)  {}
-  ~Storage(){}
+  ~Storage();
   void get_storage_info(ptree& storage_pt);
   double get_available_space() { return percent_available;}
-  void process_storage();
+  bool process_storage();
   bool add_drive(std::string drive_endpoint);
   std::string get_subsystem_nqn() { return subsystem_nqn; }
 };
@@ -131,7 +130,7 @@ class Drive
     Drive(std::string _host, std::string _endpoint):host(_host),endpoint(_endpoint) {}
     ~Drive(){}
     void get_drive_info(ptree& drive_pt);
-    void process_drive();
+    bool process_drive();
     std::string get_id() { return id;}
 };
 
@@ -153,10 +152,13 @@ class Interface
   ~Interface(){}
   int64_t get_interface_speed() { return interface_speed; }
   int32_t get_subsystem_type() { return get_nkv_transport_value(transport_type); }
-  bool get_interface_address(ptree& interface_pt);
+  void get_interface_address(ptree& interface_pt);
   std::string get_address(){ return address;}
   void get_interface_info(ptree& interface_pt);
-  void process_interface();  
+  bool process_interface();  
 };
+
+// Redfish return from REST call
+bool check_redfish_rest_call_status(ptree& response, std::string uri);
 
 #endif

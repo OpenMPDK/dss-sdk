@@ -3,7 +3,7 @@
 //#include "nkv_utils.h"
 
 // LinkStatus based on REdfish API spec.
-std::unordered_map<std::string, uint32_t> link_status = { {"LinkUp", 1 },
+std::unordered_map<std::string, int32_t> link_status = { {"LinkUp", 1 },
                                                           {"LinkDown", 0},
                                                           {"NoLink",-1} };
 
@@ -17,46 +17,47 @@ void Redfish::process_redfish_api()
 {
   std::string systems;
   std::string uri = host+endpoint;
-  RESTful(systems, uri);
-
-  bool is_subsystem_added = false;
-  ptree root_pt;
-  try{
+  if ( RESTful(systems, uri)) {
+    ptree root_pt;
     std::istringstream systems_is (systems);
     read_json(systems_is, root_pt);
-  
-    // Process Root
-    BOOST_FOREACH(boost::property_tree::ptree::value_type &value, root_pt.get_child("Members")) {
-      assert(value.first.empty());
-      boost::property_tree::ptree subsystem_pt = value.second;
-      std::string subsystem_url;
-      for(auto it: subsystem_pt ){
-        subsystem_url = it.second.data();
-      }
-      // Determine if the URL is subsystem 
-      if (! is_subsystem(subsystem_url)) {
-        continue;
-      }
-      // Add subsystem
-      Subsystem* subsystem = new Subsystem(host, subsystem_url);
-      subsystem->process_subsystem();
-      std::string subsystem_nqn = subsystem->get_nqn();
-      subsystemsMap[subsystem_nqn] = subsystem;
-      is_subsystem_added = true;
+    if ( check_redfish_rest_call_status(root_pt, uri) ) {
+      bool is_subsystem_added = false;
+      try{
+        name = root_pt.get<std::string>("Name");
+        description = root_pt.get<std::string>("Description");
+        //TODO add redfish api version and print that here.
 
-      // Just for DEBUG
-      //ptree subsystem_info_pt;
-      //subsystem->get_subsystem_info(subsystem_info_pt);
-      //boost::property_tree::write_json(std::cout, subsystem_info_pt);
-    }
-  }
-  catch( exception& e )
-  {
-    smg_error(logger,"Exception:-%s- %s", __func__, e.what());
-  }
-  // Add warning message
-  if (! is_subsystem_added ) {
-    smg_error(logger, "Redfish API - no subsytem has been found ... ");
+        // Process subsystems
+        BOOST_FOREACH(boost::property_tree::ptree::value_type &value, root_pt.get_child("Members")) {
+          assert(value.first.empty());
+          boost::property_tree::ptree subsystem_pt = value.second;
+          std::string subsystem_url;
+          for(auto it: subsystem_pt ){
+            subsystem_url = it.second.data();
+          }
+          // Determine if the URL is subsystem 
+          if (! is_subsystem(subsystem_url)) {
+            continue;
+          }
+          // Add subsystem
+          Subsystem* subsystem = new Subsystem(host, subsystem_url);
+          if ( subsystem->process_subsystem() ) {
+            std::string subsystem_nqn = subsystem->get_nqn();
+            subsystemsMap[subsystem_nqn] = subsystem;
+            is_subsystem_added = true;
+          }
+        }
+        // Add warning message
+        if (! is_subsystem_added ) {
+          smg_error(logger, "Redfish API - no subsytem has been found ... ");
+        }
+      } catch( exception& e ) {
+        smg_error(logger,"Exception:-%s- %s", __func__, e.what());
+      }
+    } 
+  } else {
+    smg_error(logger, "%s - Bad host - %s", __func__, host.c_str());
   }
 }
 
@@ -130,73 +131,92 @@ bool Redfish::get_clustermap(ptree& cluster_map)
  * Return       : None
  * Description  : Process subsystem along with interfaces and storage.
  */
-void Subsystem::process_subsystem()
+bool Subsystem::process_subsystem()
 {
   // Rest call
   std::string rest_response;
   std::string subsystem_url = host + endpoint;
-  if ( ! RESTful(rest_response, subsystem_url) ){
-    smg_error(logger, "Failed to read subsystem information from %s", subsystem_url.c_str());
-  }
+  RESTful(rest_response, subsystem_url);
   ptree pt;
   std::istringstream iss_subsystem (rest_response);
   read_json(iss_subsystem, pt);
-  
-  BOOST_FOREACH(boost::property_tree::ptree::value_type &value, pt.get_child("Identifiers")) {
-    assert(value.first.empty());
-    boost::property_tree::ptree identifiers = value.second;
-    if ( identifiers.get<std::string>("DurableNameFormat") == "NQN" ) {
-      subsystem_nqn = identifiers.get<std::string>("DurableName"); 
-    }
+  if ( !check_redfish_rest_call_status(pt, subsystem_url) ){
+    smg_error(logger, "Failed to read subsystem information from %s", subsystem_url.c_str());
+    return false;
   }
-  //subsytem_nqn
-  std::vector<std::string> uuids; // {target_uuid}.{subsystem_uuid}
-  std::string subsystem_uuid  = pt.get<std::string>("Id", "default.default");
-  boost::split(uuids, subsystem_uuid , boost::is_any_of("."));
-  subsystem_nqn_id = uuids[1];
 
-  if ( pt.get<std::string>("Status.State", "" ) == "Enabled" && pt.get<std::string>("Status.Health", "") == "OK" ) {
-    subsystem_status =  0 ;
-  } else {
-    subsystem_status = 1 ;
-  }
-  subsystem_numa_aligned = pt.get<bool>("oem.NumaAligned");
-  subsystem_nqn_nsid = pt.get<int32_t>("oem.NSID");
-  target_server_name = pt.get<std::string>("oem.ServerName");
-  name = pt.get<std::string>("Name");
-  description = pt.get<std::string>("Description");
-
-  // Add transporters
-  std::string interfaces_url;
-  for( auto itr: pt ) {
-    if( itr.first == "@odata.id" ) {
-      interfaces_url = itr.second.data() + "/EthernetInterfaces" ;
-    }
-  }
-  // RESTful call to get all the transporters information from a subsystem.
-  std::string interfaces;
-  interfaces_url = host + interfaces_url;
-  // Rest call to the interface
-  RESTful(interfaces, interfaces_url);
-  ptree interfaces_pt;
-  std::istringstream is2 (interfaces);
-  read_json(is2, interfaces_pt);
-
-  //bool is_transporter_added =  false;
-  BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interfaces_pt.get_child("Members")) {
-    assert(value.first.empty());
-    boost::property_tree::ptree nic_pt = value.second;
-    std::string interface_url;
-    for( auto key: nic_pt) {
-      if( key.first == "@odata.id" ) {
-        interface_url = key.second.data();
+  bool is_subsystem_good = true;
+  try {
+    BOOST_FOREACH(boost::property_tree::ptree::value_type &value, pt.get_child("Identifiers")) {
+      assert(value.first.empty());
+      boost::property_tree::ptree identifiers = value.second;
+      if ( identifiers.get<std::string>("DurableNameFormat") == "NQN" ) {
+        subsystem_nqn = identifiers.get<std::string>("DurableName"); 
       }
     }
-    add_interface(interface_url);
-  }
+    //subsytem_nqn
+    std::vector<std::string> uuids; // {target_uuid}.{subsystem_uuid}
+    std::string subsystem_uuid  = pt.get<std::string>("Id", "default.default");
+    boost::split(uuids, subsystem_uuid , boost::is_any_of("."));
+    subsystem_nqn_id = uuids[1];
 
-  // Add storage
-  add_storage();
+    if ( pt.get<std::string>("Status.State", "" ) == "Enabled" && pt.get<std::string>("Status.Health", "") == "OK" ) {
+      subsystem_status =  0 ;
+    } else {
+      subsystem_status = 1 ;
+    }
+    subsystem_numa_aligned = pt.get<bool>("oem.NumaAligned");
+    subsystem_nqn_nsid = pt.get<int32_t>("oem.NSID");
+    target_server_name = pt.get<std::string>("oem.ServerName");
+    name = pt.get<std::string>("Name");
+    description = pt.get<std::string>("Description");
+
+    // Add transporters
+    std::string interfaces_url;
+    for( auto itr: pt ) {
+      if( itr.first == "@odata.id" ) {
+        interfaces_url = itr.second.data() + "/EthernetInterfaces" ;
+      }
+    }
+    // RESTful call to get all the transporters information from a subsystem.
+    std::string interfaces;
+    interfaces_url = host + interfaces_url;
+    // Rest call to the interface
+    RESTful(interfaces, interfaces_url);
+    ptree interfaces_pt;
+    std::istringstream is2 (interfaces);
+    read_json(is2, interfaces_pt);
+
+    bool is_interface_added =  false;
+    BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interfaces_pt.get_child("Members")) {
+      assert(value.first.empty());
+      boost::property_tree::ptree nic_pt = value.second;
+      std::string interface_url;
+      for( auto key: nic_pt) {
+        if( key.first == "@odata.id" ) {
+          interface_url = key.second.data();
+        }
+      }
+      // Add interface
+      if ( add_interface(interface_url) ){
+        is_interface_added = true;
+      }
+    }
+    // Error out if no interface is added.
+    if ( ! is_interface_added ) {
+      smg_error(logger, "Interface not added for subsystem - %s", subsystem_nqn.c_str());
+      is_subsystem_good = false;
+    }
+    // Add storage
+    if (! add_storage() ) {
+      smg_error(logger, "Storage information not added for subsystem - %s", subsystem_nqn.c_str());
+      is_subsystem_good = false;
+    }
+  } catch(exception& e) {
+    smg_error(logger,"Exception: %s - %s",__func__, e.what());
+    is_subsystem_good = false;
+  }
+  return is_subsystem_good;
 }
 
 /* Function Name: add_interface
@@ -206,17 +226,14 @@ void Subsystem::process_subsystem()
  */
 bool Subsystem::add_interface(std::string interface_endpoint)
 {
+  bool is_interface_added = false;
   // Create Interface object
-  try
-  {
   Interface* interface = new Interface(host, interface_endpoint);
-  interface->process_interface();
+  is_interface_added = interface->process_interface();
   std::string address = interface->get_address();
   uint64_t inf_path_hash = std::hash<std::string>{}(address);
   interfacesMap[inf_path_hash] = interface;
-  } catch(exception& e) {
-    smg_error(logger, "Exception:%s - %s", __func__, e.what());
-  }
+  return is_interface_added;
 }
 
 /* Function Name: add_storage
@@ -229,15 +246,16 @@ bool Subsystem::add_storage()
   // Get storage endpoint ...
   std::string rest_response;
   std::string storage_url = host + endpoint + "/Storage";
-  if ( ! RESTful(rest_response, storage_url) ){
-    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
-    return false;
-  }
+  RESTful(rest_response, storage_url);
   ptree storage_pt;
   std::istringstream is (rest_response);
   read_json(is, storage_pt);
-  std::string storage_endpoint;
+  if ( !check_redfish_rest_call_status(storage_pt, storage_url) ){
+    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
+    return false;
+  }
 
+  std::string storage_endpoint;
   BOOST_FOREACH(boost::property_tree::ptree::value_type &value, storage_pt.get_child("Members")) {
     assert(value.first.empty());
     boost::property_tree::ptree s_pt = value.second;
@@ -248,14 +266,15 @@ bool Subsystem::add_storage()
     }
   }
   // Create storage object
+  bool is_storage_good = false;
   if( ! storage_endpoint.empty() ) {
     storage = new Storage(host, storage_endpoint, subsystem_nqn);
-    storage->process_storage();
+    is_storage_good = storage->process_storage();
     subsystem_avail_percent = storage->get_available_space();
   } else {
     smg_error(logger, "%s:Storage endpoint is not found for - %s", __func__,subsystem_nqn.c_str());
   }
-  return true;
+  return is_storage_good;
 }
 
 /* Function Name: get_subsystem_info
@@ -296,18 +315,22 @@ void Subsystem::get_subsystem_info(ptree& subsystem_pt) const
  * Return       : None
  * Description  : Process storage for an subsystem.
  */
-void Storage::process_storage()
+bool Storage::process_storage()
 {
   smg_debug(logger, "Processing storage information for Subsystem - ", (get_subsystem_nqn()).c_str());
   std::string rest_response;
   std::string storage_url = host + endpoint;
-  if ( ! RESTful(rest_response, storage_url) ){
-    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
-  }
+  RESTful(rest_response, storage_url);
   ptree storage_pt;
   std::istringstream iss_storage (rest_response);
   read_json(iss_storage, storage_pt);
 
+  if ( !check_redfish_rest_call_status(storage_pt, storage_url) ){
+    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
+    return false;
+  }
+
+  bool is_drive_added = false;
   try{
     percent_available = storage_pt.get<double>("oem.PercentAvailable");
     capacity_bytes = storage_pt.get<long uint64_t>("oem.CapacityBytes");
@@ -320,13 +343,21 @@ void Storage::process_storage()
       for( auto key: s_pt) {
         if( key.first == "@odata.id" ) {
           drive_endpoint = key.second.data();
-          add_drive(drive_endpoint);
+          if ( add_drive(drive_endpoint) ) {
+            is_drive_added = true;
+          }
         }
       }
     }
+    // Check any good drive added into storage
+    if(! is_drive_added) {
+      smg_error(logger, "No drive has been added for the subsystem - %s", subsystem_nqn.c_str());
+    }
   } catch ( exception& e ) {
-    smg_error(logger,"Redfish API - Unable to read storage space information ...");
+    smg_error(logger,"Exception - Unable to read storage space information - %s", e.what());
+    return false;
   }
+  return is_drive_added;
 }
 
 /* Function Name: add_drive
@@ -336,18 +367,15 @@ void Storage::process_storage()
  */
 bool Storage::add_drive(std::string drive_endpoint)
 {
-  try
-  {
+  bool is_drive_good = false;
   Drive* drive = new Drive(host, drive_endpoint);
-  drive->process_drive();
+  is_drive_good = drive->process_drive();
   std::string drive_id = drive->get_id();
-  uint64_t inf_path_hash = std::hash<std::string>{}(drive_id);
-  drivesMap[inf_path_hash] = drive;
-  } catch(exception& e) {
-    smg_error(logger, "Exception:%s - %s", __func__, e.what());
-    return false;
+  //uint64_t inf_path_hash = std::hash<std::string>{}(drive_id);
+  if ( is_drive_good ) {
+    drivesMap[drive_id] = drive;
   }
-  return true;
+  return is_drive_good;
 }
 
 /* Function Name: get_storage_info
@@ -378,32 +406,40 @@ void Storage::get_storage_info(ptree& storage_pt)
  * Return       : None
  * Description  : Process information of drive.
  */
-void Drive::process_drive()
+bool Drive::process_drive()
 {
   std::string rest_response;
   std::string drive_url = host + endpoint;
-  if ( ! RESTful(rest_response, drive_url) ){
-    smg_error(logger, "Failed to read storage information from %s", drive_url.c_str());
-  }
+  RESTful(rest_response, drive_url);
   ptree drive_pt;
   std::istringstream iss_drive (rest_response);
   read_json(iss_drive, drive_pt);
+  if ( !check_redfish_rest_call_status(drive_pt, drive_url) ) {
+    smg_error(logger, "Failed to read drive information from %s", drive_url.c_str());
+    return false;
+  }
 
-  // Populate member variable:
-  block_size_bytes = drive_pt.get<int64_t>("BlockSizeBytes");
-  capacity_bytes = drive_pt.get<int64_t>("CapacityBytes");
-  id = drive_pt.get<std::string>("Id");
-  manufacturer = drive_pt.get<std::string>("Manufacturer");
-  media_type = drive_pt.get<std::string>("MediaType");
-  model = drive_pt.get<std::string>("Model");
-  protocol = drive_pt.get<std::string>("Protocol");
-  revision = drive_pt.get<std::string>("Revision");
-  serial_number = drive_pt.get<std::string>("SerialNumber");
-  percent_available = drive_pt.get<double>("oem.PercentAvailable");
-  description = drive_pt.get<std::string>("Description");
-  name = drive_pt.get<std::string>("Name");
+  try {
+    // Populate member variable:
+    block_size_bytes = drive_pt.get<int64_t>("BlockSizeBytes");
+    capacity_bytes = drive_pt.get<int64_t>("CapacityBytes");
+    id = drive_pt.get<std::string>("Id");
+    manufacturer = drive_pt.get<std::string>("Manufacturer");
+    media_type = drive_pt.get<std::string>("MediaType");
+    model = drive_pt.get<std::string>("Model");
+    protocol = drive_pt.get<std::string>("Protocol");
+    revision = drive_pt.get<std::string>("Revision");
+    serial_number = drive_pt.get<std::string>("SerialNumber");
+    percent_available = drive_pt.get<double>("oem.PercentAvailable");
+    description = drive_pt.get<std::string>("Description");
+    name = drive_pt.get<std::string>("Name");
 
-  smg_info(logger, "Processed drive information for Serial Number:", serial_number.c_str());
+    smg_info(logger, "Processed drive information for Serial Number:", serial_number.c_str());
+  } catch (exception& e) {
+    smg_error(logger, "Exception: Failed processing drive - %s", e.what());
+    return false;
+  }
+  return true;
 }
 
 /* Function Name: get_drive_info
@@ -432,35 +468,38 @@ void Drive::get_drive_info(ptree& drive_pt)
  * Return       : None
  * Description  : Process interface information.
  */
-void Interface::process_interface()
+bool Interface::process_interface()
 {
 
   std::string interface_response;
   std::string interface_endpoint = host + endpoint;
-  if (! RESTful(interface_response, interface_endpoint)) {
+  RESTful(interface_response, interface_endpoint);
+  ptree interface_pt;
+  std::istringstream is (interface_response);
+  read_json(is, interface_pt);
+
+  if ( !check_redfish_rest_call_status(interface_pt, interface_endpoint) ) {
     smg_error(logger, "Failed to read interface information from %s",interface_endpoint.c_str());
+    return false;
   }
   try {
-    ptree interface_pt;
-    std::istringstream is (interface_response);
-    read_json(is, interface_pt);
     interface_speed = interface_pt.get<int32_t>("SpeedMbps");
     status = link_status[interface_pt.get<std::string>("LinkStatus")];
-
     get_interface_address(interface_pt);
   } catch ( exception& e ) {
-    smg_error(logger, "EXCEPTION: % - %s",__func__, e.what());
+    smg_error(logger, "Exception: %s - %s",__func__, e.what());
+    return false;
   }
+  return true;
 }
 
 /* Function Name: get_interface_address
  * Args         : <ptree&> - Output - interface_pt parse tree
- * Return       : <bool> - Able to process interface address information or not
+ * Return       : None
  * Description  : Process address, family, port and protocol section of interface.
  */
-bool Interface::get_interface_address(ptree& interface_pt)
+void Interface::get_interface_address(ptree& interface_pt)
 {
-   try{
      BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv4Addresses")) {
        assert(value.first.empty());
        boost::property_tree::ptree address_pt = value.second;
@@ -469,7 +508,6 @@ bool Interface::get_interface_address(ptree& interface_pt)
          transport_type = address_pt.get<std::string>("oem.SupportedProtocol");
          port = address_pt.get<int32_t>("oem.Port");
          ip_address_family = AF_INET;
-         return true;
        }
      }
      BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv6Addresses")) {
@@ -480,13 +518,8 @@ bool Interface::get_interface_address(ptree& interface_pt)
          transport_type = address_pt.get<std::string>("oem.SupportedProtocol");
          port = address_pt.get<int32_t>("oem.Port");
          ip_address_family = AF_INET6;
-         return true;
        }
      }
-   } catch ( exception& e ) {
-     smg_error(logger, "EXCEPTION: % - %s",__func__, e.what());
-   }
-  return false;
 }
 
 /* Function Name: get_interface_info
@@ -497,16 +530,70 @@ bool Interface::get_interface_address(ptree& interface_pt)
  */
 void Interface::get_interface_info(ptree& interface_pt)
 {
-  try
-  {
-    interface_pt.put("Status", status);
-    interface_pt.put("Address", address);
-    interface_pt.put("Port", port);
-    interface_pt.put("AddressFamily", ip_address_family);
-    interface_pt.put("TransportType", transport_type);
-    interface_pt.put("InterfaceSpeed", interface_speed);
-  } catch ( exception& e ) {
-    smg_error(logger, "EXCEPTION: % - %s",__func__, e.what());
-  }
+  interface_pt.put("Status", status);
+  interface_pt.put("Address", address);
+  interface_pt.put("Port", port);
+  interface_pt.put("AddressFamily", ip_address_family);
+  interface_pt.put("TransportType", transport_type);
+  interface_pt.put("InterfaceSpeed", interface_speed);
 }
 
+//Destructors
+Redfish::~Redfish() 
+{
+  for( auto s_iter=subsystemsMap.begin(); s_iter != subsystemsMap.end(); s_iter++)
+  {
+    delete(s_iter->second);
+  }
+  subsystemsMap.clear();
+}
+
+Subsystem::~Subsystem() 
+{
+  // Remove all interface objects
+  for( auto i_iter=interfacesMap.begin(); i_iter != interfacesMap.end(); i_iter++)
+  {
+    delete(i_iter->second);
+  }
+  interfacesMap.clear();
+  // Remove Storage object
+  delete storage;
+}
+
+Storage::~Storage() 
+{
+  // Remove all Drive objects
+  for( auto d_iter=drivesMap.begin(); d_iter != drivesMap.end(); d_iter++)
+  {
+    delete(d_iter->second);
+  }
+  drivesMap.clear();
+}
+
+
+
+/* Function Name: check_redfish_rest_call_status
+ * Input Args   : <ptree&> - response from redfish rest call
+ *                <std:string> - URL used for REST call
+ * Return       : <bool> - Return false if received bad response.
+ * Description  : Function determine the REST response valid?
+ * Sample Bad Response:
+ *{
+ *   "Status": 404,
+ *   "Message": "Not Found"
+ *}
+ */
+bool check_redfish_rest_call_status(ptree& response, std::string uri)
+{
+  boost::optional< ptree& > is_status_exist = response.get_child_optional("Status");
+  boost::optional< ptree& > is_msg_exist = response.get_child_optional("Message");
+
+  if ( is_status_exist && is_msg_exist ) {
+    std::string message = response.get<std::string>("Message");
+    int32_t status = response.get<int>("Status");
+    smg_error(logger, "Failed to process URL - %s", uri.c_str());
+    smg_error(logger,"Received Bad redfish response, CODE-%d MESSAGE:%s",status, message.c_str());
+    return false;
+  }
+  return true;
+}
