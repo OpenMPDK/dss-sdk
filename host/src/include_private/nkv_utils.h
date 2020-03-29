@@ -44,6 +44,8 @@
 #include <atomic>
 #include <mutex>
 #include <functional>
+#include<curl/curl.h>
+#include<sys/socket.h>
 
 #include <memory>
 #include <string>
@@ -59,8 +61,12 @@
 using namespace std;
 
 extern c_smglogger* logger;
+extern long REST_CALL_TIMEOUT;
+
 #define NKV_DEFAULT_STAT_FILE "./disk_stats.py"
 #define TRANSPORT_PROTOCOL_SIZE 2
+
+#define HTTP_SUCCESS 200
 
 int32_t nkv_cmd_exec(const char* cmd, std::string& result); 
 
@@ -149,5 +155,9 @@ template<typename K, typename V>
 extern std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE];
 bool get_nkv_transport_type(int32_t transport, std::string& transport_type);
 int32_t get_nkv_transport_value(std::string transport_type);
+
+// REST call 
+bool RESTful(std::string& response, std::string& URL);
+
 
 #endif

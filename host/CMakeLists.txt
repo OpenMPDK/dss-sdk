@@ -85,10 +85,10 @@ set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L
 SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_framework.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/cluster_map.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/native_fabric_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/unified_fabric_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/auto_discovery.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/event_handler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/redfish.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_utils.cpp
 )
 
