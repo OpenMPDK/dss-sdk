@@ -73,21 +73,19 @@ class FabricManagerNode;
 class NativeFabricManager:public FabricManager
 {
   string cluster_map; // rest json response in string
-  uint32_t node_count = 0; // Number of node in FM cluster 
+  uint32_t node_count; // Number of node in FM cluster 
   unordered_map<string,FabricManagerNode*> fm_nodesMap;
 
   const string fm_name = "NativeFabricManager";
 
   public:
-  //NativeFabricManager() {};
   NativeFabricManager(const string& _host,
-                      const string& _endpoint,
-                      const bool _redfish):FabricManager(_host,_endpoint,_redfish)
+                      const string& _endpoint):FabricManager(_host,_endpoint)
   {
+    node_count = 0;
   }
   ~NativeFabricManager();
   bool process_clustermap();
-  bool get_clustermap(ptree& clustermap);
   bool add_fm_node(ptree& fm_nodes_pt);
   const std::string get_rest_url() const;
 

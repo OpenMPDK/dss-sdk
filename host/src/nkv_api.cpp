@@ -326,9 +326,9 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         }
         int32_t fm_redfish_compliant = pt.get<long>("fm_redfish_compliant", 1 );
         if ( fm_redfish_compliant ) {
-          fm = new UnifiedFabricManager(fm_address, fm_endpoint, fm_redfish_compliant);
+          fm = new UnifiedFabricManager(fm_address, fm_endpoint);
         } else {
-          fm = new NativeFabricManager(fm_address, fm_endpoint,fm_redfish_compliant);
+          fm = new NativeFabricManager(fm_address, fm_endpoint);
         }
         bool ret = fm->process_clustermap();
 

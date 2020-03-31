@@ -57,7 +57,6 @@ class FabricManager
 {
   const string host;
   const string endpoint; // May be we don't need in future. 
-  const bool redfish_compliant;
 
   //TODO
   //const string name;  // FM Name
@@ -65,8 +64,8 @@ class FabricManager
 
   public:
   //FabricManager(){};
-  FabricManager(const string& _host, const string& _endpoint, bool _redfish):
-                host(_host),endpoint(_endpoint), redfish_compliant(_redfish)
+  FabricManager(const string& _host, const string& _endpoint):
+                               host(_host),endpoint(_endpoint)
   {
   }
   virtual ~FabricManager(){};

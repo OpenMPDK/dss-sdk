@@ -38,6 +38,8 @@ unordered_map<string, int32_t> link_status = { {"LinkUp", 1 },
                                                {"LinkDown", 0},
                                                {"NoLink",-1} };
 
+static bool check_redfish_rest_call_status(ptree& response, string& uri);
+
 /* Function Name: process_redfish_api()
  * Args         : None
  * Return       : None
@@ -79,6 +81,9 @@ bool UnifiedFabricManager::process_clustermap()
             string subsystem_nqn = subsystem->get_nqn();
             subsystemsMap[subsystem_nqn] = subsystem;
             is_subsystem_added = true;
+          } else {
+            delete subsystem;
+            subsystem = NULL;
           }
         }
         // Add warning message
@@ -269,9 +274,13 @@ bool Subsystem::add_interface(string interface_endpoint)
   // Create Interface object
   Interface* interface = new Interface(host, interface_endpoint);
   is_interface_added = interface->process_interface();
-  string address = interface->get_address();
-  uint64_t inf_path_hash = hash<string>{}(address);
-  interfacesMap[inf_path_hash] = interface;
+  if ( is_interface_added ) {
+    string address = interface->get_address();
+    interfacesMap[address] = interface;
+  } else {
+    delete interface;
+    interface = NULL;
+  }
   return is_interface_added;
 }
 
@@ -309,7 +318,12 @@ bool Subsystem::add_storage()
   if( ! storage_endpoint.empty() ) {
     storage = new Storage(host, storage_endpoint, subsystem_nqn);
     is_storage_good = storage->process_storage();
-    subsystem_avail_percent = storage->get_available_space();
+    if ( is_storage_good ) {
+      subsystem_avail_percent = storage->get_available_space();
+    } else {
+      delete storage;
+      storage = NULL;
+    }    
   } else {
     smg_error(logger, "%s:Storage endpoint is not found for - %s", __func__,subsystem_nqn.c_str());
   }
@@ -410,9 +424,11 @@ bool Storage::add_drive(string drive_endpoint)
   Drive* drive = new Drive(host, drive_endpoint);
   is_drive_good = drive->process_drive();
   string drive_id = drive->get_id();
-  //uint64_t inf_path_hash = hash<string>{}(drive_id);
   if ( is_drive_good ) {
     drivesMap[drive_id] = drive;
+  } else {
+    delete drive;
+    drive = NULL;
   }
   return is_drive_good;
 }
@@ -476,7 +492,7 @@ bool Drive::process_drive()
     smg_info(logger, "Processed drive information for Serial Number:%s", serial_number.c_str());
   } catch (exception& e) {
     smg_error(logger, "Exception: Failed processing drive - %s", e.what());
-    return false;
+    //return false; // May need to think if we need to bail out here or not.
   }
   return true;
 }
@@ -521,44 +537,50 @@ bool Interface::process_interface()
     smg_error(logger, "Failed to read interface information from %s",interface_endpoint.c_str());
     return false;
   }
-  try {
-    interface_speed = interface_pt.get<int32_t>("SpeedMbps");
+  
+  interface_speed = interface_pt.get<int32_t>("SpeedMbps", 100000);
+  if ( !interface_pt.get<string>("LinkStatus","").empty() ) {
     status = link_status[interface_pt.get<string>("LinkStatus")];
-    get_interface_address(interface_pt);
+  } else {
+    status = 0; 
+  }
+  return get_interface_address(interface_pt);
+}
+
+/* Function Name: get_interface_address
+ * Args         : <ptree&> - Output - interface_pt parse tree
+ * Return       : <bool> - 1/0 , processed successfuly/ failed.
+ * Description  : Process address, family, port and protocol section of interface.
+ *                Mandatory parameter for nvme connect.
+ */
+bool Interface::get_interface_address(ptree& interface_pt)
+{
+  try {
+    BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv4Addresses")) {
+      assert(value.first.empty());
+      boost::property_tree::ptree address_pt = value.second;
+      if( !(address_pt.get<string>("Address", "")).empty() ) {
+        address = address_pt.get<string>("Address");
+        transport_type = address_pt.get<string>("oem.SupportedProtocol");
+        port = address_pt.get<int32_t>("oem.Port");
+        ip_address_family = AF_INET;
+      }
+    }
+    BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv6Addresses")) {
+      assert(value.first.empty());
+      boost::property_tree::ptree address_pt = value.second;
+      if( !(address_pt.get<string>("Address", "")).empty() ) {
+        address = address_pt.get<string>("Address");
+        transport_type = address_pt.get<string>("oem.SupportedProtocol");
+        port = address_pt.get<int32_t>("oem.Port");
+        ip_address_family = AF_INET6;
+      }
+    }
   } catch ( exception& e ) {
     smg_error(logger, "Exception: %s - %s",__func__, e.what());
     return false;
   }
   return true;
-}
-
-/* Function Name: get_interface_address
- * Args         : <ptree&> - Output - interface_pt parse tree
- * Return       : None
- * Description  : Process address, family, port and protocol section of interface.
- */
-void Interface::get_interface_address(ptree& interface_pt)
-{
-     BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv4Addresses")) {
-       assert(value.first.empty());
-       boost::property_tree::ptree address_pt = value.second;
-       if( !(address_pt.get<string>("Address", "")).empty() ) {
-         address = address_pt.get<string>("Address");
-         transport_type = address_pt.get<string>("oem.SupportedProtocol");
-         port = address_pt.get<int32_t>("oem.Port");
-         ip_address_family = AF_INET;
-       }
-     }
-     BOOST_FOREACH(boost::property_tree::ptree::value_type &value, interface_pt.get_child("IPv6Addresses")) {
-       assert(value.first.empty());
-       boost::property_tree::ptree address_pt = value.second;
-       if( !(address_pt.get<string>("Address", "")).empty() ) {
-         address = address_pt.get<string>("Address");
-         transport_type = address_pt.get<string>("oem.SupportedProtocol");
-         port = address_pt.get<int32_t>("oem.Port");
-         ip_address_family = AF_INET6;
-       }
-     }
 }
 
 /* Function Name: get_interface_info
@@ -624,7 +646,7 @@ Storage::~Storage()
  *   "Message": "Not Found"
  *}
  */
-bool check_redfish_rest_call_status(ptree& response, string uri)
+bool check_redfish_rest_call_status(ptree& response, string& uri)
 {
   boost::optional< ptree& > is_status_exist = response.get_child_optional("Status");
   boost::optional< ptree& > is_msg_exist = response.get_child_optional("Message");

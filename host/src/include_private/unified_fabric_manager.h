@@ -86,11 +86,13 @@ class UnifiedFabricManager:public FabricManager
 
     //const string endpoint; // Root endpoint /redfish/v1/Systems
     const string fm_name = "UnifiedFabricManager";
-    uint32_t node_count = 1; // Number of node in UFM cluster
+    uint32_t node_count; // Number of node in UFM cluster
   public:
-    //UnifiedFabricManager(){}
-    UnifiedFabricManager(const string& _host, const string& _endpoint,
-            bool _redfish):FabricManager(_host,_endpoint,_redfish){}
+    UnifiedFabricManager(const string& _host, const string& _endpoint):
+                                         FabricManager(_host,_endpoint)
+    {
+      node_count = 1;
+    }
     ~UnifiedFabricManager();
     
     bool process_clustermap();
@@ -107,20 +109,27 @@ class Subsystem
   string target_server_name;
   string subsystem_nqn_id;
   string subsystem_nqn;
-  int32_t subsystem_nqn_nsid = 1;
-  int32_t subsystem_status = 1;  
-  double subsystem_avail_percent = 100.0;
-  bool subsystem_numa_aligned = false;
-  unordered_map<uint64_t, Interface*> interfacesMap;
-  Storage* storage = NULL;
+  int32_t subsystem_nqn_nsid;
+  int32_t subsystem_status;  
+  double subsystem_avail_percent;
+  bool subsystem_numa_aligned;
+  unordered_map<string, Interface*> interfacesMap;
+  Storage* storage;
 
   string name; 
   string description;
   const string host;
   const string endpoint;
   public:
-  Subsystem(){}
-  Subsystem(const string& _host, const string& _endpoint):host(_host),endpoint(_endpoint){}
+  Subsystem(const string& _host, const string& _endpoint):host(_host),
+                                                  endpoint(_endpoint)
+  {
+    subsystem_nqn_nsid = 1;
+    subsystem_status = 1;
+    subsystem_avail_percent = 100.0;
+    subsystem_numa_aligned = false;
+    storage = NULL;
+  }
   ~Subsystem();
   void get_subsystem_info(ptree& subsystem_pt) const;
   bool process_subsystem();
@@ -133,10 +142,10 @@ class Subsystem
 // A storage consist of multiple Drives 
 class Storage
 {
-  uint64_t capacity_bytes = 100000;
-  double  percent_available = 100.0;
+  uint64_t capacity_bytes;
+  double  percent_available;
   unordered_map<string, Drive*> drivesMap;
-  uint32_t drives_count = 1;
+  uint32_t drives_count;
   string id;
   string description;
   
@@ -144,9 +153,15 @@ class Storage
   const string endpoint;
   const string subsystem_nqn;
   public:
-  Storage(){}
-  Storage(const string& _host, const string& _endpoint, const string& _nqn):host(_host),
-                                      endpoint(_endpoint), subsystem_nqn(_nqn)  {}
+  Storage(const string& _host, const string& _endpoint, const string& _nqn):
+                                                                host(_host),
+                                                        endpoint(_endpoint), 
+                                                        subsystem_nqn(_nqn)
+  {
+    capacity_bytes = 100000;
+    percent_available = 100.0;
+    drives_count = 1;
+  }
   ~Storage();
   void get_storage_info(ptree& storage_pt);
   double get_available_space() { return percent_available;}
@@ -158,8 +173,8 @@ class Storage
 // A single Drive (SSD Disk)
 class Drive
 {
-  uint32_t block_size_bytes = 512; //512
-  uint64_t capacity_bytes = 3840755982336; // 3840755982336
+  uint32_t block_size_bytes; //512
+  uint64_t capacity_bytes; // 3840755982336
   string id; // S3VJNA0M828821
   string manufacturer; // Samsung
   string media_type; // SSD
@@ -167,7 +182,7 @@ class Drive
   string protocol; //"NVMeOverFabrics",
   string revision; //"ETA51KBW",
   string serial_number; //"S3VJNA0M828821",
-  uint32_t percent_available = 100.0; // 100
+  uint32_t percent_available; // 100
   string description; // Drive Information
   string name;
   
@@ -175,8 +190,13 @@ class Drive
   const string endpoint;
 
   public:
-    Drive(){}
-    Drive(const string& _host, const string& _endpoint):host(_host),endpoint(_endpoint) {}
+    Drive(const string& _host, const string& _endpoint):host(_host),
+                                                endpoint(_endpoint)
+    {
+      block_size_bytes = 512;
+      capacity_bytes = 3840755982336;
+      percent_available = 100.0;
+    }
     ~Drive(){}
     void get_drive_info(ptree& drive_pt);
     bool process_drive();
@@ -186,28 +206,34 @@ class Drive
 
 class Interface
 {
-  int64_t interface_speed = 100;
+  int64_t interface_speed;
   string transport_type; // Supported protocol
-  int32_t port = 1024;
+  int32_t port;
   string address;
-  int32_t status = 1;
-  int32_t ip_address_family = AF_INET;
+  int32_t status;
+  int32_t ip_address_family;
 
   const string host;
   const string endpoint;
   public:
-  Interface(){}
-  Interface(const string& _host, const string& _endpoint):host(_host),endpoint(_endpoint) {}
+  Interface(const string& _host, const string& _endpoint):host(_host),
+                                                  endpoint(_endpoint)
+  {
+    interface_speed = 100;
+    port = 1024;
+    status = 1;
+    ip_address_family = AF_INET;
+  }
   ~Interface() {}
   int64_t get_interface_speed() { return interface_speed; }
   int32_t get_subsystem_type() { return get_nkv_transport_value(transport_type); }
-  void get_interface_address(ptree& interface_pt);
+  bool get_interface_address(ptree& interface_pt);
   string get_address(){ return address;}
   void get_interface_info(ptree& interface_pt);
   bool process_interface();  
 };
 
 // Redfish return from REST call
-bool check_redfish_rest_call_status(ptree& response, string uri);
+//static bool check_redfish_rest_call_status(ptree& response, string& uri);
 
 #endif
