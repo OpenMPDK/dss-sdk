@@ -275,17 +275,21 @@
         nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
         wait_for_thread_completion();
       }
-      kvs_result ret;
-      #ifdef SAMSUNG_API
-        ret = kvs_close_container(path_cont_handle);
-        assert(ret == KVS_SUCCESS);
-      #else
-        kvs_close_key_space(path_ks_handle);
-        kvs_delete_key_space(path_handle, &path_ks_name);
-      #endif
+ 
+      if (! dev_path.empty() && get_target_path_status() ) {
+        kvs_result ret;
+        #ifdef SAMSUNG_API
+          ret = kvs_close_container(path_cont_handle);
+          assert(ret == KVS_SUCCESS);
+        #else
+          kvs_close_key_space(path_ks_handle);
+          kvs_delete_key_space(path_handle, &path_ks_name);
+        #endif
 
-      ret = kvs_close_device(path_handle);
-      assert(ret == KVS_SUCCESS);
+        ret = kvs_close_device(path_handle);
+        assert(ret == KVS_SUCCESS);
+      } 
+
       for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
         pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
       }
@@ -888,7 +892,7 @@
             uint64_t total_aggregated_os_get = 0;
             uint64_t total_aggregated_os_del = 0;
             
-            for (int32_t iter = 0; iter < num_cpus; iter++) {
+            for (uint32_t iter = 0; iter < num_cpus; iter++) {
 
               uint64_t total_os_put = one_path->nkv_cpu_pending_1_4k_put_io[iter].load(std::memory_order_relaxed) +
                                       one_path->nkv_cpu_pending_4_64k_put_io[iter].load(std::memory_order_relaxed) +
@@ -993,7 +997,7 @@
       bool subsystem_status = true;
       smg_debug(logger, "Minimum subsystem paths required = %d, available = %d",
                  min_path_required, pathMap.size());
-      int32_t device_path_count = 0;
+      uint32_t device_path_count = 0;
       for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
         NKVTargetPath* one_path = p_iter->second;
         if (one_path) {
@@ -1647,7 +1651,7 @@
           auto cnt_iter = cnt_list.find(ss_hash);
           assert (cnt_iter == cnt_list.end());
           cnt_list[ss_hash] = one_cnt;
-		  one_cnt->load_balance_initialize_cnt();
+          one_cnt->load_balance_initialize_cnt();
 		  
           smg_info (logger, "Container added, hash = %u, id = %u, uuid = %s, Node name = %s , NQN name = %s , container count = %d",
                    ss_hash, cnt_id, subsystem_nqn_id.c_str(), target_server_name.c_str(), subsystem_nqn.c_str(), cnt_list.size());

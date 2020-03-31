@@ -35,6 +35,8 @@
 
 #include "nkv_utils.h"
 
+long REST_CALL_TIMEOUT = 10;
+
 int32_t nkv_cmd_exec(const char* cmd, std::string& result) {
   std::array<char, 512> buffer;
   std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
@@ -98,6 +100,13 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
 
 std::string nkv_transport_mapping[TRANSPORT_PROTOCOL_SIZE] = {"tcp", "rdma"};
 
+/* Function Name: get_nkv_transport_type
+ * Input Agrs   : <int32_t> = transport value 0/1 => tcp/rdma
+ *                <std::string&> = transport type such as tcp,rdma etc.
+ * Return       : <bool> on success respective value is updated on transport var.
+ *                On failure a false is returned.
+ * Description  : Convert transport value to a corresponding string value.
+ */
 bool get_nkv_transport_type(int32_t transport, std::string& transport_type)
 {
   if ( transport >= TRANSPORT_PROTOCOL_SIZE ) {
@@ -107,4 +116,116 @@ bool get_nkv_transport_type(int32_t transport, std::string& transport_type)
   transport_type = nkv_transport_mapping[transport];
   return true;
 }
+
+/* Function Name: get_nkv_transport_value
+ * Input Agrs   : <std::string&> = transport type such as tcp,rdma etc.
+ * Return       : <int32_t> on success respective value for transport type.
+ *                On failure -1.
+ * Description  : Convert transport type to a corresponding integer value.
+ */
+int32_t get_nkv_transport_value(std::string transport_type)
+{
+  for( int32_t index = 0; index < TRANSPORT_PROTOCOL_SIZE; index++) {
+    boost::to_lower(transport_type);
+    if ( nkv_transport_mapping[index] == transport_type ) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+
+// REST Interface ...
+/*
+Description: Get cluster map information from REST api.
+Maximum size of data:
+  - Maximum data to be transferred is 16K
+  - Max header data 100k
+*/
+
+namespace{
+  /* ptr   = <points to the delivered data>
+  size  = 1 , always 1
+  nmemb = <number of byte received>
+  userdata = should set with CURLOPT_WRITEDATA
+  */
+  std::size_t write_callback(char *ptr, size_t size, size_t nmemb, std::string *userdata)
+  {
+    const std::size_t totalBytes(size * nmemb);
+    userdata->append(ptr, totalBytes);
+    return totalBytes;
+  }
+}
+
+
+/*
+Function Name: RESTful
+Description  : Get the JSON response from a RESTful call.
+Params       : <std::string>  Rest JSON response to be stored into a string.
+Return       : <bool> , 0/1 -> Success/Failure
+*/
+bool RESTful(std::string& response, std::string& URL)
+{
+  bool good_response = false;
+  smg_info(logger, "ClusterMap: Calling REST API %s", URL.c_str());
+  // Initialize a curl session
+  CURL* curl = curl_easy_init();
+    
+  if (curl) {
+    CURLcode res;
+    // Setup remote URL
+    curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
+
+    // Resolve host name using IPv4-names only.
+    curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+
+    // Timeout connection after TIMEOUT seconds
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REST_CALL_TIMEOUT);
+
+    // Response code
+    long httpCode(0);
+    std::unique_ptr<std::string> http_data(new std::string());
+
+    // By default libcurl dumps the output to the default file handler stdout and error to stderr
+    // Use a write_callback function to write to a buffer, CURLOPT_WRITEFUNCTION should be used with CURLOPT_WRITEDATA
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+
+    // http_data gets passed to the write_callback as 4th arguments which is userdata.
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, http_data.get());
+
+    // Provide a buffer to store error
+    char error_buffer[CURL_ERROR_SIZE];
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer );
+
+    // Follow HTTP redirect if necessary
+    //curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L)
+    // Perform transfer as specified in the options. Its a blocking function.
+    res = curl_easy_perform(curl);
+
+    if (res == CURLE_OK) {
+      // Get return code
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+      // Check the response code
+      if (httpCode == HTTP_SUCCESS) {
+        response = *http_data.get();
+        good_response = true;
+      } else {
+        smg_error(logger, "ClusterMap: failed to connect, response code %d", httpCode);
+        std::string error_message(*http_data.get());
+        smg_error(logger, "ClusterMap: %s", error_message.c_str());
+      }
+    } else {
+      // Error handling
+      smg_error(logger, "ClusterMap: %s", curl_easy_strerror(res));
+    }
+    // Clean up session
+    curl_easy_cleanup(curl);
+  } else {
+    smg_error(logger, "ClusterMap: Couldn't initialize curl session ...");
+  }
+  return good_response;
+}
+
+
 

@@ -1,9 +1,14 @@
 Here is the steps to install nkv stack and test it out.
 
-Supported OS and Kernel:
+Supported OS and Kernel: (Local NKV )
 -----------------------
 CentOS Linux release 7.4.1708 (Core)
 3.10.0-693.el7.x86_64
+
+Suppoerted OS and Kernel: ( Remote NKV )
+-----------------------
+CentOS Linux release 7.4.1708 (Core)
+5.1.0
 
 Supported system configuration:
 ------------------------------
@@ -33,7 +38,7 @@ yum install libcurl-devel
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
-Build open_mpdk driver:
+Build open_mpdk driver: ( Local NKV )
 ----------------------
 
  1. cd nkv-sdk/openmpdk_driver/kernel_v3.10.0-693-centos-7_4/
@@ -47,6 +52,10 @@ Build open_mpdk driver:
     nvme                   62347  0
     nvme_core              50009  0
 
+Build and istall open_mpdk driver: ( Remote NKV )
+---------------------
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v5.1_nvmf
+ 2. Follow the instruction provided in the README.
 Run open_mpdk test cli:
 ---------------------
 
@@ -86,7 +95,11 @@ All good so far, let's attempt nkv test cli to see if nkv stack is working fine 
     Log config options can be changed from bin/smglogger.properties.
 
  5. Run "./nkv_test_cli" command to find the usage information.
- 6. ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+ 6. Local NKV execution: 
+   ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+    Remote NKV execution:
+   ./nkv_test_cli -c ../conf/nkv_config_remote.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+   
  7. This command should generate output on console as well as /var/log/dragonfly/nkv.log 
  8. On successful run, it should generate output similar to the following. For more verbose output if INFO logging is enabled
 
