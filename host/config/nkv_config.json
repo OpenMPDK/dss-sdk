@@ -28,16 +28,16 @@
 
   "nkv_local_mounts": [
     {
-      "mount_point": "/dev/nvme14n1"
+      "mount_point": "/dev/nvme0n1"
     },
     {
-      "mount_point": "/dev/nvme15n1"
+      "mount_point": "/dev/nvme1n1"
     },
     {
-      "mount_point": "/dev/nvme16n1"
+      "mount_point": "/dev/nvme2n1"
     },
     {
-      "mount_point": "/dev/nvme17n1"
+      "mount_point": "/dev/nvme3n1"
     }
 
   ]
