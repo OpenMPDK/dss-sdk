@@ -17,22 +17,19 @@ if [[ $1 == "remote" ]]; then
 fi
 if [[ $1 == "remote" && $2 == "dist" ]]; then
   export MINIO_PER_HOST_INSTANCE_COUNT=1
-  export MINIO_ERASURE_SET_DRIVE_COUNT=4
 fi  
 
 ulimit -n 65535
 ulimit -c unlimited
 yum install boost-devel
-yum install jemalloc-devel
 yum install libcurl-devel
 
-export LD_PRELOAD=/lib64/libjemalloc.so.1
 
 # Copy appropriate Minio binary to current directory.
 if [[ $1 == "remote" && $2 == "dist" ]]; then
-./minio server http://minio{1...4}/dev/nvme{0...5}n1
+./minio server http://minio{1...4}/dev/nvme{0...3}n1
 else
-./minio server /dev/nvme{0...5}n1
+./minio server /dev/nvme{0...3}n1
 fi
 #LD_PRELOAD=/lib64/libjemalloc.so.1 ./minio_nkv_jul02.1 server /dev/kvemul{1...4}
 date

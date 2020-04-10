@@ -158,19 +158,22 @@ Put the following in a script may be..Need at least 4 devices to run Minio..
  8. ulimit -c unlimited
 
  9. cd ~/nkv-sdk/bin
- 10. ./<minio-binary> server  /dev/nvme{0...5}n1
+ 10. ./<minio-binary> server  /dev/nvme{0...3}n1
  11. start.sh script is included under bin directory that has all the above commands incorporated.
-     Change the minio binary, config file and LD_LIBRARY_PATH accordingly
+     Change the minio binary, config file and LD_LIBRARY_PATH accordingly.
+ 12. Run Minio with local KV drives.Mount points at the host should be matching to the mount points
+     given to nkv_config.json under 'nkv_local_mounts'
+     ./start.sh 
+ 13. Run Minio with remote KV drives
      ./start.sh remote
- 12. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
- 13. Distributed Minio command is:
+ 14. Distributed Minio command is:
 
-     ./<minio-binary> server  http://minio{1...4}/dev/nvme{0...5}n1
+     ./<minio-binary> server  http://minio{1...4}/dev/nvme{0...3}n1
      Where, minio1, to minio4 are 4 minio node names mentioned in /etc/hosts file of each server.
-     /dev/nvme{0...5}n1 are 6 KV drives.
+     /dev/nvme{0...3}n1 are 4 remote KV drives.
      ./start.sh remote dist
 
- 14. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
+ 15. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
 
 Running MINIO app with emulator :
 -------------------------------
