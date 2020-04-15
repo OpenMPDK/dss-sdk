@@ -11,3 +11,15 @@
 [submodule "host/src/zeromq/zmqpp"]
 	path = host/src/zeromq/zmqpp
 	url = https://github.com/zeromq/zmqpp.git
+[submodule "target/oss/spdk_tcp"]
+	path = target/oss/spdk_tcp
+	url = https://github.com/spdk/spdk.git
+[submodule "target/oss/dssd"]
+	path = target/oss/dssd
+	url = https://github.com/thecodeteam/dssd.git
+[submodule "target/oss/dpdk_master"]
+	path = target/oss/dpdk_master
+	url = https://github.com/DPDK/dpdk.git
+[submodule "target/oss/log4cpp"]
+	path = target/oss/log4cpp
+	url = https://github.com/orocos-toolchain/log4cpp.git

@@ -1,0 +1,5 @@
+include(spdk_tcp_filelist.txt)
+include(dpdk_master_filelist.txt)
+include(oss_2_spdk_tcp_filelist.txt)
+include(dssd_2_spdk_tcp_filelist.txt)
+include(libustat_2_spdk_tcp_filelist.txt)

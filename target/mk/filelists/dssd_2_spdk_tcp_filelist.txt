@@ -1,0 +1,6 @@
+configure_file(../../oss/dssd/include/atomic.h ../../oss/spdk_tcp/include/dssd/include/atomic.h COPYONLY)
+configure_file(../../oss/dssd/include/getpcstack.h ../../oss/spdk_tcp/include/dssd/include/getpcstack.h COPYONLY)
+configure_file(../../oss/dssd/include/list.h ../../oss/spdk_tcp/include/dssd/include/list.h COPYONLY)
+configure_file(../../oss/dssd/include/nelf.h ../../oss/spdk_tcp/include/dssd/include/nelf.h COPYONLY)
+configure_file(../../oss/dssd/include/p2.h ../../oss/spdk_tcp/include/dssd/include/p2.h COPYONLY)
+configure_file(../../oss/dssd/include/units.h ../../oss/spdk_tcp/include/dssd/include/units.h COPYONLY)

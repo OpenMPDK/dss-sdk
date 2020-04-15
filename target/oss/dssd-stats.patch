@@ -1,0 +1,337 @@
+diff --git a/Makefile.x86_64 b/Makefile.x86_64
+index db81f51..c868662 100644
+--- a/Makefile.x86_64
++++ b/Makefile.x86_64
+@@ -14,7 +14,8 @@
+ # limitations under the License.
+ # 
+ ARCH := x86_64
+-TOOLS := /home/build/x86_64-el7-tools/native-4.7.3-1
++#TOOLS := /home/build/x86_64-el7-tools/native-4.7.3-1
++TOOLS := /usr
+ 
+ CC := $(TOOLS)/bin/gcc
+ FLEX := flex
+@@ -23,8 +24,8 @@ BISON := bison
+ CFLAGS := -m64
+ CFLAGS += -g -fno-omit-frame-pointer
+ CFLAGS += -Wvla
+-CFLAGS += -O3
++#CFLAGS += -O3
+ CFLAGS += -std=gnu99 -D_GNU_SOURCE -D__USE_LARGEFILE64
+-CFLAGS += -I. -I../../include
++CFLAGS += -I. -I../../include -lm
+ 
+ LDLIBS :=
+diff --git a/cmd/ustat/Makefile b/cmd/ustat/Makefile
+index 4fdbc73..9b5828b 100644
+--- a/cmd/ustat/Makefile
++++ b/cmd/ustat/Makefile
+@@ -23,12 +23,13 @@ CFLAGS += -I../../lib/libvmem
+ CFLAGS += -I../../lib/libbson
+ CFLAGS += -I../../lib/libustat
+ 
++LDLIBS += -L../../lib/libvmem -lvmem
+ LDLIBS += -L../../lib/libhrtime -lhrtime
+ LDLIBS += -L../../lib/libtree -ltree
+ LDLIBS += -L../../lib/libunuma -lunuma
+-LDLIBS += -L../../lib/libvmem -lvmem
+ LDLIBS += -L../../lib/libbson -lbson
+ LDLIBS += -L../../lib/libustat -lustat
++LDLIBS += -ldl
+ 
+ LDLIBS += -lpthread -lm
+ 
+diff --git a/cmd/ustat/ustat.c b/cmd/ustat/ustat.c
+index a3e097f..ab04137 100644
+--- a/cmd/ustat/ustat.c
++++ b/cmd/ustat/ustat.c
+@@ -570,6 +570,7 @@ main(int argc, char *argv[])
+ 				print_json(&opts);
+ 				bson_fini(&opts.o_bson);
+ 			}
++			oprintf("\n");
+ 		}
+ 		if (iter_c != 0 && iter_i > 0)
+ 			(void) poll(NULL, 0, iter_i * 1000);
+diff --git a/lib/Makefile b/lib/Makefile
+index c69c3bd..f2b8a82 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -15,14 +15,38 @@
+ # 
+ 
+ SUBDIRS := \
+-	libtree \
+-	libhrtime \
+-	libunuma \
+-	libvmem \
+-	libvmem_malloc \
+-	libbson \
+-	libustat \
+-	libutrace \
+-	libucore
+-
+-include ../Makefile.subdirs
++        libtree \
++        libhrtime \
++        libunuma \
++        libvmem \
++        libbson \
++        libustat \
++        libutrace \
++        libucore
++#       libvmem_malloc
++
++OBJDIR := ./objs
++LIBDSSD := libdssd.a
++
++all: TARGET += all
++clean: TARGET += clean
++clobber: TARGET += clobber
++
++all: $(LIBDSSD)
++
++clean clobber: $(SUBDIRS)
++	rm -rf ./$(OBJDIR) $(LIBDSSD)
++
++$(LIBDSSD): $(SUBDIRS)
++	ar rcs $@ $(OBJDIR)/*.o
++
++$(SUBDIRS): $(OBJDIR)
++	@cd $@ && pwd && $(MAKE) $(TARGET)
++
++$(OBJDIR):
++	if [ ! -d $(OBJDIR) ]; then  \
++		mkdir -p $(OBJDIR);  \
++	fi
++
++FRC:
++
+diff --git a/lib/Makefile.lib b/lib/Makefile.lib
+index c88c28c..225e75f 100644
+--- a/lib/Makefile.lib
++++ b/lib/Makefile.lib
+@@ -14,19 +14,27 @@
+ # limitations under the License.
+ # 
+ SOLIB := lib$(LIB).so
++STATLIB := lib$(LIB).a
+ OBJS := $(SRCS:%.c=%.o)
+ CFLAGS += -fPIC
+ 
+-all: $(SOLIB)
++#all: $(SOLIB)
++all: $(STATLIB)
+ 
+ $(SOLIB): $(OBJS)
+ 	$(CC) $(CFLAGS) $(OBJS) -o $@ -shared -Wl,-soname,$(SOLIB) $(LDLIBS)
++	cp $(OBJS)  ../objs/
++
++$(STATLIB): $(OBJS)
++	ar rcs $@ $(OBJS)
++	cp $(OBJS)  ../objs/
+ 
+ %.o: %.c
+-	$(CC) $(CFLAGS) -c $<
++	$(CC) $(CFLAGS) -c -lm $<
+ 
+ clean:
+-	rm -f $(OBJS) $(CLEANFILES)
++	rm -f $(OBJS) $(CLEANFILES) $(STATLIB)
+ 
+ clobber: clean
+ 	rm -f $(SOLIB) $(CLOBBERFILES)
++
+diff --git a/lib/libustat/ustat.c b/lib/libustat/ustat.c
+index 2389754..cea28d7 100644
+--- a/lib/libustat/ustat.c
++++ b/lib/libustat/ustat.c
+@@ -161,7 +161,6 @@
+ #include <elf.h>
+ 
+ #include <nelf.h>
+-#include <vmem.h>
+ #include <hrtime.h>
+ #include <ustat_hg.h>
+ #include <ustat_io.h>
+@@ -406,7 +405,9 @@ ustat_freepage_put(ustat_handle_t *h, ustat_page_t *p)
+ 	if ((p->usp_magic[3] & USTAT_MAG3_TYPE) != USTAT_MAG3_GRP)
+ 		return;
+ 
+-	fp = vmem_zalloc(vmem_heap, sizeof (ustat_freepage_t), VM_NOFAIL);
++	//fp = vmem_zalloc(vmem_heap, sizeof (ustat_freepage_t), VM_NOFAIL);
++	fp = calloc(1, sizeof (ustat_freepage_t));
++	assert(fp);
+ 	fp->usfp_off = p->usp_off;
+ 	fp->usfp_size = p->usp_size;
+ 	list_insert_head(list, fp);
+@@ -443,7 +444,8 @@ ustat_freepage_get(ustat_handle_t *h, uint8_t type, size_t size)
+ 	p->usp_off = fp->usfp_off;
+ 
+ 	list_delete(list, fp);
+-	vmem_free(vmem_heap, fp, sizeof (ustat_freepage_t));
++	//vmem_free(vmem_heap, fp, sizeof (ustat_freepage_t));
++	free(fp);
+ 
+ 	return (p);
+ }
+@@ -454,7 +456,8 @@ ustat_freepage_empty(list_t *l)
+ 	ustat_freepage_t *fp;
+ 	while ((fp = list_head(l)) != NULL) {
+ 		list_delete(l, fp);
+-		vmem_free(vmem_heap, fp, sizeof (ustat_freepage_t));
++		//vmem_free(vmem_heap, fp, sizeof (ustat_freepage_t));
++		free(fp);
+ 	}
+ }
+ 
+@@ -728,7 +731,8 @@ ustat_relink(ustat_handle_t *h, char *pattern)
+ 
+ 	(void) unlink(pattern);
+ 
+-	if ((new_path = vmem_strdup(vmem_heap, pattern, VM_NOSLEEP)) == NULL) {
++	//if ((new_path = vmem_strdup(vmem_heap, pattern, VM_NOSLEEP)) == NULL) {
++	if ((new_path = strdup(pattern)) == NULL) {
+ 		(void) close(new_fd);
+ 		return (ustat_error(h, ENOMEM, "failed to alloc buffer"));
+ 	}
+@@ -746,12 +750,14 @@ ustat_relink(ustat_handle_t *h, char *pattern)
+ 		h->ush_fd = old_fd;
+ 
+ 		(void) close(new_fd);
+-		vmem_strfree(vmem_heap, new_path);
++		//vmem_strfree(vmem_heap, new_path);
++		free(new_path);
+ 		return (-1);
+ 	}
+ 
+ 	(void) close(old_fd);
+-	vmem_strfree(vmem_heap, old_path);
++	//vmem_strfree(vmem_heap, old_path);
++	free(old_path);
+ 	return (0);
+ }
+ 
+@@ -1026,8 +1032,9 @@ ustat_open(int version, const char *path,
+ 	if ((oflags & O_ACCMODE) == O_WRONLY)
+ 		oflags = (oflags & ~O_ACCMODE) | O_RDWR; /* for mmap() */
+ 
+-	if ((h = vmem_zalloc(vmem_heap, sizeof (ustat_handle_t),
+-	    VM_NOSLEEP)) == NULL)
++	//if ((h = vmem_zalloc(vmem_heap, sizeof (ustat_handle_t),
++	//    VM_NOSLEEP)) == NULL)
++	if ((h = calloc(1, sizeof (ustat_handle_t))) == NULL)
+ 		return (ustat_null(NULL, ENOMEM, "failed to alloc handle"));
+ 
+ 	(void) pthread_rwlock_init(&h->ush_lock, NULL);
+@@ -1053,7 +1060,8 @@ ustat_open(int version, const char *path,
+ 	if (path == NULL)
+ 		goto no_path;
+ 
+-	if ((h->ush_path = vmem_strdup(vmem_heap, path, VM_NOSLEEP)) == NULL) {
++	//if ((h->ush_path = vmem_strdup(vmem_heap, path, VM_NOSLEEP)) == NULL) {
++	if ((h->ush_path = strdup(path)) == NULL) {
+ 		ustat_close(h);
+ 		return (ustat_null(NULL, ENOMEM, "failed to alloc path"));
+ 	}
+@@ -1306,8 +1314,10 @@ ustat_close(ustat_handle_t *h)
+ 	list_fini(&h->ush_free_pgsz);
+ 	list_fini(&h->ush_free_other);
+ 
+-	vmem_strfree(vmem_heap, h->ush_path);
+-	vmem_free(vmem_heap, h, sizeof (ustat_handle_t));
++	//vmem_strfree(vmem_heap, h->ush_path);
++	//vmem_free(vmem_heap, h, sizeof (ustat_handle_t));
++	free(h->ush_path);
++	free(h);
+ }
+ 
+ ssize_t
+@@ -1774,7 +1784,8 @@ ustat_update_core_class(ustat_handle_t *h,
+ 	int err = 0;
+ 
+ 	size_t len = e_phentsize * e_phnum;
+-	uint8_t *buf = vmem_alloc(vmem_heap, len, VM_NOSLEEP);
++	//uint8_t *buf = vmem_alloc(vmem_heap, len, VM_NOSLEEP);
++	uint8_t *buf = calloc(1, len);
+ 
+ 	if (buf == NULL)
+ 		return (ustat_error(h, ENOMEM, "failed to alloc phdrs buffer"));
+@@ -1808,7 +1819,8 @@ ustat_update_core_class(ustat_handle_t *h,
+ 			(void) ustat_update_page(h, gp);
+ 	}
+ out:
+-	vmem_free(vmem_heap, buf, len);
++	//vmem_free(vmem_heap, buf, len);
++	free(buf);
+ 	return (err);
+ }
+ 
+diff --git a/lib/libustat/ustat.h b/lib/libustat/ustat.h
+index db9bb26..628104b 100644
+--- a/lib/libustat/ustat.h
++++ b/lib/libustat/ustat.h
+@@ -269,7 +269,7 @@ static inline void							\
+ __attribute__((always_inline))						\
+ ustat_##op##_##tn(ustat_struct_t *s, ustat_named_t *n, t v)		\
+ {									\
+-	ustat_value_t *p = n->usn_data;					\
++	ustat_value_t *p = (ustat_value_t *)n->usn_data;					\
+ 	USTAT_CHECK_TYPE(s, n, min_type, max_type);			\
+ 	p->usv_##tn opsym v;						\
+ }
+@@ -281,7 +281,7 @@ static inline void							\
+ __attribute__((always_inline))						\
+ ustat_atomic_##op##_##tn(ustat_struct_t *s, ustat_named_t *n, t v)	\
+ {									\
+-	ustat_value_t *p = n->usn_data;					\
++	ustat_value_t *p = (ustat_value_t *)n->usn_data;					\
+ 	USTAT_CHECK_TYPE(s, n, min_type, max_type);			\
+ 	(void)__sync_fetch_and_##op(&p->usv_##tn, v);			\
+ }
+@@ -313,7 +313,7 @@ static inline void						\
+ __attribute__((always_inline))					\
+ ustat_atomic_set_##tn(ustat_struct_t *s, ustat_named_t *n, t v)	\
+ {								\
+-	ustat_value_t *p = n->usn_data;				\
++	ustat_value_t *p = (ustat_value_t *)n->usn_data;				\
+ 	USTAT_CHECK_TYPE(s, n, min_type, max_type);		\
+ 	(void)__sync_lock_test_and_set(&p->usv_##tn, v);	\
+ }
+@@ -370,7 +370,7 @@ static inline t							\
+ __attribute__((always_inline))					\
+ ustat_get_##tn(const ustat_struct_t *s, const ustat_named_t *n)	\
+ {								\
+-	ustat_value_t *p = n->usn_data;				\
++	ustat_value_t *p = (ustat_value_t *)n->usn_data;				\
+ 	USTAT_CHECK_TYPE(s, n, min_type, max_type);		\
+ 	return (p->usv_##tn);					\
+ }
+diff --git a/lib/libutrace/ut_lex.l b/lib/libutrace/ut_lex.l
+index c8d4bbf..f67c243 100644
+--- a/lib/libutrace/ut_lex.l
++++ b/lib/libutrace/ut_lex.l
+@@ -64,9 +64,6 @@ yynl(void)
+ #define	YY_USER_ACTION	yysetloc(yylloc);
+ %}
+ 
+-%option	ansi-definitions
+-%option	ansi-prototypes
+-
+ %option	bison-bridge
+ %option	bison-locations
+ 
+diff --git a/lib/libvmem/vmem.c b/lib/libvmem/vmem.c
+index 3fbc130..49484b9 100644
+--- a/lib/libvmem/vmem.c
++++ b/lib/libvmem/vmem.c
+@@ -799,7 +799,7 @@ vmem_init(void)
+ 	size_t mpage_size;
+ 	char name[64];
+ 
+-	vmem_born = gethrcycles();
++	//vmem_born = gethrcycles();
+ 	vmem_max_cpus = cpuid_get_num_conf_cpus();
+ 	vmem_pagesize = getpagesize();
+ 	vmem_vmemsize = P2ROUNDUP(offsetof(vmem_t, vm_cpu[vmem_max_cpus]),
