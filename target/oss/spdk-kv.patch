@@ -109,6 +109,303 @@ index afde316..1e79add 100644
  
  /**
   * Complete a bdev_io with a SCSI status code.
+diff --git a/include/spdk/nvme_samsung_apis.h b/include/spdk/nvme_samsung_apis.h
+new file mode 100644
+index 0000000..1f242d1
+--- /dev/null
++++ b/include/spdk/nvme_samsung_apis.h
+@@ -0,0 +1,200 @@
++#ifndef NVME_SAMCUNG_APIS_H
++#define NVME_SAMCUNG_APIS_H
++
++#include "spdk/nvme.h"
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/**
++ * \brief Submits a KV Store I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV Store I/O
++ * \param qpair I/O queue pair to submit the request
++ * \param key virtual address pointer to the value
++ * \param key_length length (in bytes) of the key
++ * \param buffer virtual address pointer to the value
++ * \param buffer_length length (in bytes) of the value
++ * \param offset offset of value (in bytes)
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *          0 - Idempotent; 1 - Post; 2 - Append
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_store(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++		       void *key, uint32_t key_length,
++		       void *buffer, uint32_t buffer_length,
++		       uint32_t offset,
++		       spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++		       uint32_t io_flags,
++		       uint32_t  option);
++
++/**
++ * \brief Submits a KV Compare I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV Store I/O
++ * \param qpair I/O queue pair to submit the request
++ * \param key virtual address pointer to the value
++ * \param key_length length (in bytes) of the key
++ * \param buffer virtual address pointer to the value
++ * \param buffer_length length (in bytes) of the value
++ * \param offset offset of value (in bytes)
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *          0x100 - Compare Fuse
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_compare(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++		       void *key, uint32_t key_length,
++		       void *buffer, uint32_t buffer_length,
++		       uint32_t offset,
++		       spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++		       uint32_t io_flags,
++		       uint32_t  option);
++
++/**
++ * \brief Submits a KV Retrieve I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV Retrieve I/O
++ * \param qpair I/O queue pair to submit the request
++ * \param key virtual address pointer to the value
++ * \param key_length length (in bytes) of the key
++ * \param buffer virtual address pointer to the value
++ * \param buffer_length length (in bytes) of the value
++ * \param offset offset of value (in bytes)
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *     No option supported for retrieve I/O yet.
++ *
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_retrieve(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++			  void *key, uint32_t key_length,
++			  void *buffer, uint32_t buffer_length,
++			  uint32_t offset,
++			  spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++			  uint32_t io_flags, uint32_t option);
++
++/**
++ * \brief Submits a KV Delete I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV DeleteI/O
++ * \param qpair I/O queue pair to submit the request
++ * \param key virtual address pointer to the value
++ * \param key_length length (in bytes) of the key
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *     No option supported for retrieve I/O yet.
++ *
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_delete(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++			void *key, uint32_t key_length,
++			spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++			uint32_t io_flags, uint32_t  option);
++
++/**
++ * \brief Submits a KV Exist I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV Exist I/O
++ * \param qpair I/O queue pair to submit the request
++ * \param keys virtual address pointer to the key array
++ * \param key_length length (in bytes) of the key
++ * \param buffer virtual address pointer to the return buffer
++ * \param buffer_length length (in bytes) of the return buffer
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *       0 - Fixed size; 1 - Variable size
++ *
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_exist(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++		       void *keys, uint32_t key_number, uint32_t key_length,
++		       void *buffer, uint32_t buffer_length,
++		       spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++		       uint32_t io_flags, uint32_t  option);
++
++/**
++ * \brief Submits a KV Iterate I/O to the specified NVMe namespace.
++ *
++ * \param ns NVMe namespace to submit the KV Iterate I/O
++ * \param qpair I/O queue pair to submit the request
++ * \param bitmask pointer to Iterator bitmask (4 bytes)
++ * \param iterator pointer to Iterator (3 bytes)
++ * \param buffer virtual address pointer to the return buffer
++ * \param buffer_length length (in bytes) of the return buffer
++ * \param cb_fn callback function to invoke when the I/O is completed
++ * \param cb_arg argument to pass to the callback function
++ * \param io_flags set flags, defined by the SPDK_NVME_IO_FLAGS_* entries
++ *                      in spdk/nvme_spec.h, for this I/O.
++ * \param option option to pass to NVMe command
++ *       0 - Fixed size; 1 - Variable size
++ *
++ * \return 0 if successfully submitted, ENOMEM if an nvme_request
++ *           structure cannot be allocated for the I/O request, EINVAL if
++ *           key_length or buffer_length is too large.
++ *
++ * The command is submitted to a qpair allocated by spdk_nvme_ctrlr_alloc_io_qpair().
++ * The user must ensure that only one thread submits I/O on a given qpair at any given time.
++ */
++int
++spdk_nvme_kv_cmd_iterate(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
++			 uint8_t *bitmask, uint8_t *iterator,
++			 void *buffer, uint32_t buffer_length,
++			 spdk_nvme_cmd_cb cb_fn, void *cb_arg,
++			 uint32_t io_flags, uint32_t  option);
++
++void nvme_kv_cmd_setup_key(struct spdk_nvme_cmd *cmd, void *src_key, uint32_t keylen, void *dst_key);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
++
+diff --git a/include/spdk/nvme_samsung_spec.h b/include/spdk/nvme_samsung_spec.h
+new file mode 100644
+index 0000000..7464cc3
+--- /dev/null
++++ b/include/spdk/nvme_samsung_spec.h
+@@ -0,0 +1,85 @@
++#ifndef NVME_SAMCUNG_SPEC_H
++#define NVME_SAMCUNG_SPEC_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#define SAMSUNG_KV_MAX_KEY_SIZE (255)
++#define SAMSUNG_KV_MAX_EMBED_KEY_SIZE (16)
++#define SAMSUNG_KV_MAX_VALUE_SIZE (2<<20)
++#define SAMSUNG_KV_MAX_CURRENT_VALUE_SIZE SAMSUNG_KV_MAX_VALUE_SIZE
++
++#define SAMSUNG_KV_BLOCK_LBA_SIZE (512)
++
++#define SPDK_KV_STORE_OPTION_IDEMPOTENT (0x02)
++#define SPDK_KV_DELETE_OPTION_CHECK_EXIST (0x01)
++
++enum spdk_nvme_samsung_status_code_type {
++   SPDK_NVME_SCT_KV_CMD = 0x03,
++};
++
++
++enum spdk_nvme_samsung_kv_command_status_code {
++   SPDK_NVME_SC_KV_INVALID_VALUE_SIZE    = 0x01,
++   SPDK_NVME_SC_KV_INVALID_VALU_OFFSET   = 0x02,
++   SPDK_NVME_SC_KV_INVALID_KEY_SIZE      = 0x03,
++   SPDK_NVME_SC_KV_INVALID_OPTION        = 0x04,
++
++   SPDK_NVME_SC_KV_MISALIGNED_VALUE_SIZE = 0x08,
++   SPDK_NVME_SC_KV_MISALIGNED_VALUE_OFF  = 0x09,
++   SPDK_NVME_SC_KV_MISALIGNED_KEY_SIZE   = 0x0A,
++
++   SPDK_NVME_SC_KV_KEY_NOT_EXIST         = 0x10,
++   SPDK_NVME_SC_KV_UNRECOVERED_ERROR     = 0x11,
++   SPDK_NVME_SC_KV_CAPACITY_EXCEEDED     = 0x12,
++   SPDK_NVME_SC_KV_FUSE_CMP_FAILURE      = 0x13,
++   SPDK_NVME_SC_KV_FUSE_CMD2_ABORT       = 0x14,
++   SPDK_NVME_SC_KV_FUSE_CMD_MISSED       = 0x15,
++
++   SPDK_NVME_SC_KV_LIST_CMD_NONEXIST_PREFIX	= 0x90,
++   SPDK_NVME_SC_KV_LIST_CMD_NONEXIST_STARTKEY	= 0x91,
++   SPDK_NVME_SC_KV_LIST_CMD_UNSUPPORTED_OPTION	= 0x92,
++   SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST		= 0x93,
++
++};
++
++enum spdk_nvme_samsung_kv_nvm_command_status_code {
++   SPDK_NVME_SC_KV_IDEMPOTENT_STORE_FAIL      = 0x80,
++   SPDK_NVME_SC_KV_MAX_VALUE_SIZE_EXCEEDED    = 0x81,
++   SPDK_NVME_SC_KV_KEY_IS_LOCKED              = 0x97,
++   SPDK_NVME_SC_KV_UUID_MISMATCH              = 0x98,
++   SPDK_NVME_SC_KV_NO_WRITER_EXISTS           = 0x99,
++   SPDK_NVME_SC_KV_NO_READER_EXISTS           = 0xA0,
++   SPDK_NVME_SC_KV_LOCK_EXPIRED               = 0xA1,
++};
++
++enum spdk_nvme_samsung_nvm_opcode {
++   SPDK_NVME_OPC_SAMSUNG_KV_STORE      = 0x81,
++   SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE   = 0x90,
++   SPDK_NVME_OPC_SAMSUNG_KV_DELETE     = 0xA1,
++   SPDK_NVME_OPC_SAMSUNG_KV_EXIST      = 0xB0,
++   SPDK_NVME_OPC_SAMSUNG_KV_LOCK       = 0xA0,
++   SPDK_NVME_OPC_SAMSUNG_KV_UNLOCK     = 0xA4,
++   SPDK_NVME_OPC_SAMSUNG_KV_ITERATE_CTRL = 0xB1,
++   SPDK_NVME_OPC_SAMSUNG_KV_ITERATE_READ = 0xB2,
++   SPDK_NVME_OPC_SAMSUNG_KV_CMP        = 0xC1,	//Compare
++   SPDK_NVME_OPC_SAMSUNG_KV_LIST_OPEN	= 0xD0,
++   SPDK_NVME_OPC_SAMSUNG_KV_LIST_CLOSE  = 0xD1,
++   SPDK_NVME_OPC_SAMSUNG_KV_LIST_READ	= 0xD2,
++};
++
++enum spdk_nvme_samsung_nvm_iter_option {
++	NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_OPEN = 0x01,
++	NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_CLOSE = 0x02,
++	NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_KEY = 0x04,
++	NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_KV = 0x08,
++	NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_DEL = 0x10,
++};
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
++
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
 index a24b009..f75d36f 100644
 --- a/include/spdk/nvme_spec.h
