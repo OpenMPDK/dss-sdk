@@ -1,9 +1,14 @@
 Here is the steps to install nkv stack and test it out.
 
-Supported OS and Kernel:
+Supported OS and Kernel: (Local NKV )
 -----------------------
 CentOS Linux release 7.4.1708 (Core)
 3.10.0-693.el7.x86_64
+
+Suppoerted OS and Kernel: ( Remote NKV )
+-----------------------
+CentOS Linux release 7.4.1708 (Core)
+5.1.0
 
 Supported system configuration:
 ------------------------------
@@ -33,7 +38,7 @@ yum install libcurl-devel
 
 Unzip nkv-sdk-bin-*.tgz and it will create a folder named 'nkv-sdk' say ~/nkv-sdk.
 
-Build open_mpdk driver:
+Build open_mpdk driver: ( Local NKV )
 ----------------------
 
  1. cd nkv-sdk/openmpdk_driver/kernel_v3.10.0-693-centos-7_4/
@@ -47,6 +52,10 @@ Build open_mpdk driver:
     nvme                   62347  0
     nvme_core              50009  0
 
+Build and istall open_mpdk driver: ( Remote NKV )
+---------------------
+ 1. cd nkv-sdk/openmpdk_driver/kernel_v5.1_nvmf
+ 2. Follow the instruction provided in the README.
 Run open_mpdk test cli:
 ---------------------
 
@@ -86,7 +95,11 @@ All good so far, let's attempt nkv test cli to see if nkv stack is working fine 
     Log config options can be changed from bin/smglogger.properties.
 
  5. Run "./nkv_test_cli" command to find the usage information.
- 6. ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+ 6. Local NKV execution: 
+   ./nkv_test_cli -c ../conf/nkv_config.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+    Remote NKV execution:
+   ./nkv_test_cli -c ../conf/nkv_config_remote.json -i msl-ssg-dl04 -p 1030  -b meta/prefix1/nkv -r / -k 128 -v 4096 -o 3 -n 100
+   
  7. This command should generate output on console as well as /var/log/dragonfly/nkv.log 
  8. On successful run, it should generate output similar to the following. For more verbose output if INFO logging is enabled
 
@@ -145,16 +158,22 @@ Put the following in a script may be..Need at least 4 devices to run Minio..
  8. ulimit -c unlimited
 
  9. cd ~/nkv-sdk/bin
- 10. ./<minio-binary> server  /dev/nvme{0...5}n1
- 11. start.sh script is included under bin directory that has all the above commands incorporated. Change the minio binary, config file and LD_LIBRARY_PATH accordingly
- 12. Mount points above should be matching the mount points given to nkv_config.json under 'nkv_local_mounts'
- 13. Distributed Minio command is:
+ 10. ./<minio-binary> server  /dev/nvme{0...3}n1
+ 11. start.sh script is included under bin directory that has all the above commands incorporated.
+     Change the minio binary, config file and LD_LIBRARY_PATH accordingly.
+ 12. Run Minio with local KV drives.Mount points at the host should be matching to the mount points
+     given to nkv_config.json under 'nkv_local_mounts'
+     ./start.sh 
+ 13. Run Minio with remote KV drives
+     ./start.sh remote
+ 14. Distributed Minio command is:
 
-     ./<minio-binary> server  http://nkvsmchost{1...4}/dev/nvme{0...5}n1
-    Where, mkvsmchost1, to nkvsmchost4 are 4 minio node names mentioned in /etc/hosts file of each server.
-    /dev/nvme{0...5}n1 are KV drives.
+     ./<minio-binary> server  http://minio{1...4}/dev/nvme{0...3}n1
+     Where, minio1, to minio4 are 4 minio node names mentioned in /etc/hosts file of each server.
+     /dev/nvme{0...3}n1 are 4 remote KV drives.
+     ./start.sh remote dist
 
- 14. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
+ 15. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
 
 Running MINIO app with emulator :
 -------------------------------

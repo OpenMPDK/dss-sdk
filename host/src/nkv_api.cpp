@@ -35,7 +35,8 @@
 #include <cstdlib>
 #include <string>
 #include "nkv_framework.h"
-#include "cluster_map.h"
+#include "native_fabric_manager.h"
+#include "unified_fabric_manager.h"
 #include "auto_discovery.h"
 #include "event_handler.h"
 #include <pthread.h>
@@ -62,6 +63,7 @@ std::mutex mtx_global;
 std::mutex mtx_stat;
 std::string config_path;
 std::queue<std::string> event_queue;
+FabricManager* fm = NULL;
 
 
 void event_handler_thread(std::string event_subscribe_channel, 
@@ -319,15 +321,19 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
         return NKV_ERR_CONFIG;
     } else if (connect_fm) {
         // Add logic to contact FM and then give that json ptree to the parse_add_container call
-        const long fm_connection_timeout     = pt.get<long>("fm_connection_timeout", 60);
-        std::string url = fm_address + fm_endpoint;
-
-        ClusterMap* cm = new ClusterMap(url);
-        std::string response("");
-        bool ret = cm->get_response(response, fm_connection_timeout);
+        if ( pt.get<long>("fm_connection_timeout", 0 ) ) {
+          REST_CALL_TIMEOUT = pt.get<long>("fm_connection_timeout");
+        }
+        int32_t fm_redfish_compliant = pt.get<long>("fm_redfish_compliant", 1 );
+        if ( fm_redfish_compliant ) {
+          fm = new UnifiedFabricManager(fm_address, fm_endpoint);
+        } else {
+          fm = new NativeFabricManager(fm_address, fm_endpoint);
+        }
+        bool ret = fm->process_clustermap();
 
         if (ret){
-          if ( ! cm->get_clustermap(pt)) {
+          if ( ! fm->get_clustermap(pt)) {
             smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
             if (! add_remote_mount_path(pt) ){
               smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
@@ -340,7 +346,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
             return NKV_ERR_CONFIG;
           }
         } else{
-          smg_error(logger, "NKV: Response not recived from Fabric Manager ...");
+          smg_error(logger, "NKV: Falied to receive cluster map from Fabric Manager ...");
           return NKV_ERR_CONFIG;
         }
 
@@ -443,6 +449,11 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
   if (nkv_cnt_list) {
     delete nkv_cnt_list;
     nkv_cnt_list = NULL;
+  }
+
+  if ( fm ) {
+    delete fm;
+    fm = NULL;
   }
  
   #ifdef SAMSUNG_API 

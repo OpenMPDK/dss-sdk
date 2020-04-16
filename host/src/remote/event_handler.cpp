@@ -66,8 +66,9 @@ void receive_events(std::queue<std::string>& event_queue,
   }
   smg_alert(logger, "Receving events to the following subscribed channels ... %s", subscribed_channel.c_str());
 
-  int interval = 2;
-  zmq_setsockopt(subscriber, ZMQ_SNDHWM, &interval , sizeof(int));
+  int interval;
+  interval = event_subscribe_channels.size();
+  //zmq_setsockopt(subscriber, ZMQ_SNDHWM, &interval , sizeof(int)); // Commented as we are not sending back any message.
   zmq_setsockopt(subscriber, ZMQ_RCVHWM, &interval , sizeof(int));
   /*int rinterval = 1000;
   zmq_setsockopt(subscriber, ZMQ_RECONNECT_IVL, &rinterval , sizeof(int));
@@ -78,7 +79,6 @@ void receive_events(std::queue<std::string>& event_queue,
   int heartbeat_interval = 50000;
   zmq_setsockopt(subscriber, ZMQ_HEARTBEAT_IVL,&heartbeat_interval, sizeof(int));
 
-  //subscriber.connect(ADDRESS_PORT_READ);
   subscriber.connect(mq_address.c_str());
 
 
@@ -123,8 +123,10 @@ void receive_events(std::queue<std::string>& event_queue,
     smg_error(logger, "EXCEPTION: %s", e.what());
   }
 
-   zmq_close(subscriber);
-   zmq_term(subscriber);
+   //zmq_close(subscriber);
+   //zmq_term(context);
+   subscriber.close();
+   context.terminate();
 }
 
 /* Function Name: add_event()

@@ -31,18 +31,19 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef NKV_CLUSTER_MAP_H
-#define NKV_CLUSTER_MAP_H
+#ifndef NKV_FM_H
+#define NKV_FM_H
 
 #include<iostream>
 #include<memory>
 #include<string>
 #include<cstdint>
-#include<curl/curl.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
 #include "csmglogger.h"
+#include "nkv_utils.h"
 
 using boost::property_tree::ptree;
 using boost::property_tree::read_json;
@@ -50,24 +51,51 @@ using boost::property_tree::write_json;
 using namespace std;
 
 extern c_smglogger* logger;
+//extern FabricManager* fm;
 
-class ClusterMap
+class FabricManager
 {
-  const std::string URL;
-  std::string rest_response; // rest response
+  const string host;
+  const string endpoint; // May be we don't need in future. 
+
+  //TODO
+  //const string name;  // FM Name
+  //const string version; // FM Version
+
   public:
-  ClusterMap(){};
-  ClusterMap(std::string rest_url):URL(rest_url) {}
-  ~ClusterMap(){};
-  bool get_response(std::string& response, const long TIMEOUT=10);
-  bool get_clustermap(ptree& clustermap);
-  const std::string& get_rest_url();
+  //FabricManager(){};
+  FabricManager(const string& _host, const string& _endpoint):
+                               host(_host),endpoint(_endpoint)
+  {
+  }
+  virtual ~FabricManager(){};
 
-  //const std::string& get_cluster_status();
+  ptree target_cluster_map; // Target Cluster Map in JSON format.
+  const string& get_host() { return host; }
+  const string& get_endpoint() { return endpoint; }
+  
+  virtual bool process_clustermap() = 0;
+  const string get_rest_url() { return host+endpoint; }
 
-
+  bool get_clustermap(ptree& dss_config) {
+    try { 
+      BOOST_FOREACH(boost::property_tree::ptree::value_type &v, target_cluster_map) {
+        boost::optional< ptree& > is_node_exist = dss_config.get_child_optional(v.first.data());
+        if(is_node_exist) {
+          dss_config.erase(v.first.data());
+        }
+        dss_config.add_child(v.first.data(), v.second);
+      }
+      smg_info(logger, "Updated Subsystem and Cluster information to the NKV configuration ...");
+      //boost::property_tree::write_json(cout, dss_config);
+    } catch(exception const& e) {
+      smg_error(logger, "%s: %u",__func__, e.what());
+      return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+  }
+  
 };
-
 
 #endif
 
