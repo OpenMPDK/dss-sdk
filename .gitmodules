@@ -1,7 +1,3 @@
-[submodule "host/src/openmpdk"]
-	path = host/src/openmpdk
-	url = git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-openmpdk.git
-        #url = https://github.com/OpenMPDK/KVSSD.git
 [submodule "host/src/logger/log4cpp"]
 	path = host/src/logger/log4cpp
 	url = https://github.com/orocos-toolchain/log4cpp.git
@@ -23,3 +19,6 @@
 [submodule "target/oss/log4cpp"]
 	path = target/oss/log4cpp
 	url = https://github.com/orocos-toolchain/log4cpp.git
+[submodule "host/src/openmpdk"]
+	path = host/src/openmpdk
+	url = https://github.com/OpenMPDK/KVSSD.git
