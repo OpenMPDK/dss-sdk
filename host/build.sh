@@ -20,6 +20,25 @@ CWD="$(pwd)"
 CWDNAME=`basename "$CWD"`
 OD="${CWD}/../${CWDNAME}_out"
 
+#Apply openmpdk patch
+openmpdk_patch="../target/oss/openmpdk.patch"
+if [ -f ${openmpdk_patch} ]; then
+  patched="src/openmpdk/.patched"
+  if [ ! -f ${patched} ]; then
+    cd "src/openmpdk"
+    echo "Applying openmpdk_patch from ${openmpdk_patch} "
+    openmpdk_patch=../../${openmpdk_patch}
+    patch -p1 -N < ${openmpdk_patch}
+    touch .patched
+    cd ${CWD}
+  else
+    echo "openmpdk patch is already available, skipping this step! "
+  fi
+else
+  echo "openmpdk patch doesn't exist! exit build process"
+  exit
+fi
+
 if [ $(yum list installed | cut -f1 -d" " | grep --extended '^boost-devel' | wc -l) -eq 1 ]; then
   echo "boost-devel already installed";
 else
