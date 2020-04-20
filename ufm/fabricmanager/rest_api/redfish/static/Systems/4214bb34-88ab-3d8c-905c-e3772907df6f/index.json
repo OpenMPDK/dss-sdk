@@ -1,0 +1,37 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
+    "@odata.id": "/redfish/v1/Systems/4214bb34-88ab-3d8c-905c-e3772907df6f",
+    "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
+    "Description": "System containing subsystem(s)",
+    "Id": "4214bb34-88ab-3d8c-905c-e3772907df6f",
+    "Identifiers": [
+        {
+            "DurableName": "4214bb34-88ab-3d8c-905c-e3772907df6f",
+            "DurableNameFormat": "UUID"
+        }
+    ],
+    "IPv4Addresses": [
+        {
+            "Address": "10.1.51.54",
+            "SubnetMask": "",
+            "AddressOrigin": "",
+            "Gateway": ""
+        }
+    ],
+    "IPv6DefaultGateway": "",
+    "IPv6Addresses": [
+        {
+            "Address": "",
+            "PrefixLength": 0,
+            "AddressOrigin": "",
+            "AddressState": ""
+        }
+    ],
+    "Links": {
+        "SupplyingComputerSystems": [
+            {
+                "@odata.id": "/redfish/v1/Systems/4214bb34-88ab-3d8c-905c-e3772907df6f.44f101c8-e24e-42f1-9f2b-92303682cd88"
+            }
+        ]
+    }
+}

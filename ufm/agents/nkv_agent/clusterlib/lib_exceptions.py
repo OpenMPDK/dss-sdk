@@ -1,0 +1,2 @@
+class EtcdConnectionFail(Exception):
+    pass

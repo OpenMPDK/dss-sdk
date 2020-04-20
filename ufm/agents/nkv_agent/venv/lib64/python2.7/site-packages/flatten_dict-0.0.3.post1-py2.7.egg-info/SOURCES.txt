@@ -1,0 +1,13 @@
+README.rst
+setup.cfg
+setup.py
+flatten_dict/__init__.py
+flatten_dict/flatten_dict.py
+flatten_dict/reducer.py
+flatten_dict/splitter.py
+flatten_dict/tests.py
+flatten_dict.egg-info/PKG-INFO
+flatten_dict.egg-info/SOURCES.txt
+flatten_dict.egg-info/dependency_links.txt
+flatten_dict.egg-info/requires.txt
+flatten_dict.egg-info/top_level.txt

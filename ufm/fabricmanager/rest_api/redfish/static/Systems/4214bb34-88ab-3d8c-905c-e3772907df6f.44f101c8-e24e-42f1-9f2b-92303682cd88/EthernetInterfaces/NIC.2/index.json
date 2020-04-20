@@ -1,0 +1,36 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#EthernetInterface.EthernetInterface",
+    "@odata.id": "/redfish/v1/Systems/4214bb34-88ab-3d8c-905c-e3772907df6f.44f101c8-e24e-42f1-9f2b-92303682cd88/EthernetInterfaces/NIC.2",
+    "@odata.type": "#EthernetInterface.v1_5_1.EthernetInterface",
+    "Description": "Ethernet Interface information",
+    "Id": "NIC.2",
+    "Name": "NIC.2",
+    "SpeedMbps": 200000,
+    "MACAddress": "ac:1f:6b:cf:1d:ad",
+    "LinkStatus": "LinkUp",
+    "IPv4Addresses": [
+        {
+            "Address": "101.100.20.2",
+            "SubnetMask": "",
+            "AddressOrigin": "",
+            "Gateway": "",
+            "oem": {
+                "Port": 1023,
+                "SupportedProtocol": "TCP"
+            }
+        }
+    ],
+    "IPv6DefaultGateway": "",
+    "IPv6Addresses": [
+        {
+            "Address": "",
+            "PrefixLength": 0,
+            "AddressOrigin": "",
+            "AddressState": "",
+            "oem": {
+                "Port": 0,
+                "SupportedProtocol": ""
+            }
+        }
+    ]
+}

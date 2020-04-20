@@ -1,0 +1,13 @@
+[Unit]
+Description=Samsung Object Storage KV Client
+After=etcd-gateway.service
+
+[Service]
+User=root
+WorkingDirectory=/usr/nkv_agent
+Environment="PYTHONPATH=/usr/nkv_agent:/usr/dragonfly/cm/:$PYTHONPATH"
+KillMode=process
+ExecStart=/usr/nkv_agent/venv/bin/python kv-cli.py daemon 127.0.0.1 23790 --stats
+
+[Install]
+WantedBy=multi-user.target

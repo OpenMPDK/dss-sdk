@@ -1,0 +1,36 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
+    "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1",
+    "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
+    "Description": "System representing the drive resources",
+    "Id": "65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1",
+    "Identifiers": [
+        {
+            "DurableName": "nqn.2019-07.samsung:msl-ssg-mp03-data2",
+            "DurableNameFormat": "NQN"
+        }
+    ],
+    "Status": {
+        "State": "Enabled",
+        "Health": "OK"
+    },
+    "Storage": {
+        "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage"
+    },
+    "EthernetInterfaces": {
+        "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/EthernetInterfaces"
+    },
+    "Name": "System",
+    "oem": {
+        "ServerName": "msl-ssg-mp03",
+        "NSID": 2,
+        "NumaAligned": false
+    },
+    "Links": {
+        "ConsumingComputerSystems": [
+            {
+                "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac"
+            }
+        ]
+    }
+}

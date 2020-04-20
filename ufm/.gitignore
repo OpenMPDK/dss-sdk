@@ -1,0 +1,8 @@
+*.pyc
+*.retry
+*.swo
+*.swp
+.env
+*.deb
+*.rpm
+ufm.log

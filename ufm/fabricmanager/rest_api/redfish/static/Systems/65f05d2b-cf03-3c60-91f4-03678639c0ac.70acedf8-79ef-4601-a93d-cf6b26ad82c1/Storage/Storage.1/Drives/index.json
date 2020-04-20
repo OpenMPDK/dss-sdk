@@ -1,0 +1,16 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#DriveCollection.DriveCollection",
+    "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage/Storage.1/Drives",
+    "@odata.type": "#DriveCollection.DriveCollection",
+    "Description": "Collection of drives",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage/Storage.1/Drives/S3VJNA0M835133"
+        },
+        {
+            "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage/Storage.1/Drives/S3VJNA0M835134"
+        }
+    ],
+    "Members@odata.count": 2,
+    "Name": "Drive Collection"
+}

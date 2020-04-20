@@ -1,0 +1,16 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#Drive.Drive",
+    "@odata.id": "/redfish/v1/Systems/4214bb34-88ab-3d8c-905c-e3772907df6f.44f101c8-e24e-42f1-9f2b-92303682cd88/Storage/Storage.1/Drives/S3VJNA0M835131",
+    "@odata.type": "Drive.v1_8_0.Drive",
+    "Description": "Drive Information",
+    "Name": "Storage Drive Information",
+    "BlockSizeBytes": 512,
+    "CapacityBytes": 3840755982336,
+    "Id": "S3VJNA0M835131",
+    "Manufacturer": "Samsung",
+    "MediaType": "SSD",
+    "Model": "MZQLB3T8HALS-000AZ",
+    "Protocol": "NVMeOverFabrics",
+    "Revision": "ETA51KB3",
+    "SerialNumber": "S3VJNA0M835131"
+}

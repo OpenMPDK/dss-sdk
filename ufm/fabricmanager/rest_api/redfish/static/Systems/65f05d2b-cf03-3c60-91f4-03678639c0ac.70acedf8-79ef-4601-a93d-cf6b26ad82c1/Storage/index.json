@@ -1,0 +1,17 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#StorageCollection.StorageCollection",
+    "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage",
+    "@odata.type": "#StorageCollection.StorageCollection",
+    "Description": "Collection of Storage information",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Systems/65f05d2b-cf03-3c60-91f4-03678639c0ac.70acedf8-79ef-4601-a93d-cf6b26ad82c1/Storage/Storage.1"
+        }
+    ],
+    "Members@odata.count": 1,
+    "Name": "Storage Collection",
+    "oem": {
+        "CapacityBytes": 107541167505408,
+        "PercentAvailable": 99
+    }
+}

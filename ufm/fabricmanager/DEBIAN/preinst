@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+#
+echo "Now running pre-installer!"
+
+SERVICE="ufm"
+SERVICE_PATH="/usr/share/${SERVICE}/systemd"
+
+
+if [[ ! -x /usr/bin/python3 ]]
+then
+    echo "ERR: Python3 is not installed"
+    exit 1
+fi
+
+if [[ "$1" == "configure" ]]
+then
+  [[ -e ${SERVICE_PATH}/${SERVICE}.service ]] && systemctl stop ${SERVICE}
+fi
+
+exit 0
+

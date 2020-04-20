@@ -1,0 +1,11 @@
+etcd3==0.11.1
+Flask==1.1.1
+Flask-HTTPAuth==3.2.3
+Flask-RESTful==0.3.6
+flatten-dict==0.2.0
+zmq==0.0.0
+redfish-client==0.2.1
+configparser==4.0.2
+netifaces==0.10.9
+gunicorn==20.0.4
+pyhaproxy==0.3.7

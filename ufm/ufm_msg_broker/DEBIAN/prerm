@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+#
+echo "Now running the pre un-installer!"
+
+# if update do not remove anything
+[[ $1 -eq 1 ]] && exit 0
+[[ "$1" == "upgrade" ]] && exit 0
+
+
+
+exit 0
+

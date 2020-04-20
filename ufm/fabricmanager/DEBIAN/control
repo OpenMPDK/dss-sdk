@@ -1,0 +1,9 @@
+Package: ufm
+Version: 1.0
+Section: base
+Architecture: all
+Essential: no
+Priority: optional
+Depends: python,etcd
+Maintainer: Samsung
+Description: Universal Fabric Manager

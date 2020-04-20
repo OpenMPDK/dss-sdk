@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+#
+echo "Now running pre-installer!"
+
+if [[ ! -x /usr/bin/python3 ]]
+then
+    echo "ERR: Python3 is not installed"
+    exit 1
+fi
+
+/usr/bin/env pip3 install zmq
+
+exit 0
+

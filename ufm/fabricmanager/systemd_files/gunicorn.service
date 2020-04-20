@@ -1,0 +1,15 @@
+[Unit]
+Description=Gunicorn
+After=network.target
+Before=ufm.target
+
+[Service]
+User=root
+KillMode=process
+WorkingDirectory=/usr/share/ufm
+Environment="PYTHONPATH=/usr/share/ufm/:$PYTHONPATH"
+ExecStart=/usr/local/bin/gunicorn -w 4 --bind 0.0.0.0:5000 fabricmanager:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

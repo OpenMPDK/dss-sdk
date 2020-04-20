@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+#
+echo "Now running the pre un-installer!"
+
+SERVICE="ufm"
+SERVICE_PATH="/usr/share/${SERVICE}/systemd"
+
+# if update do not remove anything
+[[ $1 -eq 1 ]] && exit 0
+[[ "$1" == "upgrade" ]] && exit 0
+
+
+if [[ -e ${SERVICE_PATH}/${SERVICE}.service ]]
+then
+    systemctl stop ${SERVICE}
+fi
+
+exit 0
+

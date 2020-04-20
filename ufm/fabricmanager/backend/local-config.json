@@ -1,0 +1,29 @@
+{
+    "LOCAL": {
+        "Systems": [
+            {
+                "Name": "Systems",
+                "Id": "Targetuuid{0}.nqnuuid{0}",
+                "Count": 1,
+                "Storage": [
+                    {
+                        "Id": "Storage.{0}",
+                        "Count": 1,
+                        "Drives": [
+                            {
+                                "Id": "S3VJNA0M83513{0}",
+                                "Count": 2
+                            }
+                        ]
+                    }
+                ],
+                "EthernetInterfaces": [
+                    {
+                        "Id": "NIC.{0}",
+                        "Count": 1
+                    }
+                ]
+            }
+        ]
+    }
+}

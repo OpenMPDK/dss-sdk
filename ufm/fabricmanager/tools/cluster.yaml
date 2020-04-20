@@ -1,0 +1,154 @@
+---
+cluster:
+    id: "6699f0fa-4394-11ea-afc9-00505696ad1b"
+    ip_address: "172.22.4.102"
+    leader: "FabricManager02"
+    name: "fabricmanager02.autocache.com"
+    time_created: 1580411525
+    uptime_in_seconds: 430070
+    FabricManager02:
+      - db_size: 1179648
+        id: "682bbf34-4394-11ea-9f2a-00505696ad1b"
+        ip_address: "172.22.4.102"
+        space_avail_percent: 94
+        status: "up"
+        status_updated: 1580844535
+        time_created: 1580411526
+        total_capacity_in_kb: 38796288
+        uptime: 308
+object_storage/servers/d04ac67e-99b7-3134-94f0-fd112c20fb55:
+    - agent:
+        status: "up"
+        version: "1.0"
+    - server_attributes:
+        cpu:
+            Endian: "little"
+            LogicalCount: 24
+            ModelName: "Intel(R) Xeon(R) CPU E5-2620 v3 @ 2.40GHz"
+            NUMACount: "2"
+            NUMAMap/0: "0,2,4,6,8,10,12,14,16,18,20,22"
+            NUMAMap/1: "1,3,5,7,9,11,13,15,17,19,21,23"
+            PhysicalCount: 12
+            SocketCount: 2
+            ThreadPerCore: 2
+        identity:
+            Hostname: "test22.autocache.com"
+            MachineID: "NjUxMTNiMWEwZDJmNjA4N2Q1MTVlNmE4Y2QwZWU3ZWY="
+            UUID: "d04ac67e-99b7-3134-94f0-fd112c20fb55"
+        network/Count: 6
+        network/interfaces/24:6e:96:06:15:f8:
+              CRC: 762689773
+              Device: "82599ES 10-Gigabit SFI/SFP+ Network Connection"
+              Driver: "ixgbe"
+              DriverVersion: "4.4.0-k-rh7.4"
+              Duplex: "unknown"
+              InterfaceName: "eno1"
+              MACAddress: "24:6e:96:06:15:f8"
+              NUMANode: 0
+              PCIAddress: "0000:01:00.0"
+              Speed: "-1"
+              Status: "down"
+              Vendor: "Intel Corporation"
+        network/interfaces/24:6e:96:06:15:fa:
+              CRC: 2146353930
+              Device: "82599ES 10-Gigabit SFI/SFP+ Network Connection"
+              Driver: "ixgbe"
+              DriverVersion: "4.4.0-k-rh7.4"
+              Duplex: "unknown"
+              InterfaceName: "eno2"
+              MACAddress: "24:6e:96:06:15:fa"
+              NUMANode: 0
+              PCIAddress: "0000:01:00.1"
+              Speed: "-1"
+              Status: "down"
+              Vendor: "Intel Corporation"
+        network/interfaces/24:6e:96:06:15:fc:
+              CRC: "2018359043"
+              Device: "I350 Gigabit Network Connection"
+              Driver: "igb"
+              DriverVersion: "5.4.0-k"
+              Duplex: "full"
+              IPv4: "172.22.7.42"
+              IPv6: "fe80::266e:96ff:fe06:15fc"
+              InterfaceName: "eno3"
+              MACAddress: "24:6e:96:06:15:fc"
+              NUMANode: 0
+              PCIAddress: "0000:06:00.0"
+              Speed: 1000
+              Status: "up"
+              Vendor: "Intel Corporation"
+        network/interfaces/24:6e:96:06:15:fd:
+              CRC: 1158213173
+              Device: "I350 Gigabit Network Connection"
+              Driver: "igb"
+              DriverVersion: "5.4.0-k"
+              Duplex: "unknown"
+              InterfaceName: "eno4"
+              MACAddress: "24:6e:96:06:15:fd"
+              NUMANode: 0
+              PCIAddress: "0000:06:00.1"
+              Speed: "-1"
+              Status: "down"
+              Vendor: "Intel Corporation"
+        network/interfaces/ec:0d:9a:9c:93:ba:
+              CRC: 622033183
+              Device: "MT27800 Family [ConnectX-5]"
+              Driver: "mlx5_core"
+              DriverVersion: "3.0-1"
+              Duplex: "full"
+              IPv4: "11.11.200.22"
+              IPv6: "fe80::ee0d:9aff:fe9c:93ba"
+              InterfaceName: "enp3s0f0"
+              MACAddress: "ec:0d:9a:9c:93:ba"
+              NUMANode: 0
+              PCIAddress: "0000:03:00.0"
+              Speed: 100000
+              Status: "up"
+              Vendor: "Mellanox Technologies"
+        network/interfaces/ec:0d:9a:9c:93:bb:
+              CRC: 1964576803
+              Device: "MT27800 Family [ConnectX-5]"
+              Driver: "mlx5_core"
+              DriverVersion: "3.0-1"
+              Duplex: "unknown"
+              InterfaceName: "enp3s0f1"
+              MACAddress: "ec:0d:9a:9c:93:bb"
+              NUMANode: 0
+              PCIAddress: "0000:03:00.1"
+              Speed: "-1"
+              Status: "down"
+              Vendor: "Mellanox Technologies"
+        storage:
+            Capacity: 3840755982336
+            nvme/devices/S3VJNA0M835131:
+                - Capacity: 3840755982336
+                  CRC: 181361142
+                  DiskCapacityInBytes: 3840755982336
+                  DiskUtilizationInBytes: 0
+                  DiskUtilizationPercentage: "0.00"
+                  DriveCriticalWarning: 0
+                  DriveDataUnitsRead: 2869146240
+                  DriveDataUnitsWritten: 24898857192
+                  DriveHostReadCommands: 310248
+                  DriveHostWriteCommands: 10459194
+                  DriveMediaErrors: 0
+                  DriveNumErrLogEntries: 0
+                  DrivePowerCycles: 3
+                  DrivePowerOnHours: 1233
+                  DriveTemperature: 29
+                  DriveUnsafeShutdowns: 3
+                  FirmwareRevision: "ETA51KB3"
+                  LogicalBlockSize: 512
+                  Model: "SAMSUNG MZQLB3T8HALS-000AZ"
+                  NUMANode: 1
+                  PCIAddress: "0000:84:00.0"
+                  Serial: "S3VJNA0M835131"
+                  SizeInBytes: 3840755982336
+        spdk_status: "up"
+        uptime: 21
+      name: "test22"
+      list: 1580844522
+      target:
+        hash: "d4bb4dd6369b5289bffc3e7a952fb198451cb218"
+        status: "up"
+        version: "0.5.0"

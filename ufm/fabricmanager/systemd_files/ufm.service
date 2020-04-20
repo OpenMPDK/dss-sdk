@@ -1,0 +1,15 @@
+[Unit]
+Description=Fabric Manager
+After=network.target ufm_etcd.target ufm_msg_broker.target
+
+[Service]
+User=root
+WorkingDirectory=/tmp/
+Environment="PYTHONPATH=/usr/share/ufm/:$PYTHONPATH"
+KillMode=process
+ExecStart=/usr/bin/python3 /usr/share/ufm/fabricmanager.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

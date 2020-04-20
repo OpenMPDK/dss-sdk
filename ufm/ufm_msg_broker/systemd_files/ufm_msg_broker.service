@@ -1,0 +1,13 @@
+[Unit]
+Description=UFM message broker
+After=network.target
+
+[Service]
+User=root
+KillMode=process
+ExecStart=/usr/bin/python3 /usr/share/ufmbroker/ufm_msg_broker.py --listen_on_any
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

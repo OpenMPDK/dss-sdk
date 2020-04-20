@@ -1,0 +1,48 @@
+ {
+  "cm_maps": [
+    {
+      "cm_server_address": "0.0.0.0",
+      "cm_server_name": ""
+    }
+  ],
+  "subsystem_maps": [
+    {
+      "subsystem_nqn": "nqn.2019-07.samsung:msl-ssg-mp03-data1",
+      "subsystem_transport": [
+        {
+          "subsystem_address": "102.100.20.3",
+          "subsystem_addr_fam": 2,
+          "subsystem_type": "TCP",
+          "subsystem_port": 1024,
+          "subsystem_interface_status": 1
+        },
+        {
+          "subsystem_address": "101.100.20.2",
+          "subsystem_addr_fam": 2,
+          "subsystem_type": "TCP",
+          "subsystem_port": 1023,
+          "subsystem_interface_status": 1
+        }
+      ]
+    },
+    {
+      "subsystem_nqn": "nqn.2019-07.samsung:msl-ssg-mp03-data2",
+      "subsystem_transport": [
+        {
+          "subsystem_address": "102.100.20.4",
+          "subsystem_addr_fam": 2,
+          "subsystem_type": "TCP",
+          "subsystem_port": 1024,
+          "subsystem_interface_status": 1
+        },
+        {
+          "subsystem_address": "101.100.20.3",
+          "subsystem_addr_fam": 2,
+          "subsystem_type": "TCP",
+          "subsystem_port": 1023,
+          "subsystem_interface_status": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+#
+echo "Now running post un-installer!"
+
+die()
+{
+    echo "$*"
+    exit 1
+}
+
+SERVICE="ufm"
+APP_PATH="/usr/share/${SERVICE}"
+SERVICE_PATH="/usr/share/${SERVICE}/systemd"
+
+# if update do not remove anything
+[[ $1 -eq 1 ]] && exit 0
+[[ "$1" == "upgrade" ]] && exit 0
+
+if [[ -e /etc/systemd/system/${SERVICE}.service ]]
+then
+    systemctl disable ${SERVICE}
+    systemctl stop ${SERVICE}
+    rm /etc/systemd/system/${SERVICE}.service
+fi
+
+if [[ -e ${APP_PATH} ]]
+then
+    rm -rf ${APP_PATH}
+fi
+
+if [[ -e /var/log/${SERVICE} ]]
+then
+    rm -rf /var/log/${SERVICE}
+fi
+
+if [[ -e /etc/systemd/system/gunicorn.service ]]
+then
+    systemctl disable gunicorn
+    systemctl stop gunicorn
+    rm /etc/systemd/system/gunicorn.service
+fi
+
+exit 0
+
