@@ -20,8 +20,20 @@ CWD="$(pwd)"
 CWDNAME=`basename "$CWD"`
 OD="${CWD}/../${CWDNAME}_out"
 
+#Generate openmpdk patch
+if [ $2 == "-p" ]; then
+  cd "src/openmpdk"
+  echo "Generating openmpdk patch from gitlab/master"
+  git remote add gitlab_one git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-openmpdk.git
+  git fetch gitlab_one
+  git branch openmpdk_patch de1a96154e8831c1872c1f184cb90c7f13228844
+  git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
+  git remote remove gitlab_one
+  git branch -d openmpdk_patch
+  cd ${CWD}
+fi
 #Apply openmpdk patch
-openmpdk_patch="../target/oss/openmpdk.patch"
+openmpdk_patch="openmpdk.patch"
 if [ -f ${openmpdk_patch} ]; then
   patched="src/openmpdk/.patched"
   if [ ! -f ${patched} ]; then
