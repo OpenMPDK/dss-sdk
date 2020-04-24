@@ -26,7 +26,8 @@ if [ $2 == "-p" ]; then
   echo "Generating openmpdk patch from gitlab/master"
   git remote add gitlab_one git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-openmpdk.git
   git fetch gitlab_one
-  git branch openmpdk_patch de1a96154e8831c1872c1f184cb90c7f13228844
+  commit_id=git rev-list --tags --max-count=1
+  git branch openmpdk_patch ${commit_id}
   git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
   git remote remove gitlab_one
   git branch -d openmpdk_patch
