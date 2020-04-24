@@ -1,8 +1,27 @@
 #!/bin/bash
+Help()
+{
+  echo
+  echo "Usage: ./build.sh <Build Mode>"
+  echo 
+  echo "Build Modes: kdd, kdd-samsung, kdd-samsung-remote, emul."
+  echo "    kdd                : SNIA compatible openmpdk APIs."
+  echo "    kdd-samsung        : Samsung openmpdk APIs."
+  echo "    kdd-samsung-remote : Samsung openmpdk APIs with remote KV support."
+  echo "    emul               : SNIA compatible openmpdk APIs with emulator support."
+  echo
+  echo "*** Developer's Only ***"
+  echo "Generate openmpdk patch and build host software."
+  echo
+  echo "./build.sh <Build Mode> -p <Gitlab openmpdk url>"
+  echo 
+}
+
 
 if [ $# -eq 0 ]
 then
-  echo "No arguments supplied, argument should be either 'kdd', 'kdd-samsung' 'kdd-samsung-remote' or 'emul'"
+  echo "No arguments supplied, please specify arguments as below."
+  Help
   exit
 fi
 
@@ -11,6 +30,7 @@ then
   echo "Building NKV with : $1"
 else
   echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
+  Help
   exit
 fi
 
@@ -22,16 +42,22 @@ OD="${CWD}/../${CWDNAME}_out"
 
 #Generate openmpdk patch
 if [ $2 == "-p" ]; then
-  cd "src/openmpdk"
-  echo "Generating openmpdk patch from gitlab/master"
-  git remote add gitlab_one git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-openmpdk.git
-  git fetch gitlab_one
-  commit_id=git rev-list --tags --max-count=1
-  git branch openmpdk_patch ${commit_id}
-  git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
-  git remote remove gitlab_one
-  git branch -d openmpdk_patch
-  cd ${CWD}
+  openmpdk_url=$3
+  if [ ${openmpdk_url} != '' ]; then
+    cd "src/openmpdk"
+    echo "Generating openmpdk patch from ${openmpdk_url}" 
+    git remote add gitlab_one ${openmpdk_url}
+    git fetch gitlab_one
+    commit_id=`git rev-list --tags --max-count=1`
+    git branch openmpdk_patch ${commit_id}
+    git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
+    git remote remove gitlab_one
+    git branch -d openmpdk_patch
+    cd ${CWD}
+  else
+    echo "Please specify gitlab openmpdk url to generate openmpdk patch"
+    echo "./build.sh <Build Mode> -p <Gitlab openmpdk url>"
+  fi
 fi
 #Apply openmpdk patch
 openmpdk_patch="openmpdk.patch"
