@@ -1,8 +1,22 @@
 #!/bin/bash
+Help()
+{
+  echo
+  echo "Usage: ./build.sh <Build Mode>"
+  echo 
+  echo "Build Modes: kdd, kdd-samsung, kdd-samsung-remote, emul."
+  echo "    kdd                : SNIA compatible openmpdk APIs."
+  echo "    kdd-samsung        : Samsung openmpdk APIs."
+  echo "    kdd-samsung-remote : Samsung openmpdk APIs with remote KV support."
+  echo "    emul               : SNIA compatible openmpdk APIs with emulator support."
+  echo
+}
+
 
 if [ $# -eq 0 ]
 then
-  echo "No arguments supplied, argument should be either 'kdd', 'kdd-samsung' 'kdd-samsung-remote' or 'emul'"
+  echo "No arguments supplied, please specify arguments as below."
+  Help
   exit
 fi
 
@@ -11,6 +25,7 @@ then
   echo "Building NKV with : $1"
 else
   echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
+  Help
   exit
 fi
 
@@ -19,6 +34,44 @@ set -o xtrace
 CWD="$(pwd)"
 CWDNAME=`basename "$CWD"`
 OD="${CWD}/../${CWDNAME}_out"
+
+#Generate openmpdk patch, ** SAMSUNG internal **  use only.
+if [ $2 == "-p" ]; then
+  openmpdk_url=$3
+  if [ ${openmpdk_url} != '' ]; then
+    cd "src/openmpdk"
+    echo "Generating openmpdk patch from ${openmpdk_url}" 
+    git remote add gitlab_one ${openmpdk_url}
+    git fetch gitlab_one
+    commit_id=`git rev-list --tags --max-count=1`
+    git branch openmpdk_patch ${commit_id}
+    git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
+    git remote remove gitlab_one
+    git branch -d openmpdk_patch
+    cd ${CWD}
+  else
+    echo "Please specify gitlab openmpdk url to generate openmpdk patch"
+    echo "./build.sh <Build Mode> -p <Gitlab openmpdk url>"
+  fi
+fi
+#Apply openmpdk patch
+openmpdk_patch="openmpdk.patch"
+if [ -f ${openmpdk_patch} ]; then
+  patched="src/openmpdk/.patched"
+  if [ ! -f ${patched} ]; then
+    cd "src/openmpdk"
+    echo "Applying openmpdk_patch from ${openmpdk_patch} "
+    openmpdk_patch=../../${openmpdk_patch}
+    patch -p1 -N < ${openmpdk_patch}
+    touch .patched
+    cd ${CWD}
+  else
+    echo "openmpdk patch is already available, skipping this step! "
+  fi
+else
+  echo "openmpdk patch doesn't exist! exit build process"
+  exit
+fi
 
 if [ $(yum list installed | cut -f1 -d" " | grep --extended '^boost-devel' | wc -l) -eq 1 ]; then
   echo "boost-devel already installed";
