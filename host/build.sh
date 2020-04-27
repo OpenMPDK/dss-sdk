@@ -10,11 +10,6 @@ Help()
   echo "    kdd-samsung-remote : Samsung openmpdk APIs with remote KV support."
   echo "    emul               : SNIA compatible openmpdk APIs with emulator support."
   echo
-  echo "*** Developer's Only ***"
-  echo "Generate openmpdk patch and build host software."
-  echo
-  echo "./build.sh <Build Mode> -p <Gitlab openmpdk url>"
-  echo 
 }
 
 
@@ -40,7 +35,7 @@ CWD="$(pwd)"
 CWDNAME=`basename "$CWD"`
 OD="${CWD}/../${CWDNAME}_out"
 
-#Generate openmpdk patch
+#Generate openmpdk patch, ** SAMSUNG internal **  use only.
 if [ $2 == "-p" ]; then
   openmpdk_url=$3
   if [ ${openmpdk_url} != '' ]; then
