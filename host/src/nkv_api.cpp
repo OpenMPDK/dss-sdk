@@ -268,6 +268,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     nkv_remote_listing = pt.get<int>("nkv_remote_listing", 0);
+    nkv_max_key_length = pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
+    nkv_max_value_length = pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
     if (nkv_remote_listing) {
 
       transient_prefix = pt.get<std::string>("transient_prefix_to_filter", "meta/.minio.sys/tmp/" );
