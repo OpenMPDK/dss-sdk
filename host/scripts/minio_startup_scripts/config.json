@@ -1,0 +1,11 @@
+{
+"nkv_config": "/home/somnath.s/work/nkv-host-dev/wip-opennkv/nkv-sdk/host_out/nkv-sdk/conf/nkv_config_remote.json",
+"nkv_library": "/home/somnath.s/work/nkv-host-dev/wip-opennkv/nkv-sdk/host_out/nkv-sdk/lib",
+"fm_address": "10.1.51.2",
+"fm_port": 5000,
+"fm_endpoint": "/api/v1/cm/getclustermap",
+"ufm": 1,
+"minio_bin" : "/home/somnath.s/work/nkv-host-dev/wip-opennkv/nkv-sdk/host_out/nkv-sdk/bin/minio",
+"minio_distributed": false,
+"cluster_map": false
+}

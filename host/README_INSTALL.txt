@@ -164,16 +164,19 @@ Put the following in a script may be..Need at least 4 devices to run Minio..
  12. Run Minio with local KV drives.Mount points at the host should be matching to the mount points
      given to nkv_config.json under 'nkv_local_mounts'
      ./start.sh 
- 13. Run Minio with remote KV drives
-     ./start.sh remote
- 14. Distributed Minio command is:
+ 13. Run Minio with remote KV drives. Make sure remote mount paths are connected
+     ./start.sh remote 
+     
+ 14. Run Distributed Minio with pre existing remote mount points. 
 
      ./<minio-binary> server  http://minio{1...4}/dev/nvme{0...3}n1
      Where, minio1, to minio4 are 4 minio node names mentioned in /etc/hosts file of each server.
      /dev/nvme{0...3}n1 are 4 remote KV drives.
      ./start.sh remote dist
 
- 15. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
+ 15. Running Minio with complete DSS stack which includes target software, host library and UnifiedFabricManager.
+     - Make sure UFM is up and update NKV remote configuration file ( conf/nkv_remote_config.json)  
+ 16. For more detailed documentation on how to run Minio with KV stack can be found in Minio web site.
 
 Running MINIO app with emulator :
 -------------------------------
