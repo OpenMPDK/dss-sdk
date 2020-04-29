@@ -75,6 +75,7 @@ class FabricManager
   const string& get_endpoint() { return endpoint; }
   
   virtual bool process_clustermap() = 0;
+  virtual void* get_subsystem(const string& subsystem_nqn) const { return NULL;};
   const string get_rest_url() { return host+endpoint; }
 
   bool get_clustermap(ptree& dss_config) {

@@ -1388,6 +1388,24 @@
       return stat;
 
     }
+
+    // Get nqn name associated to a subsystem or remote paths.
+    nkv_result nkv_get_target_container_name(uint64_t container_hash, std::string& subsystem_nqn) {
+      nkv_result stat = NKV_SUCCESS;
+      auto c_iter = cnt_list.find(container_hash);
+      if (c_iter == cnt_list.end()) {
+        smg_error(logger,"No Container found for hash = %u, number of containers = %u, op = nkv_get_path_mount_point", container_hash, cnt_list.size());
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      NKVTarget* one_cnt = c_iter->second;
+      if (one_cnt) {
+        subsystem_nqn = one_cnt->target_container_name;
+      } else {
+        smg_error(logger, "NULL Container found for hash = %u, op = nkv_get_target_container_name!!", container_hash);
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      return stat;
+    }
       
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 

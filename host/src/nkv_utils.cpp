@@ -34,6 +34,7 @@
 
 
 #include "nkv_utils.h"
+#include "unified_fabric_manager.h"
 
 long REST_CALL_TIMEOUT = 10;
 
@@ -94,6 +95,40 @@ nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_
   } else {
     smg_error(logger, "NKV stat script execution failed, cmd = %s !!", cmd_str.c_str());
     return NKV_ERR_INTERNAL;
+  }
+  return NKV_SUCCESS;
+}
+
+/* Function Name: nkv_get_remote_path_stat
+ * Input Agrs   : <const FabricManager*> = Reference to FM created during initialization of NKV
+ *                <const std::string&> = nqn of subsystem
+ *                <nkv_path_stat*> = NKV path stat structure
+ * Return       : <nkv_result> = a enum values of nkv_result NKV_SUCCESS/NKV_FM_ERR 
+ * Description  : Retrive the following subsystem stats from FabricManager.
+ *                Available Space in a Subsystem in %.
+ *                Total storage capacity in bytes.
+ *                Total used bytes. 
+ */
+nkv_result nkv_get_remote_path_stat(const FabricManager* fm, const string& subsystem_nqn, nkv_path_stat* stat)
+{
+  Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn));
+  if ( subsystem ) {
+    Storage* storage =const_cast<Storage*>(subsystem->get_storage());
+    if ( storage ) {
+      stat->path_storage_capacity_in_bytes = storage->get_capacity_bytes();
+      stat->path_storage_usage_in_bytes = storage->get_used_bytes();
+      stat->path_storage_util_percentage = storage->get_available_space();
+      smg_info(logger, "Stats for Subsystem NQN - %s", subsystem_nqn.c_str());
+      smg_info(logger, "\tAvailable Space : %6.2f", stat->path_storage_util_percentage);
+      smg_info(logger, "\tTotal Capacity  : %lu bytes", stat->path_storage_capacity_in_bytes); 
+      smg_info(logger, "\tTotal Used Bytes: %lu bytes", stat->path_storage_usage_in_bytes);
+    } else {
+      smg_error(logger, "Subsystems storage information for nqn=%s is not available", subsystem_nqn.c_str());
+      return NKV_ERR_FM;
+    }
+  } else {
+    smg_error(logger, "Subsystem for nqn %s not found", subsystem_nqn.c_str());
+    return NKV_ERR_FM;
   }
   return NKV_SUCCESS;
 }

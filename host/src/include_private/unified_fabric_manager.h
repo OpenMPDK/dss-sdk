@@ -97,9 +97,14 @@ class UnifiedFabricManager:public FabricManager
     
     bool process_clustermap();
     void generate_clustermap();
-    const string get_redfish_version() { return version; }
-    const string get_name() { return name; }
-    const string get_description() { return description; }
+
+    const string& get_redfish_version() const { return version; }
+    const string& get_name() const { return name; }
+    const string& get_description() const { return description; }
+    const uint32_t& get_node_count() const { return node_count; }
+
+    void* get_subsystem(const string& subsystem_nqn) const;
+
     bool is_subsystem(string& url);
 };
 
@@ -135,14 +140,19 @@ class Subsystem
   bool process_subsystem();
   bool add_interface(string interface_endpoint);
   bool add_storage();
-  const string get_nqn() { return subsystem_nqn; }
-  uint32_t is_subsystem_aligned() { return subsystem_numa_aligned? 1:0; }
+
+  const Storage* get_storage() const { return storage; }
+  const string& get_nqn() const { return subsystem_nqn; }
+  const string& get_nqn_id() const { return subsystem_nqn_id; }
+  const uint32_t get_status() const { return subsystem_status; } 
+  uint32_t is_subsystem_numa_aligned() { return subsystem_numa_aligned? 1:0; }
 };
 
 // A storage consist of multiple Drives 
 class Storage
 {
   uint64_t capacity_bytes;
+  uint64_t used_bytes; // To be updated once UFM is updated with used_bytes.
   double  percent_available;
   unordered_map<string, Drive*> drivesMap;
   uint32_t drives_count;
@@ -159,15 +169,18 @@ class Storage
                                                         subsystem_nqn(_nqn)
   {
     capacity_bytes = 100000;
+    used_bytes = 1000; 
     percent_available = 100.0;
     drives_count = 1;
   }
   ~Storage();
-  void get_storage_info(ptree& storage_pt);
-  double get_available_space() { return percent_available;}
+  void get_storage_info(ptree& storage_pt) const;
+  const double get_available_space() const { return percent_available; }
+  const uint64_t get_capacity_bytes() const { return capacity_bytes; }
+  const uint64_t get_used_bytes() const { return used_bytes; }
   bool process_storage();
   bool add_drive(string drive_endpoint);
-  string get_subsystem_nqn() { return subsystem_nqn; }
+  const string& get_subsystem_nqn() const { return subsystem_nqn; }
 };
 
 // A single Drive (SSD Disk)

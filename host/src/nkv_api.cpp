@@ -892,14 +892,12 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     }
 
   } else {
-    smg_warn(logger, "nkv remote stat collection is not supported yet or dummy path collection enabled, op = nkv_get_path_stat !");
-    std::string p_mount = "/dev/nvme";
-    p_mount.copy(p_stat->path_mount_point, p_mount.length());
-    p_stat->path_storage_capacity_in_bytes = 0;
-    p_stat->path_storage_usage_in_bytes = 0;
-    p_stat->path_storage_util_percentage = 0.0;
-
-    stat = NKV_SUCCESS;
+    uint64_t cnt_hash = mgmtctx->container_hash;
+    std::string subsystem_nqn;
+    stat = nkv_cnt_list->nkv_get_target_container_name(cnt_hash, subsystem_nqn);
+    if (stat == NKV_SUCCESS) {
+      stat = nkv_get_remote_path_stat(fm, subsystem_nqn, p_stat );
+    }
   }
 
 done:

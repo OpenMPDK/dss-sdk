@@ -56,6 +56,7 @@
 #include <boost/algorithm/string.hpp>
 #include "nkv_struct.h"
 #include "nkv_result.h"
+#include "fabric_manager.h"
 #include "csmglogger.h"
 
 using namespace std;
@@ -71,6 +72,7 @@ extern long REST_CALL_TIMEOUT;
 int32_t nkv_cmd_exec(const char* cmd, std::string& result); 
 
 nkv_result nkv_get_path_stat_util (const std::string& p_mount, nkv_path_stat* p_stat);
+nkv_result nkv_get_remote_path_stat(const FabricManager* fm, const string& subsystem_nqn, nkv_path_stat* stat);
 
 template<typename K, typename V>
   class nkv_lruCache {

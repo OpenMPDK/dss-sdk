@@ -154,7 +154,7 @@ void UnifiedFabricManager::generate_clustermap()
       assert(value.first.empty());
       boost::property_tree::ptree interface_pt = value.second;
       ptree interface;
-      interface.put("subsystem_interface_numa_aligned", s_ptr->is_subsystem_aligned());
+      interface.put("subsystem_interface_numa_aligned", s_ptr->is_subsystem_numa_aligned());
       interface.put("subsystem_interface_speed",interface_pt.get<uint32_t>("InterfaceSpeed"));
       interface.put("subsystem_type",get_nkv_transport_value(interface_pt.get<string>("TransportType")));
       interface.put("subsystem_port",interface_pt.get<uint32_t>("Port"));
@@ -168,6 +168,20 @@ void UnifiedFabricManager::generate_clustermap()
     subsystems_pt.push_back(make_pair("", subsystem));
   }
   target_cluster_map.add_child("subsystem_maps", subsystems_pt);  
+}
+
+/* Function Name: get_subsystem
+ * Args         : <const string&> subsystem_nqn
+ * Return       : <void*> = Return address of Subsystem for the specified nqn
+ * Description  : Return the subsystem object for the specified nqn.
+ */
+void* UnifiedFabricManager::get_subsystem(const string& subsystem_nqn) const
+{
+  unordered_map<string, Subsystem* >::const_iterator found = subsystemsMap.find(subsystem_nqn);
+  if ( found == subsystemsMap.end() ) {
+    return NULL;
+  }  
+  return subsystemsMap[subsystem_nqn];
 }
 
 /* Function Name: process_subsystem
@@ -387,6 +401,7 @@ bool Storage::process_storage()
   try{
     percent_available = storage_pt.get<double>("oem.PercentAvailable");
     capacity_bytes = storage_pt.get<long uint64_t>("oem.CapacityBytes");
+    used_bytes = storage_pt.get<long uint64_t>("oem.UsedBytes", 1000);
     id = storage_pt.get<string>("Id");
     description = storage_pt.get<string>("Description");
     BOOST_FOREACH(boost::property_tree::ptree::value_type &value, storage_pt.get_child("Drives")) {
@@ -438,7 +453,7 @@ bool Storage::add_drive(string drive_endpoint)
  * Return       : None
  * Description  : Get entire storage information for a subsystem.
  */
-void Storage::get_storage_info(ptree& storage_pt)
+void Storage::get_storage_info(ptree& storage_pt) const
 {
   storage_pt.put("CapacityBytes", capacity_bytes);
   storage_pt.put("PercentAvailable", percent_available);
