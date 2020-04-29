@@ -1,0 +1,191 @@
+import os,sys
+import argparse
+from config import Config
+from fabric_manager import NativeFabricManager, UnifiedFabricManager
+from auto_discovery import AutoDiscovery
+from utility import exception, exec_cmd
+from os.path import abspath,dirname
+import time
+import socket
+import re
+import json
+
+nvme_pattern = re.compile('/dev/nvme(\d)n1')
+base_path = abspath(dirname(abspath(__file__)) + "/..")
+
+
+def get_hosts():
+    """
+    Read host and ip information for distributed minio from /etc/hosts file.
+    The ip and host should be with the following TAG
+    #START
+    <ip address1> minio1
+    <ip address2> minio2
+    #END
+    :return: <list> - return list of hosts retrieve from /etc/hosts file.
+    """
+    etc_hosts = "/etc/hosts"
+    host_list = []
+    with open(etc_hosts, "r") as FH:
+        is_host_ip_mapping_present = False
+        for line in FH.readlines():
+            if line.strip():
+                if line.startswith("#START"):
+                    is_host_ip_mapping_present = True
+                elif line.startswith("#END"):
+                    is_host_ip_mapping_present = False
+                elif is_host_ip_mapping_present:
+                    ip, host = line.split()
+                    host_list.append(host)
+    return host_list
+
+def setup_distributed_minio(config={}):
+    """
+    Set the environment variables for distributed Minio for remote KV drives
+    :param config:
+    :return: None
+    """
+    nkv_library = config.get("nkv_library",False)
+    nkv_config = config.get("nkv_config",False)
+    if not os.path.exists(nkv_config):
+        print("ERROR: nkv configuration file doesn't exist - {}".format(nkv_config))
+        sys.exit()
+    os.environ["LD_LIBRARY_PATH"] = nkv_library
+    os.environ["MINIO_NKV_CONFIG"] = nkv_config
+    os.environ["MINIO_ACCESS_KEY"] = "minio"
+    os.environ["MINIO_SECRET_KEY"] = "minio123"
+    os.environ["MINIO_STORAGE_CLASS_STANDARD"] = "EC:2"
+    os.environ["MINIO_NKV_MAX_VALUE_SIZE"] = "2097152"
+    os.environ["MINIO_NKV_TIMEOUT"] = "20"
+    os.environ["MINIO_NKV_SYNC"] = "1"
+    os.environ["MINIO_NKV_SHARED_SYNC_INTERVAL"] = "2"
+    os.environ["MINIO_NKV_SHARED"] = "1"
+    os.environ["MINIO_PER_HOST_INSTANCE_COUNT"] = "1"
+
+
+def setup_minio(config={}):
+    """
+    Set the environment variables for standalone Minio for remote KV drives.
+    :param config:
+    :return:
+    """
+    nkv_library = config.get("nkv_library", False)
+    nkv_config = config.get("nkv_config", False)
+     
+    os.environ["LD_LIBRARY_PATH"]  = nkv_library
+    os.environ["MINIO_NKV_CONFIG"] = nkv_config
+    os.environ["MINIO_ACCESS_KEY"] =  "minio"
+    os.environ["MINIO_SECRET_KEY"] =  "minio123"
+    os.environ["MINIO_STORAGE_CLASS_STANDARD"] =  "EC:2"
+    os.environ["MINIO_NKV_MAX_VALUE_SIZE"] = "2097152"
+    os.environ["MINIO_NKV_TIMEOUT"] = "20"
+    os.environ["MINIO_NKV_SYNC"] = "1"
+
+
+
+@exception
+def  run_minio(remote_mount_paths, config):
+    """
+    Bring up Minio
+    :param remote_mount_paths:
+    :param config:
+    :return:
+    """
+
+    # Set ulimit
+    ulimit = "ulimit -n 65535; ulimit -c unlimited; "
+    print("Base Path:{}".format(base_path))
+    #minio_bin = base_path + "/scripts/" + config["minio_bin"]
+    minio_bin = config["minio_bin"]
+    minio_run_cmd = "{}  server ".format(minio_bin)
+
+    print(config.get("minio_distributed"))
+    if config.get("minio_distributed", False):
+        # Update environment variables
+        setup_distributed_minio(config)
+        host_list = get_hosts()
+        print("INFO: Launching Distributed Minio with following remote mount paths ...")
+        for host in host_list:
+            for remote_mount_path in sorted(remote_mount_paths.values()):
+                minio_run_cmd += " http://" + host + remote_mount_path
+                print("\t\t\t\t - {}".format(remote_mount_path))
+    else:
+        # Update environment variables
+        setup_minio(config)
+        print("INFO: Launching Minio with following remote mount paths ...")
+        for remote_mount_path in sorted(remote_mount_paths.values()):
+            minio_run_cmd += " " + remote_mount_path
+            print("\t\t\t\t - {}".format(remote_mount_path))
+
+    os.system(ulimit)
+    ret= exec_cmd(minio_run_cmd , False,  False)
+
+    return ret
+
+
+def dump_cluster_map(cluster_map):
+    """
+    Dump cluster_map in the cluster_map.json file in the present working directory.
+    :param clustermap:
+    :return:
+    """
+    print("INFO: Writing cluster_map into {}".format(os.getcwd()))
+    with open("cluster_map.json", "w") as FH:
+        FH.write(json.dumps(cluster_map, indent=2))
+
+
+
+def  process_command_line():
+    """
+    Process command line arguments.
+    :return: <dict> return parameters and corresponding values.
+    """
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument("--config", "-c", type=str, required=False, help='Specify minio configuration file path')
+    parser.add_argument("--transport", "-t", type=str, required=False, help='Specify transport such as tcp,rdma')
+    parser.add_argument("--minio_host", "-mh", type=str, required=False, default="myminio", help='Specify minio host name')
+    parser.add_argument("--minio_distributed", "-dist", action='store_true', required=False,
+                        help='Minio in distributed mode')
+    parser.add_argument("--cluster_map", "-cm", action='store_true', required=False,help='Dump ClusterMap')
+
+    options = parser.parse_args()
+
+    return vars(options)
+
+
+def main():
+
+    #Process Command Line arguments
+    params =  process_command_line()
+    # get config
+    config_obj  = Config(params)
+    config =  config_obj.get_config()
+
+    FM ={}
+    if config.get("ufm",False):
+        FM = UnifiedFabricManager(config.get("fm_address"),config.get("fm_port"),config.get("fm_endpoint"))
+    else:
+        FM = NativeFabricManager(config.get("fm_address"),config.get("fm_port"),config.get("fm_endpoint"))
+
+    cluster_map = FM.get_cluster_map()
+    if config.get("cluster_map"):
+        dump_cluster_map(cluster_map)
+
+    if cluster_map:
+        auto_discovery = AutoDiscovery(cluster_map["subsystem_maps"])
+        remote_mount_paths = auto_discovery.get_remote_mount_paths()
+        # Lunch Minio with mount paths
+        print("Remote Mount Paths: {}".format(remote_mount_paths))
+        ret = run_minio(remote_mount_paths,config)
+
+        if not ret:
+            print("Minio is up for IO operation ... ")
+        else:
+            print("ERROR: Failed to launch Minio ")
+
+    else:
+        print("ERROR: Empty ClusterMap, Auto Discovery can't be performed ")
+
+
+if __name__ == "__main__":
+     main()
