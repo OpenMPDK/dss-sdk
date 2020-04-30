@@ -119,9 +119,6 @@ nkv_result nkv_get_remote_path_stat(const FabricManager* fm, const string& subsy
       stat->path_storage_usage_in_bytes = storage->get_used_bytes();
       stat->path_storage_util_percentage = storage->get_available_space();
       smg_info(logger, "Stats for Subsystem NQN - %s", subsystem_nqn.c_str());
-      smg_info(logger, "\tAvailable Space : %6.2f", stat->path_storage_util_percentage);
-      smg_info(logger, "\tTotal Capacity  : %lu bytes", stat->path_storage_capacity_in_bytes); 
-      smg_info(logger, "\tTotal Used Bytes: %lu bytes", stat->path_storage_usage_in_bytes);
     } else {
       smg_error(logger, "Subsystems storage information for nqn=%s is not available", subsystem_nqn.c_str());
       return NKV_ERR_FM;

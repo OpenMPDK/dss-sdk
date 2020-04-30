@@ -1390,7 +1390,10 @@
     }
 
     // Get nqn name associated to a subsystem or remote paths.
-    nkv_result nkv_get_target_container_name(uint64_t container_hash, std::string& subsystem_nqn) {
+    nkv_result nkv_get_target_container_name(uint64_t container_hash,
+                                             uint64_t container_path_hash,
+                                             std::string& subsystem_nqn,
+                                             std::string& p_mount) {
       nkv_result stat = NKV_SUCCESS;
       auto c_iter = cnt_list.find(container_hash);
       if (c_iter == cnt_list.end()) {
@@ -1400,6 +1403,7 @@
       NKVTarget* one_cnt = c_iter->second;
       if (one_cnt) {
         subsystem_nqn = one_cnt->target_container_name;
+        stat = one_cnt->get_path_mount_point(container_path_hash, p_mount);
       } else {
         smg_error(logger, "NULL Container found for hash = %u, op = nkv_get_target_container_name!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;
