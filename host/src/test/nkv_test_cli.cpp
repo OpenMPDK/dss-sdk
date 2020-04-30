@@ -71,6 +71,7 @@ struct nkv_thread_args{
   int check_integrity;
   int hex_dump;
   int is_mixed;
+  int alignment;
 };
 
 void memHexDump (void *addr, int len) {
@@ -234,9 +235,17 @@ void *iothread(void *args)
     memset(key_name, 0, targs->klen);
     sprintf(key_name, "%s_%d_%u", targs->key_prefix, targs->id, iter);
     uint32_t klen = targs->klen;//strlen (key_name);
-    char *val   = (char*)nkv_zalloc(targs->vlen);
-    //char *val   = (char*)aligned_alloc(4096, targs->vlen);
-    memset(val, 0, targs->vlen);
+    char* val = NULL;
+    if (!targs->alignment) {
+      val   = (char*)nkv_zalloc(targs->vlen);
+    } else {
+      val   = (char*)aligned_alloc(targs->alignment, targs->vlen);
+      if ((uint64_t)val % targs->alignment != 0) {
+        smg_error(logger, "Non %u Byte Aligned value address = 0x%x", targs->alignment, val);
+        assert(0);
+      }
+    }
+    //memset(val, 0, targs->vlen);
     //char* val = (char*) calloc (targs->vlen, sizeof(char));
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, targs->vlen, 0 };
@@ -696,6 +705,7 @@ void usage(char *program)
   printf("-u      path_stat       :  Collect path/disk stat for all underlying path(s)/disk(s) \n");
   printf("-l      multipath       :  0:disable 1:enable  \n");
   printf("-f      multipath policy:  0/1:RR 2:Failover 3:Least Queue Depth 4:Least Block Size  \n");
+  printf("-j      alingned alloc  :  Alligned allocation for value size, give the desired alignment value here, works with multiple threads option only  \n");
   printf("==============\n");
 }
 
@@ -724,6 +734,7 @@ int main(int argc, char *argv[]) {
   bool get_stat = false;
   int multipath_lb = 0;
   int multipath_lb_policy = 0;
+  int alignment = 0;
   nkv_feature_list feature_list = {0, 0};
 
   logger = smg_acquire_logger("libnkv");
@@ -732,7 +743,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:")) != -1) {
     switch(c) {
 
     case 'c':
@@ -792,6 +803,10 @@ int main(int argc, char *argv[]) {
     case 'u':
       get_stat = true;
       break;
+    case 'j':
+      alignment = atoi(optarg);
+      break;
+
     case 'h':
       usage(argv[0]);
       smg_release_logger(logger);
@@ -805,6 +820,7 @@ int main(int argc, char *argv[]) {
       multipath_lb_policy = atoi(optarg);
       feature_list.nic_load_balance_policy = multipath_lb_policy;
       break;
+
     default:
       usage(argv[0]);
       smg_release_logger(logger);
@@ -1114,6 +1130,7 @@ do {
       args[i].check_integrity = check_integrity;
       args[i].hex_dump = hex_dump;
       args[i].is_mixed = is_mixed;
+      args[i].alignment = alignment;
 
       /*cpu_set_t cpus;
       pthread_attr_init(attr);
