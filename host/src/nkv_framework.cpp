@@ -69,6 +69,8 @@ int32_t nkv_read_cache_size = 1024;
 int32_t nkv_read_cache_shard_size = 1024;
 int32_t nkv_data_cache_size_threshold = 4096;
 int32_t nkv_remote_listing = 0;
+int32_t nkv_max_key_length = 0;
+int32_t nkv_max_value_length = 0;
 
 std::atomic<uint32_t> nic_load_balance (0);
 std::atomic<uint32_t> nic_load_balance_policy (0);
@@ -529,7 +531,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > NKV_MAX_KEY_LENGTH) || (n_key->length == 0)) {
+  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -539,7 +541,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     return NKV_ERR_NULL_INPUT;
   }
  
-  if ((n_value->length > NKV_MAX_VALUE_LENGTH) || (n_value->length == 0)) {
+  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
@@ -710,7 +712,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > NKV_MAX_KEY_LENGTH) || (n_key->length == 0)) {
+  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -719,7 +721,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "nkv_value->value = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_value->length > NKV_MAX_VALUE_LENGTH) || (n_value->length == 0)) {
+  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
@@ -1086,7 +1088,7 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > NKV_MAX_KEY_LENGTH) || (n_key->length == 0)) {
+  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -1249,10 +1251,10 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
     kvs_key kvsskey = {0, 0};
     kvs_list_context ctx = {0,0};
     uint32_t adjusted_max_key = *max_keys - *num_keys_iterted;
-    uint32_t vlen = adjusted_max_key * NKV_MAX_KEY_LENGTH;
-    if (vlen > NKV_MAX_VALUE_LENGTH) {
-      vlen = NKV_MAX_VALUE_LENGTH;
-      adjusted_max_key = (NKV_MAX_VALUE_LENGTH/NKV_MAX_KEY_LENGTH);
+    uint32_t vlen = adjusted_max_key * nkv_max_key_length;
+    if (vlen > nkv_max_value_length) {
+      vlen = nkv_max_value_length;
+      adjusted_max_key = (nkv_max_value_length/nkv_max_key_length);
       smg_warn(logger, "Max keys chunked, adjusted_max_key = %u, max_keys = %u", adjusted_max_key, *max_keys);
     }
     value = (char*)kvs_malloc(vlen, 4096);
