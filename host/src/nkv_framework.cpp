@@ -69,8 +69,8 @@ int32_t nkv_read_cache_size = 1024;
 int32_t nkv_read_cache_shard_size = 1024;
 int32_t nkv_data_cache_size_threshold = 4096;
 int32_t nkv_remote_listing = 0;
-int32_t nkv_max_key_length = 0;
-int32_t nkv_max_value_length = 0;
+uint32_t nkv_max_key_length = 0;
+uint32_t nkv_max_value_length = 0;
 
 std::atomic<uint32_t> nic_load_balance (0);
 std::atomic<uint32_t> nic_load_balance_policy (0);

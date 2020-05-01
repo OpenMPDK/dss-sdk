@@ -93,8 +93,8 @@
   extern int32_t nkv_data_cache_size_threshold;
   extern int32_t nkv_use_data_cache;
   extern int32_t nkv_remote_listing;
-  extern int32_t nkv_max_key_length;
-  extern int32_t nkv_max_value_length;
+  extern uint32_t nkv_max_key_length;
+  extern uint32_t nkv_max_value_length;
   extern std::atomic<uint32_t> nic_load_balance;
   extern std::atomic<uint32_t> nic_load_balance_policy;
 

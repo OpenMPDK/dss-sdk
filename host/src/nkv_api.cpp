@@ -133,6 +133,32 @@ void nkv_thread_func (uint64_t nkv_handle) {
       action_manager(event_queue);
     }
 
+    // Update storage information
+    if ( connect_fm ) {
+      if ( fm ) {
+        const vector<string> subsystem_nqn_list = fm->get_subsystem_nqn_list();
+        for( unsigned index = 0; index < subsystem_nqn_list.size(); index++ ) {
+          Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn_list[index]));
+          if ( subsystem ) {
+            Storage* const storage = subsystem->get_storage();
+
+            if ( storage && storage->update_storage()) {
+              smg_info(logger, "Updated subsystem storage information, nqn=%s\n\
+                      \t\t\tPath Capacity        = %lld Bytes,\n\
+                      \t\t\tPath Usage           = %lld Bytes,\n\
+                      \t\t\tPath Util Percentage = %6.2f",
+                      (subsystem->get_nqn()).c_str(), 
+                      storage->get_capacity_bytes(),
+                      storage->get_used_bytes(), 
+                      storage->get_available_space());
+            } else {
+              smg_error(logger, "Failed to update storage for subsystem nqn = %s", (subsystem->get_nqn()).c_str());
+            }
+          }
+        } // subsystem iteration
+      } 
+    } // connect_fm
+
     try {
       int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
       nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);

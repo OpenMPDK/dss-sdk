@@ -80,6 +80,7 @@ bool UnifiedFabricManager::process_clustermap()
           if ( subsystem->process_subsystem() ) {
             string subsystem_nqn = subsystem->get_nqn();
             subsystemsMap[subsystem_nqn] = subsystem;
+            update_subsystem_nqn_list(subsystem_nqn);
             is_subsystem_added = true;
           } else {
             delete subsystem;
@@ -177,11 +178,11 @@ void UnifiedFabricManager::generate_clustermap()
  */
 void* UnifiedFabricManager::get_subsystem(const string& subsystem_nqn) const
 {
-  unordered_map<string, Subsystem* >::const_iterator found = subsystemsMap.find(subsystem_nqn);
+  auto found = subsystemsMap.find(subsystem_nqn);
   if ( found == subsystemsMap.end() ) {
     return NULL;
-  }  
-  return subsystemsMap[subsystem_nqn];
+  } 
+  return subsystemsMap.find(subsystem_nqn)->second;
 }
 
 /* Function Name: process_subsystem
@@ -426,6 +427,43 @@ bool Storage::process_storage()
     return false;
   }
   return is_drive_added;
+}
+
+/* Function Name: update_storage
+ * Args         : None
+ * Return       : bool
+ * Description  : Update storage metrics for an subsystem. Includes drive as well.
+ */
+bool Storage::update_storage()
+{
+  // URL
+  string rest_response;
+  string storage_url = host + endpoint;
+  RESTful(rest_response, storage_url);
+  ptree storage_pt;
+  istringstream iss_storage (rest_response);
+  read_json(iss_storage, storage_pt);
+
+  if ( !check_redfish_rest_call_status(storage_pt, storage_url) ){
+    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
+    return false;
+  }
+
+  // Update storage information
+  try {
+    percent_available = storage_pt.get<double>("oem.PercentAvailable");
+    capacity_bytes = storage_pt.get<long uint64_t>("oem.CapacityBytes");
+    used_bytes = storage_pt.get<long uint64_t>("oem.UsedBytes", 1000);	
+    // update drive
+    for( auto d_iter = drivesMap.begin(); d_iter != drivesMap.end(); d_iter++) {
+      Drive* drive = d_iter->second;
+      drive->process_drive();
+    }
+  } catch ( exception& e ) {
+    smg_error(logger,"Exception: %s - %s", __func__, e.what());
+    return false;
+  }
+  return true;
 }
 
 /* Function Name: add_drive

@@ -104,7 +104,6 @@ class UnifiedFabricManager:public FabricManager
     const uint32_t& get_node_count() const { return node_count; }
 
     void* get_subsystem(const string& subsystem_nqn) const;
-
     bool is_subsystem(string& url);
 };
 
@@ -141,7 +140,7 @@ class Subsystem
   bool add_interface(string interface_endpoint);
   bool add_storage();
 
-  const Storage* get_storage() const { return storage; }
+  Storage* const get_storage() const { return storage; }
   const string& get_nqn() const { return subsystem_nqn; }
   const string& get_nqn_id() const { return subsystem_nqn_id; }
   const uint32_t get_status() const { return subsystem_status; } 
@@ -179,6 +178,7 @@ class Storage
   const uint64_t get_capacity_bytes() const { return capacity_bytes; }
   const uint64_t get_used_bytes() const { return used_bytes; }
   bool process_storage();
+  bool update_storage();
   bool add_drive(string drive_endpoint);
   const string& get_subsystem_nqn() const { return subsystem_nqn; }
 };
