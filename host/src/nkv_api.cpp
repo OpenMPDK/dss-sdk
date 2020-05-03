@@ -141,7 +141,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
           Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn_list[index]));
           if ( subsystem ) {
             Storage* const storage = subsystem->get_storage();
-
+            std::unique_lock<std::mutex> lck(mtx_stat);
             if ( storage && storage->update_storage()) {
               smg_info(logger, "Updated subsystem storage information, nqn=%s\n\
                       \t\t\tPath Capacity        = %lld Bytes,\n\
@@ -917,6 +917,7 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     if (stat == NKV_SUCCESS) {
       p_mount.copy(p_stat->path_mount_point, p_mount.length());
       if(connect_fm){
+        std::unique_lock<std::mutex> lck(mtx_stat);
         stat = nkv_get_remote_path_stat(fm, subsystem_nqn, p_stat );
       } else {
         smg_alert(logger, "NKV is not connected to the FabricManager, Skipping remote stat collection.");
