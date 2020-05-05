@@ -31,11 +31,11 @@ cp -rf ${top_dir}/cm/logger ${nkv_dir}/usr/dragonfly/cm
 cp -rf ${top_dir}/cm/etcd_binary/* ${nkv_dir}/usr/bin/
 cp -rf ${top_dir}/cm/venv_centos_7.tgz ${nkv_dir}/usr/dragonfly/cm
 
-#copy fm/nkv_agent folder over to usr
-cp -rf ${top_dir}/fm/agents/nkv_agent ${nkv_dir}/usr
+#copy ufm/nkv_agent folder over to usr
+cp -rf ${top_dir}/ufm/agents/nkv_agent ${nkv_dir}/usr
 
 mkdir -p ${nkv_dir}/etc/systemd/system
-cp -rf ${top_dir}/fm/agents/nkv_agent/service_scripts/*.service ${nkv_dir}/etc/systemd/system/
+cp -rf ${top_dir}/ufm/agents/nkv_agent/service_scripts/*.service ${nkv_dir}/etc/systemd/system/
 
 mkdir -p ${nkv_dir}/etc/rsyslog.d
 cat > ${nkv_dir}/etc/rsyslog.d/dfly.conf << EOF
