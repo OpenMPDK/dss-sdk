@@ -1,0 +1,8 @@
+yum install ntp
+yum install python-devel
+pip install docopt
+pip install netifaces
+pip install psutil
+pip install etcd3
+pip install pyinstaller
+pip install pyzmq
