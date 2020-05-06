@@ -48,8 +48,8 @@ mkdir -p ${nkv_dir}/usr/dragonfly/scripts
 cp ${top_dir}/target/oss/spdk_tcp/scripts/common.sh ${nkv_dir}/usr/dragonfly/scripts/
 cp ${top_dir}/target/oss/spdk_tcp/scripts/setup.sh ${nkv_dir}/usr/dragonfly/scripts/
 cp ${top_dir}/target/scripts/nkv_tgt_conf.py ${nkv_dir}/usr/dragonfly/scripts/
-cp ${top_dir}/target/df_out/oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${nkv_dir}/usr/dragonfly
-cp ${top_dir}/target/df_out/dssd/cmd/ustat/ustat ${nkv_dir}/usr/dragonfly
+cp ${top_dir}/df_out/oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${nkv_dir}/usr/dragonfly
+cp ${top_dir}/df_out/dssd/cmd/ustat/ustat ${nkv_dir}/usr/dragonfly
 
 mkdir -p ${nkv_dir}/var/lib/etcd
 
