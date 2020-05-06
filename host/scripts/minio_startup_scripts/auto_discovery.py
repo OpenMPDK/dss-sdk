@@ -205,7 +205,9 @@ class AutoDiscovery:
                     # Get only one path from subsystem.
                     if nqn not in subsystem_to_io_paths:
                         if transport.get("subsystem_interface_status", 0):
-                            subsystem_to_io_paths[nqn] = remote_nkv_mount.get("mount_point","")
+                            subsystem_to_io_paths[nqn] = [remote_nkv_mount.get("mount_point","")]
+                    else:
+                        subsystem_to_io_paths[nqn].append(remote_nkv_mount.get("mount_point",""))
 
                     self.remote_nkv_mount_info.append(remote_nkv_mount)
         return subsystem_to_io_paths
