@@ -33,7 +33,7 @@ cp -rf ${top_dir}/cm/logger ${nkv_dir}/usr/dragonfly/cm
 cp -rf ${top_dir}/cm/etcd_binary/* ${nkv_dir}/usr/bin/
 cp -rf ${top_dir}/cm/venv_centos_7.tgz ${nkv_dir}/usr/dragonfly/cm
 
-#copy ufm/nkv_agent folder over to usr
+# copy ufm/nkv_agent folder over to usr
 cp -rf ${top_dir}/ufm/agents/nkv_agent ${nkv_dir}/usr
 
 mkdir -p ${nkv_dir}/etc/systemd/system
@@ -57,8 +57,7 @@ mkdir -p ${nkv_dir}/var/lib/etcd
 
 cp ${top_dir}/genrpm.sh ${build_dir}/SPECS/
 sh ${build_dir}/SPECS/genrpm.sh ${build_dir} $TARGET_VER $BASE_VER $AGENT_VER $MONITOR_VER 
-# sh ${build_dir}/SPECS/genrpm.sh ${build_dir} $TARGET_VER $BASE_VER $AGENT_VER
-#  the above command did not work; usage incorrect
+
 if [ $? -ne 0 ]; then
 	echo "RPM creation failed"
 	exit
@@ -69,21 +68,6 @@ cp ${build_dir}/RPMS/x86_64/*.rpm ${build_dir}/NKV-Release
 cd ${build_dir}
 tar -cf NKV-Release.tar NKV-Release
 cd ${top_dir}
-release_dir=oss_release_$(date +%Y)_$(date +%m)_$(date +%d)_$(date +%H)_$(date +%M)_$(date +%S)
-mkdir -p ${build_dir}/${release_dir}/release
-cp ${top_dir}/README.md ${build_dir}/${release_dir}/
-#cp -rf ${top_dir}/ansible/* ${build_dir}/${release_dir}/
-cp ${build_dir}/NKV-Release.tar ${build_dir}/${release_dir}/release/
-cp ${build_dir}/NKV-Release.tar .
 
-#cat > ${build_dir}/${release_dir}/group_vars/image.yml << EOF
-#---
-#image_name: NKV-Release
-#EOF
-#cd ${build_dir}
-#tar -cf ${release_dir}.tar ${release_dir}
-#md5sum ${release_dir}.tar > ${release_dir}.tar.md5sum
-#tar -zcf ${top_dir}/${release_dir}.tgz ${release_dir}.tar ${release_dir}.tar.md5sum 
-cd ${top_dir}
-# rm -rf ${build_dir}
-
+# Copy NKV-Release.tar to Ansible release dir
+cp ${build_dir}/NKV-Release.tar ${build_dir}/ufm-deploy/release/
