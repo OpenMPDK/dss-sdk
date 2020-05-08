@@ -89,7 +89,7 @@ g_tgt_build = 0
 g_tgt_launch = 0
 g_core_mask = 0
 g_tgt_checkout = 0
-g_rdma = 0
+g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
 
@@ -401,6 +401,11 @@ def execute_tgt(tgt_binary):
 class dss_tgt_args(object):
 
     def __init__(self):
+	# disable the following commands for now
+   	#prereq     Install necessary components for build and deploy
+   	#checkout   Do git checkout of DSS Target software
+   	#build      Build target software
+   	#launch     Launch DSS Target software
         parser = argparse.ArgumentParser(
             description='DSS Target Commands',
             usage='''dss_tgt <command> [<args>]
@@ -408,11 +413,7 @@ class dss_tgt_args(object):
 The most commonly used dss target commands are:
    reset      Assign all NVME drives back to system
    set        Assign NVME drives to UIO
-   prereq     Install necessary components for build and deploy
-   checkout   Do git checkout of DSS Target software
    config     Generate DSS Target configuration file
-   build      Build target software
-   launch     Launch DSS Target software
 ''')
         parser.add_argument('command', help='Subcommand to run')
         # parse_args defaults to [1:] for args, but you need to
@@ -430,8 +431,8 @@ The most commonly used dss target commands are:
             description='Creates dss target configuration file to run with target application')
         # prefixing the argument with -- means it's optional
     	parser.add_argument("-c", "--config_file", type=str, default="nvmf.in.conf", help="Configuration file. One will be created if it doesn't exist. Need -ip_addrs argument")
-    	parser.add_argument("-ip_addrs", "--ip_addresses", type=str, nargs='+', help="List of space seperated ip_addresses to listen. Atleast one address is needed")
-    	parser.add_argument("-kv_fw", "--kv_firmware", type=str, nargs='+',required=False, help="List of space seperated kv_firmware")
+    	parser.add_argument("-ip_addrs", "--ip_addresses", type=str, nargs='+', required=True, help="List of space seperated ip_addresses to listen. Atleast one address is needed")
+    	parser.add_argument("-kv_fw", "--kv_firmware", type=str, nargs='+', required=True, help="List of space seperated kv_firmware")
     	parser.add_argument("-block_fw", "--block_firmware", type=str, nargs='+',required=False, help="List of space seperated block_firmware")
     	parser.add_argument("-wal", "--wal", type=int, required=False, help="number of block devices to handle write burst")
     	parser.add_argument("-rdma", "--rdma", type=int, required=False, help="enable RDMA support")
@@ -520,7 +521,7 @@ if __name__ == '__main__':
             print ("*** ERROR: Creating configuration file ***")
         generate_core_mask(mp.cpu_count(), 0.50)
     	setup_hugepage()
-    	cmd = 'execution sample: ./setup && /nvmf_tgt -c ' + g_conf_path + ' -r /var/run/spdk.sock -m ' + g_core_mask + ' -L dfly_list'
+    	cmd = 'execution sample: ./setup && ./nvmf_tgt -c ' + g_conf_path + ' -r /var/run/spdk.sock -m ' + g_core_mask + ' -L dfly_list'
     	print(cmd)
  
     if g_tgt_build  == 1:
