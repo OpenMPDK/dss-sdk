@@ -1,0 +1,28 @@
+---
+
+- name: Install Software Collections repository
+  yum:
+    name: centos-release-scl
+    state: present
+  become: true
+
+- name: Uninstall distro version of haproxy
+  yum:
+    name: haproxy
+    state: absent
+  become: true
+
+- name: Install scl version of haproxy
+  yum:
+    name:
+      - rh-haproxy18-haproxy
+      - rh-haproxy18-haproxy-syspaths
+    state: present
+  become: true
+
+- name: Create symlink to scl version of haproxy
+  file:
+    src: "{{ ufm_etcd_service_file }}"
+    dest: /etc/opt/rh/rh-haproxy18/haproxy/haproxy.cfg
+    state: link
+  become: true

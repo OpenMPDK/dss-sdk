@@ -1,0 +1,15 @@
+---
+
+- name: Enable epel-release extras repo (yum)
+  yum:
+    name: epel-release
+    enablerepo: extras
+    state: present
+  become: yes
+
+
+- name: Install Required Packages (yum)
+  yum:
+    name: "{{ ufm_etcd_packages }}"
+    state: present
+  become: true

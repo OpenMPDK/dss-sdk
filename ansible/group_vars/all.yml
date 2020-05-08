@@ -1,0 +1,78 @@
+---
+# Dependecies
+debian_package_dependencies:
+  - ansible
+  - ntp
+  - rsyslog
+  - python-pip
+  - keepalived
+  - haproxy
+  - pipexec
+  - firewalld
+  - python-selinux
+  - python-semanage
+  - fping
+
+fm_rhel_package_dependencies:
+  - ansible
+  - chrony
+  - ntp
+  - rsyslog
+  - python-pip
+  - keepalived
+  - haproxy
+  - firewalld
+  - libselinux-python
+  - libsemanage-python
+  - fping
+
+target_rhel_package_dependencies:
+  - chrony
+  - ntp
+  - rsyslog
+  - python-pip
+  - fping
+  - libaio
+  - tbb-devel
+  - libibverbs
+  - librdmacm
+#  - librdmacm-41mlnx1-OFED.4.2.0.1.3.43101.x86_64
+#  - mlnx-ofa_kernel-4.2-OFED.4.2.1.2.0.1.gf8de107.rhel7u4.x86_64
+
+# ETCD Settings
+etcd_data_dir: /var/lib/etcd
+etcd_master_group_name: fm_hosts
+
+# Dragonfly settings
+temp_dir: /tmp
+dfly_temp_dir: /tmp/dragonfly
+
+include_vars:
+  file: config.yml
+product_dir: /usr/dragonfly # Binaries will still point to /usr/dragonfly
+config_file_dir: /etc/dragonfly
+logfile_dir: /var/log/dragonfly # Might not be needed
+nkv_agent_dir: /usr/nkv_agent
+nkv_agent_config_file_dir: /etc/nkv-agent
+nkv_agent_logfile_dir: /var/log/nkv-agent
+cm_dir: "{{ product_dir }}/cm"
+virtualenv_dir: "{{ product_dir }}/venv"
+nkv_virtualenv_dir: "{{ nkv_agent_dir }}/venv"
+kv_cli_location: "{{ nkv_agent_dir }}/kv-cli.py"
+rest_server_location: "{{ cm_dir }}/rest_api/app.py"
+
+# UFM Settings
+ufm_etcd_client_port: 2379
+ufm_etcd_peer_port: 2380
+ufm_redfish_port: 5000
+ufm_haproxy_health_port: 5001
+ufm_zmq_frontend_port: 6000
+ufm_zmq_subscriber_port: 6001
+ufm_etcd_token: etcd-token
+ufm_etcd_service_file: /etc/systemd/system/ufm_etcd.service
+ufm_install_packages:
+  - ufm
+  - ufmbroker
+
+# tgt_download_packages Settings
+tgt_download_package_url: http://ssg-jenkins.ssi.samsung.com:8080/job/NKV-Release_package/lastSuccessfulBuild/artifact/NKV-Release.tar

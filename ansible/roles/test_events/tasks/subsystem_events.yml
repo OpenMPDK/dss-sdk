@@ -1,0 +1,44 @@
+- name: Verify event SUBSYSTEM_DOWN
+  shell: "python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_DOWN --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+  register: python_cmd
+  async: "{{event_timeout}}"
+  poll: 0 
+
+- name: Disable nvmf_tgt service
+  service:
+    name: nvmf_tgt
+    state: stopped 
+  when: inventory_hostname in groups['targets']
+
+- name: "Check async task: {{ event_verification_script }} --expected_event_name SUBSYSTEM_DOWN --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+  async_status:
+    jid: "{{ python_cmd.ansible_job_id }}"
+  register: async_result
+  until: async_result.finished
+  retries: "{{retries}}"
+  delay: "{{ retry_delay }}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+
+- name: Verify event SUBSYSTEM_UP
+  shell: "python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_UP --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+  register: python_cmd
+  async: "{{event_timeout}}"
+  poll: 0 
+
+- name: Enable nvmf_tgt service
+  service:
+    name: nvmf_tgt
+    state: started 
+  when: inventory_hostname in groups['targets']
+
+- name: "Check async task: {{ event_verification_script }} --expected_event_name SUBSYSTEM_UP --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+  async_status:
+    jid: "{{ python_cmd.ansible_job_id }}"
+  register: async_result
+  until: async_result.finished
+  retries: "{{retries}}"
+  delay: "{{ retry_delay }}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+

@@ -1,0 +1,113 @@
+---
+
+- name: Get name of local Fabric Manager RPM
+  shell: "ls {{ ufm_devtest_fabricmanager_repo }}/fabricmanager/*.rpm"
+  delegate_to: localhost
+  run_once: true
+  register: ufm_rpm
+
+- name: Get name of local Fabric Mananger Broker RPM
+  shell: "ls {{ ufm_devtest_fabricmanager_repo }}/ufm_msg_broker/*.rpm"
+  delegate_to: localhost
+  run_once: true
+  register: ufmbroker_rpm
+
+- name: Get name of local Fabric Manager DEB
+  shell: "ls {{ ufm_devtest_fabricmanager_repo }}/fabricmanager/*.deb"
+  delegate_to: localhost
+  run_once: true
+  register: ufm_deb
+
+- name: Get name of local Fabric Mananger Broker DEB
+  shell: "ls {{ ufm_devtest_fabricmanager_repo }}/ufm_msg_broker/*.deb"
+  delegate_to: localhost
+  run_once: true
+  register: ufmbroker_deb
+
+- name: Copy RPMs to CentOS Fabric Manager Hosts
+  copy:
+    src: "{{ item.stdout }}"
+    dest: "{{ ufm_devtest_staging_dir }}"
+  loop:
+    - "{{ ufm_rpm }}"
+    - "{{ ufmbroker_rpm }}"
+  loop_control:
+    label: "{{ item.stdout }}"
+  when: ansible_os_family == 'RedHat'
+
+- name: Copy DEBs to Ubuntu Fabric Manager Hosts
+  copy:
+    src: "{{ item.stdout }}"
+    dest: "{{ ufm_devtest_staging_dir }}"
+  loop:
+    - "{{ ufm_deb }}"
+    - "{{ ufmbroker_deb }}"
+  loop_control:
+    label: "{{ item.stdout }}"
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Remove UFM Packages (yum)
+  yum:
+    name: "{{ ufm_install_packages }}"
+    state: absent
+  become: yes
+  when: ansible_os_family == 'RedHat'
+
+- name: Remove UFM Packages (apt)
+  apt:
+    name: "{{ ufm_install_packages }}"
+    state: absent
+  become: yes
+  when: ansible_distribution == 'Ubuntu'
+
+- name: List stuck Fabric Manager processes
+  shell: "ps aux | grep [f]abricmanager.py | awk '{print $2}'"
+  changed_when: false
+  register: fm_proc
+
+- name: Kill stuck Fabric Manager processes
+  shell: "kill -9 {{ item }}"
+  loop: "{{ fm_proc.stdout_lines }}"
+  when: fm_proc.stdout_lines
+  become: yes
+
+- name: Install Dev RPMs
+  yum:
+    name: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+  become: yes
+  loop:
+    - "{{ ufm_rpm }}"
+    - "{{ ufmbroker_rpm }}"
+  loop_control:
+    label: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+  when: ansible_os_family == 'RedHat'
+
+- name: Install Dev DEBs
+  apt:
+    deb: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+  become: yes
+  loop:
+    - "{{ ufm_deb }}"
+    - "{{ ufmbroker_deb }}"
+  loop_control:
+    label: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Start UFM
+  systemd:
+    name: ufm
+    state: started
+    daemon_reload: yes
+  become: yes
+
+- name: Delete RPM/DEB files from Fabric Mananger Hosts
+  file:
+    path: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+    state: absent
+  loop:
+    - "{{ ufm_rpm }}"
+    - "{{ ufmbroker_rpm }}"
+    - "{{ ufm_deb }}"
+    - "{{ ufmbroker_deb }}"
+  loop_control:
+    label: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"

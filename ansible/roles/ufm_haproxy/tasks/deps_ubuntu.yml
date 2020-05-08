@@ -1,0 +1,7 @@
+---
+
+- name: Install Required Packages (apt)
+  apt:
+    name: haproxy
+    state: present
+  become: true

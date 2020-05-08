@@ -1,0 +1,11 @@
+[fm_hosts]
+#host1
+#host2
+#host3
+
+[targets]
+#host4
+#host5
+
+[ha_proxy]
+#host6

@@ -1,0 +1,17 @@
+[Unit]
+Description=Samsung Object Storage NVMF target operations
+After=kv-cli.service
+
+[Service]
+User=root
+WorkingDirectory={{ nkv_agent_dir }}
+Environment="PYTHONPATH={{ nkv_agent_dir }}:$PYTHONPATH"
+#Type=oneshot
+ExecStart={{ nkv_virtualenv_dir }}/bin/python {{ nkv_agent_dir }}/kv-cli.py daemon --start_tgt
+RemainAfterExit=true
+ExecStop={{ nkv_virtualenv_dir }}/bin/python {{ nkv_agent_dir }}/kv-cli.py daemon --stop_tgt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

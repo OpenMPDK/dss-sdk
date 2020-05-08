@@ -1,0 +1,12 @@
+---
+
+- name: Install Dependencies (yum)
+  yum:
+    name:
+      - ruby-devel
+      - dpkg
+      # - build-essential
+      # - rpm
+    state: present
+    use_backend: yum
+  become: yes

@@ -1,0 +1,24 @@
+
+# 1. Fill the Target_Short_Hostname and Target_Data_IP for each of the targets
+# 2. drives_list takes precedence over number of drives.
+# 3. Parameters mentioned in specific Target TAB will take precedence over GLOBAL.
+# 4. Only Disk serial numbers or the GLOBAL datapool_drives or metapool_drives
+#    are permitted for the subsystem creation
+#
+[GLOBAL]
+datapool_drives: 1
+metapool_drives: 0
+
+# Sample configuration for subsystem creation on msl-dsma-sierra23
+# For multiple subsystems on same target, change the number after the ':' in
+# identifier of the section eg. msl-dsma-sierra23:0, msl-dsma-sierra23:1
+#[msl-dsma-sierra23:0]
+#datapool_drive_list: Disk_Serial1, Disk_Serial2
+# Use a comma separated list of IP:Ports for multiple
+# ways of connecting to the same subsystem
+#subsystem_ip_port: 100.10.10.69:1023,101.10.10.69:1023
+#Enable one of the subsystem transport type
+#subsystem_trtype: RDMA
+#subsystem_trtype: TCP
+#data_nqn: nqn.2018-04.samsung:msl-dsma-sierra23-data
+#metadata_nqn: nqn.2018-04.samsung:msl-dsma-sierra23-meta
