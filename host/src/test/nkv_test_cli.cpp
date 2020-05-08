@@ -49,6 +49,7 @@ c_smglogger* logger = NULL;
 std::atomic<int> submitted(0);
 std::atomic<int> completed(0);
 //std::atomic<int> cur_qdepth[32];
+const char* S3_DELIMITER = "/";
 #define NKV_TEST_META_VAL_LEN 4096
 #define NKV_TEST_META_KEY_LEN 60
 
@@ -1203,6 +1204,30 @@ do {
       keys_out[iter].length = 256;
     }
     auto start = std::chrono::steady_clock::now();
+
+    // Checking key_prefix, and delimiter
+    uint32_t prefix_length = strlen(key_beginning);
+    if (key_beginning[prefix_length -1] !=  S3_DELIMITER[0]) {
+      bool is_delimiter_good = true;
+      if ( key_delimiter ) { 
+        if ( strcmp(key_delimiter, S3_DELIMITER) ) {
+          smg_error(logger, "Delimiter %s not supported for listing, Supported delimiter %s",key_delimiter, S3_DELIMITER);
+          is_delimiter_good = false;
+        }
+        strncat(key_beginning, key_delimiter, 1);
+      } else {
+        smg_alert(logger, "Didn't find %s required delimiter for listing, exit!", S3_DELIMITER);
+        is_delimiter_good = false;
+      }
+        
+      // Terminate gracefully if delimiter is bad
+      if (! is_delimiter_good ) {
+        smg_alert(logger, "** Write object with %s delimited prefix for listing to work. **", S3_DELIMITER);
+        smg_alert(logger, "** Specify %s delimiter either with prefix or -r switch **", S3_DELIMITER);
+        nkv_close (nkv_handle, instance_uuid);
+        exit(1);
+      }  
+    }
 
     for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
       smg_info(logger, "Iterating for container hash = %u, prefix = %s, delimiter = %s", io_ctx[cnt_iter].container_hash, key_beginning, key_delimiter);
