@@ -1,6 +1,8 @@
 #! /usr/bin/bash
 set -e 
 
+. ./build_env
+
 echo "Compiling the target source ...."
 pushd target
 ./build.sh 

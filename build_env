@@ -1,0 +1,9 @@
+# Git branch to download the code from
+NKV_TARGET_BRANCH=""
+NKV_FABRIC_BRANCH=""
+
+# Version of the package RPMs
+BASE_VER="0.1.0"
+AGENT_VER="0.1.0"
+TARGET_VER="0.1.0"
+MONITOR_VER="0.1.0"
