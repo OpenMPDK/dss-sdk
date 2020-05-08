@@ -1,0 +1,41 @@
+---
+
+- name: Check Cluster ID
+  shell: "etcdctl get /cluster/id --print-value-only"
+  environment: 
+    ETCDCTL_API: 3
+  changed_when: false
+  register: cluster_id
+
+- name: Check Cluster time_created
+  shell: "etcdctl get /cluster/time_created --print-value-only"
+  environment: 
+    ETCDCTL_API: 3
+  changed_when: false
+  register: cluster_time_created
+
+- name: Add Cluster ID
+  etcd3:
+    key: /cluster/id
+    value: "{{ ansible_date_time.iso8601_micro | to_uuid }}"
+    state: present
+  when: cluster_id.stdout == ""
+
+- name: Add Cluster Name
+  etcd3:
+    key: /cluster/name
+    value: "{{ ufm_etcd_token }}"
+    state: present
+
+- name: Add Cluster IP address
+  etcd3:
+    key: /cluster/ip_address
+    value: "{{ hostvars[groups[group_names[0]][0]].ansible_default_ipv4.address }}"
+    state: present
+
+- name: Add Cluster time_created
+  etcd3:
+    key: /cluster/time_created
+    value: "{{ ansible_date_time.epoch }}"
+    state: present
+  when: cluster_time_created.stdout == ""

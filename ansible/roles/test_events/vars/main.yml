@@ -1,0 +1,4 @@
+event_verification_script: /usr/share/ufm/tools/validate_broker_msg.py
+retries: 41
+retry_delay: 5
+event_timeout: 200

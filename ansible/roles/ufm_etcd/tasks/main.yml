@@ -1,0 +1,72 @@
+---
+
+- name: Gather service facts
+  service_facts:
+
+- name: CentOS specific tasks
+  block:
+    - name: Install dependencies - CentOS
+      import_tasks: deps_centos.yml
+
+    - name: Open Ports - CentOS
+      import_tasks: ports_centos.yml
+  when: ansible_os_family == 'RedHat'
+
+- name: Ubuntu specific tasks
+  block:
+    - name: Install dependencies - Ubuntu
+      import_tasks: deps_ubuntu.yml
+
+    - name: Open Ports - Ubuntu
+      import_tasks: ports_ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Update pip if package manager version is old
+  pip:
+    name: pip>=20.0.2
+    state: present
+  become: yes
+
+- name: Install etcd3 python module
+  pip:
+    name: etcd3
+    state: present
+  become: yes
+
+- name: Stop and disable default etcd service
+  systemd:
+    name: etcd
+    state: stopped
+    enabled: no
+  become: true
+
+- name: Generate service file for the etcd cluster
+  template:
+    src: ../templates/ufm_etcd.service.j2
+    dest: "{{ ufm_etcd_service_file }}"
+  register: service_file
+  become: true
+
+- name: Restart ufm_etcd service if service file changed
+  systemd:
+    name: "{{ ufm_etcd_service_file | basename }}"
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+  when: service_file.changed
+  become: true
+
+- name: ufm_etcd service is started and enabled
+  systemd:
+    name: "{{ ufm_etcd_service_file | basename }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: true
+
+- name: Add etcd Cluster
+  import_tasks: add_cluster.yml
+  run_once: true
+
+- name: Add etcd CM Node
+  import_tasks: add_cm_node.yml

@@ -1,0 +1,44 @@
+- name: Verify event AGENT_DOWN
+  shell: "python3 {{ event_verification_script }} --expected_event_name AGENT_DOWN --expected_count {{ groups['targets'] | length }} --timeout {{event_timeout}}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+  register: python_cmd
+  async: "{{event_timeout}}"
+  poll: 0 
+
+- name: Disable kv_cli service
+  service:
+    name: kv_cli
+    state: stopped 
+  when: inventory_hostname in groups['targets']
+
+- name: "Check async task: {{ event_verification_script }} --expected_event_name AGENT_DOWN --expected_count {{ groups['targets'] | length }} --timeout {{event_timeout}}"
+  async_status:
+    jid: "{{ python_cmd.ansible_job_id }}"
+  register: async_result
+  until: async_result.finished
+  retries: "{{retries}}"
+  delay: "{{ retry_delay }}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+
+- name: Verify event AGENT_UP
+  shell: "python3 {{ event_verification_script }} --expected_event_name AGENT_UP --expected_count {{ groups['targets'] | length }} --timeout {{event_timeout}}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+  register: python_cmd
+  async: "{{event_timeout}}"
+  poll: 0 
+
+- name: Enable kv_cli service
+  service:
+    name: kv_cli
+    state: started 
+  when: inventory_hostname in groups['targets']
+
+- name: "Check async task: {{ event_verification_script }} --expected_event_name AGENT_UP --expected_count {{ groups['targets'] | length }} --timeout {{event_timeout}}"
+  async_status:
+    jid: "{{ python_cmd.ansible_job_id }}"
+  register: async_result
+  until: async_result.finished
+  retries: "{{retries}}"
+  delay: "{{ retry_delay }}"
+  when: inventory_hostname in groups['fm_hosts'] and isLeader
+

@@ -1,0 +1,66 @@
+---
+
+- name: Gather service facts
+  service_facts:
+
+- name: CentOS specific tasks
+  block:
+    - name: Install dependencies - CentOS
+      import_tasks: deps_centos.yml
+
+    - name: Open Ports - CentOS
+      import_tasks: ports_centos.yml
+  when: ansible_os_family == 'RedHat'
+
+- name: Ubuntu specific tasks
+  block:
+    - name: Install dependencies - Ubuntu
+      import_tasks: deps_ubuntu.yml
+
+    - name: Open Ports - Ubuntu
+      import_tasks: ports_ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Create haproxy errors directory
+  file:
+    path: /etc/haproxy/errors
+    state: directory
+  become: yes
+
+- name: Copy haproxy error files
+  copy:
+    src: "{{ item }}.http"
+    dest: /etc/haproxy/errors/
+  loop:
+    - 400
+    - 403
+    - 408
+    - 500
+    - 502
+    - 503
+    - 504
+  become: yes
+
+- name: Create haproxy configuration file
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+  register: haproxy_conf
+  become: yes
+
+- name: Restart haproxy service if configuration file changed
+  systemd:
+    name: haproxy
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+  when: haproxy_conf.changed
+  become: true
+
+- name: haproxy service is started and enabled
+  systemd:
+    name: haproxy
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: true

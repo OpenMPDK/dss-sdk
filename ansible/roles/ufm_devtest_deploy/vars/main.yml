@@ -1,0 +1,4 @@
+---
+
+ufm_devtest_fabricmanager_repo: ../../fabricmanager
+ufm_devtest_staging_dir: /tmp

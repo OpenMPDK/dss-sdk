@@ -1,0 +1,10 @@
+---
+
+- name: Install Dependencies (apt)
+  apt:
+    name:
+      - ruby-dev
+      - build-essential
+      - rpm
+    state: present
+  become: yes

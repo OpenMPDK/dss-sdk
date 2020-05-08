@@ -1,0 +1,3 @@
+---
+
+package_names: "{% if ansible_hostname in groups['fm_hosts'] %}{{ fmhost_packages }}{% else %}{{ target_packages }}{% endif %}"

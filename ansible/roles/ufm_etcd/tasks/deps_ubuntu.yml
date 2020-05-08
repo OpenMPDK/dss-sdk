@@ -1,0 +1,7 @@
+---
+
+- name: Install Required Packages (apt)
+  apt:
+    name: "{{ ufm_etcd_packages }}"
+    state: present
+  become: true

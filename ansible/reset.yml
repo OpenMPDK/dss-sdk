@@ -1,0 +1,121 @@
+- name: confirm whether user really meant to purge the cluster
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ./group_vars/all.yml
+
+
+  vars_prompt:
+    - name: ireallymeanit
+      prompt: Are you sure you want to purge the cluster?
+      default: 'no'
+      private: no
+
+  tasks:
+  - name: exit playbook, if user did not mean to purge cluster
+    fail:
+      msg: >
+        "Exiting purge-cluster playbook, cluster was NOT purged.
+         To purge the cluster, either say 'yes' on the prompt or
+         or use `-e ireallymeanit=yes` on the command line when
+         invoking the playbook"
+    when: ireallymeanit != 'yes'
+
+
+- name: Reset FM-Hosts
+  hosts: fm_hosts
+  roles:
+    - ufm_reset
+
+- name: Purge common role from target nodes
+  hosts:
+    - targets
+  gather_facts: false
+  tasks:
+  - name: Kill Nvmf target
+    shell: "ps -ef | grep [n]vmf_tgt | awk '{ print $2 }' | xargs kill -9 "
+    ignore_errors: true
+
+  - name: Unload SPDK
+    shell: "sh {{ product_dir }}/scripts/setup.sh reset"
+    ignore_errors: true
+
+  - name: Ensure etcd & other services are stopped
+    service:
+      name: "{{ item }}"
+      state: stopped
+      enabled: no
+    with_items:
+      - etcd-gateway
+      - etcd
+    ignore_errors: true
+
+  - name: Delete etcd data directory
+    file: path={{ etcd_data_dir }} state=absent
+
+  - name: Delete etcd.conf
+    file: path=/etc/etcd/etcd.conf state=absent
+
+  - name: Ensure haproxy is stopped
+    service: 
+      name: haproxy
+      state: stopped
+      enabled: no
+    ignore_errors: true
+  
+  - name: Ensure keepalived is stopped
+    service: 
+      name: keepalived
+      state: stopped
+      enabled: no
+    ignore_errors: true
+
+  - name: Remove ntp, keepalived and haproxy packages
+    package:
+      name: "{{ item }}"
+      state: absent
+    with_items: 
+      - FM-Agent
+      - NKV
+      - FM-Base
+      - etcd
+      - haproxy
+      - keepalived
+    ignore_errors: true
+
+  - name: Ensure haproxy directory is removed
+    file: path={{ item }} state=absent
+    with_items:
+      - "/etc/haproxy"
+      - "/var/lib/haproxy"
+      - "/etc/keepalived"
+    ignore_errors: true
+
+  - name: Delete etcd services
+    file: path=/etc/systemd/system/{{ item }}.service state=absent
+    with_items:
+      - etcd-gateway
+      - etcd-proxy
+      - etcd
+    ignore_errors: true
+
+  - name: Delete previous paths
+    shell: "sed -i /{{ item }}/d ~/.bashrc"
+    with_items:
+      - PYTHONPATH
+      - PATH
+      - ETCDCTL_API
+    ignore_errors: true
+
+  - name: Delete dragonfly source, log and config directories
+    file: path={{ item }} state=absent
+    with_items:
+      - "{{ product_dir }}"
+      - "{{ config_file_dir }}"
+      - "{{ nkv_agent_config_file_dir }}"
+      - "{{ logfile_dir }}"
+      - "{{ dfly_temp_dir }}"
+      - /tmp/install_packages.py
+      - /tmp/upgrade_packages.py
+      - /tmp/subsystem_add.py
+
