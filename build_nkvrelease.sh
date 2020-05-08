@@ -70,4 +70,4 @@ tar -cf NKV-Release.tar NKV-Release
 cd ${top_dir}
 
 # Copy NKV-Release.tar to Ansible release dir
-cp ${build_dir}/NKV-Release.tar ${top_dir}/ufm-deploy/release/
+cp ${build_dir}/NKV-Release.tar ${top_dir}/ansible/release/
