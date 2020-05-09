@@ -23,15 +23,7 @@ mkdir -p ${build_dir}/BUILDROOT
 
 # Populate the files to the build path
 nkv_dir=${build_dir}/BUILD/NKV
-mkdir -p ${nkv_dir}/usr/dragonfly/cm
 mkdir -p ${nkv_dir}/usr/bin
-cp -rf ${top_dir}/cm/agent ${nkv_dir}/usr/dragonfly/cm
-cp -rf ${top_dir}/cm/clusterlib ${nkv_dir}/usr/dragonfly/cm
-cp -rf ${top_dir}/cm/etcdlib ${nkv_dir}/usr/dragonfly/cm
-cp -rf ${top_dir}/cm/events ${nkv_dir}/usr/dragonfly/cm
-cp -rf ${top_dir}/cm/logger ${nkv_dir}/usr/dragonfly/cm
-cp -rf ${top_dir}/cm/etcd_binary/* ${nkv_dir}/usr/bin/
-cp -rf ${top_dir}/cm/venv_centos_7.tgz ${nkv_dir}/usr/dragonfly/cm
 
 # copy ufm/nkv_agent folder over to usr
 cp -rf ${top_dir}/ufm/agents/nkv_agent ${nkv_dir}/usr
