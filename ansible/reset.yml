@@ -77,7 +77,6 @@
     with_items: 
       - FM-Agent
       - NKV
-      - FM-Base
       - etcd
       - haproxy
       - keepalived

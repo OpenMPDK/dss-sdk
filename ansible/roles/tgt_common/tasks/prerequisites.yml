@@ -46,25 +46,3 @@
     name: firewalld
     enabled: no
     state: stopped
-
-#- name: Add ports to firewalld
-#  firewalld:
-#    port: "{{ item }}"
-#    permanent: true
-#    state: enabled
-#  with_items:
-#    - 2379-2380/tcp
-#    - 8080/tcp
-
-#- name: Reload firewalld
-#  shell: firewall-cmd --reload
-
-#- name: Copy etcd/etcdctl to machines
-#  copy:
-#    src: "{{ item }}"
-#    dest: "/usr/bin/"
-#    mode: 0755
-#  with_items:
-#    - etcd
-#    - etcdctl
-
