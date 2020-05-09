@@ -1,6 +1,7 @@
 ---
 # Dependecies
 target_rhel_package_dependencies:
+  - etcd
   - chrony
   - ntp
   - rsyslog
