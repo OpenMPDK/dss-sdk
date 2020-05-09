@@ -1,1 +1,0 @@
-ACTION=="add|remove", SUBSYSTEM=="block", RUN+="/usr/dragonfly/cm/agent/udev_monitor/SIGUSR1_kvcli.sh"
