@@ -238,6 +238,7 @@ void *iothread(void *args)
     char* val = NULL;
     if (!targs->alignment) {
       val   = (char*)nkv_zalloc(targs->vlen);
+      memset(val, 0, targs->vlen);
     } else {
       val   = (char*)aligned_alloc(targs->alignment, targs->vlen);
       if ((uint64_t)val % targs->alignment != 0) {

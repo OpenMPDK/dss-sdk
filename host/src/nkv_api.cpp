@@ -58,6 +58,7 @@ int32_t nkv_stat_thread_polling_interval;
 int32_t nkv_stat_thread_needed;
 int32_t nkv_dummy_path_stat;
 int32_t nkv_event_handler = 0;
+int32_t nkv_check_alignment = 0;
 std::condition_variable cv_global;
 std::mutex mtx_global;
 std::mutex mtx_stat;
@@ -270,6 +271,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     nkv_remote_listing = pt.get<int>("nkv_remote_listing", 0);
     nkv_max_key_length = pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
     nkv_max_value_length = pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
+    nkv_in_memory_exec = pt.get<int>("nkv_in_memory_exec", 0);
+    nkv_check_alignment = pt.get<int>("nkv_check_alignment", 0);
     if (nkv_remote_listing) {
 
       transient_prefix = pt.get<std::string>("transient_prefix_to_filter", "meta/.minio.sys/tmp/" );
@@ -417,7 +420,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
                                     );
   }
 
-  if (listing_with_cached_keys && !nkv_remote_listing) {
+  if (listing_with_cached_keys && !nkv_remote_listing && !nkv_in_memory_exec) {
     bool will_wait = nkv_listing_wait_till_cache_init ? true:false;
     auto start = std::chrono::steady_clock::now();
     nkv_cnt_list->wait_or_detach_thread (will_wait);
@@ -611,6 +614,14 @@ nkv_result nkv_send_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_k
   if (ioctx->is_pass_through) {
     uint64_t cnt_hash = ioctx->container_hash;
     uint64_t cnt_path_hash = ioctx->network_path_hash;
+    if (nkv_check_alignment) {
+
+      if ((uint64_t)value % nkv_check_alignment != 0) {
+        smg_warn(logger, "Non %u Byte Aligned value address = 0x%x, op = %d, performance will be impacted !!", nkv_check_alignment, value, which_op);
+        //assert(0);
+      }
+      
+    } 
     stat = nkv_cnt_list->nkv_send_io(cnt_hash, cnt_path_hash, key, (void*)opt, value, which_op, post_fn); 
 
   } else {
