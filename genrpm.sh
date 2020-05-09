@@ -53,55 +53,10 @@ exit 0
 chmod +x /usr/dragonfly/scripts/setup.sh
 chmod +x /usr/dragonfly/scripts/common.sh
 
-############ Base Package ############
-%package -n FM-Base
-Version:        $FM_Base_ver
-Release:        1%{?dist}
-Summary:        Fabric Manager Dependencies
-
-#%define dflypath  /usr/dragonfly
-
-%description -n FM-Base
-All Fabric Manager dependencies including virtual environment
-are included in this package. To be installed before Agent, Rest/Monitor.
-
-%files -n FM-Base
-%defattr(-,root,root,-)
-%dir /usr/dragonfly
-%dir /usr/dragonfly/cm
-%dir /usr/dragonfly/cm/clusterlib
-%dir /usr/dragonfly/cm/etcdlib
-%dir /usr/dragonfly/cm/events
-%dir /usr/dragonfly/cm/logger
-/usr/dragonfly/cm/clusterlib/*
-/usr/dragonfly/cm/etcdlib/*
-/usr/dragonfly/cm/events/*
-/usr/dragonfly/cm/logger/*
-/usr/dragonfly/cm/venv_centos_7.tgz
-
-%post -n FM-Base
-set -x 
-{
-rm -rf /usr/dragonfly/venv
-tar -xf /usr/dragonfly/cm/venv_centos_7.tgz -C /usr/dragonfly/
-
-} &> /tmp/fm-base-output
-
-%postun -n FM-Base
-# Remove the venv directory only during uninstall.
-if [ \$1 == 0 ]; then
-	rm -rf /usr/dragonfly/venv
-	rm -rf /usr/dragonfly/cm/logger
-	rm -rf /usr/dragonfly/cm/events
-	rm -rf /usr/dragonfly/cm/etcdlib
-	rm -rf /usr/dragonfly/cm/clusterlib
-fi
-
 ############ Agent Package ############
 %package -n FM-Agent
 Version:        $FM_Agent_ver
 Release:        1%{?dist}
-Requires:       FM-Base
 Summary:        Fabric Manager Agent
 
 #%define dflypath  /usr/dragonfly
@@ -113,13 +68,6 @@ Fabric manager. FM-Base RPM need to be installed prior to this.
 
 %files -n FM-Agent
 %defattr(-,root,root,-)
-%dir /usr/dragonfly
-%dir /usr/dragonfly/cm
-%dir /usr/dragonfly/cm/agent
-%dir /usr/nkv_agent
-%dir /etc/systemd/system
-%dir /etc/rsyslog.d
-/usr/dragonfly/cm/agent/*
 /usr/nkv_agent/*
 /etc/systemd/system/kv_cli.service
 /etc/systemd/system/nvmf_tgt.service
@@ -186,7 +134,6 @@ if [ \$1 == 0 ]; then
 	systemctl stop nvmf_tgt
 	systemctl stop kv_cli
 	systemctl stop etcd-gateway
-	rm -rf /usr/dragonfy/cm/agent
 	rm -rf /usr/nkv_agent
 	rm -f /etc/rsyslog.d/dfly.conf
 	rm -f /etc/ld.so.conf.d/kvlibs.conf
@@ -194,73 +141,6 @@ if [ \$1 == 0 ]; then
 fi
 %systemd_postun_with_restart rsyslog.service
 systemctl daemon-reload
-
-############## ETCD Package #################
-%package -n etcd
-Version:        $ETCD_ver
-Release:        1%{?dist}
-Summary:        A highly-available key value store for shared configuration
-License:        ASL 2.0
-Source1:        %{etcd_system_name}.conf
-
-Requires(post): systemd
-Requires(preun): systemd
-Requires(postun): systemd
-
-%description -n etcd
-A highly-available key value store for shared configuration.
-
-%post -n etcd
-set -x 
-{
-    function check_service(){
-	serv=\$1
-	action=\$2
-	stage=\$3
-        status=1
-	try=0
-	while [ \$try -lt 3 ]; do
-		systemctl \$action \$serv
-		sleep 1
-		systemctl status \$serv|grep "Active: active"
-		if [ \$? -eq 0 ]; then
-			status=0
-			break
-		fi
-		sleep 1
-		try=\$((try+1))
-	done 
-	if [ \$stage == 'upgrade' ]; then
-		if [ \$status -eq 0 ]; then
-			etcdctl put /software/upgrade/progress/node/\$(hostname -s)/services/\$serv up
-		else 
-			etcdctl put /software/upgrade/progress/node/\$(hostname -s)/services/\$serv down
-		fi
-	fi
-    }
-
-    if [ \$1 == 1 ]; then
-        systemctl enable etcd
-        check_service etcd start install
-    fi
-} &> /tmp/etcd-service-output
-
-%postun -n etcd
-if [ \$1 == 0 ]; then
-	systemctl stop etcd
-fi
-
-%systemd_postun %{etcd_system_name}.service
-
-%clean -n etcd
-echo "Not cleaning up in this case."
-
-%files -n etcd
-%{_bindir}/%{etcd_system_name}
-%{_bindir}/%{etcd_system_name}ctl
-%dir %attr(-,etcd,etcd) %{_localstatedir}/lib/etcd
-
-
 
 LAB_SPEC
 }
@@ -283,16 +163,6 @@ usage:
 LAB_USAGE
 }
 
-if [ ! -f ${rpm_tmp}/BUILD/NKV/usr/bin/etcd ]; then
-	echo "etcd binary not found for version"
-	exit 1
-fi
-ETCD_ver=$(${rpm_tmp}/BUILD/NKV/usr/bin/etcd --version | grep etcd|awk '{print $3}')
-
-if [ "$#" -ne 5 ]; then
-  usage
-  exit 1
-fi
 
 Target_ver=$2
 FM_Base_ver=$3
