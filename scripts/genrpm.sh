@@ -157,7 +157,7 @@ cat <<LAB_USAGE
 $(basename "$0")
 
 usage:
-    genrpm.sh <buildroot> <Target_ver> <FM_Base_ver> <FM_Agent_ver> <FM_Rest_ver> <ETCD_ver>
+    genrpm.sh <buildroot> <Target_ver> <FM_Agent_ver>
     -h    Show this help
 
 LAB_USAGE
@@ -165,9 +165,7 @@ LAB_USAGE
 
 
 Target_ver=$2
-FM_Base_ver=$3
-FM_Agent_ver=$4
-FM_Rest_ver=$5
+FM_Agent_ver=$3
 
 mkdir -p ${rpm_tmp}
 for dir in BUILDROOT RPMS/x86_64 SRPMS SPECS; do
