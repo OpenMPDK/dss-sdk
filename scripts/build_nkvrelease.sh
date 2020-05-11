@@ -54,7 +54,7 @@ mkdir -p "${nkv_dir}"/var/lib/etcd
 
 cp "${script_dir}"/genrpm.sh "${build_dir}"/SPECS/
 
-if ! sh "${build_dir}"/SPECS/genrpm.sh "${build_dir}" "$TARGET_VER" "$BASE_VER" "$AGENT_VER" "$MONITOR_VER"
+if ! sh "${build_dir}"/SPECS/genrpm.sh "${build_dir}" "$TARGET_VER" "$AGENT_VER"
 then
 	echo "RPM creation failed"
 	exit
