@@ -52,7 +52,7 @@ cp "${top_dir}"/df_out/dssd/cmd/ustat/ustat "${nkv_dir}"/usr/dragonfly
 
 mkdir -p "${nkv_dir}"/var/lib/etcd
 
-cp "${top_dir}"/genrpm.sh "${build_dir}"/SPECS/
+cp "${script_dir}"/genrpm.sh "${build_dir}"/SPECS/
 
 if ! sh "${build_dir}"/SPECS/genrpm.sh "${build_dir}" "$TARGET_VER" "$BASE_VER" "$AGENT_VER" "$MONITOR_VER"
 then
