@@ -5,19 +5,19 @@ rpm_tmp=$1
 rpm_spec_file="$rpm_tmp/SPECS/total.spec"
 
 execute_command() {
-    echo "$@"
-    eval "$@"
-    ret=$?
-    [[ $ret -ne 0 ]] && echo "Failed: $@" && exit $ret
+	if ! sh "$@"
+	then
+		echo "Failed: $*"
+		exit "$?"
+	fi
 }
-
 
 generateSpecFile()
 {
 
-rm -f $rpm_spec_file
+rm -f "$rpm_spec_file"
 
-cat > $rpm_spec_file <<LAB_SPEC
+cat > "$rpm_spec_file" <<LAB_SPEC
 
 %global etcd_system_name etcd
 ####### NKV Package ###########
@@ -147,8 +147,11 @@ LAB_SPEC
 
 generateRPM()
 {
-    #[[ -e ${rpm_tmp} ]] && rm -rf ${rpm_tmp}
-    execute_command "rpmbuild -bb --clean $rpm_spec_file --define '_topdir ${rpm_tmp}'"
+		if ! sh "rpmbuild -bb --clean $rpm_spec_file --define '_topdir ${rpm_tmp}'"
+		then
+			echo "Failed to build RPM"
+			exit "$?"
+		fi
 }
 
 usage()
@@ -167,9 +170,9 @@ LAB_USAGE
 Target_ver=$2
 FM_Agent_ver=$3
 
-mkdir -p ${rpm_tmp}
+mkdir -p "${rpm_tmp}"
 for dir in BUILDROOT RPMS/x86_64 SRPMS SPECS; do
-    mkdir -p ${rpm_tmp}/$dir
+    mkdir -p "${rpm_tmp}"/$dir
 done
 
 generateSpecFile 
