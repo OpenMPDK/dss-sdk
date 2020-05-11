@@ -5,13 +5,13 @@ script_dir=$(readlink -f "$(dirname "$0")")
 top_dir=${script_dir}/../
 
 # Read build environment vars
-pushd "$(script_dir)"
+pushd "${script_dir}"
 # shellcheck disable=SC1091
 . ./build_env
 popd
 
 echo "Compiling the target source ...."
-pushd "$(top_dir)"/target
+pushd "${top_dir}"/target
 ./build.sh 
 popd
 echo "Compiling the target source ....[DONE]"
