@@ -5,7 +5,7 @@ script_dir=$(readlink -f "$(dirname "$0")")
 top_dir=${script_dir}/../
 
 # Read build environment vars
-pushd script_dir
+pushd "$(script_dir)"
 # shellcheck disable=SC1091
 . ./build_env
 popd
