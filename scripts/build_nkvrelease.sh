@@ -2,7 +2,7 @@
 set -e
 
 script_dir=$(readlink -f "$(dirname "$0")")
-top_dir=${script_dir}/../
+top_dir=${script_dir}/..
 
 # Read build environment vars
 pushd "${script_dir}"
