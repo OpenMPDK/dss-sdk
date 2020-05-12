@@ -1,7 +1,0 @@
----
-
-- name: Build UFM test package locally
-  shell: "{{ ufm_devtest_fabricmanager_repo }}/fabricmanager/makeufmpackage.sh -prJ 0"
-
-- name: Build UFM Broker test package locally
-  shell: "{{ ufm_devtest_fabricmanager_repo }}/ufm_msg_broker/makebrokerpackage.sh -prJ 0"
