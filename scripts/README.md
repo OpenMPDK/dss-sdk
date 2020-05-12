@@ -14,3 +14,11 @@ This directory contains scripts to build and package nkv-sdk components to be us
 ## build_ufm.sh
 
 * Build and state UFM artifacts
+
+## build_env
+
+* Specifies version numbers of target and UFM RPM/DEB packages
+
+## genrpm.sh
+
+* Helper script for build_target.sh script to generate target RPMs
