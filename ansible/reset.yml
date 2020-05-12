@@ -56,20 +56,6 @@
   - name: Delete etcd.conf
     file: path=/etc/etcd/etcd.conf state=absent
 
-  - name: Ensure haproxy is stopped
-    service: 
-      name: haproxy
-      state: stopped
-      enabled: no
-    ignore_errors: true
-  
-  - name: Ensure keepalived is stopped
-    service: 
-      name: keepalived
-      state: stopped
-      enabled: no
-    ignore_errors: true
-
   - name: Remove ntp, keepalived and haproxy packages
     package:
       name: "{{ item }}"
