@@ -1,16 +1,7 @@
 #!/bin/sh
 
-#rpm_tmp="/root/rpmbuild"
 rpm_tmp=$1
 rpm_spec_file="$rpm_tmp/SPECS/total.spec"
-
-execute_command() {
-	if ! sh "$@"
-	then
-		echo "Failed: $*"
-		exit "$?"
-	fi
-}
 
 generateSpecFile()
 {
@@ -147,11 +138,12 @@ LAB_SPEC
 
 generateRPM()
 {
-		if ! sh "rpmbuild -bb --clean $rpm_spec_file --define '_topdir ${rpm_tmp}'"
+		if ! eval "rpmbuild -bb --clean $rpm_spec_file --define '_topdir $rpm_tmp'"
 		then
 			echo "Failed to build RPM"
-			exit "$?"
+			exit
 		fi
+		echo "RPM build success"
 }
 
 usage()
