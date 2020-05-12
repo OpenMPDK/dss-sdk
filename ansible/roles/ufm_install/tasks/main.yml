@@ -32,6 +32,17 @@
   import_tasks: ufm_ubuntu.yml
   when: ansible_distribution == 'Ubuntu'
 
+- name: Start Services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  loop:
+    - ufm
+    - gunicorn
+  become: yes
+
 - name: Delete RPM/DEB files from Fabric Mananger Hosts
   file:
     path: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
