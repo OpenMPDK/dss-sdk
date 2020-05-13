@@ -4,7 +4,6 @@
   vars_files:
     - ./group_vars/all.yml
 
-
   vars_prompt:
     - name: ireallymeanit
       prompt: Are you sure you want to purge the cluster?
@@ -20,7 +19,6 @@
          or use `-e ireallymeanit=yes` on the command line when
          invoking the playbook"
     when: ireallymeanit != 'yes'
-
 
 - name: Reset FM-Hosts
   hosts: fm_hosts
@@ -103,4 +101,3 @@
       - /tmp/install_packages.py
       - /tmp/upgrade_packages.py
       - /tmp/subsystem_add.py
-
