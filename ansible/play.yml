@@ -1,4 +1,0 @@
-- import_playbook: fm_hosts.yml
-- import_playbook: ha_proxy.yml
-- import_playbook: targets.yml
-
