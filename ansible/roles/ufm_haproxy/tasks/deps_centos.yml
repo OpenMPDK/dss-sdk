@@ -22,7 +22,8 @@
 
 - name: Create symlink to scl version of haproxy
   file:
-    src: "{{ ufm_etcd_service_file }}"
+    src: /etc/haproxy/haproxy.cfg
     dest: /etc/opt/rh/rh-haproxy18/haproxy/haproxy.cfg
     state: link
+    force: yes
   become: true
