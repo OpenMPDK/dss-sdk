@@ -19,4 +19,5 @@
   gem:
     name: fpm
     state: present
+    user_install: no
   become: yes
