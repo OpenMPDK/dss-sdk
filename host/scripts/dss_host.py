@@ -67,11 +67,12 @@ def get_list_diff(li1, li2):
         return (list(set(li1) - set(li2))) 
 
 
-def get_ip_port_nqn_info(out):
+def get_ip_port_nqn_info(out, proto):
     '''
     get list of ip,port,nqn pairs
     '''
     tuplist = []
+    trtype = ""
     for line in out.splitlines():
         if "trtype" in line:
             trtype = line.split(':')[1].strip()
@@ -81,8 +82,9 @@ def get_ip_port_nqn_info(out):
             subnqn = line.split(':',1)[1].strip()
         elif "traddr" in line:
             traddr = line.split(':')[1].strip()
-        elif "rdma_pkey" in line:
-            tuplist.append([trtype, trsvcid, subnqn, traddr])
+        elif "Discovery Log" in line:
+            if trtype == proto:
+                tuplist.append([trtype, trsvcid, subnqn, traddr])
 
     return tuplist
 
@@ -91,21 +93,29 @@ def nvme_discover(proto, ip, port):
     '''
     Do NVMe Discovery using the IP/Port info
     '''
+    print("----- Doing nvme discovery -----")
     discover_cmd = "nvme discover -t %s -a %s -s %d" %(proto, ip, port)
     print(discover_cmd)
     ret, disc_out, err = exec_cmd(discover_cmd)
     if not disc_out:
         print("Discovery Failed: %s, %s" %(disc_out,err))
 
-    nqn_info = get_ip_port_nqn_info(disc_out)
+    nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
     return nqn_info
 
 
-def nvme_connect(nqn_info, qpair):
+def nvme_discover_connect(disc_proto, disc_ip, disc_port, qpair):
     '''
     Do nvme connect using the array info we got
     '''
+    # Get all discovered NQN info in one place.
+    nqn_info = nvme_discover(disc_proto, disc_ip, disc_port)
+    if not nqn_info:
+        print("Nothing discovered. Exiting")
+        sys.exit(1)
+
+    print("----- Doing nvme connect -----")
     for i in range(len(nqn_info)):
        #print("nvme connect -t %s -a %s -s %s -n %s -i %s " \
        #        %(nqn_info[i][0], nqn_info[i][3], nqn_info[i][1], nqn_info[i][2], qpair))
@@ -121,6 +131,7 @@ def install_kernel_driver(align):
     '''
     Get kernel version to build appropriate driver
     '''
+    print("----- Installing kernel drivers -----")
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
@@ -187,7 +198,7 @@ def create_config_file():
     '''
     Create nkv_config.json file in conf directory
     '''
-
+    print("----- Creating nkv_config.json -----")
     # Get list of drives connected to NVMf Target
     drives_list = get_nvme_drives()
     if drives_list:
@@ -221,6 +232,7 @@ def run_nkv_test_cli():
     '''
     Run Sample nkv_test_cli after setting up drives"
     '''
+    print("----- Running sample nkv_test_cli -----")
     nkv_cmd = "LD_LIBRARY_PATH=../lib ./nkv_test_cli -c " + nkv_config_file + \
             " -i msl-ssg-dl04 -p 1030 -b meta/first/testing -k 60 -v 1048576 -n 1000 -t 128 -o 3"
     ret, out, err = exec_cmd(nkv_cmd)
@@ -247,21 +259,16 @@ if __name__ == '__main__':
 
     disc_port = args.port
     disc_proto = args.proto
-    disc_memalign = args.memalign
+    driver_memalign = args.memalign
     disc_qpair = args.qpair
     disc_ip = args.ipaddr
     
     # Build and install kernel driver based on kernel version
-    install_kernel_driver(disc_memalign) 
+    install_kernel_driver(driver_memalign) 
 
-    # Get all discovered NQN info in one place.
-    all_nqn_info = nvme_discover(disc_proto, disc_ip, disc_port)
-    if not all_nqn_info:
-        print("Nothing discovered. Exiting")
-        sys.exit(1)
 
     # Connect to all discovered NQNs and their IPs.
-    nvme_connect(all_nqn_info, disc_qpair)
+    nvme_discover_connect(disc_proto, disc_ip, disc_port, disc_qpair)
     
     # Create nkv_config.json file
     create_config_file()
