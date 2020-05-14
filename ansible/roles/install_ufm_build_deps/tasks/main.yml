@@ -1,0 +1,16 @@
+---
+
+- name: Install yum dependencies
+  yum:
+    name:
+      - epel-release
+      - ruby-devel
+      - dpkg
+    state: present
+  become: yes
+
+- name: Install fpm gem
+  gem:
+    name: fpm
+    state: present
+  become: yes
