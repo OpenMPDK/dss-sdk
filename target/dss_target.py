@@ -77,7 +77,8 @@ g_subsystem_namespace_text = """
 
 
 g_kv_firmware = ["ETA41KBU"]
-g_block_firmware = ["EDB8000Q"]
+#g_block_firmware = ["EDB8000Q"]
+g_block_firmware = [""]
 g_conf_path = "nvmf.in.conf"
 g_tgt_path = ""
 g_set_drives = 0
@@ -92,6 +93,7 @@ g_tgt_checkout = 0
 g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
+g_kv_ssc = 1
 
 def random_with_N_digits(n):
    range_start = 10**(n-1)
@@ -276,23 +278,33 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subsystem_text = ""
     ss_number = 1
-    kv_NQN = g_subsystem_common_text % {"subsys_num": ss_number, "pool": "Yes", "nqn_text": nqn_text+'-kv_data'+str(ss_number), "serial_number": random_with_N_digits(10)}
-    subsystem_text += kv_NQN
+    
     g_conf_global_text += g_dfly_wal_cache_dev_nqn_name % {"nqn": nqn_text+'-kv_data'+str(ss_number)}        
     if g_rdma:
 	g_conf_global_text += g_transport
+    
+    kv_ss_drive_count = kv_drive_count/g_kv_ssc
+    if (kv_ss_drive_count == 0):
+        kv_ss_drive_count = 1
  
-    ss_number = ss_number + 1
-    for ip in ip_addrs:
-        subsystem_text += g_subsystem_listen_text % {"transport":"TCP", "ip_addr":str(ip), "port":1023}
-	if g_rdma:
-             subsystem_text += g_subsystem_listen_text % {"transport":"RDMA", "ip_addr":str(ip), "port":1024}
-
     nvme_index = 1
     for drive_count_index in range(len(kv_list)):
-    	subsystem_text += g_subsystem_namespace_text % {"num":kv_list[drive_count_index], "nsid":nvme_index}
-        nvme_index +=1
+        if (nvme_index == 1):
+            subsystem_text += g_subsystem_common_text % {"subsys_num": ss_number, "pool": "Yes", "nqn_text": nqn_text+'-kv_data'+str(ss_number), "serial_number": random_with_N_digits(10)}
+            for ip in ip_addrs:
+                subsystem_text += g_subsystem_listen_text % {"transport":"TCP", "ip_addr":str(ip), "port":1023}
+	        if g_rdma:
+                     subsystem_text += g_subsystem_listen_text % {"transport":"RDMA", "ip_addr":str(ip), "port":1024}
 
+    	subsystem_text += g_subsystem_namespace_text % {"num":kv_list[drive_count_index], "nsid":nvme_index}
+        if (kv_ss_drive_count == nvme_index):
+            nvme_index = 1
+            ss_number = ss_number + 1
+        else:
+            nvme_index +=1
+
+
+    ss_number = ss_number + 1
     for i in range(block_drive_count):
     	subsystem_text += g_subsystem_common_text % {"subsys_num": ss_number, "pool": "No", "nqn_text": nqn_text+'-block_data'+str(ss_number), "serial_number": random_with_N_digits(10)}
     	ss_number = ss_number + 1
@@ -413,7 +425,7 @@ class dss_tgt_args(object):
 The most commonly used dss target commands are:
    reset      Assign all NVME drives back to system
    set        Assign NVME drives to UIO
-   config     Generate DSS Target configuration file
+   configure  Configures the system/device(s) and generates necessary config file to run target application 
 ''')
         parser.add_argument('command', help='Subcommand to run')
         # parse_args defaults to [1:] for args, but you need to
@@ -426,20 +438,21 @@ The most commonly used dss target commands are:
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
-    def config(self):
+    def configure(self):
         parser = argparse.ArgumentParser(
-            description='Creates dss target configuration file to run with target application')
+            description='Configures the system/device(s) and generates necessary config file to run target application')
         # prefixing the argument with -- means it's optional
     	parser.add_argument("-c", "--config_file", type=str, default="nvmf.in.conf", help="Configuration file. One will be created if it doesn't exist. Need -ip_addrs argument")
     	parser.add_argument("-ip_addrs", "--ip_addresses", type=str, nargs='+', required=True, help="List of space seperated ip_addresses to listen. Atleast one address is needed")
-    	parser.add_argument("-kv_fw", "--kv_firmware", type=str, nargs='+', required=True, help="List of space seperated kv_firmware")
-    	parser.add_argument("-block_fw", "--block_firmware", type=str, nargs='+',required=False, help="List of space seperated block_firmware")
+    	parser.add_argument("-kv_fw", "--kv_firmware", type=str, nargs='+', required=True, help="Use the deivce(s) which has this KV formware to form KV pool sub-system")
+    	parser.add_argument("-block_fw", "--block_firmware", type=str, nargs='+',required=False, help="Use the device(s) which has this Block firmware to create Block device sub-system")
     	parser.add_argument("-wal", "--wal", type=int, required=False, help="number of block devices to handle write burst")
     	parser.add_argument("-rdma", "--rdma", type=int, required=False, help="enable RDMA support")
+    	parser.add_argument("-kv_ssc", "--kv_ssc", type=int, required=False, help="number of KV sub systems to create")
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-    	global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_rdma
+    	global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_rdma, g_kv_ssc
 	if args.config_file:
 		g_conf_path = args.config_file
     	if args.kv_firmware:
@@ -452,6 +465,8 @@ The most commonly used dss target commands are:
 		g_wal = args.wal
     	if args.rdma:
 		g_rdma = args.rdma
+    	if args.kv_ssc:
+		g_kv_ssc = args.kv_ssc
         print 'dss_tgt config, config_file='+g_conf_path+'ip_addrs='+str(g_ip_addrs)[1:-1]+'kv_fw='+str(g_kv_firmware)[1:-1]+'block_fw='+str(g_block_firmware)[1:-1]+' wal_devs='+str(g_wal)+' rdma='+str(g_rdma)
         global g_config
 	g_config = 1
@@ -501,11 +516,12 @@ The most commonly used dss target commands are:
 if __name__ == '__main__':
 
     ret = 0
-    dss_tgt_args()
  
     g_path = os.getcwd()
-    print 'Running command under ' + g_path +'...'
+    print 'Make sure this script is executed from DragonFly/bin diretory, running command under path' + g_path +'...'
  
+    dss_tgt_args()
+    
     if g_reset_drives  == 1:
 	ret = reset_drive()
 
@@ -521,8 +537,10 @@ if __name__ == '__main__':
             print ("*** ERROR: Creating configuration file ***")
         generate_core_mask(mp.cpu_count(), 0.50)
     	setup_hugepage()
-    	cmd = 'execution sample: ./setup && ./nvmf_tgt -c ' + g_conf_path + ' -r /var/run/spdk.sock -m ' + g_core_mask + ' -L dfly_list'
-    	print(cmd)
+	ret = setup_drive()
+    	print("Make sure config file " + g_conf_path + " parameters are correct and update if needed.")
+        print("Execute the following command to start the target application: ./nvmf_tgt -c " + g_conf_path + " -r /var/run/spdk.sock -m " + g_core_mask)
+    	print("Make necessary changes to core mask (-m option, # of cores that app should use) if needed.")
  
     if g_tgt_build  == 1:
 	ret = buildtgt()
