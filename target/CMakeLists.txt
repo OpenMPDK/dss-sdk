@@ -254,3 +254,15 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS oss
 )
 
+add_custom_command(
+        TARGET spdk_tcp POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk/
+	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
+)

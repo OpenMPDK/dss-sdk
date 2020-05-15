@@ -95,6 +95,7 @@
   extern int32_t nkv_remote_listing;
   extern uint32_t nkv_max_key_length;
   extern uint32_t nkv_max_value_length;
+  extern int32_t nkv_in_memory_exec;
   extern std::atomic<uint32_t> nic_load_balance;
   extern std::atomic<uint32_t> nic_load_balance_policy;
 
@@ -154,7 +155,7 @@
       memcpy(value, other.value, other.length);
       length = other.length;
       actual_length = other.actual_length;
-  }
+    }
 
 
     nkv_value_wrapper (nkv_value_wrapper&& other) : value (other.value), length(other.length), actual_length(other.actual_length) {
@@ -210,12 +211,14 @@
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
     std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
+    std::unordered_map<std::string, nkv_value_wrapper*> *data_cache; 
     std::atomic<uint32_t> nkv_outstanding_iter_on_path;
     std::atomic<uint32_t> nkv_path_stopping;
     std::atomic<uint64_t> nkv_num_key_prefixes;
     std::atomic<uint32_t> nkv_num_keys;
     std::mutex cache_mtx;
     pthread_rwlock_t* cache_rw_lock_list;
+    pthread_rwlock_t* data_rw_lock_list;
     std::mutex iter_mtx;
     std::vector<std::string> path_vec;
     std::atomic<uint32_t> pending_io_number;
@@ -232,6 +235,7 @@
     std::atomic<uint64_t> nkv_cpu_pending_64_2m_get_io[MAX_CPU_CORE_COUNT];
 
     std::atomic<uint64_t> nkv_cpu_pending_del_io[MAX_CPU_CORE_COUNT];
+    std::atomic<uint64_t> nkv_num_dc_keys;
 
 
   public:
@@ -255,7 +259,14 @@
       for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
         pthread_rwlock_init(&cache_rw_lock_list[iter], NULL);
       }
+      data_rw_lock_list = new pthread_rwlock_t[nkv_listing_cache_num_shards];
+
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_init(&data_rw_lock_list[iter], NULL);
+      }
+
       listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
+      data_cache = new std::unordered_map<std::string, nkv_value_wrapper*> [nkv_listing_cache_num_shards];
       cnt_cache = new nkv_lruCache<std::string, nkv_value_wrapper> [nkv_read_cache_shard_size](nkv_read_cache_size);
       for (int i = 0; i < MAX_CPU_CORE_COUNT; i++) {
         nkv_cpu_pending_1_4k_put_io[i] = 0;
@@ -269,6 +280,7 @@
         nkv_cpu_pending_del_io[i] = 0;
 
       }
+      nkv_num_dc_keys = 0;
     }
 
     ~NKVTargetPath() {
@@ -277,7 +289,7 @@
         wait_for_thread_completion();
       }
  
-      if (! dev_path.empty() && get_target_path_status() ) {
+      if (! dev_path.empty() && get_target_path_status() && !nkv_in_memory_exec ) {
         kvs_result ret;
         #ifdef SAMSUNG_API
           ret = kvs_close_container(path_cont_handle);
@@ -294,8 +306,19 @@
       for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
         pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
       }
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&data_rw_lock_list[iter]);
+      }
+
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        for (auto x: data_cache[iter]) {
+          delete x.second;
+        }
+      }
+
       delete[] cache_rw_lock_list;
       delete[] listing_keys;
+      delete[] data_cache;
       delete[] cnt_cache;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
     }
@@ -313,6 +336,8 @@
     }
 
     bool open_path(const std::string& app_name) {
+      if (nkv_in_memory_exec)
+        return true;
       kvs_result ret = kvs_open_device((char*)dev_path.c_str(), &path_handle);
       if(ret != KVS_SUCCESS) {
         #ifdef SAMSUNG_API
@@ -372,6 +397,8 @@
      * Description  : Close the kv device path opened through openMPDK driver.
      */ 
     bool close_path(){
+      if (nkv_in_memory_exec)
+        return true;
       smg_warn(logger, "Closing kvs_device_path %s", dev_path.c_str());
       kvs_result ret;
       #ifdef SAMSUNG_API
@@ -411,16 +438,23 @@
     int32_t parse_delimiter_entries(std::string& key, const char* delimiter, std::vector<std::string>& dirs,
                                     std::vector<std::string>& prefixes, std::string& f_name);
     void populate_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool need_lock = true);
+    void populate_value_cache(std::string& key_str, nkv_value* n_value);
+    void delete_from_value_cache(std::string& key_str);
+    nkv_result retrieve_from_value_cache(std::string& key_str, nkv_value* n_value);
     bool remove_from_iter_cache(std::string& key_prefix, std::string& key_prefix_val, bool root_prefix = false);
     void nkv_path_thread_func(int32_t what_work);
     void nkv_path_thread_init(int32_t what_work);
 
     void start_thread(int32_t what_work = 0) {
+      if (nkv_in_memory_exec)
+        return;
       path_thread_iter = std::thread(&NKVTargetPath::nkv_path_thread_func, this, what_work);
       path_thread_cache = std::thread(&NKVTargetPath::nkv_path_thread_init, this, what_work);
       
     }
     void wait_for_thread_completion() {
+      if (nkv_in_memory_exec)
+        return;
       try {
         if (path_thread_iter.joinable()) {
           path_thread_iter.join();
@@ -437,6 +471,8 @@
       }
     }
     void detach_thread_completion() {
+      if (nkv_in_memory_exec)
+        return;
       path_thread_iter.detach();
       path_thread_cache.detach();
     }
@@ -927,8 +963,9 @@
 
               }
             }
-            smg_alert(logger, "\nPath = %s, Address = %s, num_outstanding_put_total = %u, num_outstanding_get_total = %u, num_outstanding_del_total = %u\n",
-                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), total_aggregated_os_put, total_aggregated_os_get, total_aggregated_os_del);
+            smg_alert(logger, "\nPath = %s, Address = %s, Data cache keys = %lld, List Cached keys = %lld, List cache Indexes = %lld, num_outstanding_put_total = %u, num_outstanding_get_total = %u, num_outstanding_del_total = %u\n",
+                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_dc_keys.load(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(), 
+                      total_aggregated_os_put, total_aggregated_os_get, total_aggregated_os_del);
                       
           }
          

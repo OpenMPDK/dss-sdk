@@ -20,8 +20,12 @@ CWDNAME=`basename "$CWD"`
 OD="${CWD}/../df_out"
 
 rm -rf $OD
+
+cd ./oss
+./apply-patch.sh
+
 mkdir $OD
 cd ${OD}
 
 cmake $CWD -DCMAKE_BUILD_TYPE=Debug
-make
+make spdk_tcp

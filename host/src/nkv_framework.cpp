@@ -71,6 +71,7 @@ int32_t nkv_data_cache_size_threshold = 4096;
 int32_t nkv_remote_listing = 0;
 uint32_t nkv_max_key_length = 0;
 uint32_t nkv_max_value_length = 0;
+int32_t nkv_in_memory_exec = 0;
 
 std::atomic<uint32_t> nic_load_balance (0);
 std::atomic<uint32_t> nic_load_balance_policy (0);
@@ -523,6 +524,107 @@ void NKVTargetPath::populate_iter_cache(std::string& key_prefix_p, std::string& 
   smg_info(logger, "Populated index cache with, key_prefix = %s, val = %s", key_prefix_p.c_str(), key_prefix_val.c_str());
 }
 
+void NKVTargetPath::populate_value_cache(std::string& key_str, nkv_value* n_value) {
+
+  std::size_t key_prefix = std::hash<std::string>{}(key_str);
+  int32_t shard_id = key_prefix % nkv_listing_cache_num_shards;
+  void* c_buffer = malloc(n_value->length);
+  memcpy(c_buffer, n_value->value, n_value->length);
+  nkv_value_wrapper* nkvvalue = new nkv_value_wrapper(c_buffer, n_value->length, n_value->length);
+  nkv_value_wrapper* nkvvalue_old = NULL;
+
+  int32_t r = pthread_rwlock_wrlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW write lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+
+  auto data_iter = data_cache[shard_id].find(key_str);
+  if (data_iter != data_cache[shard_id].end()) {
+    nkvvalue_old = data_iter->second;
+    data_cache[shard_id].erase(data_iter);
+  }
+  data_cache[shard_id].insert (std::make_pair<std::string, nkv_value_wrapper*> (std::move(key_str), std::move(nkvvalue)));
+  if (path_stat_collection) {
+    nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
+  }
+  r = pthread_rwlock_unlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW write lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+
+  if (nkvvalue_old)
+    delete nkvvalue_old;
+
+}
+
+nkv_result NKVTargetPath::retrieve_from_value_cache(std::string& key_str, nkv_value* n_value) {
+
+  std::size_t key_prefix = std::hash<std::string>{}(key_str);
+  int32_t shard_id = key_prefix % nkv_listing_cache_num_shards;
+  nkv_value_wrapper* nkvvalue = NULL;
+  nkv_result stat = NKV_SUCCESS;
+  int32_t r = pthread_rwlock_rdlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW read lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+  auto data_iter = data_cache[shard_id].find(key_str);
+  if (data_iter == data_cache[shard_id].end()) {
+    stat = NKV_ERR_KEY_NOT_EXIST; 
+  } else {
+    nkvvalue = data_iter->second;
+    if (nkvvalue->length <= n_value->length) {
+      memcpy(n_value->value, nkvvalue->value, nkvvalue->length);
+      n_value->actual_length = nkvvalue->length;
+    } else {
+      smg_error(logger, "Value buffer provided is not enough !!, need at least = %u, provided = %u", nkvvalue->length, n_value->length);
+      stat = NKV_ERR_BUFFER_SMALL;
+    }
+  }
+
+  r = pthread_rwlock_unlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW read lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+
+  return stat;
+}
+
+void NKVTargetPath::delete_from_value_cache(std::string& key_str) {
+
+  std::size_t key_prefix = std::hash<std::string>{}(key_str);
+  int32_t shard_id = key_prefix % nkv_listing_cache_num_shards;
+  nkv_value_wrapper* nkvvalue = NULL;
+  int count = 0;
+  int32_t r = pthread_rwlock_wrlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW write lock acquisition failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+  auto data_iter = data_cache[shard_id].find(key_str);
+  if (data_iter != data_cache[shard_id].end()) {
+    nkvvalue = data_iter->second;
+    data_cache[shard_id].erase(data_iter);
+    count++;
+  }
+
+  r = pthread_rwlock_unlock(&data_rw_lock_list[shard_id]);
+  if (r != 0) {
+    smg_error(logger, "RW read lock unlock failed for shard_id = %d, prefix = %s", shard_id, key_str.c_str());
+    assert (r == 0);
+  }
+
+  if (path_stat_collection && count) {
+    nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
+  }
+  if (nkvvalue)
+    delete nkvvalue;
+}
+
+
 
 nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_store_option* n_opt, 
                                               nkv_value* n_value, nkv_postprocess_function* post_fn) {
@@ -531,7 +633,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
+  if ((n_key->length > (uint32_t)nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -541,7 +643,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     return NKV_ERR_NULL_INPUT;
   }
  
-  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  if ((n_value->length > (uint32_t)nkv_max_value_length) || (n_value->length == 0)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
@@ -585,27 +687,31 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
   #endif
 
   if (!post_fn) {
-    kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
-    #ifdef SAMSUNG_API
-      const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
-      int ret = kvs_store_tuple(path_cont_handle, &kvskey, &kvsvalue, &put_ctx);    
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "store tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-    #else
-      kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};
-      kvs_result ret = kvs_store_kvp(path_ks_handle, &kvskey, &kvsvalue, &option);
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "store tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
-                  ret, n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-
-    #endif
-
     std::string key_str ((char*) n_key->key, n_key->length);
+    if (!nkv_in_memory_exec) {
+      kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
+      #ifdef SAMSUNG_API
+        const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+        int ret = kvs_store_tuple(path_cont_handle, &kvskey, &kvsvalue, &put_ctx);    
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "store tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+      #else
+        kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};
+        kvs_result ret = kvs_store_kvp(path_ks_handle, &kvskey, &kvsvalue, &option);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "store tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
+                    ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+
+      #endif
+    } else {
+        populate_value_cache(key_str, n_value);
+    }
+
     if (nkv_use_read_cache) {
       std::size_t found = key_str.find(iter_prefix);
       if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->length <= (uint32_t)nkv_data_cache_size_threshold)) {
@@ -712,7 +818,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
+  if ((n_key->length > (uint32_t)nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -721,7 +827,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_error(logger, "nkv_value->value = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  if ((n_value->length > (uint32_t)nkv_max_value_length) || (n_value->length == 0)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
@@ -757,6 +863,9 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     }
   }
 
+  if (nkv_in_memory_exec) {
+    return retrieve_from_value_cache(key_str, n_value);
+  }  
 
   #ifdef SAMSUNG_API
     kvs_retrieve_option option;
@@ -1088,7 +1197,7 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     smg_error(logger, "nkv_key->key = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_key->length > nkv_max_key_length) || (n_key->length == 0)) {
+  if ((n_key->length > (uint32_t)nkv_max_key_length) || (n_key->length == 0)) {
     smg_error(logger, "Wrong key length, supplied length = %d !!", n_key->length);
     return NKV_ERR_KEY_LENGTH;
   }
@@ -1106,24 +1215,29 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
   #endif
 
   if (!post_fn) {
-
-    #ifdef SAMSUNG_API
-      int ret = kvs_delete_tuple(path_cont_handle, &kvskey, &del_ctx);
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Delete tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
-                  ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-    #else
-      kvs_result ret = kvs_delete_kvp(path_ks_handle, &kvskey, &option);
-      if(ret != KVS_SUCCESS ) {
-        smg_error(logger, "Delete tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
-                  ret, n_key->key, dev_path.c_str(), path_ip.c_str());
-        return map_kvs_err_code_to_nkv_err_code(ret);
-      }
-
-    #endif
     std::string key_str ((char*) n_key->key, n_key->length);
+    if (!nkv_in_memory_exec) {
+    
+      #ifdef SAMSUNG_API
+        int ret = kvs_delete_tuple(path_cont_handle, &kvskey, &del_ctx);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "Delete tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+      #else
+        kvs_result ret = kvs_delete_kvp(path_ks_handle, &kvskey, &option);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "Delete tuple failed with error 0x%x, key = %s, dev_path = %s, ip = %s",
+                    ret, n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+        }
+
+      #endif
+    } else {
+      delete_from_value_cache(key_str);
+    }
+
     if (nkv_use_read_cache) {
       std::size_t found = key_str.find(iter_prefix);
       if ((found != std::string::npos && found == 0) || (nkv_use_data_cache )) {
@@ -1252,7 +1366,7 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
     kvs_list_context ctx = {0,0};
     uint32_t adjusted_max_key = *max_keys - *num_keys_iterted;
     uint32_t vlen = adjusted_max_key * nkv_max_key_length;
-    if (vlen > nkv_max_value_length) {
+    if (vlen > (uint32_t)nkv_max_value_length) {
       vlen = nkv_max_value_length;
       adjusted_max_key = (nkv_max_value_length/nkv_max_key_length);
       smg_warn(logger, "Max keys chunked, adjusted_max_key = %u, max_keys = %u", adjusted_max_key, *max_keys);
