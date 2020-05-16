@@ -140,9 +140,8 @@ void nkv_thread_func (uint64_t nkv_handle) {
         const vector<string> subsystem_nqn_list = fm->get_subsystem_nqn_list();
         for( unsigned index = 0; index < subsystem_nqn_list.size(); index++ ) {
           Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn_list[index]));
-          if ( subsystem ) {
+          if ( subsystem && subsystem->get_status() ) {
             Storage* const storage = subsystem->get_storage();
-            std::unique_lock<std::mutex> lck(mtx_stat);
             if ( storage && storage->update_storage()) {
               smg_info(logger, "Updated subsystem storage information, nqn=%s\n\
                       \t\t\tPath Capacity        = %lld Bytes,\n\
@@ -294,8 +293,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     nkv_remote_listing = pt.get<int>("nkv_remote_listing", 0);
-    nkv_max_key_length = pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
-    nkv_max_value_length = pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
+    nkv_max_key_length = (uint32_t)pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
+    nkv_max_value_length = (uint32_t)pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
     nkv_in_memory_exec = pt.get<int>("nkv_in_memory_exec", 0);
     nkv_check_alignment = pt.get<int>("nkv_check_alignment", 0);
     if (nkv_remote_listing) {
@@ -928,7 +927,6 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
     if (stat == NKV_SUCCESS) {
       p_mount.copy(p_stat->path_mount_point, p_mount.length());
       if(connect_fm){
-        std::unique_lock<std::mutex> lck(mtx_stat);
         stat = nkv_get_remote_path_stat(fm, subsystem_nqn, p_stat );
       } else {
         smg_alert(logger, "NKV is not connected to the FabricManager, Skipping remote stat collection.");
@@ -941,7 +939,7 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
   }
   
   if (stat == NKV_SUCCESS) {
-    smg_alert(logger, "NKV path mount = %s,\n\
+    smg_info(logger, "NKV path mount = %s,\n\
                       \t\t\tpath capacity = %lld Bytes,\n\
                       \t\t\tpath usage = %lld Bytes,\n\
                       \t\t\tpath util percentage = %6.2f",

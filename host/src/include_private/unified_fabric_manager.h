@@ -114,7 +114,7 @@ class Subsystem
   string subsystem_nqn_id;
   string subsystem_nqn;
   int32_t subsystem_nqn_nsid;
-  int32_t subsystem_status;  
+  atomic<int32_t> subsystem_status;  
   double subsystem_avail_percent;
   bool subsystem_numa_aligned;
   unordered_map<string, Interface*> interfacesMap;
@@ -139,12 +139,13 @@ class Subsystem
   bool process_subsystem();
   bool add_interface(string interface_endpoint);
   bool add_storage();
-
-  Storage* const get_storage() const { return storage; }
+  Storage* const get_storage() const ;
   const string& get_nqn() const { return subsystem_nqn; }
   const string& get_nqn_id() const { return subsystem_nqn_id; }
-  const uint32_t get_status() const { return subsystem_status; } 
+  const uint32_t get_status() const { return subsystem_status.load(memory_order_relaxed); } 
+  void set_status(int32_t status) { subsystem_status.store(status, memory_order_relaxed); }
   uint32_t is_subsystem_numa_aligned() { return subsystem_numa_aligned? 1:0; }
+  void* get_interface(const string& address) const; 
 };
 
 // A storage consist of multiple Drives 
@@ -223,7 +224,7 @@ class Interface
   string transport_type; // Supported protocol
   int32_t port;
   string address;
-  int32_t status;
+  atomic<int32_t> status;
   int32_t ip_address_family;
 
   const string host;
@@ -242,6 +243,8 @@ class Interface
   int32_t get_subsystem_type() { return get_nkv_transport_value(transport_type); }
   bool get_interface_address(ptree& interface_pt);
   string get_address(){ return address;}
+  int32_t get_status() { return status.load(memory_order_relaxed); }
+  void set_status(int32_t path_status) { status.store(path_status, memory_order_relaxed); }
   void get_interface_info(ptree& interface_pt);
   bool process_interface();  
 };

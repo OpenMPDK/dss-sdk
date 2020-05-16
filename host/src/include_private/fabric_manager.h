@@ -50,8 +50,9 @@ using boost::property_tree::read_json;
 using boost::property_tree::write_json;
 using namespace std;
 
+class FabricManager;
 extern c_smglogger* logger;
-//extern FabricManager* fm;
+extern FabricManager* fm;
 
 class FabricManager
 {

@@ -113,6 +113,10 @@ nkv_result nkv_get_remote_path_stat(const FabricManager* fm, const string& subsy
 {
   Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn));
   if ( subsystem ) {
+    if( subsystem->get_status() ){ // considering subsystem status up/down=>0/1
+      smg_error(logger, "Subsystems nqn=%s is down! Remote stats can't be collected.", subsystem_nqn.c_str());
+      return NKV_ERR_FM;
+    }
     Storage* storage =const_cast<Storage*>(subsystem->get_storage());
     if ( storage ) {
       stat->path_storage_capacity_in_bytes = storage->get_capacity_bytes();
