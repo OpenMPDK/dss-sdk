@@ -1208,26 +1208,14 @@ do {
 
     // Checking key_prefix, and delimiter
     uint32_t prefix_length = strlen(key_beginning);
-    if (key_beginning[prefix_length -1] !=  S3_DELIMITER[0]) {
-      bool is_delimiter_good = true;
-      if ( key_delimiter ) { 
-        if ( strcmp(key_delimiter, S3_DELIMITER) ) {
-          smg_error(logger, "Delimiter %s not supported for listing, Supported delimiter %s",key_delimiter, S3_DELIMITER);
-          is_delimiter_good = false;
-        }
+    if ( key_delimiter ) { 
+      if ( key_delimiter[0] != key_beginning[prefix_length -1] ) {
         strncat(key_beginning, key_delimiter, 1);
-      } else {
-        smg_alert(logger, "Didn't find %s required delimiter for listing, exit!", S3_DELIMITER);
-        is_delimiter_good = false;
       }
-        
-      // Terminate gracefully if delimiter is bad
-      if (! is_delimiter_good ) {
-        smg_alert(logger, "** Write object with %s delimited prefix for listing to work. **", S3_DELIMITER);
-        smg_alert(logger, "** Specify %s delimiter either with prefix or -r switch **", S3_DELIMITER);
-        nkv_close (nkv_handle, instance_uuid);
-        exit(1);
-      }  
+    } else {
+      if (key_beginning[prefix_length -1] !=  S3_DELIMITER[0]) {
+        strncat(key_beginning, S3_DELIMITER, 1);
+      }
     }
 
     for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
