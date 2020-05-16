@@ -86,6 +86,9 @@ def get_ip_port_nqn_info(out, proto):
             if trtype == proto:
                 tuplist.append([trtype, trsvcid, subnqn, traddr])
 
+    # for the last one after "Discover Log" text
+    tuplist.append([trtype, trsvcid, subnqn, traddr])
+
     return tuplist
 
 
