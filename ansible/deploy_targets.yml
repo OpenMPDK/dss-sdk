@@ -12,6 +12,5 @@
     - tgt_common
     - tgt_etcd-gateway
     - tgt_agent
-    #- tgt_download_package
     - tgt_packages
     - tgt_post_rpm
