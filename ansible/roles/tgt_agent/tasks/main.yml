@@ -1,0 +1,52 @@
+---
+
+#- name: Copy python requirements file
+#  copy:
+#    src: python_requirements.txt
+#    dest: /tmp/python_requirements.txt
+#
+#- name: install pip dependencies using requirements file
+#  pip:
+#    requirements: /tmp/python_requirements.txt
+
+#- name: install pip dependencies
+#  pip:
+#    name: "{{ item }}"
+#  with_items: "{{ pip_dependencies }}"
+
+#- name: Copy ustat binary
+#  copy:
+#    src: "{{ item }}"
+#    dest: "{{ product_dir }}"
+#    mode: 0755
+#  with_items:
+#    - "{{ playbook_dir }}/../../target/ustat"
+#
+
+- name: create dirs...
+  become: yes
+  become_user: root
+  file:
+    state: directory
+    path: '{{item}}'
+    mode: 0755
+  with_items:
+    - "{{ config_file_dir }}"
+    - "{{ nkv_agent_config_file_dir }}"
+    - "{{ logfile_dir }}"
+
+- name: Copy agent configuration file
+  template:
+    src: agent.conf.j2
+    dest: "{{ item }}/agent.conf"
+    mode: 0755
+  loop:
+    - "{{ config_file_dir }}"
+    - "{{ nkv_agent_config_file_dir }}"
+
+- name: Copy dragonfly_config file to remote host
+  copy:
+    src: "{{ playbook_dir }}/DFLY_CONFIG"
+    dest: "{{ config_file_dir }}"
+
+

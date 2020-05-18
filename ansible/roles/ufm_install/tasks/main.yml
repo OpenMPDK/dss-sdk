@@ -1,0 +1,56 @@
+---
+
+- name: Get name of local Fabric Manager RPM
+  shell: "ls {{ playbook_dir }}/release/ufm-*.rpm"
+  delegate_to: localhost
+  run_once: true
+  register: ufm_rpm
+
+- name: Get name of local Fabric Mananger Broker RPM
+  shell: "ls {{ playbook_dir }}/release/ufmbroker-*.rpm"
+  delegate_to: localhost
+  run_once: true
+  register: ufmbroker_rpm
+
+- name: Get name of local Fabric Manager DEB
+  shell: "ls {{ playbook_dir }}/release/ufm_*.deb"
+  delegate_to: localhost
+  run_once: true
+  register: ufm_deb
+
+- name: Get name of local Fabric Mananger Broker DEB
+  shell: "ls {{ playbook_dir }}/release/ufmbroker_*.deb"
+  delegate_to: localhost
+  run_once: true
+  register: ufmbroker_deb
+
+- name: Install FabricManager - CentOS
+  import_tasks: ufm_centos.yml
+  when: ansible_os_family == 'RedHat'
+
+- name: Install FabricManager - Ubuntu
+  import_tasks: ufm_ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Start Services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  loop:
+    - ufm
+    - gunicorn
+  become: yes
+
+- name: Delete RPM/DEB files from Fabric Mananger Hosts
+  file:
+    path: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+    state: absent
+  loop:
+    - "{{ ufm_rpm }}"
+    - "{{ ufmbroker_rpm }}"
+    - "{{ ufm_deb }}"
+    - "{{ ufmbroker_deb }}"
+  loop_control:
+    label: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"

@@ -1,0 +1,24 @@
+---
+    
+- name: check if etcd.service already present
+  stat:
+    path: /etc/systemd/system/etcd.service
+  register: etcd_service_file
+
+- name: install etcd-gateway.service systemd unit
+  become: yes
+  become_user: root
+  register: etcd_gateway_service_modified
+  with_items:
+    - f: etcd-gateway.service
+      d: /etc/systemd/system
+  template:
+    src: '{{item.f}}.j2'
+    dest: '{{item.d}}/{{item.f}}'
+    mode: 0644
+
+- name: systemctl daemon-reload
+  become: yes
+  become_user: root
+  when: etcd_gateway_service_modified.changed
+  command: systemctl daemon-reload

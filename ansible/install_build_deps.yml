@@ -1,0 +1,10 @@
+---
+
+- name: Install nkv-sdk Build Dependencies
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_python_interpreter: /usr/bin/python
+  roles:
+    - install_target_build_deps
+    - install_ufm_build_deps

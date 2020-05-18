@@ -1,0 +1,48 @@
+---
+
+- name: Install the latest version of epel-release
+  yum:
+    name: epel-release
+    enablerepo: extras
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+- name: Install Debian dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items: "{{ debian_package_dependencies }}"
+  when: ansible_os_family == 'Debian'
+  ignore_errors: true
+
+- name: Install FM RHEL dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ fm_rhel_package_dependencies }}"
+  when: ansible_os_family == 'RedHat' and inventory_hostname in groups['fm_hosts']
+
+- name: Install Target RHEL dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ target_rhel_package_dependencies }}"
+  when: ansible_os_family == 'RedHat' and inventory_hostname in groups['targets']
+
+- name: Set selinux to permissive (temp)
+  shell: setenforce 0
+  ignore_errors: true
+
+- name: Disable SELinux (effective next reboot)
+  selinux:
+    state: disabled
+  ignore_errors: true
+
+- name: Make sure firewall disabled
+  become: yes
+  become_user: root
+  service:
+    name: firewalld
+    enabled: no
+    state: stopped

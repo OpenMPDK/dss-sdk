@@ -1,0 +1,26 @@
+---
+
+- name: Copy python script to remote location
+  template:
+    src: rollback_packages.py
+    dest: /tmp/rollback_packages.py
+
+- name: Rollback required FM packages using script
+  shell: python /tmp/rollback_packages.py "{{ fmhost_packages }}"
+  when: ansible_hostname in groups['fm_hosts']
+  register: rollback_fm_log
+
+- name: Rollback required FM packages using script
+  shell: python /tmp/rollback_packages.py "{{ target_packages }}"
+  when: ansible_hostname in groups['targets']
+  register: rollback_target_log
+
+- name: Print rollback FM log
+  debug:
+    msg: "{{ rollback_fm_log.stdout }}"
+  when: rollback_fm_log is defined and rollback_fm_log.changed
+
+- name: Print rollback Target log
+  debug:
+    msg: "{{ rollback_target_log}}"
+  when: rollback_target_log is defined and rollback_target_log.changed

@@ -1,0 +1,13 @@
+- name: Copy python script to remote location
+  template:
+    src: upgrade_packages.py
+    dest: /tmp/upgrade_packages.py
+
+- name: Upgrade required packages using script.
+  shell: "python /tmp/upgrade_packages.py"
+  register: upgrade_log
+
+- name: Print upgrade log
+  debug:
+    msg: "{{ upgrade_log.stdout }}"
+
