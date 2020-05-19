@@ -4,6 +4,6 @@ Section: base
 Architecture: all
 Essential: no
 Priority: optional
-Depends: python,etcd
+Depends: python,etcd,python3-pip
 Maintainer: Samsung
 Description: Universal Fabric Manager

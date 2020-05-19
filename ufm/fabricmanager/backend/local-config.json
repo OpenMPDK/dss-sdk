@@ -24,6 +24,31 @@
                     }
                 ]
             }
+        ],
+        "Fabrics": [
+            {
+                "Name": "Fabrics",
+                "Id": "Fabric.{0}",
+                "Count": 1,
+                "Switches": [
+                    {
+                        "Id": "Switch.{0}",
+                        "Count": 1,
+                        "Ports": [
+                            {
+                                "Id": "Port.{0}",
+                                "Count": 2
+                            }
+                        ],
+                        "VLANs": [
+                            {
+                                "Id": "VLAN.{0}",
+                                "Count": 2
+                            }
+                        ]
+                    }
+                ]
+            }
         ]
     }
 }

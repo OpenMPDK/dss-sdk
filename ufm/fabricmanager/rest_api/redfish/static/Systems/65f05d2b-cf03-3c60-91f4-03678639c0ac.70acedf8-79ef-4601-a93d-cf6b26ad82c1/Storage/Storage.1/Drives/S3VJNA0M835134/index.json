@@ -12,5 +12,10 @@
     "Model": "MZQLB3T8HALS-000AZ",
     "Protocol": "NVMeOverFabrics",
     "Revision": "ETA51KB3",
-    "SerialNumber": "S3VJNA0M835134"
+    "SerialNumber": "S3VJNA0M835134",
+    "oem": {
+        "UtilizationBytes": 0,
+        "PercentAvailable": 100
+    }
+
 }

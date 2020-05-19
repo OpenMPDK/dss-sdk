@@ -27,6 +27,7 @@ import sys
 import time
 import threading
 import uuid
+import json
 
 import pexpect
 import psutil
@@ -210,6 +211,7 @@ class OSMDaemon:
         logger.info("Synchronizing server identity and CPU attributes")
         try:
             self.backend.write_dict_to_etcd(entry, self.SERVER_ATTR_KEY_PREFIX)
+
         except Exception as e:
             logger.error('Exception in updating the server attributes to DB',
                          exc_info=True)
@@ -1138,8 +1140,8 @@ class OSMDaemon:
                                        "subsystem_id_%s" % (subsystem_uuid), bw_element)
                     value = str(counters.get(bw_element, 0))
                     message_tuples.append((metric_path, (timestamp, value)))
- 
-                
+
+
 
     def session_statistics_to_message(self, timestamp,
                                       session_aggregate_counters,
@@ -1200,10 +1202,10 @@ class OSMDaemon:
                 try:
                     k, v = line.split('=')
                     '''
-                    # Commented out as the ustat prints an empty line - used 
-                    # as a delimiter. Otherwise, we need to see if the value 
-                    # already presents and initialize to empty dict with a 
-                    # caveat that some values (new ones in this loop) may be 
+                    # Commented out as the ustat prints an empty line - used
+                    # as a delimiter. Otherwise, we need to see if the value
+                    # already presents and initialize to empty dict with a
+                    # caveat that some values (new ones in this loop) may be
                     # lost
                     if k in stats_output:
                         stats_output = {}
@@ -1960,16 +1962,42 @@ def wait_for_agent_initialization():
             backend = backend_layer.BackendLayer()
             agent_status_key = backend.ETCD_SRV_BASE + uuid + '/agent/status'
             status = backend.client.get(agent_status_key)
-            if status and status == 'up':
+            if status and (status[0] == 'initialized' or status[0] == 'up'):
                 logger.info('Agent is initialized')
                 agent_init = True
         except:
             logger.exception('Error in connecting to DB. Exiting')
-            time.sleep(5)
+
+        time.sleep(5)
         loop_count += 1
 
     if not agent_init:
-        logger.info('Agent not intialized')
+        logger.info('Agent not initialized')
+
+
+def wait_for_hostname_populated():
+    name_populated = False
+    max_loops = 24 # Two minutes worth of loop
+    loop_count = 0
+
+    while not name_populated and loop_count < max_loops:
+        try:
+            uuid = ServerAttr.OSMServerIdentity().server_identity_helper()['UUID']
+            backend = backend_layer.BackendLayer()
+            hostname_key = backend.ETCD_SRV_BASE + uuid + '/server_attributes/identity/Hostname'
+            name = backend.client.get(hostname_key)[0]
+            if (name):
+                logger.info('Hostname is populated: %s', name)
+                name_populated = True
+
+        except:
+            logger.exception('Error in connecting to DB. Exiting')
+
+        time.sleep(5)
+        loop_count += 1
+
+    if not name_populated:
+        logger.info('Hostname not populated yet')
 
 
 def daemon(endpoint="localhost", port=23790):
@@ -1981,6 +2009,7 @@ def daemon(endpoint="localhost", port=23790):
     """
     global g_agent_lease_timer
     global g_restart_monitor_threads
+    global g_daemon_obj
 
     if os.geteuid() != 0:
         logger.info("You need to be root to perform this command.")
@@ -2055,12 +2084,22 @@ def daemon(endpoint="localhost", port=23790):
     udev_monitor.catch_signal()
 
     pid, status = check_spdk_running()
-    if status:
+    if status and not g_daemon_obj:
         status = start_monitoring_threads()
 
-    logger.info('Agent started successfully')
+    # Update the target status to initialized
+    # help to kick off poll_attributes
+    try:
+        backend.client.put(agent_status_key, 'initialized')
+    except:
+        logger.exception('Exception in updating the agent status to INITIALIZED')
 
-    # Update the target status
+    logger.info('Agent initialized successfully')
+
+    wait_for_hostname_populated()
+
+    # Update the target status to up
+    # To signal other modules like nkv_monitor
     try:
         agent_status_lease = backend.client.lease(10)
         backend.client.put(agent_status_key, 'up', agent_status_lease)
@@ -2069,6 +2108,8 @@ def daemon(endpoint="localhost", port=23790):
         g_agent_lease_timer.start()
     except:
         logger.exception('Exception in updating the agent status to up')
+
+    logger.info('Agent started successfully')
 
     while True:
         if udev_monitor.exit == 1:

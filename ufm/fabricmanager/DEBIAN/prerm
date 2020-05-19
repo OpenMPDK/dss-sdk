@@ -13,8 +13,16 @@ SERVICE_PATH="/usr/share/${SERVICE}/systemd"
 
 if [[ -e ${SERVICE_PATH}/${SERVICE}.service ]]
 then
-    systemctl stop ${SERVICE}
+  systemctl disable ${SERVICE}
+  systemctl stop ${SERVICE}
 fi
+
+if [[ -e /etc/systemd/system/gunicorn.service ]]
+then
+  systemctl disable gunicorn
+  systemctl stop gunicorn
+fi
+
 
 exit 0
 

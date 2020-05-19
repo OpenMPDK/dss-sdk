@@ -12,6 +12,7 @@
     "Name": "Storage Collection",
     "oem": {
         "CapacityBytes": 15363023929344,
+        "UtilizationBytes": 0,
         "PercentAvailable": 100
     }
 }

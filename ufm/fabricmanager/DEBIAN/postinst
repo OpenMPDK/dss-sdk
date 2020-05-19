@@ -25,25 +25,28 @@ then
   chmod 666 /var/log/ufm
 fi
 
-command -v pip3 > /dev/null
-[[ $? -ne 0 ]] && die "ERR: pip3 is not installed"
+# This check should not longer be needed, since
+# python3-pip is dependency for this install see control file
+#
+# command -v pip3 > /dev/null
+# [[ $? -ne 0 ]] && die "ERR: pip3 is not installed"
 
 /usr/bin/env pip3 install -r /usr/share/${SERVICE}/requirements.txt
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
 [[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to create service file for ${SERVICE}"
-
-cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
-
-[[ ! -e /etc/systemd/system/${SERVICE}.service ]] && die "ERR: ${SERVICE}.service does not exist"
-
-systemctl enable ${SERVICE}
-
 [[ ! -e ${SERVICE_PATH}/gunicorn.service ]] && die "ERR: Failed to copy gunicorn service file"
 
+cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
 cp ${SERVICE_PATH}/gunicorn.service /etc/systemd/system/
 
+systemctl daemon-reload
+
 systemctl enable gunicorn
+systemctl start gunicorn
+
+systemctl enable ${SERVICE}
+systemctl start ${SERVICE}
 
 exit 0
 

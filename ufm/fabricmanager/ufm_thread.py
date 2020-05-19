@@ -1,5 +1,9 @@
 import threading
 
+# TODO(ER) - comment this out for now, import
+# doesn't work for Ubuntu
+# import prctl
+
 
 class UfmThread(object):
     def __init__(self):
@@ -18,6 +22,7 @@ class UfmThread(object):
                         pass
 
     def start(self, threadName='UfmThread', cb=None, cbArgs=None, repeatIntervalSecs=2.0):
+        # prctl.set_name(threadName)
         self.threadName = threadName
         self.cb = cb
         self.cbArgs = cbArgs

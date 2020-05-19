@@ -11,13 +11,11 @@ from uuid import uuid4
 
 # Internal imports
 from rest_api.redfish.templates.System import get_System_instance
+from rest_api.redfish import redfish_constants
 import config
 
 members = {}
 
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
 
 class UfmdbSystemAPI(Resource):
     """
@@ -31,25 +29,41 @@ class UfmdbSystemAPI(Resource):
     def __del__(self):
         self.log.detail("UfmdbSystemAPI stopped.")
 
-    def get(self, path=""):
+    def post(self, path="", **kwargs):
+        """
+        HTTP POST
+        """
+        try:
+            path = path.strip('/')
+            path = "/" + path
+            payload = request.get_json(force=True)
+            response = self.rfdb.post(path, payload)
+
+        except Exception as e:
+            self.log.exception(e)
+            #traceback.print_exc()
+            response = { "Status": 500, "Message": "Internal Server Error" }
+
+        return response
+
+    def get(self, path="", **kwargs):
         """
         HTTP GET
         """
         try:
             path = path.strip('/')
             path = "/" + path
-            #self.log.detail("Ufmdb request = %s", path)
-            response = self.rfdb.get(path)
+            response = self.rfdb.get(path, "{}")
 
-        except Exception:
-            self.log.exception(Exception)
-            traceback.print_exc()
+        except Exception as e:
+            self.log.exception(e)
+            #traceback.print_exc()
             response = { "Status": 500, "Message": "Internal Server Error" }
 
         return response
 
 
-class SystemAPI(Resource):
+class SystemEmulationAPI(Resource):
     """
     System Singleton API
     """
@@ -62,17 +76,17 @@ class SystemAPI(Resource):
         HTTP GET
         """
         try:
-            response = NOT_FOUND
+            response = redfish_constants.NOT_FOUND
             if ident in members:
                 con = members[ident]
-                response = con, SUCCESS
+                response = con, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
         return response
 
 
-class SystemCollectionAPI(Resource):
+class SystemCollectionEmulationAPI(Resource):
     """
     System Collection API
     """
@@ -95,15 +109,15 @@ class SystemCollectionAPI(Resource):
         HTTP GET
         """
         try:
-            response = self.config, SUCCESS
+            response = self.config, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
 
-class CreateSystem(Resource):
+class CreateSystemEmulation(Resource):
     """
     CreateSystem
     """
@@ -122,10 +136,10 @@ class CreateSystem(Resource):
             wildcards['ns_id'] = ns
             cfg = get_System_instance(wildcards)
             members[ident] = cfg
-            response = cfg, SUCCESS
+            response = cfg, redfish_constants.SUCCESS
 
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response

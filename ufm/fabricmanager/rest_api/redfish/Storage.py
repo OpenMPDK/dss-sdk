@@ -7,15 +7,12 @@ from flask_restful import reqparse, Api, Resource
 # Internal imports
 import config
 from .templates.Storage import get_storage_instance
+from rest_api.redfish import redfish_constants
 
 members = {}
 
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
 
-
-class Storage(Resource):
+class StorageEmulationAPI(Resource):
     """
     Storage
     """
@@ -28,14 +25,14 @@ class Storage(Resource):
         HTTP GET
         """
         if ident1 not in members:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident2 not in members[ident1]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
 
-        return members[ident1][ident2], SUCCESS
+        return members[ident1][ident2], redfish_constants.SUCCESS
 
 
-class StorageCollection(Resource):
+class StorageCollectionEmulationAPI(Resource):
     """
     Storage Collection
     """
@@ -47,10 +44,6 @@ class StorageCollection(Resource):
             '@odata.type': '#StorageCollection.StorageCollection',
             'Description': 'Collection of Storage information',
             'Name': 'Storage Collection',
-            "oem": {
-                "CapacityBytes": 107541167505408,
-                "PercentAvailable": 99
-            }
         }
 
     def get(self, ident):
@@ -59,7 +52,7 @@ class StorageCollection(Resource):
         """
         try:
             if ident not in members:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             storage = []
             for store in members.get(ident, {}).values():
                 storage.append({'@odata.id': store['@odata.id']})
@@ -67,15 +60,19 @@ class StorageCollection(Resource):
                 '/' + ident + '/Storage'
             self.cfg['Members'] = storage
             self.cfg['Members@odata.count'] = len(storage)
-            response = self.cfg, SUCCESS
+            self.cfg['oem'] = {"CapacityBytes": 107541167505408,
+                               "UtilizationBytes": 1075411675054,
+                               "PercentAvailable": 99
+                               }
+            response = self.cfg, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
 
-def CreateStorage(**kwargs):
+def CreateStorageEmulation(**kwargs):
     sys_id = kwargs['sys_id']
     storage_id = kwargs['storage_id']
     if sys_id not in members:
