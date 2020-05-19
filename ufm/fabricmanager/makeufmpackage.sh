@@ -102,6 +102,7 @@ buildPackage()
     cp -aR systems/   ${dir_share}/
     cp -aR templates/ ${dir_share}/
     cp *.py           ${dir_share}/
+    cp ufm.yaml       ${full_package_name}/etc/ufm.yaml
     cp ../requirements.txt ${dir_share}/
 
     mkdir -p ${dir_share}/systemd
