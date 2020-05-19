@@ -122,4 +122,10 @@ bool update_nkv_targets(ptree&);
  */
 bool event_mapping();
 
+// Update subsystem status at FM datastructure on receiving event for subsystem.
+void update_fm_subsystem_status(const string& nqn, const int32_t& status);
+
+// Update interface status at FM datastructure on receiving event for interface.
+void update_fm_interface_status(const string& nqn, const string& address, const int32_t& status);
+
 #endif

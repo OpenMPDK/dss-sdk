@@ -65,7 +65,7 @@ std::mutex mtx_stat;
 std::string config_path;
 std::queue<std::string> event_queue;
 FabricManager* fm = NULL;
-
+int32_t connect_fm = 0;
 
 void event_handler_thread(std::string event_subscribe_channel, 
                           std::string mq_address,
@@ -133,6 +133,31 @@ void nkv_thread_func (uint64_t nkv_handle) {
     if(nkv_event_handler) {
       action_manager(event_queue);
     }
+
+    // Update storage information
+    if ( connect_fm ) {
+      if ( fm ) {
+        const vector<string> subsystem_nqn_list = fm->get_subsystem_nqn_list();
+        for( unsigned index = 0; index < subsystem_nqn_list.size(); index++ ) {
+          Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(subsystem_nqn_list[index]));
+          if ( subsystem && subsystem->get_status() ) {
+            Storage* const storage = subsystem->get_storage();
+            if ( storage && storage->update_storage()) {
+              smg_info(logger, "Updated subsystem storage information, nqn=%s\n\
+                      \t\t\tPath Capacity        = %lld Bytes,\n\
+                      \t\t\tPath Usage           = %lld Bytes,\n\
+                      \t\t\tPath Util Percentage = %6.2f",
+                      (subsystem->get_nqn()).c_str(), 
+                      storage->get_capacity_bytes(),
+                      storage->get_used_bytes(), 
+                      storage->get_available_space());
+            } else {
+              smg_error(logger, "Failed to update storage for subsystem nqn = %s", (subsystem->get_nqn()).c_str());
+            }
+          }
+        } // subsystem iteration
+      } 
+    } // connect_fm
 
     try {
       int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
@@ -220,7 +245,6 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     return NKV_ERR_CONFIG;
   }
 
-  int32_t connect_fm = 0;
   std::string fm_address;
   std::string fm_endpoint;
   int32_t nkv_transport = 0;
@@ -269,8 +293,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
     nkv_is_on_local_kv = pt.get<int>("nkv_is_on_local_kv");
     nkv_remote_listing = pt.get<int>("nkv_remote_listing", 0);
-    nkv_max_key_length = pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
-    nkv_max_value_length = pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
+    nkv_max_key_length = (uint32_t)pt.get<int>("nkv_max_key_length", NKV_MAX_KEY_LENGTH);
+    nkv_max_value_length = (uint32_t)pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
     nkv_in_memory_exec = pt.get<int>("nkv_in_memory_exec", 0);
     nkv_check_alignment = pt.get<int>("nkv_check_alignment", 0);
     if (nkv_remote_listing) {
@@ -317,47 +341,42 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   nkv_cnt_list = new NKVContainerList(0, app_uuid, *instance_uuid, *nkv_handle);
   assert(nkv_cnt_list != NULL);
 
-  if (!connect_fm && !nkv_is_on_local_kv) {
-   if (nkv_cnt_list->parse_add_container(pt)) 
-     return NKV_ERR_CONFIG;
+  if (nkv_is_on_local_kv) {
+    if (nkv_cnt_list->add_local_container_and_path(host_name_ip, host_port, pt))
+      return NKV_ERR_CONFIG;
   } else {
-    if (nkv_is_on_local_kv) {
-      if (nkv_cnt_list->add_local_container_and_path(host_name_ip, host_port, pt))
-        return NKV_ERR_CONFIG;
-    } else if (connect_fm) {
-        // Add logic to contact FM and then give that json ptree to the parse_add_container call
-        if ( pt.get<long>("fm_connection_timeout", 0 ) ) {
-          REST_CALL_TIMEOUT = pt.get<long>("fm_connection_timeout");
-        }
-        int32_t fm_redfish_compliant = pt.get<long>("fm_redfish_compliant", 1 );
-        if ( fm_redfish_compliant ) {
-          fm = new UnifiedFabricManager(fm_address, fm_endpoint);
-        } else {
-          fm = new NativeFabricManager(fm_address, fm_endpoint);
-        }
-        bool ret = fm->process_clustermap();
+    // Receive taregt cluster_map information from FabricManager.
+    if (connect_fm) {
+      if ( pt.get<long>("fm_connection_timeout", 0 ) ) {
+        REST_CALL_TIMEOUT = pt.get<long>("fm_connection_timeout");
+      }
+      int32_t fm_redfish_compliant = pt.get<long>("fm_redfish_compliant", 1 );
+      if ( fm_redfish_compliant ) {
+        fm = new UnifiedFabricManager(fm_address, fm_endpoint);
+      } else {
+        fm = new NativeFabricManager(fm_address, fm_endpoint);
+      }
+      bool ret = fm->process_clustermap();
 
-        if (ret){
-          if ( ! fm->get_clustermap(pt)) {
-            smg_info(logger, "NKV API: Adding NKV remote mount paths ...");
-            if (! add_remote_mount_path(pt) ){
-              smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
-              return NKV_ERR_CONFIG;
-            }
-            nkv_cnt_list->parse_add_container(pt);
-
-          } else{
-            smg_error(logger, "NKV: Falied to receive cluster map information ... ");
-            return NKV_ERR_CONFIG;
-          }
-        } else{
-          smg_error(logger, "NKV: Falied to receive cluster map from Fabric Manager ...");
-          return NKV_ERR_CONFIG;
+      if (ret){
+        if ( fm->get_clustermap(pt)) {
+          smg_error(logger, "NKV: Falied to receive cluster map information ... ");
+          return NKV_ERR_FM;
         }
-
-    } else {
-      // Should not come here !!
+      } else{
+        smg_error(logger, "NKV: Falied to receive cluster map from Fabric Manager ...");
+        return NKV_ERR_FM;
+      }
+    } 
+    smg_alert(logger, "NKV API: Adding NKV remote mount paths ...");
+    // Connect remote mount paths through Auto Discovery
+    if (! add_remote_mount_path(pt) ){
+      smg_error(logger, "Auto Discovery failed to retrieve the remote mount path");
+      return NKV_ERR_CONFIG;
     }
+    // Update nkv container_list with new containers or subsystem for remote KV
+    if (nkv_cnt_list->parse_add_container(pt)) 
+      return NKV_ERR_CONFIG;
   }
 
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
@@ -893,26 +912,41 @@ nkv_result nkv_get_path_stat (uint64_t nkv_handle, nkv_mgmt_context* mgmtctx, nk
         std::unique_lock<std::mutex> lck(mtx_stat);
         stat = nkv_get_path_stat_util(p_mount, p_stat);
       }
-      if (stat == NKV_SUCCESS) {
-        smg_warn(logger, "NKV path mount = %s, path capacity = %lld Bytes, path usage = %lld Bytes, path util percentage = %f",
-                p_stat->path_mount_point, (long long)p_stat->path_storage_capacity_in_bytes, (long long)p_stat->path_storage_usage_in_bytes, 
-                p_stat->path_storage_util_percentage);
-      }
-      
     } else {
       smg_error(logger, "Not able to get NKV path mount point, handle = %u, cnt_hash = %u, cnt_path_hash = %u", 
                nkv_handle, cnt_hash, cnt_path_hash);
     }
 
   } else {
-    smg_warn(logger, "nkv remote stat collection is not supported yet or dummy path collection enabled, op = nkv_get_path_stat !");
-    std::string p_mount = "/dev/nvme";
-    p_mount.copy(p_stat->path_mount_point, p_mount.length());
-    p_stat->path_storage_capacity_in_bytes = 0;
-    p_stat->path_storage_usage_in_bytes = 0;
-    p_stat->path_storage_util_percentage = 0.0;
+    uint64_t cnt_hash = mgmtctx->container_hash;
+    uint64_t cnt_path_hash = mgmtctx->network_path_hash;
+    std::string subsystem_nqn;
+    std::string p_mount;
+    stat = nkv_cnt_list->nkv_get_target_container_name(cnt_hash, cnt_path_hash, subsystem_nqn, p_mount);
 
-    stat = NKV_SUCCESS;
+    if (stat == NKV_SUCCESS) {
+      p_mount.copy(p_stat->path_mount_point, p_mount.length());
+      if(connect_fm){
+        stat = nkv_get_remote_path_stat(fm, subsystem_nqn, p_stat );
+      } else {
+        smg_alert(logger, "NKV is not connected to the FabricManager, Skipping remote stat collection.");
+        smg_warn(logger, "Continue with default stat values");
+        p_stat->path_storage_capacity_in_bytes = 0;
+        p_stat->path_storage_usage_in_bytes = 0;
+        p_stat->path_storage_util_percentage = 0;
+      }
+    }
+  }
+  
+  if (stat == NKV_SUCCESS) {
+    smg_info(logger, "NKV path mount = %s,\n\
+                      \t\t\tpath capacity = %lld Bytes,\n\
+                      \t\t\tpath usage = %lld Bytes,\n\
+                      \t\t\tpath util percentage = %6.2f",
+                      p_stat->path_mount_point, 
+                      (long long)p_stat->path_storage_capacity_in_bytes,
+                      (long long)p_stat->path_storage_usage_in_bytes, 
+                      p_stat->path_storage_util_percentage);
   }
 
 done:

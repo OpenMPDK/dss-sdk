@@ -7,5 +7,8 @@
 "ufm": 1,
 "minio_bin" : "/home/somnath.s/work/nkv-host-dev/wip-opennkv/nkv-sdk/host_out/nkv-sdk/bin/minio",
 "minio_distributed": false,
+"minio_instances": 1,
+"different_nic": false,
+"nic_index": 0,
 "cluster_map": false
 }
