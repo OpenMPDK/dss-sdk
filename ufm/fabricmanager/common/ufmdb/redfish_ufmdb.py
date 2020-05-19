@@ -4,17 +4,19 @@ import json
 import pprint
 import copy
 import time
+import subprocess
 
 from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
 
+g_ufmlog = None
 
 redfish_responses = {
     '1':
     {
         "@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",
         "@odata.type": "#ServiceRoot.v1_0_0.ServiceRoot",
-        "@odata.id": "",
+        "@odata.id": "/redfish/v1",
         "Id": "RootService",
         "Name": "Root Service",
         "ProtocolFeaturesSupported": {
@@ -29,7 +31,12 @@ redfish_responses = {
         "JSONSchemas": {
             "@odata.id": "/redfish/v1/JSONSchemas"
         },
-        "Systems": dict(),
+        "Systems": {
+            "@odata.id":"/redfish/v1/Systems"
+        },
+        "Managers": {
+            "@odata.id":"/redfish/v1/Managers"
+        },
     },
 
     '1.1':
@@ -45,7 +52,7 @@ redfish_responses = {
 
     '1.2':
     {
-        "@odata.id": "",
+        "@odata.id": "/redfish/v1/JSONSchemas",
         "id": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
         "type": "object",
         "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
@@ -119,11 +126,26 @@ redfish_responses = {
         }
     },
 
+    '1.3':
+    {
+        "@odata.context": "/redfish/v1/$metadata#ManagerCollection.ManagerCollection",
+        "@odata.type": "#ManagerCollection.ManagerCollection",
+        "@odata.id": "/redfish/v1/Managers",
+        "Name": "Manager Collection",
+        "Description": "Collection of Managers",
+        "Members": [
+            {
+                "@odata.id":"/redfish/v1/Managers/ufm"
+            }
+        ],
+        "Members@odata.count": 1,
+    },
+
     '1.1.1':
     {
         "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
-        "@odata.id": "",
         "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
+        "@odata.id": "",
         "Description": "System containing subsystem(s)",
         "Id": "",
         "Identifiers": [
@@ -182,8 +204,8 @@ redfish_responses = {
     '1.1.2.1':
     {
         "@odata.context": "/redfish/v1/$metadata#StorageCollection.StorageCollection",
-        "@odata.id": "",
         "@odata.type": "#StorageCollection.StorageCollection",
+        "@odata.id": "",
         "Description": "Collection of Storage information",
         "Members": list(),
         "Members@odata.count": 0,
@@ -194,8 +216,8 @@ redfish_responses = {
     '1.1.2.1.1':
     {
         "@odata.context": "/redfish/v1/$metadata#Storage.Storage",
-        "@odata.id": "",
         "@odata.type": "Storage.v1_8_0.Storage",
+        "@odata.id": "",
         "Id": "",
         "Description": "Storage information",
         "Drives": list(),
@@ -217,8 +239,8 @@ redfish_responses = {
     '1.1.2.1.1.1.1':
     {
         "@odata.context": "/redfish/v1/$metadata#Drive.Drive",
-        "@odata.id": "",
         "@odata.type": "Drive.v1_8_0.Drive",
+        "@odata.id": "",
         "Description": "Drive Information",
         "Name": "Storage Drive Information",
         "BlockSizeBytes": 512,
@@ -236,8 +258,8 @@ redfish_responses = {
     '1.1.2.2':
     {
         "@odata.context": "/redfish/v1/$metadata#EthernetInterfaceCollection.EthernetInterfaceCollection",
-        "@odata.id": "",
         "@odata.type": "#EthernetInterfaceCollection.EthernetInterfaceCollection",
+        "@odata.id": "",
         "Description": "Collection of Ethernet Interfaces",
         "Members": list(),
         "Members@odata.count": 0,
@@ -247,8 +269,8 @@ redfish_responses = {
     '1.1.2.2.1':
     {
         "@odata.context": "/redfish/v1/$metadata#EthernetInterface.EthernetInterface",
-        "@odata.id": "",
         "@odata.type": "#EthernetInterface.v1_5_1.EthernetInterface",
+        "@odata.id": "",
         "Name": "Ethernet Interface",
         "Description": "Ethernet Interface information",
         "Id": "",
@@ -274,10 +296,149 @@ redfish_responses = {
                 "oem": dict({'Port':0,'SupportedProtocol':""})
             }
         ]
-    }
+    },
+
+    '1.3.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#UFM.v1_0_0.UFM",
+        "@odata.type": "##UFM.v1_0_0.UFM",
+        "@odata.id": "/redfish/v1/Managers/ufm",
+        "Id": "UFM",
+        "Name": "UFM System Manager",
+        "UUID": "",
+        "LogServices": {
+            "@odata.id": "/redfish/v1/Managers/ufm/LogServices",
+        },
+        "Actions": {
+            "#Ufm.Reset": {
+                "target": "/redfish/v1/Managers/ufm/Actions/Ufm.Reset",
+                "ResetType@Redfish.AllowableValues": [
+                    "ForceOff",
+                    "ForceRestart"]
+                },
+            }
+    },
+    '1.3.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#LogServiceCollection.LogServiceCollection",
+        "@odata.type": "#LogServiceCollection.LogServiceCollection",
+        "@odata.id": "/redfish/v1/Managers/ufm/LogServices",
+        "Name":"Log Service Collection",
+        "Description":"Collection of Log Services for UFM Manager",
+        "Members": [
+            {
+                "@odata.id":"/redfish/v1/Managers/ufm/LogServices/Log"
+            }
+        ],
+        "Members@odata.count": 1,
+    },
+    '1.3.1.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#LogServices.v1_1_0.LogServices",
+        "@odata.type": "#LogServices.v1_1_0.LogServices",
+        "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log",
+        "Id":"Log",
+        "Name":"UFM Log Services",
+        "MaxNumberOfRecords": 1000,
+        "Oem":{},
+        "OverWritePolicy": "WrapsWhenFull",
+        "Actions": {
+            "#LogService.ClearLog": {
+                "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog",
+            },
+            "#LogService.Entries": {
+                "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries",
+                #"@Redfish.ActionInfo": "/redfish/v1/Managers/ufm/LogServices/Log/EntriesActionInfo"
+            },
+            "#LogService.GetMask": {
+                "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetMask",
+                "@Redfish.ActionInfo": "/redfish/v1/Managers/ufm/LogServices/Log/GetMaskActionInfo"
+            },
+            "#LogService.SetMask": {
+                "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.SetMask",
+                "@Redfish.ActionInfo": "/redfish/v1/Managers/ufm/LogServices/Log/SetMaskActionInfo"
+            },
+            "#LogService.GetRegistry": {
+                "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetRegistry",
+            },
+        }
+    },
+
+    '1.3.1.1.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#LogEntryCollection.LogEntryCollection",
+        "@odata.type": "#LogEntryCollection.LogEntryCollection",
+        "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/Entries",
+        "Name": "Log Service Collection",
+        "Description": "Collection of Logs for this System",
+        "Members": [],
+        "Members@odata.count": 0,
+    },
+
+    '1.3.1.1.1.2':
+    {
+        "@odata.context": "/redfish/v1/$metadata#ActionInfo.v1_1_0.ActionInfo",
+        "@odata.type": "#ActionInfo.v1_1_0.ActionInfo",
+        "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/SetMaskActionInfo",
+        "Id":"SetMaskActionInfo",
+        "Name":"Set Mask Action Info",
+        "Parameters": [
+            {
+            "Name": "ErrorMask",
+            "Required": False,
+            "DataType": "number",
+            "MinimumValue" : 0,
+            "MaximumValue" : 0xFFFFFFFF},
+            {
+            "Name": "WarningMask",
+            "Required": False,
+            "DataType": "number",
+            "MinimumValue" : 0,
+            "MaximumValue" : 0xFFFFFFFF},
+            {
+            "Name": "InfoMask",
+            "Required": False,
+            "DataType": "number",
+            "MinimumValue" : 0,
+            "MaximumValue" : 0xFFFFFFFF},
+            {
+            "Name": "DebugMask",
+            "Required": False,
+            "DataType": "number",
+            "MinimumValue" : 0,
+            "MaximumValue" : 0xFFFFFFFF},
+            {
+            "Name": "DetailMask",
+            "Required": False,
+            "DataType": "number",
+            "MinimumValue" : 0,
+            "MaximumValue" : 0xFFFFFFFF},
+        ]
+    },
+    '1.3.1.1.1.3':
+    {
+        "@odata.context": "/redfish/v1/$metadata#ActionInfo.v1_1_0.ActionInfo",
+        "@odata.type": "#ActionInfo.v1_1_0.ActionInfo",
+        "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/GetMaskActionInfo",
+        "Id":"GetMaskActionInfo",
+        "Name":"Get Mask Action Info",
+        "Parameters": [
+            {
+            "Name": "MaskType",
+            "Required": True,
+            "DataType": "string",
+            "AllowableValues": [
+                "All",
+                "ErrorMask",
+                "WarningMask",
+                "InfoMask",
+                "DebugMask",
+                "DetailMask"
+                ],
+            },
+        ]
+    },
 }
-
-
 
 
 class system(object):
@@ -435,7 +596,226 @@ class drive(object):
         return
 
 
+def ufm_clearlog_action(payload):
+    global g_ufmlog
 
+    g_ufmlog.ufmlog.clear_log()
+
+    response = { "Status": 200, \
+        "Message": "Successfully completed request." }
+
+    return response
+
+def ufm_entries_action(payload):
+    global g_ufmlog
+    offset = None
+    count = None
+
+    if "$skip" in payload:
+        offset = int(payload["$skip"]) + 1
+
+    if "$top" in payload:
+        count = int(payload["$top"])
+
+    log_entries = g_ufmlog.ufmlog.get_entries(offset, count)
+
+    response = copy.deepcopy(redfish_responses['1.3.1.1.1.1'])
+    response['Members'] = redfish_log_entries(log_entries)
+    response['Members@odata.count'] = len(response['Members'])
+
+    return response
+
+def redfish_log_entries(entries):
+    '''
+    Converts a list of UfmLogEntry objects to a list of Redfish LogEntry objects
+    '''
+    log_entries = []
+    for entry in entries:
+        LogEntry = {}
+        LogEntry["@odata.context"] =  "/redfish/v1/$metadata#LogEntry.LogEntry"
+        LogEntry["@odata.id"] =  "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries"
+        LogEntry["@odata.type"] =  "#LogEntry.v1_3_0.LogEntry"
+        LogEntry["Id"] =  str(entry.id)
+        LogEntry["Name"] =  "Log Entry "+str(entry.id)
+        LogEntry["EntryType"] =  "Oem"
+        LogEntry["OemRecordFormat"] =  "Samsung"
+
+        if entry.type == "ERROR":
+            LogEntry["Severity"] =  "Warning"
+        if entry.type == "WARNING":
+            LogEntry["Severity"] =  "Warning"
+        if entry.type == "INFO":
+            LogEntry["Severity"] =  "OK"
+        if entry.type == "DEBUG":
+            LogEntry["Severity"] =  "OK"
+        if entry.type == "DETAIL":
+            LogEntry["Severity"] =  "OK"
+        if entry.type == "EXCEPT":
+            LogEntry["Severity"] =  "Critical"
+
+        LogEntry["Created"] =  str(entry.timestamp)
+        LogEntry["SensorType"] =  entry.module
+        LogEntry["EntryCode"] =  entry.type
+        LogEntry["Message"] =  entry.msg
+
+        log_entries.append(LogEntry)
+
+    return log_entries
+
+'''
+Redfish LogEntry example
+{
+"@odata.type": "#LogEntry.v1_3_0.LogEntry",
+"Id": "1",
+"Name": "Log Entry 1",
+"EntryType": "Oem",
+"OemRecordFormat": "Samsung",
+"Severity": "Critical",
+"Created": "2012-03-07T14:44:00Z",
+"EntryCode": "Assert",
+"SensorType": "Temperature",
+"SensorNumber": 1,
+"Message": "Temperature threshold exceeded",
+"MessageId": "Contoso.1.0.TempAssert",
+"MessageArgs": [
+"42"
+],
+"Links": {
+"OriginOfCondition": {
+"@odata.id": "/redfish/v1/Chassis/1U/Thermal"
+},
+"Oem": {}
+},
+"Oem": {},
+"@odata.context": "/redfish/v1/$metadata#LogEntry.LogEntry",
+"@odata.id": "/redfish/v1/Systems/437XR1138R2/LogServices/Log1/Entries/1"
+}
+'''
+
+def ufm_getregistry_action(payload):
+    global g_ufmlog
+    registry = g_ufmlog.ufmlog.get_module_registry()
+
+    response = { "Status": 200, \
+        "Message": "Successfully completed request.",
+        "Registry": registry }
+
+    return response
+
+
+def ufm_getmask_action(payload):
+    global g_ufmlog
+
+    if payload["MaskType"] == "All":
+        error_mask = int(g_ufmlog.ufmlog.get_log_error())
+        warning_mask = int(g_ufmlog.ufmlog.get_log_warning())
+        info_mask = int(g_ufmlog.ufmlog.get_log_info())
+        debug_mask = int(g_ufmlog.ufmlog.get_log_debug())
+        detail_mask = int(g_ufmlog.ufmlog.get_log_detail())
+
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "ErrorMask": error_mask,
+            "WarningMask": warning_mask,
+            "InfoMask": info_mask,
+            "DebugMask": debug_mask,
+            "DetailMask": detail_mask }
+
+    elif payload["MaskType"] == "ErrorMask":
+        error_mask = g_ufmlog.ufmlog.get_log_error()
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "ErrorMask": error_mask}
+
+    elif payload["MaskType"] == "WarningMask":
+        warning_mask = g_ufmlog.ufmlog.get_log_warning()
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "WarningMask": warning_mask}
+
+    elif payload["MaskType"] == "InfoMask":
+        info_mask = g_ufmlog.ufmlog.get_log_info()
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "InfoMask": info_mask}
+
+    elif payload["MaskType"] == "DebugMask":
+        debug_mask = g_ufmlog.ufmlog.get_log_debug()
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "DebugMask": debug_mask}
+
+    elif payload["MaskType"] == "DetailMask":
+        detail_mask = g_ufmlog.ufmlog.get_log_detail()
+        response = { "Status": 200, \
+            "Message": "Successfully completed request.", \
+            "DetailMask": detail_mask}
+
+    return response
+
+def ufm_setmask_action(payload):
+    global g_ufmlog
+
+    response = { "Status": 200, \
+            "Message": "Successfully completed request."}
+
+    if "ErrorMask" in payload:
+        value = payload["ErrorMask"]
+        g_ufmlog.ufmlog.set_log_error(value)
+        value = g_ufmlog.ufmlog.get_log_error()
+        response["ErrorMask"] = value
+
+    if "WarningMask" in payload:
+        value = payload["WarningMask"]
+        g_ufmlog.ufmlog.set_log_warning(value)
+        value = g_ufmlog.ufmlog.get_log_warning()
+        response["WarningMask"] = value
+
+    if "InfoMask" in payload:
+        value = payload["InfoMask"]
+        g_ufmlog.ufmlog.set_log_info(value)
+        value = g_ufmlog.ufmlog.get_log_info()
+        response["InfoMask"] = value
+
+    if "DebugMask" in payload:
+        value = payload["DebugMask"]
+        g_ufmlog.ufmlog.set_log_debug(value)
+        value = g_ufmlog.ufmlog.get_log_debug()
+        response["DebugMask"] = value
+
+    if "DetailMask" in payload:
+        value = payload["DetailMask"]
+        g_ufmlog.ufmlog.set_log_detail(value)
+        value = g_ufmlog.ufmlog.get_log_detail()
+        response["DetailMask"] = value
+
+    return response
+
+def ufm_reset_action(payload):
+    global g_ufmlog
+
+    type = payload['ResetType']
+
+    if type == 'ForceOff':
+        g_ufmlog.info("SHUTDOWN: requested.")
+
+        cmd = "python ufm.py stop &"
+        subprocess.call(cmd, shell=True)
+
+        response = { "Status": 200, "Message": "Successfully requested shutdown." }
+
+    elif type == 'ForceRestart':
+        g_ufmlog.info("RESTART: requested.")
+
+        cmd = "python ufm.py restart &"
+        subprocess.call(cmd, shell=True)
+
+        response = { "Status": 200, "Message": "Successfully requested restart." }
+
+    else:
+        response = { "Status": 400, "Message": "Bad Request" }
+
+    return response
 
 class redfish_ufmdb(object):
 
@@ -443,9 +823,11 @@ class redfish_ufmdb(object):
         """
         Create connection to database.
         """
-        self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
-        self.log.log_detail_on()
+        global g_ufmlog
 
+        self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
+        g_ufmlog = self.log
+        self.log.log_detail_on()
         #self.pp = pprint.PrettyPrinter(indent=4, sort_dicts=False)
 
         self.auto_update = auto_update
@@ -454,10 +836,10 @@ class redfish_ufmdb(object):
         self.root_uuid = root_uuid
         self.redfish = dict()
         self.systems = list()
+        self.action = dict()
+
         self.data_expiration = 0.0
         self.expiration = float(expire)
-
-        #self.auto_update = False
 
         if self.auto_update == False:
             self.update()
@@ -485,24 +867,45 @@ class redfish_ufmdb(object):
         return(kv_dict)
 
     def update(self):
+        # Update action URL database
+        self.log.detail('Update actions: requested.  Updating now ...')
+        del(self.action)
+        self.action = {}
+        self._build_redfish_actions()
+
+        # Update get URL database
         current_time = time.time()
+        attempts = 2
+        while True:
+            try:
+                if (current_time > self.data_expiration):
+                    self.log.detail('Update data: requested.  Updating now ...')
+                    self.data_expiration = current_time + self.expiration
 
-        if (current_time > self.data_expiration):
-            self.log.detail('Update: requested.  Updating now ...')
-            self.data_expiration = current_time + self.expiration
+                    del(self.redfish)
+                    del(self.systems)
 
-            del(self.redfish)
-            del(self.systems)
+                    self.redfish = {}
+                    self.systems = []
 
-            self.redfish = {}
-            self.systems = []
+                    self._process_database()
+                    self._build_redfish_root()
+                    self._build_redfish_systems()
 
-            self._process_database()
-            self._build_redfish_root()
-            self._build_redfish_systems()
+                else:
+                    self.log.detail('Update data: requested.  Data expires in %d second(s).', 1 + int(self.data_expiration - current_time))
+                break
 
-        else:
-            self.log.detail('Update: requested.  Data expires in %d second(s).', 1 + int(self.data_expiration - current_time))
+            except Exception as e:
+                attempts -= 1
+                if attempts == 0:
+                    break
+
+                self.log.exception(e)
+                self.data_expiration = 0.0
+                self.log.error("Unable to update data.  Retrying...")
+
+        return
 
     def _process_database(self):
 
@@ -656,7 +1059,9 @@ class redfish_ufmdb(object):
 
             # Find the subsystem to attach this storage
             for subsys in sys.subsystems:
-                if subsys.nqn.find(stor.uuid) != -1:
+                nqn = subsys.nqn.lower()
+                uuid = stor.uuid.lower()
+                if nqn.find(uuid) != -1:
                     subsys.storage.append(stor)
                     subsys.capacity = subsys.capacity + stor.capacity
                     subsys.utilization = subsys.utilization + stor.utilization
@@ -671,6 +1076,18 @@ class redfish_ufmdb(object):
 
         return
 
+    def _build_redfish_actions(self):
+        self.log.detail('_build_redfish_actions: requested.')
+
+        self.action['/redfish/v1/Managers/ufm/Actions/Ufm.Reset'] = ufm_reset_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog'] = ufm_clearlog_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries'] = ufm_entries_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetMask'] = ufm_getmask_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.SetMask'] = ufm_setmask_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetRegistry'] = ufm_getregistry_action
+
+        self.log.detail('_build_redfish_actions: done.  entries=%d',len(self.action))
+        return
 
     def _build_redfish_root(self):
 
@@ -678,19 +1095,14 @@ class redfish_ufmdb(object):
 
         # 1
         response_1 = copy.deepcopy(redfish_responses['1'])
-        response_1['@odata.id'] = '/redfish/v1'
-
         response_1['UUID'] = self.root_uuid
-
-        if  len(self.systems) != 0:
-            response_1['Systems'].update({"@odata.id": "/redfish/v1/Systems"})
-
         self.redfish[response_1['@odata.id']] = response_1   # 1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if  len(self.systems) == 0:
             self.log.detail('_build_redfish_root: done.  entries=%d',len(self.redfish))
             return
 
+        self.log.detail('_build_redfish_root: done.  entries=%d',len(self.redfish))
         return
 
     def _build_redfish_systems(self):
@@ -717,8 +1129,39 @@ class redfish_ufmdb(object):
 
         # 1.2
         response_1_2 = copy.deepcopy(redfish_responses['1.2'])
-        response_1_2['@odata.id'] = '/redfish/v1/JSONSchemas'
         self.redfish[response_1_2['@odata.id']] = response_1_2  # 1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3
+        response_1_3 = copy.deepcopy(redfish_responses['1.3'])
+        self.redfish[response_1_3['@odata.id']] = response_1_3  # 1.3   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1
+        response_1_3_1 = copy.deepcopy(redfish_responses['1.3.1'])
+        response_1_3_1['UUID'] = sys.uuid
+        self.redfish[response_1_3_1['@odata.id']] = response_1_3_1  # 1.3.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1
+        response_1_3_1_1 = copy.deepcopy(redfish_responses['1.3.1.1'])
+        self.redfish[response_1_3_1_1['@odata.id']] = response_1_3_1_1  # 1.3.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1.1
+        response_1_3_1_1_1 = copy.deepcopy(redfish_responses['1.3.1.1.1'])
+        response_1_3_1_1_1['MaxNumberOfRecords'] = g_ufmlog.ufmlog.max_entries
+        self.redfish[response_1_3_1_1_1['@odata.id']] = response_1_3_1_1_1  # 1.3.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        '''
+        # 1.3.1.1.1.1
+        response_1_3_1_1_1_1 = copy.deepcopy(redfish_responses['1.3.1.1.1.1'])
+        self.redfish[response_1_3_1_1_1_1['@odata.id']] = response_1_3_1_1_1_1  # 1.3.1.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        '''
+
+        # 1.3.1.1.1.2
+        response_1_3_1_1_1_2 = copy.deepcopy(redfish_responses['1.3.1.1.1.2'])
+        self.redfish[response_1_3_1_1_1_2['@odata.id']] = response_1_3_1_1_1_2  # 1.3.1.1.1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1.1.3
+        response_1_3_1_1_1_3 = copy.deepcopy(redfish_responses['1.3.1.1.1.3'])
+        self.redfish[response_1_3_1_1_1_3['@odata.id']] = response_1_3_1_1_1_3  # 1.3.1.1.1.3   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         # 1.1.1
         for sys in self.systems:
@@ -776,7 +1219,7 @@ class redfish_ufmdb(object):
                         response_1_1_2_1['Members'].append({"@odata.id": "/redfish/v1/Systems/"+subsys.uuid+"/Storage/"+stor.uuid})
 
                     response_1_1_2_1['Members@odata.count'] = len(response_1_1_2_1['Members'])
-                    response_1_1_2_1['oem'] = { "CapacityBytes":subsys.capacity, "PercentAvailable":subsys.percent_avail}
+                    response_1_1_2_1['oem'] = { "CapacityBytes":subsys.capacity, "UtilizationBytes":subsys.utilization,"PercentAvailable":subsys.percent_avail}
 
                     self.redfish[response_1_1_2_1['@odata.id']] = response_1_1_2_1  # 1.1.2.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -788,7 +1231,7 @@ class redfish_ufmdb(object):
                     for drive in stor.drives:
                         response_1_1_2_1_1['Drives'].append({"@odata.id": "/redfish/v1/Systems/"+subsys.uuid+"/Storage/"+stor.uuid+"/Drives/"+drive.uuid})
 
-                    response_1_1_2_1_1['oem'] = { "CapacityBytes":stor.capacity, "PercentAvailable":stor.percent_avail}
+                    response_1_1_2_1_1['oem'] = { "CapacityBytes":stor.capacity, "UtilizationBytes":stor.utilization, "PercentAvailable":stor.percent_avail}
 
                     self.redfish[response_1_1_2_1_1['@odata.id']] = response_1_1_2_1_1  # 1.1.2.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -816,7 +1259,7 @@ class redfish_ufmdb(object):
                         response_1_1_2_1_1_1_1['Protocol'] = drive.protocol
                         response_1_1_2_1_1_1_1['Revision'] = drive.revision
                         response_1_1_2_1_1_1_1['SerialNumber'] = drive.sn
-                        response_1_1_2_1_1_1_1['oem'] = {"PercentAvailable":drive.percent_avail}
+                        response_1_1_2_1_1_1_1['oem'] = {"UtilizationBytes":drive.utilization, "PercentAvailable":drive.percent_avail}
 
                         self.redfish[response_1_1_2_1_1_1_1['@odata.id']] = response_1_1_2_1_1_1_1  # 1.1.2.1.1.1.1  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -855,32 +1298,67 @@ class redfish_ufmdb(object):
 
                         self.redfish["/redfish/v1/Systems/"+subsys.uuid+"/EthernetInterfaces/"+intf.mac] = response_1_1_2_2_1  # 1.1.2.2.1  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-        self.log.detail('_build_redfish: done.  entries=%d',len(self.redfish))
-
+        self.log.detail('_build_redfish_systems: done.  entries=%d',len(self.redfish))
         return
 
-
-    def get(self, request=None):
+    def get(self, request=None, payload={}):
         '''
         Translates a redfish request string request to a json file response
         '''
         self.log.detail('GET: %s', request)
 
-        if self.auto_update == True:
-            self.update()
-
         try:
-            response = self.redfish[request]
+            if self.auto_update == True:
+                self.update()
+
+            if request in self.action:
+                func = self.action[request]
+                response = func(payload)
+
+            elif request in self.redfish:
+                response = self.redfish[request]
+
+            else:
+                if request != "/favicon.ico":
+                    self.log.error('GET: Invalid Request. %s', request)
+                response = { "Status": 404, "Message": "Not Found" }
+
             return response
-        except:
-            self.log.error('GET: Invalid Request. %s', request)
+        except Exception as e:
+            self.log.exception(e)
+
+            if request != "/favicon.ico":
+                self.log.error('GET: Invalid Request. %s', request)
+
             response = { "Status": 404, "Message": "Not Found" }
             return response
 
+    def post(self, request=None, payload={}):
+        '''
+        Translates a redfish request string request to an action function
+        '''
+        self.log.detail('POST: %s', request)
 
+        try:
+            if self.auto_update == True:
+                self.update()
 
+            if request in self.action:
+                func = self.action[request]
+                response = func(payload)
 
+            else:
+                if request != "/favicon.ico":
+                    self.log.error('GET: Invalid Request. %s', request)
+                response = { "Status": 404, "Message": "Not Found" }
 
+            return response
+        except:
+            if request != "/favicon.ico":
+                self.log.error('GET: Invalid Request. %s', request)
+
+            response = { "Status": 404, "Message": "Not Found" }
+            return response
 
 
 

@@ -6,3 +6,5 @@
 *.deb
 *.rpm
 ufm.log
+.idea
+venv
