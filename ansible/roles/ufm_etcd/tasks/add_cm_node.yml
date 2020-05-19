@@ -1,0 +1,35 @@
+---
+
+- name: Check CM Node id
+  shell: "etcdctl get /cluster/{{ ansible_hostname }}/id --print-value-only"
+  environment: 
+    ETCDCTL_API: 3
+  changed_when: false
+  register: cm_id
+
+- name: Check CM Node time_created
+  shell: "etcdctl get /cluster/{{ ansible_hostname }}/time_created --print-value-only"
+  environment: 
+    ETCDCTL_API: 3
+  changed_when: false
+  register: cm_time_created
+
+- name: Add CM Node ID
+  etcd3:
+    key: "/cluster/{{ ansible_hostname }}/id"
+    value: "{{ ansible_date_time.iso8601_micro | to_uuid }}"
+    state: present
+  when: cm_id.stdout == ""
+
+- name: Add CM Node time_created
+  etcd3:
+    key: "/cluster/{{ ansible_hostname }}/time_created"
+    value: "{{ ansible_date_time.epoch }}"
+    state: present
+  when: cm_time_created.stdout == ""
+
+- name: Add CM Node ip_address
+  etcd3:
+    key: "/cluster/{{ ansible_hostname }}/ip_address"
+    value: "{{ ansible_default_ipv4.address }}"
+    state: present

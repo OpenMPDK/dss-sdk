@@ -1,0 +1,16 @@
+- name: Gather facts on Fabric Managers
+  hosts: fm_hosts
+  gather_facts: true
+
+- name: Deploy Targets
+  hosts: targets
+  gather_facts: true
+  vars_files:
+    - ./group_vars/config.yml
+    - ./group_vars/image.yml
+  roles:
+    - tgt_common
+    - tgt_etcd-gateway
+    - tgt_agent
+    - tgt_packages
+    - tgt_post_rpm

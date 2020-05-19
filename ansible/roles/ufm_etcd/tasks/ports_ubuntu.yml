@@ -1,0 +1,18 @@
+---
+
+- name: Open etcd ports (ufw)
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  when:
+    - "'ufw.service' in ansible_facts.services"
+    - ansible_facts.services['ufw.service'].state == "running"
+  become: yes
+  loop:
+    - "{{ ufm_etcd_client_port }}"
+    - "{{ ufm_etcd_peer_port }}"
+    - "{{ ufm_redfish_port }}"
+    - "{{ ufm_haproxy_health_port }}"
+    - "{{ ufm_zmq_subscriber_port }}"
+    - "{{ ufm_zmq_subscriber_port }}"

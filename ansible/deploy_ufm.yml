@@ -1,0 +1,7 @@
+- name: Deploy Fabric Manager
+  hosts: fm_hosts
+  gather_facts: true
+  any_errors_fatal: true
+  roles:
+    - ufm_etcd
+    - ufm_install

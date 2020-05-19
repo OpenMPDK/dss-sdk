@@ -1,0 +1,6 @@
+---
+
+installed_rpms_dict: {}
+release_rpms_dict: {}
+
+target_packages: ['NKV', 'FM-Agent']

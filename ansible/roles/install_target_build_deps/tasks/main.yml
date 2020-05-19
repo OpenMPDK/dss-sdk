@@ -1,0 +1,21 @@
+---
+
+- name: Install yum dependencies
+  yum:
+    name:
+      - bison
+      - cmake
+      - flex
+      - gcc
+      - gcc-c++
+      - git
+      - libaio-devel
+      - libuuid-devel
+      - numactl-devel
+      - openssl-devel
+      - rdma-core-devel
+      - rpm-build
+      - tbb-devel
+      - "{{ kernel_devel_url }}"
+    state: present
+  become: yes
