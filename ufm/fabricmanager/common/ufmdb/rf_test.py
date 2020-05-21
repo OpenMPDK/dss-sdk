@@ -1,5 +1,5 @@
 import json
-from common.ufmdb.redfish_ufmdb import redfish_ufmdb
+from common.ufmdb.redfish.redfish_ufmdb import redfish_ufmdb
 
 rfdb = redfish_ufmdb(root_uuid='0000-0000-0000-0000', auto_update=False)
 
