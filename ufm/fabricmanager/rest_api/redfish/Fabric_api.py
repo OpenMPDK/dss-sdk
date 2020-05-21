@@ -12,14 +12,10 @@ from uuid import uuid4
 
 # Internal imports
 from rest_api.redfish.templates.Fabric import get_Fabric_instance
+from rest_api.redfish import redfish_constants
 import config
 
 members = {}
-
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
-
 
 class UfmdbFabricAPI(Resource):
     """
@@ -80,13 +76,13 @@ class FabricAPI(Resource):
         HTTP GET
         """
         try:
-            response = NOT_FOUND
+            response = redfish_constant.NOT_FOUND
             if ident in members:
                 con = members[ident]
-                response = con, SUCCESS
+                response = con, redfish_constant.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constant.SERVER_ERROR
         return response
 
 
@@ -113,10 +109,10 @@ class FabricCollectionAPI(Resource):
         HTTP GET
         """
         try:
-            response = self.config, SUCCESS
+            response = self.config, redfish_constant.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constant.SERVER_ERROR
 
         return response
 
@@ -138,10 +134,10 @@ class CreateFabric(Resource):
             wildcards['fab_id'] = ident
             cfg = get_Fabric_instance(wildcards)
             members[ident] = cfg
-            response = cfg, SUCCESS
+            response = cfg, redfish_constant.SUCCESS
 
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constant.SERVER_ERROR
 
         return response

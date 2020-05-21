@@ -24,11 +24,14 @@ UFM_ESSD       = 0x00400000
 UfmModuleRegistry = { "UFM_MAIN":UFM_MAIN,
     "UFM_DB": UFM_DB,
     "UFM_REDFISH_DB": UFM_REDFISH_DB,
+    "UFM_MQ": UFM_MQ,
     "UFM_MONITOR": UFM_MONITOR,
     "UFM_CONTROLLER": UFM_CONTROLLER,
     "UFM_COLLECTOR": UFM_COLLECTOR,
     "UFM_POLLER": UFM_POLLER,
     "UFM_NKV": UFM_NKV,
+    "UFM_SWITCH": UFM_SWITCH,
+    "UFM_ESSD": UFM_ESSD,
 }
 
 
@@ -56,7 +59,7 @@ class UfmLogEntry(object):
 # Handles global managment of log
 class Ufmlog(object):
     def __init__(self, filename=UFM_LOG_FILE, log_info=UFM_ALL, log_error=UFM_ALL,
-            log_warning=UFM_ALL, log_debug=UFM_ALL, log_detail=UFM_ALL, max_entries=1000):
+            log_warning=UFM_ALL, log_debug=UFM_NONE, log_detail=UFM_NONE, max_entries=1000):
         self.filename = filename
         self.level = logging.DEBUG
         self.format = '%(asctime)s %(message)s'

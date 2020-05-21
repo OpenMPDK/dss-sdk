@@ -157,6 +157,60 @@ class drive(object):
         return
 
 
+class fabric(object):
+    def __init__(self):
+        self.id = "NVMEoF"
+        self.switches = list()    #class switch
+        for switch in self.switches:
+            switch.pprint()
 
+    def pprint(self):
+        print("Fabric:")
+        print("    id=", self.id)
+        return
+
+
+class switch(object):
+    def __init__(self, uuid):
+        self.id = ""
+        self.SerialNumber = ""
+        self.UUID = uuid
+        self.Model = ""
+        self.ports = list()
+        for port in self.ports:
+            port.pprint()
+        self.vlans = list()
+        for vlan in self.vlans:
+            vlan.pprint()
+
+    def pprint(self):
+        print("    Switch:")
+        print("        id=", self.id)
+        print("        SerialNumber=", self.id)
+        print("        UUID=", self.id)
+        print("        Model=", self.id)
+        return
+
+
+class port(object):
+    def __init__(self, port_id):
+        self.id = port_id
+        status = ""
+
+    def pprint(self):
+        print("        Port:")
+        print("            id=", self.id)
+        print("            status=", self.status)
+        return
+
+
+class vlan(object):
+    def __init__(self, vlan_id):
+        self.id = vlan_id
+
+    def pprint(self):
+        print("        VLAN:")
+        print("            id=", self.id)
+        return
 
 

@@ -6,14 +6,10 @@ from flask_restful import reqparse, Api, Resource
 
 # Internal imports
 import config
-from .templates.Switch import get_switch_instance
+from rest_api.redfish.templates.Switch import get_switch_instance
+from rest_api.redfish import redfish_constants
 
 members = {}
-
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
-
 
 class SwitchApi(Resource):
     """
@@ -28,11 +24,11 @@ class SwitchApi(Resource):
         # HTTP GET
         # """
         if ident1 not in members:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident2 not in members[ident1]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
 
-        return members[ident1][ident2], SUCCESS
+        return members[ident1][ident2], redfish_constants.SUCCESS
 
 
 class SwitchCollection(Resource):
@@ -55,7 +51,7 @@ class SwitchCollection(Resource):
         """
         try:
             if ident not in members:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             switches = []
             for switch in members.get(ident, {}).values():
                 switches.append({'@odata.id': switch['@odata.id']})
@@ -63,10 +59,10 @@ class SwitchCollection(Resource):
                 '/' + ident + '/Switches'
             self.cfg['Members'] = switches
             self.cfg['Members@odata.count'] = len(switches)
-            response = self.cfg, SUCCESS
+            response = self.cfg, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
