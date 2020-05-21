@@ -30,6 +30,7 @@ class redfish_ufmdb(object):
         self.redfish = dict()
         self.systems = list()
         self.action = dict()
+        self.fabrics = list()
 
         self.data_expiration = 0.0
         self.expiration = float(expire)
@@ -80,10 +81,13 @@ class redfish_ufmdb(object):
 
                     self.redfish = {}
                     self.systems = []
+                    self.fabrics = []
 
-                    self._process_database()
+                    self._process_database_for_systems()
+                    self._process_database_for_fabrics()
                     self._build_redfish_root()
                     self._build_redfish_systems()
+                    self._build_redfish_fabrics()
 
                 else:
                     self.log.detail('Update data: requested.  Data expires in %d second(s).', 1 + int(self.data_expiration - current_time))
@@ -100,14 +104,14 @@ class redfish_ufmdb(object):
 
         return
 
-    def _process_database(self):
+    def _process_database_for_systems(self):
 
-        self.log.detail('_process_database: requested.')
+        self.log.detail('_process_database_for_systems: requested.')
 
         systems = self._query_prefix("/object_storage/servers/list")
 
         if len(systems) == 0:
-            self.log.detail('_process_database: done.')
+            self.log.detail('_process_database_for_systems: done.')
             return
 
         for key in systems:
@@ -268,6 +272,74 @@ class redfish_ufmdb(object):
         self.log.detail('_process_database: done.')
 
         return
+
+    def _process_database_for_fabrics(self):
+
+        '''
+        Imagine Switch, Port, VLAN representation in DB
+        /switches/list/{uuid_1}
+        /switches/list/{uuid_2}
+        /switches/{uuid_x}/switch_attributes/Manufacturer
+        /switches/{uuid_x}/switch_attributes/Model
+        /switches/{uuid_x}/switch_attributes/SerialNumber
+        /switches/{uuid_x}/switch_attributes/UUID
+        /switches/{uuid_x}/switch_attributes/IPv4
+        /switches/{uuid_x}/switch_attributes/uptime
+        /switches/{uuid_x}/ports/list/{port_id_1}
+        /switches/{uuid_x}/ports/list/{port_id_2}
+        /switches/{uuid_x}/ports/list/{port_id_3}
+        /switches/{uuid_x}/ports/{port_id_y}/type
+        /switches/{uuid_x}/ports/{port_id_y}/status
+        /switches/{uuid_x}/ports/{port_id_y}/network/VLANs/{VLAN_id_a}
+        /switches/{uuid_x}/ports/{port_id_y}/network/VLANs/{VLAN_id_b}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_1}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_2}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_3}
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/status
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/network/ports/{port_id_c}
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/network/ports/{port_id_d}
+        '''
+
+        self.log.detail('_process_database_for_fabrics: requested.')
+
+        switches = self._query_prefix("/switches/list")
+
+        if len(switches) == 0:
+            self.log.detail('_process_database_for_fabrics: done.')
+            return
+
+        self.fabrics.append(fabrics())
+
+        for fabric in self.fabrics:
+            for key in switches:
+                sw_list = key.split("/")
+                sw_uuid = sw_list[3] #/switches/list/{uuid}
+                sw = switch(uuid=sw_uuid)
+                fabric.switches.append(sw)
+
+                ports = "/switches/"+sw_uuid+"/ports/list"
+                for port_key in ports:
+                    port_list = port_key.split("/")
+                    port_id = port_list[5] #/switches/{uuid}/ports/list/{port_id}
+                    port = port(port_id=port_id)
+                    sw.ports.append(port)
+
+                    port_attr = self._query_prefix("/switches/"+sw_uuid+"/ports/"+port_id+"/status")
+                    for attr_key in port_attr:
+                        if attr_key.find("status") != -1:
+                            port.status = port_attr[attr_key]
+
+                vlans = "/switches/"+sw_uuid+"/VLANs/list"
+                for vlan_key in vlans:
+                    vlan_list = vlan_key.split("/")
+                    vlan_id = vlan_list[5] #/switches/{uuid}/VLANs/list/{vlan_id}
+                    vlan = vlan(vlan_id=vlan_id)
+                    sw.vlans.append(vlan)
+
+        self.log.detail('_process_database_for_fabrics: done.')
+
+        return
+
 
     def _build_redfish_actions(self):
         self.log.detail('_build_redfish_actions: requested.')
@@ -493,6 +565,89 @@ class redfish_ufmdb(object):
 
         self.log.detail('_build_redfish_systems: done.  entries=%d',len(self.redfish))
         return
+
+
+
+    def _build_redfish_fabrics(self):
+
+        self.log.detail('_build_redfish_fabrics: requested.')
+
+        if  len(self.fabrics) == 0:
+            self.log.detail('_build_redfish_fabrics: done.  entries=%d',len(self.redfish))
+            return
+
+        # 1.4
+        response_1_4 = copy.deepcopy(redfish_responses['1.4'])
+        self.redfish[response_1_4['@odata.id']] = response_1_4  # 1.4   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        for fabric in self.fabrics:
+            response_1_4['Members'].append({'@odata.id': '/redfish/v1/Fabrics/' + fabric.id})
+
+        response_1_4['Members@odata.count'] = len(response_1_4['Members'])
+
+        for fabric in self.fabrics:
+            # 1.4.1
+            response_1_4_1 = copy.deepcopy(redfish_responses['1.4.1'])
+            response_1_4_1['id'] = fabric.id
+            response_1_4_1['@odata.id'] = response_1_4['@odata.id']+'/'+fabric.id
+            self.redfish[response_1_4_1['@odata.id']] = response_1_4_1  # 1.4.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            if len(fabric.switches) == 0:
+                continue
+
+            response_1_4_1['Switches'] = ({'@odata.id': response_1_4_1['@odata.id'] + '/Switches'})
+
+            # 1.4.1.1
+            response_1_4_1_1 = copy.deepcopy(redfish_responses['1.4.1.1'])
+            response_1_4_1_1['@odata.id'] = response_1_4_1['@odata.id'] + '/Switches'
+            self.redfish[response_1_4_1_1['@odata.id']] = response_1_4_1_1  # 1.4.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            for sw in fabric.switches:
+                # 1.4.1.1.1
+                response_1_4_1_1_1 = copy.deepcopy(redfish_responses['1.4.1.1.1'])
+                response_1_4_1_1_1['id'] = sw.id
+                response_1_4_1_1_1['@odata.id'] = response_1_4_1_1['@odata.id'] + '/' + sw.id
+                self.redfish[response_1_4_1_1_1['@odata.id']] = response_1_4_1_1_1  # 1.4.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                if len(sw.ports) > 0:
+                    response_1_4_1_1_1['Ports'] = ({"@odata.id": response_1_4_1_1_1['@odata.id'] + "/Ports"})
+
+                    # 1.4.1.1.1.1
+                    response_1_4_1_1_1_1 = copy.deepcopy(redfish_responses['1.4.1.1.1.1'])
+                    response_1_4_1_1_1_1['@odata.id'] = response_1_4_1_1_1['@odata.id'] + "/Ports"
+                    self.redfish[response_1_4_1_1_1_1['@odata.id']] = response_1_4_1_1_1_1 # 1.4.1.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                    for port in sw.ports:
+                        response_1_4_1_1_1_1['Members'].append({'@odata.id': response_1_4_1_1_1_1['@odata.id'] + '/' + port.id})
+
+                    response_1_4_1_1_1_1['Members@odata.count'] = len(response_1_4_1_1_1_1['Members'])
+
+                    for port in sw.ports:
+                        response_1_4_1_1_1_1_1['@odata.id'] = response_1_4_1_1_1_1['@odata.id'] + '/' + port.id
+                        response_1_4_1_1_1_1_1['id'] = port.id
+                        self.redfish[response_1_4_1_1_1_1_1['@odata.id']] = response_1_4_1_1_1_1_1
+
+                if len(sw.vlans) > 0:
+                    response_1_4_1_1_1['VLANs'] = ({"@odata.id": response_1_4_1_1_1['@odata.id'] + "/VLANs"})
+
+                    # 1.4.1.1.1.2
+                    response_1_4_1_1_1_2 = copy.deepcopy(redfish_responses['1.4.1.1.1.2'])
+                    response_1_4_1_1_1_2['@odata.id'] = response_1_4_1_1_1['@odata.id'] + "/VLANs"
+                    self.redfish[response_1_4_1_1_1_2['@odata.id']] = response_1_4_1_1_1_2 # 1.4.1.1.1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                    for vlan in sw.vlans:
+                        response_1_4_1_1_1_2['Members'].append({'@odata.id': response_1_4_1_1_1_2['@odata.id'] + '/' + vlan.id})
+
+                    response_1_4_1_1_1_2['Members@odata.count'] = len(response_1_4_1_1_1_2['Members'])
+
+                    for vlan in sw.vlans:
+                        response_1_4_1_1_1_2_1['@odata.id'] = response_1_4_1_1_1_2['@odata.id'] + '/' + vlan.id
+                        response_1_4_1_1_1_2_1['id'] = vlan.id
+                        self.redfish[response_1_4_1_1_1_2_1['@odata.id']] = response_1_4_1_1_1_2_1
+
+        return
+
+
 
     def get(self, request=None, payload={}):
         '''
