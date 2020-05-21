@@ -21,7 +21,7 @@ from common.clusterlib import lib, lib_constants
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
 
-from common.ufmdb.redfish_ufmdb import redfish_ufmdb
+from common.ufmdb.redfish.redfish_ufmdb import redfish_ufmdb
 
 # REST API Imports
 from rest_api.resource_manager import ResourceManager
