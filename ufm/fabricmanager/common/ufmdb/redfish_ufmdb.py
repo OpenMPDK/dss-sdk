@@ -5,9 +5,11 @@ import pprint
 import copy
 import time
 import subprocess
+import uuid
 
 from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
+from common.utils.ufm_decorators import singleton
 
 g_ufmlog = None
 
@@ -817,9 +819,13 @@ def ufm_reset_action(payload):
 
     return response
 
-class redfish_ufmdb(object):
 
-    def __init__(self,root_uuid=None, auto_update=True, expire=5):
+@singleton
+class RedfishUfmdb(object):
+    root_uuid = str(uuid.uuid4())
+
+
+    def __init__(self, auto_update=True, expire=5):
         """
         Create connection to database.
         """
@@ -833,7 +839,6 @@ class redfish_ufmdb(object):
         self.auto_update = auto_update
 
         self.ufmdb = client(db_type = 'etcd')
-        self.root_uuid = root_uuid
         self.redfish = dict()
         self.systems = list()
         self.action = dict()
@@ -1025,7 +1030,7 @@ class redfish_ufmdb(object):
                         drv.manufacturer = 'Samsung'            #????
                         drv.type = 'SSD'                        #????
 
-                        if device_info_key.find("LogiocalBlockSize") != -1:
+                        if device_info_key.find("LogicalBlockSize") != -1:
                             drv.block_size = int(dev_info[device_info_key])
                             continue
                         if device_info_key.find("Model") != -1:
