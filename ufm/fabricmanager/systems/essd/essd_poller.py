@@ -16,41 +16,34 @@ class EssdPollerArg():
     """
        Variables for the thread function
     """
-    def __init__(self, db, logger, systems):
+    def __init__(self, db, logger):
         self.db = db
         self.logger = logger
-        self.essdSystems = systems
-        self.essdToScan = 0
-
-
-def rightRotate(lists, num):
-    output_list = []
-
-    # Will add values from n to the new list
-    for item in range(len(lists) - num, len(lists)):
-        output_list.append(lists[item])
-
-    # Will add the values before
-    # n to the end of new list
-    for item in range(0, len(lists) - num):
-        output_list.append(lists[item])
-
-    return output_list
+        self.essdSystems = list()
+        self.essdCounter = -1
 
 
 def essdRedFishPoller(cbArgs):
     """
        This function get called from a thread, every x sec, see ufm_thread.py
     """
-    cbArgs.essdSystems = rightRotate(cbArgs.essdSystems, 1)
+    cbArgs.essdCounter = cbArgs.essdCounter + 1
 
-    e = cbArgs.essdSystems[0]
-    cbArgs.logger.debug("In Redfish poller {}".format(e))
+    # Read essd url's from DB
+    if not cbArgs.essdSystems or (cbArgs.essdCounter % 13) == 0:
+        try:
+            tmpString = cbArgs.db.get_key_value("/essd/essdurls").decode('utf-8')
+            cbArgs.essdSystems = json.loads(tmpString)
+        except:
+            cbArgs.logger.error("Failed to read essd Urls from db {}".format(tmpString))
+
+    essdToScan = cbArgs.essdCounter % len(cbArgs.essdSystems)
+    essdUrl = cbArgs.essdSystems[essdToScan]
 
     try:
-        essd = EssdDrive(url=e, username=None, password=None, logger=cbArgs.logger)
+        essd = EssdDrive(url=essdUrl, username=None, password=None, logger=cbArgs.logger)
     except:
-        cbArgs.logger.error("ERR: Failed to connect to essd {}".format(e))
+        cbArgs.logger.error("Failed to connect to essd {}".format(essdUrl))
         return
 
     # Update uuid's latest upTime
@@ -59,7 +52,9 @@ def essdRedFishPoller(cbArgs):
     # Read all the RedFish data from essds
     essd.readEssdData(cbArgs.db)
 
-    essd.removeUuidOlderThan(cbArgs.db, 1200)
+    # Remove dead uuid from DB, less often
+    if (cbArgs.essdCounter % 17) == 0:
+        essd.removeUuidOlderThan(cbArgs.db, 1200)
 
 
 class EssdPoller(UfmThread):

@@ -10,6 +10,8 @@ import time
 import argparse
 import uuid
 import datetime
+import yaml
+import collections
 from multiprocessing import Process
 from subprocess import PIPE, Popen, STDOUT
 
@@ -247,14 +249,22 @@ def stop_all_sub_systems(sub_systems):
         sub.stop()
 
 
-def connect_to_db(ip_address=None, logger=None):
-    global lib
-
+def insertEssdUrls(db, essdUrls):
+    listOfDrives = list()
     try:
-        return lib.create_db_connection(ip_address, log=logger)
+        tmpString = db.get_key_value("/essd/essdurls").decode('utf-8')
+
+        if tmpString:
+            listOfDrives = json.loads(tmpString)
     except:
-        logger.error("Failed to connect to DB. Exiting")
-        sys.exit(-1)
+        pass
+
+    for d in essdUrls:
+        if d not in listOfDrives:
+            listOfDrives.append(d)
+
+    jsonString = json.dumps(listOfDrives, indent=4, sort_keys=True)
+    db.save_key_value("/essd/essdurls", jsonString)
 
 
 class StatusChangeCbArg(object):
@@ -341,28 +351,78 @@ def main():
     # Use this hostname when using snapshot data that Tom took
     # hostname = "msl-dc-client8"
 
-    # Connect to database.
-    #
-    # This is legacy code and should be removed
-    # when nkv-monitor is refactored.  All db code should go through
-    # the ufmdb layer
-    #
-    # TODO: We can do this within the NKV subsystem
-    db = connect_to_db(ip_address=LOCAL_HOST, logger=log)
+    ufmMetadata = dict()
+    if os.path.isfile('/etc/ufm.yaml'):
+        with open(r'/etc/ufm.yaml') as f:
+            ufmMetadata = yaml.load(f)
+    else:
+        if os.path.isfile('ufm.yaml'):
+            with open(r'ufm.yaml') as f:
+                ufmMetadata = yaml.load(f)
+        else:
+            log.error("Failed to open config file ufm.yaml")
+            sys.exit(-1)
+
+    '''
+    if ufmMetadata:
+        if isinstance(ufmMetadata, collections.Iterable):
+            for d in ufmMetadata:
+                print("{} {}".format(d, ufmMetadata[d]))
+    '''
+
+    try:
+        metadataIp = ufmMetadata['metadatabase']['ip']
+
+        # Connect to database.
+        db = lib.create_db_connection(ip_address=metadataIp, log=log)
+    except:
+        log.error("Failed to connect to DB.")
+        sys.exit(-1)
 
     config.rest_base = REST_BASE
 
-    # Create subsystem classes
-    # TODO: Determine which subsystem to enable via config file or database
-    sub_systems = (
-        Nkv(hostname=hostname, db=db),
-        Ebof()
-        # Essd(hostname=hostname, db=db),
-        # Smart(),
-        # Switch()
-    )
+    sub_systems = list()
+    try:
+        if ufmMetadata['nkv']['enable']:
+            sub_systems.append( Nkv(hostname=hostname, db=db) )
+    except:
+        pass
 
-    #
+    try:
+        if ufmMetadata['essd']['enable']:
+            sub_systems.append( Essd(hostname=hostname, db=db) )
+
+        # Drives are optional
+        try:
+            if ufmMetadata['essd']['essdDrives']:
+                insertEssdUrls(db=db, essdUrls=ufmMetadata['essd']['essdDrives'])
+        except:
+            pass
+    except:
+        pass
+
+    try:
+        if ufmMetadata['ebof']['enable']:
+            sub_systems.append( Ebof() )
+    except:
+        pass
+
+    try:
+        if ufmMetadata['smart']['enable']:
+            sub_systems.append( Smart() )
+    except:
+        pass
+
+    try:
+        if ufmMetadata['switch']['enable']:
+            sub_systems.append( Switch() )
+    except:
+        pass
+
+    if not ufmMetadata:
+        log.error("Fail to start UFM")
+        sys.exit(-1)
+
     # ufm_status will handle all health and leader checks
     #
     # UfmStatus monitors cluster for health and determines leader
@@ -385,7 +445,7 @@ def main():
 
     ufm_status.stop()
 
-    log.info(" ===> FabricManager Stopped! <===")
+    log.info(" ===> UFM is Stopped! <===")
 
 
 if __name__ == '__main__':
