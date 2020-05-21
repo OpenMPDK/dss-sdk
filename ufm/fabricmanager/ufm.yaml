@@ -3,24 +3,21 @@ metadatabase:
     ip: "127.0.0.1"
 
 essd:
-    enable: False
-    start: False
+    enable: True
+    start: True
+
     # essdDrive is optional
     essdDrives:
         - "http://172.22.4.58:32768"
         - "http://172.22.4.58:32790"
         - "http://172.22.4.58:32789"
-        - "http://172.22.4.58:32783"
-        - "http://172.22.4.58:32780"
-        - "http://172.22.4.58:32778"
-        - "http://172.22.4.58:32776"
         - "http://172.22.4.58:32791"
         - "http://172.22.4.58:32792"
         - "http://172.22.4.58:32782"
 
 nkv:
-    enable: True
-    start: True
+    enable: False
+    start: False
 
 ebof:
     enable: False

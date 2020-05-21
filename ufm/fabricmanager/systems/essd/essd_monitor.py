@@ -55,7 +55,8 @@ class EssdMonitor(UfmThread):
 
 
     def __del__(self):
-        self.stop()
+        if self.running:
+            self.stop()
         self.logger.info('===> Delete Essd Monitor <===')
 
 
@@ -71,7 +72,8 @@ class EssdMonitor(UfmThread):
     def start(self):
         self.logger.info('===> Start Essd Monitor <===')
         self.running = True
-        super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self.monitor, cbArgs=self.monitorArgs, repeatIntervalSecs=10.0)
+        super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self.monitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
+
 
         self.logger.info("======> Configure DB key watch'er <=========")
         try:
@@ -99,7 +101,9 @@ class EssdMonitor(UfmThread):
             if not self.watch_id:
                 self.logger.error("Invalid watch ID")
             else:
-                self.db.cancel_watch(self.watch_id)
+                pass
+                # Find out why cancel doesn't work
+                # self.db.cancel_watch(self.watch_id)
 
         self.logger.info('===> Stop Essd <===')
 
