@@ -9,8 +9,12 @@ from common.ufmlog import ufmlog
 from common.ufmdb.redfish.redfish_responses import redfish_responses
 from common.ufmdb.redfish.redfish_resource import *
 from common.ufmdb.redfish.redfish_action import *
+from common.utils.ufm_decorators import singleton
 
-class redfish_ufmdb(object):
+
+@singleton
+class RedfishUfmdb(object):
+    root_uuid = str(uuid.uuid4())
 
     def __init__(self,root_uuid=None, auto_update=True, expire=5):
         """
@@ -26,7 +30,6 @@ class redfish_ufmdb(object):
         self.auto_update = auto_update
 
         self.ufmdb = client(db_type = 'etcd')
-        self.root_uuid = root_uuid
         self.redfish = dict()
         self.systems = list()
         self.action = dict()

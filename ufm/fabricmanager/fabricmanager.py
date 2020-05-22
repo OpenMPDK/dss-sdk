@@ -23,7 +23,6 @@ from common.clusterlib import lib, lib_constants
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
 
-from common.ufmdb.redfish.redfish_ufmdb import redfish_ufmdb
 
 # REST API Imports
 from rest_api.resource_manager import ResourceManager
@@ -183,13 +182,10 @@ def call_populate(local_path):
 # For any other RESTful requests, navigate them to RedfishAPI object
 # Note: <path:path> specifies any path
 if (MODE is not None and MODE.lower() == 'db'):
-    rfdb = redfish_ufmdb(root_uuid=str(uuid.uuid4()), auto_update=True)
-    # api.add_resource(ServiceRoot, REST_BASE,
-    #                  resource_class_kwargs={'rest_base': REST_BASE})
-    api.add_resource(
-        UfmdbSystemAPI, '/<path:path>', resource_class_kwargs={'rfdb': rfdb})
-    api.add_resource(
-        UfmdbFabricAPI, '/<path:path>', resource_class_kwargs={'rfdb': rfdb})
+    api.add_resource(ServiceRoot, REST_BASE,
+                     resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(UfmdbSystemAPI, '/<path:path>')
+    api.add_resource(UfmdbFabricAPI, '/<path:path>')
 elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(ServiceRoot, REST_BASE,
                      resource_class_kwargs={'rest_base': REST_BASE})

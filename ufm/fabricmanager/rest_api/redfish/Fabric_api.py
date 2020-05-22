@@ -11,6 +11,7 @@ from common.ufmlog import ufmlog
 from uuid import uuid4
 
 # Internal imports
+from common.ufmdb.redfish_ufmdb import RedfishUfmdb
 from rest_api.redfish.templates.Fabric import get_Fabric_instance
 import config
 
@@ -26,7 +27,7 @@ class UfmdbFabricAPI(Resource):
     System UFMDB API
     """
     def __init__(self, **kwargs):
-        self.rfdb = kwargs["rfdb"]
+        self.rfdb = RedfishUfmdb(auto_update=True)
         self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
         self.log.detail("UfmdbFabricAPI started.")
 

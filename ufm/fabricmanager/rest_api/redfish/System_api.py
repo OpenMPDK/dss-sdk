@@ -6,6 +6,8 @@ import traceback
 # Flask imports
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
+
+from common.ufmdb.redfish_ufmdb import RedfishUfmdb
 from common.ufmlog import ufmlog
 from uuid import uuid4
 
@@ -22,7 +24,7 @@ class UfmdbSystemAPI(Resource):
     System UFMDB API
     """
     def __init__(self, **kwargs):
-        self.rfdb = kwargs["rfdb"]
+        self.rfdb = RedfishUfmdb(auto_update=True)
         self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
         self.log.detail("UfmdbSystemAPI started.")
 
