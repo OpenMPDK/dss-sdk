@@ -3,6 +3,7 @@
 import pprint
 import copy
 import time
+import uuid
 
 from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
