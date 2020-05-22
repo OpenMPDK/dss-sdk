@@ -26,6 +26,9 @@ redfish_responses = {
         "Managers": {
             "@odata.id":"/redfish/v1/Managers"
         },
+        "Fabrics": {
+            "@odata.id":"/redfish/v1/Fabrics"
+        },
     },
 
     '1.1':
@@ -427,6 +430,89 @@ redfish_responses = {
             },
         ]
     },
+
+
+
+    '1.4':
+    {
+        "@odata.context": "/redfish/v1/$metadata#FabricCollection.FabricCollection",
+        "@odata.type": "#FabricCollection.FabricCollection",
+        "@odata.id": "/redfish/v1/Fabrics",
+        "Name": "Fabric Collection",
+        "Description": "Collection of Fabrics",
+        "Members": list(),
+        "Members@odata.count": 0,
+    },
+
+    '1.4.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#Fabric.v1_1_1.Fabric",
+        "@odata.type": "##Fabric.v1_1_1.Fabric",
+        "@odata.id": "",
+        "Id": "",
+        "Name": "Fabric",
+        "Switches": dict()
+    },
+    '1.4.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#SwitchCollection.SwitchCollection",
+        "@odata.type": "#SwitchCollection.SwitchCollection",
+        "@odata.id": "",
+        "Name":"Switch Collection",
+        "Description":"Collection of Switch information",
+        "Members": list(),
+        "Members@odata.count": 0,
+    },
+    '1.4.1.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#Switch.Switch",
+        "@odata.type": "#Switch.v1_3_1.Switch",
+        "@odata.id": "",
+        "Id": "",
+        "Name": "Switch",
+        "Description": "Switch information",
+        "Ports": dict(),
+        "VLANs": dict(),
+    },
+    '1.4.1.1.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#PortCollection.PortCollection",
+        "@odata.type": "#PortCollection.PortCollection",
+        "@odata.id": "",
+        "Name": "Port Collection",
+        "Description": "Collection of Port information",
+        "Memners": list(),
+        "Memners@odata.count": 0,
+    },
+    '1.4.1.1.1.1.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#Port.Port",
+        "@odata.type": "#Port.v1_2_1.Port",
+        "@odata.id": "",
+        "Id": "",
+        "Name": "Port",
+        "Description": "Port information",
+    },
+    '1.4.1.1.1.2':
+    {
+        "@odata.context": "/redfish/v1/$metadata#VLANCollection.VLANCollection",
+        "@odata.type": "#VLANCollection.VLANCollection",
+        "@odata.id": "",
+        "Name": "VLAN Collection",
+        "Description": "Collection of VLAN information",
+        "Memners": list(),
+        "Memners@odata.count": 0,
+    },
+    '1.4.1.1.1.2.1':
+    {
+        "@odata.context": "/redfish/v1/$metadata#VLAN.VLAN",
+        "@odata.type": "#VLAN.v1_1_5.VLAN",
+        "@odata.id": "",
+        "Id": "",
+        "Name": "VLAN",
+        "Description": "VLAN information",
+    },
+
 }
 
 

@@ -6,13 +6,10 @@ from flask_restful import reqparse, Api, Resource
 
 # Internal imports
 import config
-from .templates.VLAN import get_vlan_instance
+from rest_api.redfish.templates.VLAN import get_vlan_instance
+from rest_api.redfish import redfish_constants
 
 members = {}
-
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
 
 
 class VLAN(Resource):
@@ -28,13 +25,13 @@ class VLAN(Resource):
         # HTTP GET
         # """
         if ident1 not in members:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident2 not in members[ident1]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident3 not in members[ident1][ident2]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
 
-        return members[ident1][ident2][ident3], SUCCESS
+        return members[ident1][ident2][ident3], redfish_constants.SUCCESS
 
 
 class VLANCollection(Resource):
@@ -57,9 +54,9 @@ class VLANCollection(Resource):
         """
         try:
             if ident1 not in members:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             if ident2 not in members[ident1]:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             vlans = []
             for vlan in members[ident1].get(ident2, {}).values():
                 vlans.append({'@odata.id': vlan['@odata.id']})
@@ -67,10 +64,10 @@ class VLANCollection(Resource):
                 '/' + ident1 + '/Switches/' + ident2 + '/VLANs'
             self.cfg['Members'] = vlans
             self.cfg['Members@odata.count'] = len(vlans)
-            response = self.cfg, SUCCESS
+            response = self.cfg, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 

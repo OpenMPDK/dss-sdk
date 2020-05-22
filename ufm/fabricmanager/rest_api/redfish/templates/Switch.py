@@ -19,16 +19,6 @@ _TEMPLATE = \
         "VLANs": {
             "@odata.id": "{rest_base}Fabrics/{fab_id}/Switches/{switch_id}/VLANs"
         },
-        "Oem": {
-            "IPv4Addresses": [
-                {
-                    "Address": "10.1.10.191",
-                    "SubnetMask": "",
-                    "AddressOrigin": "",
-                    "Gateway": "",
-                }
-            ]
-        }
     }
 
 
