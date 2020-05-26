@@ -1,3 +1,5 @@
+---
+
 - name: Deploy HAProxy
   hosts: ha_proxy[0]
   gather_facts: true

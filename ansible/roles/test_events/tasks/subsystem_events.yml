@@ -1,44 +1,49 @@
-- name: Verify event SUBSYSTEM_DOWN
-  shell: "python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_DOWN --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+---
+
+- name: Agent verification script - SUBSYSTEM_DOWN
+  command: >
+    python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_DOWN
+    --expected_count {{ dfly_groups | length }} --timeout {{ event_timeout }}
   when: inventory_hostname in groups['fm_hosts'] and isLeader
   register: python_cmd
-  async: "{{event_timeout}}"
-  poll: 0 
+  async: "{{ event_timeout }}"
+  poll: 0
 
-- name: Disable nvmf_tgt service
+- name: Stop nvmf_tgt service
   service:
     name: nvmf_tgt
-    state: stopped 
+    state: stopped
   when: inventory_hostname in groups['targets']
 
-- name: "Check async task: {{ event_verification_script }} --expected_event_name SUBSYSTEM_DOWN --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+- name: Wait for SUBSYSTEM_DOWN
   async_status:
     jid: "{{ python_cmd.ansible_job_id }}"
   register: async_result
   until: async_result.finished
-  retries: "{{retries}}"
+  retries: "{{ event_retries }}"
   delay: "{{ retry_delay }}"
   when: inventory_hostname in groups['fm_hosts'] and isLeader
 
-- name: Verify event SUBSYSTEM_UP
-  shell: "python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_UP --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+- name: Agent verification script - SUBSYSTEM_UP
+  command: >
+    python3 {{ event_verification_script }} --expected_event_name SUBSYSTEM_UP
+    --expected_count {{ dfly_groups | length }} --timeout {{ event_timeout }}
   when: inventory_hostname in groups['fm_hosts'] and isLeader
   register: python_cmd
-  async: "{{event_timeout}}"
-  poll: 0 
+  async: "{{ event_timeout }}"
+  poll: 0
 
-- name: Enable nvmf_tgt service
+- name: Start nvmf_tgt service
   service:
     name: nvmf_tgt
-    state: started 
+    state: started
   when: inventory_hostname in groups['targets']
 
-- name: "Check async task: {{ event_verification_script }} --expected_event_name SUBSYSTEM_UP --expected_count {{ dfly_groups | length }} --timeout {{event_timeout}}"
+- name: Wait for SUBSYSTEM_UP
   async_status:
     jid: "{{ python_cmd.ansible_job_id }}"
   register: async_result
   until: async_result.finished
-  retries: "{{retries}}"
+  retries: "{{ event_retries }}"
   delay: "{{ retry_delay }}"
   when: inventory_hostname in groups['fm_hosts'] and isLeader
-
