@@ -1,3 +1,5 @@
+---
+
 - name: Deploy Fabric Manager
   hosts: fm_hosts
   gather_facts: true

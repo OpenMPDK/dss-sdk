@@ -6,7 +6,7 @@
     state: absent
   with_items:
     - "{{ dfly_temp_dir }}"
-    - "{{ temp_dir }}/{{image_name}}.tar"
+    - "{{ temp_dir }}/{{ image_name }}.tar"
 
 
 - name: Copy tar file to each node
@@ -15,21 +15,20 @@
     dest: "{{ temp_dir }}"
     mode: 0755
   with_items:
-    - ./release/{{image_name}}.tar
+    - ./release/{{ image_name }}.tar
 
 - name: create dirs...
   become: yes
   become_user: root
   file:
     state: directory
-    path: '{{item}}'
+    path: '{{ item }}'
     mode: 0755
   with_items:
     - "{{ dfly_temp_dir }}"
 
 - name: Untar virtual env file to RHEL system
   unarchive:
-    src: "{{ temp_dir }}/{{image_name}}.tar"
+    src: "{{ temp_dir }}/{{ image_name }}.tar"
     dest: "{{ dfly_temp_dir }}"
     remote_src: yes
-

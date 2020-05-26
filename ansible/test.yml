@@ -1,3 +1,5 @@
+---
+
 - name: Test Fabric Mananger
   hosts: targets:fm_hosts
   gather_facts: true

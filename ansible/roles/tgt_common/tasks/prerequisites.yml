@@ -30,18 +30,28 @@
   with_items: "{{ target_rhel_package_dependencies }}"
   when: ansible_os_family == 'RedHat' and inventory_hostname in groups['targets']
 
+- name: Get selinux status
+  shell: 'sestatus | grep -oP "SELinux status: +\K.+"'
+  register: selinux_status
+  changed_when: false
+
+- name: Get selinux policy name
+  shell: 'sestatus | grep -oP "Loaded policy name: +\K.+"'
+  register: selinux_policy
+  changed_when: false
+  when: selinux_status.stdout == "enabled"
+
 - name: Set selinux to permissive (temp)
-  shell: setenforce 0
-  ignore_errors: true
+  selinux:
+    state: permissive
+    policy: "{{ selinux_policy.stdout }}"
+  when: selinux_status.stdout == "enabled"
 
 - name: Disable SELinux (effective next reboot)
   selinux:
     state: disabled
-  ignore_errors: true
 
 - name: Make sure firewall disabled
-  become: yes
-  become_user: root
   service:
     name: firewalld
     enabled: no

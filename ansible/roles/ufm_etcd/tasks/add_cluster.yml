@@ -1,15 +1,15 @@
 ---
 
 - name: Check Cluster ID
-  shell: "etcdctl get /cluster/id --print-value-only"
-  environment: 
+  command: etcdctl get /cluster/id --print-value-only
+  environment:
     ETCDCTL_API: 3
   changed_when: false
   register: cluster_id
 
 - name: Check Cluster time_created
-  shell: "etcdctl get /cluster/time_created --print-value-only"
-  environment: 
+  command: etcdctl get /cluster/time_created --print-value-only
+  environment:
     ETCDCTL_API: 3
   changed_when: false
   register: cluster_time_created
@@ -19,7 +19,7 @@
     key: /cluster/id
     value: "{{ ansible_date_time.iso8601_micro | to_uuid }}"
     state: present
-  when: cluster_id.stdout == ""
+  when: cluster_id.stdout | length == 0
 
 - name: Add Cluster Name
   etcd3:
@@ -38,4 +38,4 @@
     key: /cluster/time_created
     value: "{{ ansible_date_time.epoch }}"
     state: present
-  when: cluster_time_created.stdout == ""
+  when: cluster_time_created.stdout | length == 0
