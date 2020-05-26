@@ -102,6 +102,7 @@ buildPackage()
     cp -aR systems/   ${dir_share}/
     cp -aR templates/ ${dir_share}/
     cp *.py           ${dir_share}/
+    cp tools/gunicorn.sh ${dir_share}/gunicorn.sh
     cp ufm.yaml       ${full_package_name}/etc/ufm.yaml
     cp ../requirements.txt ${dir_share}/
 
