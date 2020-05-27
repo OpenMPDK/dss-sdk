@@ -8,7 +8,7 @@ User=root
 KillMode=process
 WorkingDirectory=/usr/share/ufm
 Environment="PYTHONPATH=/usr/share/ufm/:$PYTHONPATH"
-ExecStart=/usr/local/bin/gunicorn -w 4 --bind 0.0.0.0:5000 fabricmanager:app
+ExecStart=/usr/share/ufm/gunicorn.sh -w 4 --bind 0.0.0.0:5000 fabricmanager:app
 Restart=always
 
 [Install]
