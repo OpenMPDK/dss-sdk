@@ -7,7 +7,7 @@ import traceback
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
 
-from common.ufmdb.redfish_ufmdb import RedfishUfmdb
+from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from common.ufmlog import ufmlog
 from uuid import uuid4
 
