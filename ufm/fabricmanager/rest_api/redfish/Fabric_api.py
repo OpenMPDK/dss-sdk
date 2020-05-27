@@ -11,7 +11,7 @@ from common.ufmlog import ufmlog
 from uuid import uuid4
 
 # Internal imports
-from common.ufmdb.redfish_ufmdb import RedfishUfmdb
+from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from rest_api.redfish.templates.Fabric import get_Fabric_instance
 from rest_api.redfish import redfish_constants
 import config
