@@ -13,3 +13,4 @@ requests==2.23.0
 # prctl==1.6-1build1
 redfish-client==0.2.1
 redfish==2.1.5
+PyYAML==3.12
