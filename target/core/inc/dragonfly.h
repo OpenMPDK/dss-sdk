@@ -233,6 +233,7 @@ struct dragonfly {
 	struct dragonfly_core core[64]; /**< round robin core selection data from each core */
 
 	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
+	bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 
 	uint32_t num_sgroups; /**< number of pools */
 
