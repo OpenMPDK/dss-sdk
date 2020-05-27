@@ -111,10 +111,10 @@ index afde316..1e79add 100644
   * Complete a bdev_io with a SCSI status code.
 diff --git a/include/spdk/nvme_samsung_apis.h b/include/spdk/nvme_samsung_apis.h
 new file mode 100644
-index 0000000..1f242d1
+index 0000000..32293ac
 --- /dev/null
 +++ b/include/spdk/nvme_samsung_apis.h
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,199 @@
 +#ifndef NVME_SAMCUNG_APIS_H
 +#define NVME_SAMCUNG_APIS_H
 +
@@ -314,13 +314,12 @@ index 0000000..1f242d1
 +#endif
 +
 +#endif
-+
 diff --git a/include/spdk/nvme_samsung_spec.h b/include/spdk/nvme_samsung_spec.h
 new file mode 100644
-index 0000000..7464cc3
+index 0000000..3db4690
 --- /dev/null
 +++ b/include/spdk/nvme_samsung_spec.h
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,84 @@
 +#ifndef NVME_SAMCUNG_SPEC_H
 +#define NVME_SAMCUNG_SPEC_H
 +
@@ -405,7 +404,6 @@ index 0000000..7464cc3
 +#endif
 +
 +#endif
-+
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
 index a24b009..f75d36f 100644
 --- a/include/spdk/nvme_spec.h
@@ -704,7 +702,7 @@ index 1c144bd..46879d9 100644
  
  	w = spdk_jsonrpc_begin_result(request);
 diff --git a/lib/event/subsystems/nvmf/nvmf_rpc_deprecated.c b/lib/event/subsystems/nvmf/nvmf_rpc_deprecated.c
-index 30e5d04..80fa9a9 100644
+index 30e5d04..feecb61 100644
 --- a/lib/event/subsystems/nvmf/nvmf_rpc_deprecated.c
 +++ b/lib/event/subsystems/nvmf/nvmf_rpc_deprecated.c
 @@ -42,6 +42,11 @@
@@ -750,13 +748,11 @@ index 30e5d04..80fa9a9 100644
  	{"serial_number", offsetof(struct rpc_subsystem, serial_number), spdk_json_decode_string, true},
  	{"namespaces", offsetof(struct rpc_subsystem, namespaces), decode_rpc_namespaces, true},
  	{"max_namespaces", offsetof(struct rpc_subsystem, num_ns), spdk_json_decode_uint32, true},
-@@ -486,8 +501,9 @@ spdk_rpc_construct_nvmf_subsystem(struct spdk_jsonrpc_request *request,
- 	struct rpc_subsystem *req;
+@@ -487,7 +502,8 @@ spdk_rpc_construct_nvmf_subsystem(struct spdk_jsonrpc_request *request,
  	struct spdk_nvmf_subsystem *subsystem;
  	size_t i;
--
+ 
 -	SPDK_WARNLOG("The construct_nvmf_subsystem RPC is deprecated. Use nvmf_subsystem_create instead.\n");
-+	
 +	//Note: kv-cli still uses the rpc and it works fine
 +	//SPDK_WARNLOG("The construct_nvmf_subsystem RPC is deprecated. Use nvmf_subsystem_create instead.\n");
  
@@ -783,7 +779,7 @@ index 30e5d04..80fa9a9 100644
  		struct rpc_listen_address *addr;
  		struct spdk_nvme_transport_id trid = {0};
 diff --git a/lib/event/subsystems/nvmf/nvmf_tgt.c b/lib/event/subsystems/nvmf/nvmf_tgt.c
-index bb35dcc..7b5417f 100644
+index bb35dcc..d8436cb 100644
 --- a/lib/event/subsystems/nvmf/nvmf_tgt.c
 +++ b/lib/event/subsystems/nvmf/nvmf_tgt.c
 @@ -39,6 +39,11 @@
@@ -824,7 +820,7 @@ index bb35dcc..7b5417f 100644
 +//SPDK_CONFIG_OSS_TARGET
 +	int rc = dfly_subsystem_init((void *)subsystem, NULL,
 +					nvmf_tgt_subsystem_started, cb_arg, status);
-+	if(rc == DFLY_INIT_PENDING){	
++	if(rc == DFLY_INIT_PENDING){
 +		return;
 +	}
 +//END - SPDK_CONFIG_OSS_TARGET
@@ -862,7 +858,7 @@ index bb35dcc..7b5417f 100644
  }
  
 +void nvmf_tgt_subsystem_start_continue(void * nvmf_subsystem, int status)
-+{	
++{
 +	struct spdk_nvmf_subsystem * subsystem = (struct spdk_nvmf_subsystem *) nvmf_subsystem;
 +	printf("nvmf_tgt_subsystem_start_continue status 0x%x\n", status);
 +	nvmf_tgt_subsystem_started(subsystem, NULL, status);
@@ -1439,7 +1435,7 @@ index a44e4e4..fb28e4e 100644
  
  	TAILQ_HEAD(, spdk_nvmf_host)		hosts;
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index eec86ba..92388ba 100644
+index eec86ba..74c48ad 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -75,6 +75,12 @@ enum spdk_nvmf_rdma_request_state {
@@ -1455,7 +1451,24 @@ index eec86ba..92388ba 100644
  	/* The request is queued until a data buffer is available. */
  	RDMA_REQUEST_STATE_NEED_BUFFER,
  
-@@ -628,6 +634,203 @@ nvmf_rdma_dump_qpair_contents(struct spdk_nvmf_rdma_qpair *rqpair)
+@@ -221,6 +227,7 @@ struct spdk_nvmf_rdma_recv {
+ struct spdk_nvmf_rdma_request {
+ 	struct spdk_nvmf_request		req;
+ 	bool					data_from_pool;
++	uint32_t data_pool_socket;
+ 
+ 	enum spdk_nvmf_rdma_request_state	state;
+ 
+@@ -371,7 +378,7 @@ struct spdk_nvmf_rdma_transport {
+ 
+ 	struct rdma_event_channel	*event_channel;
+ 
+-	struct spdk_mempool		*data_buf_pool;
++	struct spdk_mempool		**data_buf_pool;
+ 
+ 	pthread_mutex_t			lock;
+ 
+@@ -628,6 +635,203 @@ nvmf_rdma_dump_qpair_contents(struct spdk_nvmf_rdma_qpair *rqpair)
  	}
  }
  
@@ -1659,7 +1672,7 @@ index eec86ba..92388ba 100644
  static void
  spdk_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
  {
-@@ -670,6 +873,10 @@ spdk_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+@@ -670,6 +874,10 @@ spdk_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
  		spdk_put_io_channel(rqpair->mgmt_channel);
  	}
  
@@ -1670,7 +1683,7 @@ index eec86ba..92388ba 100644
  	/* Free all memory */
  	spdk_dma_free(rqpair->cmds);
  	spdk_dma_free(rqpair->cpls);
-@@ -851,6 +1058,13 @@ spdk_nvmf_rdma_qpair_initialize(struct spdk_nvmf_qpair *qpair)
+@@ -851,6 +1059,13 @@ spdk_nvmf_rdma_qpair_initialize(struct spdk_nvmf_qpair *qpair)
  		rqpair->state_cntr[rdma_req->state]++;
  	}
  
@@ -1684,7 +1697,7 @@ index eec86ba..92388ba 100644
  	return 0;
  }
  
-@@ -867,7 +1081,7 @@ request_transfer_in(struct spdk_nvmf_request *req)
+@@ -867,7 +1082,7 @@ request_transfer_in(struct spdk_nvmf_request *req)
  	rdma_req = SPDK_CONTAINEROF(req, struct spdk_nvmf_rdma_request, req);
  	rqpair = SPDK_CONTAINEROF(qpair, struct spdk_nvmf_rdma_qpair, qpair);
  
@@ -1693,7 +1706,52 @@ index eec86ba..92388ba 100644
  
  	SPDK_DEBUGLOG(SPDK_LOG_RDMA, "RDMA READ POSTED. Request: %p Connection: %p\n", req, qpair);
  
-@@ -1410,9 +1624,70 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -1197,9 +1412,20 @@ spdk_nvmf_rdma_request_fill_iovs(struct spdk_nvmf_rdma_transport *rtransport,
+ 	uint32_t	i = 0;
+ 	int		rc = 0;
+ 
++	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
++	if(rdma_req->req.cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++		struct dfly_io_device_s *iod = dfly_kd_get_device(rdma_req->req.dreq);
++		assert(iod);
++		if(iod->numa_node != -1) {
++			numa_socket = iod->numa_node;
++		}
++	}
++	assert(numa_socket >= 0 && numa_socket < rte_socket_count());
++	rdma_req->data_pool_socket = numa_socket;
++
+ 	rdma_req->req.iovcnt = 0;
+ 	while (length) {
+-		buf = spdk_mempool_get(rtransport->data_buf_pool);
++		buf = spdk_mempool_get(rtransport->data_buf_pool[numa_socket]);
+ 		if (!buf) {
+ 			rc = -ENOMEM;
+ 			goto err_exit;
+@@ -1232,7 +1458,7 @@ spdk_nvmf_rdma_request_fill_iovs(struct spdk_nvmf_rdma_transport *rtransport,
+ err_exit:
+ 	while (i) {
+ 		i--;
+-		spdk_mempool_put(rtransport->data_buf_pool, rdma_req->data.buffers[i]);
++		spdk_mempool_put(rtransport->data_buf_pool[numa_socket], rdma_req->data.buffers[i]);
+ 		rdma_req->req.iov[i].iov_base = NULL;
+ 		rdma_req->req.iov[i].iov_len = 0;
+ 
+@@ -1340,10 +1566,12 @@ static void
+ nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 		       struct spdk_nvmf_rdma_transport	*rtransport)
+ {
++	uint32_t numa_socket = rdma_req->data_pool_socket;
++	assert(numa_socket >= 0 && numa_socket < rte_socket_count());
+ 	if (rdma_req->data_from_pool) {
+ 		/* Put the buffer/s back in the pool */
+ 		for (uint32_t i = 0; i < rdma_req->req.iovcnt; i++) {
+-			spdk_mempool_put(rtransport->data_buf_pool, rdma_req->data.buffers[i]);
++			spdk_mempool_put(rtransport->data_buf_pool[numa_socket], rdma_req->data.buffers[i]);
+ 			rdma_req->req.iov[i].iov_base = NULL;
+ 			rdma_req->data.buffers[i] = NULL;
+ 		}
+@@ -1410,9 +1638,70 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
  				break;
  			}
  
@@ -1764,7 +1822,7 @@ index eec86ba..92388ba 100644
  			/* If no data to transfer, ready to execute. */
  			if (rdma_req->req.xfer == SPDK_NVME_DATA_NONE) {
  				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
-@@ -1422,6 +1697,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -1422,6 +1711,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
  			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_NEED_BUFFER);
  			TAILQ_INSERT_TAIL(&rqpair->ch->pending_data_buf_queue, rdma_req, link);
  			break;
@@ -1772,7 +1830,81 @@ index eec86ba..92388ba 100644
  		case RDMA_REQUEST_STATE_NEED_BUFFER:
  			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_NEED_BUFFER, 0, 0,
  					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
-@@ -2034,6 +2310,16 @@ spdk_nvmf_rdma_qpair_process_pending(struct spdk_nvmf_rdma_transport *rtransport
+@@ -1577,7 +1867,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ #define SPDK_NVMF_RDMA_DEFAULT_IN_CAPSULE_DATA_SIZE 4096
+ #define SPDK_NVMF_RDMA_DEFAULT_MAX_IO_SIZE 131072
+ #define SPDK_NVMF_RDMA_MIN_IO_BUFFER_SIZE 4096
+-#define SPDK_NVMF_RDMA_DEFAULT_NUM_SHARED_BUFFERS 512
++#define SPDK_NVMF_RDMA_DEFAULT_NUM_SHARED_BUFFERS 1024
+ #define SPDK_NVMF_RDMA_DEFAULT_IO_BUFFER_SIZE (SPDK_NVMF_RDMA_DEFAULT_MAX_IO_SIZE / SPDK_NVMF_MAX_SGL_ENTRIES)
+ 
+ static void
+@@ -1680,17 +1970,25 @@ spdk_nvmf_rdma_create(struct spdk_nvmf_transport_opts *opts)
+ 		return NULL;
+ 	}
+ 
+-	rtransport->data_buf_pool = spdk_mempool_create("spdk_nvmf_rdma",
+-				    opts->num_shared_buffers,
+-				    opts->io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT,
+-				    SPDK_MEMPOOL_DEFAULT_CACHE_SIZE,
+-				    SPDK_ENV_SOCKET_ID_ANY);
+-	if (!rtransport->data_buf_pool) {
+-		SPDK_ERRLOG("Unable to allocate buffer pool for poll group\n");
+-		spdk_nvmf_rdma_destroy(&rtransport->transport);
+-		return NULL;
++	//SPDK_CONFIG_OSS_TARGET
++	uint32_t socket_count = rte_socket_count();
++	SPDK_NOTICELOG("Found %u sockets to initialize rdma data pool\n", socket_count);
++	rtransport->data_buf_pool = calloc(socket_count, sizeof(rtransport->data_buf_pool));
++	char pool_name[256];
++	//END - SPDK_CONFIG_OSS_TARGET
++	for(i=0; i<socket_count; i++) {
++		sprintf(pool_name, "spdk_nvmf_rdma_sock_%u", i);
++		rtransport->data_buf_pool[i] = spdk_mempool_create(pool_name,
++						opts->num_shared_buffers,
++						opts->io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT,
++						SPDK_MEMPOOL_DEFAULT_CACHE_SIZE,
++						i);
++		if (!rtransport->data_buf_pool[i]) {
++			SPDK_ERRLOG("Unable to allocate buffer pool for poll group\n");
++			spdk_nvmf_rdma_destroy(&rtransport->transport);
++			return NULL;
++		}
+ 	}
+-
+ 	contexts = rdma_get_devices(NULL);
+ 	if (contexts == NULL) {
+ 		SPDK_ERRLOG("rdma_get_devices() failed: %s (%d)\n", spdk_strerror(errno), errno);
+@@ -1829,16 +2127,20 @@ spdk_nvmf_rdma_destroy(struct spdk_nvmf_transport *transport)
+ 		free(device);
+ 	}
+ 
+-	if (rtransport->data_buf_pool != NULL) {
+-		if (spdk_mempool_count(rtransport->data_buf_pool) !=
+-		    transport->opts.num_shared_buffers) {
+-			SPDK_ERRLOG("transport buffer pool count is %zu but should be %u\n",
+-				    spdk_mempool_count(rtransport->data_buf_pool),
+-				    transport->opts.num_shared_buffers);
++	uint32_t sock_count = rte_socket_count();
++	int i;
++
++	for(i=0; i < sock_count; i++) {
++		if (rtransport->data_buf_pool[i] != NULL) {
++			if (spdk_mempool_count(rtransport->data_buf_pool[i]) !=
++				transport->opts.num_shared_buffers) {
++				SPDK_ERRLOG("transport buffer pool count is %zu but should be %u\n",
++						spdk_mempool_count(rtransport->data_buf_pool[i]),
++						transport->opts.num_shared_buffers);
++			}
+ 		}
++		spdk_mempool_free(rtransport->data_buf_pool[i]);
+ 	}
+-
+-	spdk_mempool_free(rtransport->data_buf_pool);
+ 	spdk_io_device_unregister(rtransport, NULL);
+ 	pthread_mutex_destroy(&rtransport->lock);
+ 	free(rtransport);
+@@ -2034,6 +2336,16 @@ spdk_nvmf_rdma_qpair_process_pending(struct spdk_nvmf_rdma_transport *rtransport
  	struct spdk_nvmf_rdma_recv	*rdma_recv, *recv_tmp;
  	struct spdk_nvmf_rdma_request	*rdma_req, *req_tmp;
  
@@ -1789,7 +1921,7 @@ index eec86ba..92388ba 100644
  	/* We process I/O in the data transfer pending queue at the highest priority. */
  	TAILQ_FOREACH_SAFE(rdma_req, &rqpair->state_queue[RDMA_REQUEST_STATE_DATA_TRANSFER_PENDING],
  			   state_link, req_tmp) {
-@@ -2706,8 +2992,14 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -2706,8 +3018,14 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
  			rdma_req = SPDK_CONTAINEROF(rdma_wr, struct spdk_nvmf_rdma_request, data.rdma_wr);
  			rqpair = SPDK_CONTAINEROF(rdma_req->req.qpair, struct spdk_nvmf_rdma_qpair, qpair);
  
@@ -1806,7 +1938,7 @@ index eec86ba..92388ba 100644
  			spdk_nvmf_rdma_request_process(rtransport, rdma_req);
  
  			/* Try to process other queued requests */
-@@ -2730,6 +3022,10 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -2730,6 +3048,10 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
  		}
  	}
  

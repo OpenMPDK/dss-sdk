@@ -136,6 +136,7 @@ struct dfly_io_device_s {
 	struct spdk_nvmf_ns *ns;
 	uint32_t index;
 
+	int32_t numa_node;
 	stat_kvio_t *stat_io;
 	stat_serial_t *stat_serial;
 };
