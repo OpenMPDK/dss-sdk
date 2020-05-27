@@ -4,6 +4,7 @@ metadatabase:
 
 essd:
     enable: False
+    start: False
     # essdDrive is optional
     essdDrives:
         - "http://172.22.4.58:32768"
@@ -19,15 +20,18 @@ essd:
 
 nkv:
     enable: True
+    start: True
 
 ebof:
-    enable: True
+    enable: False
+    start: False
 
 smart:
     enable: False
+    start: False
 
 switch:
     enable: False
-
+    start: False
 
 
