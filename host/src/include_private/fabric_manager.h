@@ -50,8 +50,9 @@ using boost::property_tree::read_json;
 using boost::property_tree::write_json;
 using namespace std;
 
+class FabricManager;
 extern c_smglogger* logger;
-//extern FabricManager* fm;
+extern FabricManager* fm;
 
 class FabricManager
 {
@@ -61,6 +62,7 @@ class FabricManager
   //TODO
   //const string name;  // FM Name
   //const string version; // FM Version
+  vector<string> subsystem_nqn_list;
 
   public:
   //FabricManager(){};
@@ -73,8 +75,15 @@ class FabricManager
   ptree target_cluster_map; // Target Cluster Map in JSON format.
   const string& get_host() { return host; }
   const string& get_endpoint() { return endpoint; }
-  
+  void update_subsystem_nqn_list(const string& nqn)
+  {
+    string subsystem_nqn(nqn);
+    subsystem_nqn_list.push_back(subsystem_nqn); 
+  }
+  const vector<string>& get_subsystem_nqn_list() const { return subsystem_nqn_list; }
+
   virtual bool process_clustermap() = 0;
+  virtual void* get_subsystem(const string& subsystem_nqn) const { return NULL;}
   const string get_rest_url() { return host+endpoint; }
 
   bool get_clustermap(ptree& dss_config) {

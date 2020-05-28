@@ -1,28 +1,47 @@
 ---
 
-- name: Get name of local Fabric Manager RPM
-  shell: "ls {{ playbook_dir }}/release/ufm-*.rpm"
+- name: Get name of local Fabric Mananger RPM
+  find:
+    path: "{{ playbook_dir }}/release/"
+    patterns: 'ufm-*.rpm'
   delegate_to: localhost
   run_once: true
   register: ufm_rpm
 
 - name: Get name of local Fabric Mananger Broker RPM
-  shell: "ls {{ playbook_dir }}/release/ufmbroker-*.rpm"
+  find:
+    path: "{{ playbook_dir }}/release/"
+    patterns: 'ufmbroker-*.rpm'
   delegate_to: localhost
   run_once: true
   register: ufmbroker_rpm
 
-- name: Get name of local Fabric Manager DEB
-  shell: "ls {{ playbook_dir }}/release/ufm_*.deb"
+- name: Get name of local Fabric Mananger DEB
+  find:
+    path: "{{ playbook_dir }}/release/"
+    patterns: 'ufm_*.deb'
   delegate_to: localhost
   run_once: true
   register: ufm_deb
 
 - name: Get name of local Fabric Mananger Broker DEB
-  shell: "ls {{ playbook_dir }}/release/ufmbroker_*.deb"
+  find:
+    path: "{{ playbook_dir }}/release/"
+    patterns: 'ufmbroker_*.deb'
   delegate_to: localhost
   run_once: true
   register: ufmbroker_deb
+
+- name: Fail if packages are missing
+  fail:
+    msg: "Missing UFM packages. Check `{{ playbook_dir }}/release` and execute build scripts if empty."
+  delegate_to: localhost
+  run_once: true
+  when: >
+    ufm_rpm.files[0].path is undefined or
+    ufmbroker_rpm.files[0].path is undefined or
+    ufm_deb.files[0].path is undefined or
+    ufmbroker_deb.files[0].path is undefined
 
 - name: Install FabricManager - CentOS
   import_tasks: ufm_centos.yml
@@ -45,12 +64,12 @@
 
 - name: Delete RPM/DEB files from Fabric Mananger Hosts
   file:
-    path: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+    path: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"
     state: absent
   loop:
-    - "{{ ufm_rpm }}"
-    - "{{ ufmbroker_rpm }}"
-    - "{{ ufm_deb }}"
-    - "{{ ufmbroker_deb }}"
+    - "{{ ufm_rpm.files[0].path }}"
+    - "{{ ufmbroker_rpm.files[0].path }}"
+    - "{{ ufm_deb.files[0].path }}"
+    - "{{ ufmbroker_deb.files[0].path }}"
   loop_control:
-    label: "{{ ufm_devtest_staging_dir }}/{{ item.stdout | basename }}"
+    label: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"

@@ -15,7 +15,7 @@
     daemon_reload: yes
     enabled: no
   register: stop_service
-  failed_when: 
+  failed_when:
     - stop_service.msg is defined
     - "'Could not find' not in stop_service.msg"
   become: yes
@@ -28,12 +28,13 @@
   become: yes
 
 - name: List stuck Fabric Manager processes
-  shell: "ps aux | grep [f]abricmanager.py | awk '{print $2}'"
+  command: pgrep -f '[f]abricmanager.py'
   changed_when: false
+  failed_when: false
   register: fm_proc
 
 - name: Kill stuck Fabric Manager processes
-  shell: "kill -9 {{ item }}"
+  command: "kill -9 {{ item }}"
   loop: "{{ fm_proc.stdout_lines }}"
   when: fm_proc.stdout_lines
   become: yes

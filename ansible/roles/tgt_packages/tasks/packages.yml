@@ -6,7 +6,7 @@
     dest: /tmp/install_packages.py
 
 - name: Install required Target packages using script
-  shell: python /tmp/install_packages.py "{{ target_packages }}"
+  command: python /tmp/install_packages.py "{{ target_packages }}"
   register: install_log
 
 - name: Print install log

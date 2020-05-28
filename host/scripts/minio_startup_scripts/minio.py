@@ -13,6 +13,11 @@ import json
 nvme_pattern = re.compile('/dev/nvme(\d)n1')
 base_path = abspath(dirname(abspath(__file__)) + "/..")
 
+MIN_MINIO_PATH = 4
+MINIO_PORT = 9000
+HOST_NAME = socket.gethostname()
+IP_ADDRESS = socket.gethostbyname(HOST_NAME)
+
 
 def get_hosts():
     """
@@ -37,6 +42,8 @@ def get_hosts():
                 elif is_host_ip_mapping_present:
                     ip, host = line.split()
                     host_list.append(host)
+    if not host_list:
+        print("ERROR: Empty hostlist, please check /etc/hosts file")
     return host_list
 
 def setup_distributed_minio(config={}):
@@ -84,7 +91,7 @@ def setup_minio(config={}):
 
 
 @exception
-def  run_minio(remote_mount_paths, config):
+def  run_minio(remote_mount_paths, config, minio_index = 0):
     """
     Bring up Minio
     :param remote_mount_paths:
@@ -97,30 +104,64 @@ def  run_minio(remote_mount_paths, config):
     print("Base Path:{}".format(base_path))
     #minio_bin = base_path + "/scripts/" + config["minio_bin"]
     minio_bin = config["minio_bin"]
-    minio_run_cmd = "{}  server ".format(minio_bin)
+    minio_port = MINIO_PORT + minio_index
 
-    print(config.get("minio_distributed"))
+    minio_run_cmd = "{}  server  --address {}:{} ".format(minio_bin, IP_ADDRESS, MINIO_PORT + minio_index)
+
+    mount_paths = []
     if config.get("minio_distributed", False):
         # Update environment variables
         setup_distributed_minio(config)
         host_list = get_hosts()
         print("INFO: Launching Distributed Minio with following remote mount paths ...")
         for host in host_list:
-            for remote_mount_path in sorted(remote_mount_paths.values()):
-                minio_run_cmd += " http://" + host + remote_mount_path
-                print("\t\t\t\t - {}".format(remote_mount_path))
+            for path in remote_mount_paths:
+                remote_path = " http://" + host + path
+                mount_paths.append(remote_path)
     else:
         # Update environment variables
         setup_minio(config)
         print("INFO: Launching Minio with following remote mount paths ...")
-        for remote_mount_path in sorted(remote_mount_paths.values()):
-            minio_run_cmd += " " + remote_mount_path
-            print("\t\t\t\t - {}".format(remote_mount_path))
+        mount_paths = remote_mount_paths
 
     os.system(ulimit)
-    ret= exec_cmd(minio_run_cmd , False,  False)
-
+    mount_paths = sorted(mount_paths)
+    for path in mount_paths:
+        print("\t\t\t\t - {}".format(path))
+    minio_run_cmd += " ".join(mount_paths)
+    ret, output = exec_cmd(minio_run_cmd , False,  False)
     return ret
+
+@exception
+def validate_minio_paths(nqn_to_remote_paths,remote_mount_paths = [], nic_index=0):
+    """
+
+    Validate minio path requirements. Minimum 4 subsystem is required for remote KV
+    :param: nqn_to_remote_paths = {nqn:[path1, path2]}
+    :param: remote_mount_paths = ["/dev/nvme0n1","/dev/nvme1n1","/dev/nvme2n1","/dev/nvme3n1"]
+    :param: nic_index =  0 (default)
+    :return:
+    """
+    subsystem_count = len(nqn_to_remote_paths)
+
+    if subsystem_count < MIN_MINIO_PATH :
+        print("ERROR: Require minimum {} remote paths ".format(MIN_MINIO_PATH))
+        return False
+    else:
+        for nqn in nqn_to_remote_paths:
+            paths = sorted(nqn_to_remote_paths[nqn])
+            if( nic_index+1 <=  len(paths)):
+                remote_mount_paths.append(paths[nic_index])
+            else:
+                print("ERROR: Doesn't have enough path for subsystem nqn - {}".format(nqn))
+
+    if len(remote_mount_paths) < MIN_MINIO_PATH:
+        print("ERROR: Minio minimum path requirement (MIN_MINIO_PATHS = {}) failed - Total Path:{}".format(MIN_MINIO_PATH,len(remote_mount_paths)))
+        return False
+
+    return True
+
+
 
 
 def dump_cluster_map(cluster_map):
@@ -146,6 +187,9 @@ def  process_command_line():
     parser.add_argument("--minio_host", "-mh", type=str, required=False, default="myminio", help='Specify minio host name')
     parser.add_argument("--minio_distributed", "-dist", action='store_true', required=False,
                         help='Minio in distributed mode')
+    parser.add_argument("--minio_instances", "-mi", type=int, required=False, help='Minio instances')
+    parser.add_argument("--different_nic", "-dn", action='store_true', required=False, help='Allow to program run for different target NIC.')
+    parser.add_argument("--nic_index", "-ni", type=int, required=False, default=0, help='Target NIC Index, default 0')
     parser.add_argument("--cluster_map", "-cm", action='store_true', required=False,help='Dump ClusterMap')
 
     options = parser.parse_args()
@@ -173,15 +217,27 @@ def main():
 
     if cluster_map:
         auto_discovery = AutoDiscovery(cluster_map["subsystem_maps"])
-        remote_mount_paths = auto_discovery.get_remote_mount_paths()
+        subsytem_to_remote_mount_paths = auto_discovery.get_remote_mount_paths()
         # Lunch Minio with mount paths
-        print("Remote Mount Paths: {}".format(remote_mount_paths))
-        ret = run_minio(remote_mount_paths,config)
+        print("Remote Mount Paths: {}".format(subsytem_to_remote_mount_paths))
+        minio_index = 0
+        while(minio_index < config["minio_instances"]):
+            remote_mount_paths=[]
+            nic_index = config["nic_index"]
+            if(config["different_nic"] ):
+                nic_index = minio_index
+            if validate_minio_paths(subsytem_to_remote_mount_paths, remote_mount_paths, nic_index):
+                ret = run_minio(remote_mount_paths,config, minio_index)
+                if not ret:
+                    print("INFO: Minio instance - {} is up ".format(minio_index + 1))
+                else:
+                    print("ERROR: Failed to launch Minio ")
+            else:
+                print("ERROR: Not able to launch Minio instance - {}".format(minio_index + 1))
+            minio_index +=1
 
-        if not ret:
-            print("Minio is up for IO operation ... ")
-        else:
-            print("ERROR: Failed to launch Minio ")
+
+
 
     else:
         print("ERROR: Empty ClusterMap, Auto Discovery can't be performed ")

@@ -32,11 +32,14 @@
  */
 
 #include "unified_fabric_manager.h"
+#include <mutex>
 
 // LinkStatus based on REdfish API spec.
 unordered_map<string, int32_t> link_status = { {"LinkUp", 1 },
                                                {"LinkDown", 0},
                                                {"NoLink",-1} };
+// Locking storage stats
+mutex mtx_remote_stat;
 
 static bool check_redfish_rest_call_status(ptree& response, string& uri);
 
@@ -80,6 +83,7 @@ bool UnifiedFabricManager::process_clustermap()
           if ( subsystem->process_subsystem() ) {
             string subsystem_nqn = subsystem->get_nqn();
             subsystemsMap[subsystem_nqn] = subsystem;
+            update_subsystem_nqn_list(subsystem_nqn);
             is_subsystem_added = true;
           } else {
             delete subsystem;
@@ -154,7 +158,7 @@ void UnifiedFabricManager::generate_clustermap()
       assert(value.first.empty());
       boost::property_tree::ptree interface_pt = value.second;
       ptree interface;
-      interface.put("subsystem_interface_numa_aligned", s_ptr->is_subsystem_aligned());
+      interface.put("subsystem_interface_numa_aligned", s_ptr->is_subsystem_numa_aligned());
       interface.put("subsystem_interface_speed",interface_pt.get<uint32_t>("InterfaceSpeed"));
       interface.put("subsystem_type",get_nkv_transport_value(interface_pt.get<string>("TransportType")));
       interface.put("subsystem_port",interface_pt.get<uint32_t>("Port"));
@@ -168,6 +172,21 @@ void UnifiedFabricManager::generate_clustermap()
     subsystems_pt.push_back(make_pair("", subsystem));
   }
   target_cluster_map.add_child("subsystem_maps", subsystems_pt);  
+}
+
+/* Function Name: get_subsystem
+ * Args         : <const string&> subsystem_nqn
+ * Return       : <void*> = Return address of Subsystem for the specified nqn
+ * Description  : Return the subsystem object for the specified nqn.
+ */
+void* UnifiedFabricManager::get_subsystem(const string& subsystem_nqn) const
+{
+  unique_lock<mutex> lck(mtx_remote_stat);
+  auto found = subsystemsMap.find(subsystem_nqn);
+  if ( found == subsystemsMap.end() ) {
+    return NULL;
+  } 
+  return subsystemsMap.find(subsystem_nqn)->second;
 }
 
 /* Function Name: process_subsystem
@@ -205,9 +224,9 @@ bool Subsystem::process_subsystem()
     subsystem_nqn_id = uuids[1];
 
     if ( pt.get<string>("Status.State", "" ) == "Enabled" && pt.get<string>("Status.Health", "") == "OK" ) {
-      subsystem_status =  0 ;
+      set_status(0);
     } else {
-      subsystem_status = 1 ;
+      set_status(1);
     }
     subsystem_numa_aligned = pt.get<bool>("oem.NumaAligned");
     subsystem_nqn_nsid = pt.get<int32_t>("oem.NSID");
@@ -341,7 +360,7 @@ void Subsystem::get_subsystem_info(ptree& subsystem_pt) const
   subsystem_pt.put("Id", subsystem_nqn_id);
   subsystem_pt.put("NQN", subsystem_nqn);
   subsystem_pt.put("NSID", subsystem_nqn_nsid);
-  subsystem_pt.put("Status", subsystem_status);
+  subsystem_pt.put("Status", get_status());
   subsystem_pt.put("PercentAvailable", subsystem_avail_percent);
   subsystem_pt.put("NumaAligned", subsystem_numa_aligned);
   subsystem_pt.put("Name", name);
@@ -361,6 +380,32 @@ void Subsystem::get_subsystem_info(ptree& subsystem_pt) const
   ptree storage_pt;
   storage->get_storage_info(storage_pt);
   subsystem_pt.add_child("Storage", storage_pt);
+}
+
+/* Function Name: get_storage
+ * Args         : None
+ * Return       : <Storage*> - subsystem storage.
+ * Description  : Return subsystem storage.
+ */
+Storage* const Subsystem::get_storage() const 
+{
+    unique_lock<mutex> lck(mtx_remote_stat);
+    return storage; 
+}
+
+/* Function Name: get_interface
+ * Args         : <const string&> address - IP address for the interface.
+ * Return       : <void*> - subsystem storage.
+ * Description  : Return subsystem interface.
+ */
+void* Subsystem::get_interface(const string& address) const
+{
+  unique_lock<mutex> lck(mtx_remote_stat);
+  auto found = interfacesMap.find(address);
+  if ( found == interfacesMap.end() ) {
+    return NULL;
+  } 
+  return interfacesMap.find(address)->second;
 }
 
 /* Function Name: process_storage
@@ -387,6 +432,7 @@ bool Storage::process_storage()
   try{
     percent_available = storage_pt.get<double>("oem.PercentAvailable");
     capacity_bytes = storage_pt.get<long uint64_t>("oem.CapacityBytes");
+    used_bytes = storage_pt.get<long uint64_t>("oem.UtilizationBytes");
     id = storage_pt.get<string>("Id");
     description = storage_pt.get<string>("Description");
     BOOST_FOREACH(boost::property_tree::ptree::value_type &value, storage_pt.get_child("Drives")) {
@@ -411,6 +457,44 @@ bool Storage::process_storage()
     return false;
   }
   return is_drive_added;
+}
+
+/* Function Name: update_storage
+ * Args         : None
+ * Return       : bool
+ * Description  : Update storage metrics for an subsystem. Includes drive as well.
+ */
+bool Storage::update_storage()
+{
+  // URL
+  string rest_response;
+  string storage_url = host + endpoint;
+  RESTful(rest_response, storage_url);
+  ptree storage_pt;
+  istringstream iss_storage (rest_response);
+  read_json(iss_storage, storage_pt);
+
+  if ( !check_redfish_rest_call_status(storage_pt, storage_url) ){
+    smg_error(logger, "Failed to read storage information from %s", storage_url.c_str());
+    return false;
+  }
+
+  // Update storage information
+  try {
+    unique_lock<mutex> lck(mtx_remote_stat);
+    percent_available = storage_pt.get<double>("oem.PercentAvailable");
+    capacity_bytes = storage_pt.get<long uint64_t>("oem.CapacityBytes");
+    used_bytes = storage_pt.get<long uint64_t>("oem.UsedBytes", 1000);	
+    // update drive
+    for( auto d_iter = drivesMap.begin(); d_iter != drivesMap.end(); d_iter++) {
+      Drive* drive = d_iter->second;
+      drive->process_drive();
+    }
+  } catch ( exception& e ) {
+    smg_error(logger,"Exception: %s - %s", __func__, e.what());
+    return false;
+  }
+  return true;
 }
 
 /* Function Name: add_drive
@@ -438,7 +522,7 @@ bool Storage::add_drive(string drive_endpoint)
  * Return       : None
  * Description  : Get entire storage information for a subsystem.
  */
-void Storage::get_storage_info(ptree& storage_pt)
+void Storage::get_storage_info(ptree& storage_pt) const
 {
   storage_pt.put("CapacityBytes", capacity_bytes);
   storage_pt.put("PercentAvailable", percent_available);
@@ -540,9 +624,9 @@ bool Interface::process_interface()
   
   interface_speed = interface_pt.get<int32_t>("SpeedMbps", 100000);
   if ( !interface_pt.get<string>("LinkStatus","").empty() ) {
-    status = link_status[interface_pt.get<string>("LinkStatus")];
+    set_status(link_status[interface_pt.get<string>("LinkStatus")]);
   } else {
-    status = 0; 
+    set_status(0); 
   }
   return get_interface_address(interface_pt);
 }
@@ -591,7 +675,7 @@ bool Interface::get_interface_address(ptree& interface_pt)
  */
 void Interface::get_interface_info(ptree& interface_pt)
 {
-  interface_pt.put("Status", status);
+  interface_pt.put("Status", get_status());
   interface_pt.put("Address", address);
   interface_pt.put("Port", port);
   interface_pt.put("AddressFamily", ip_address_family);

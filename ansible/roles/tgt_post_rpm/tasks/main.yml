@@ -9,7 +9,7 @@
   wait_for: timeout=70
 
 - name: Creating subsystem based on CONFIG file.
-  shell: "{{ virtualenv_dir }}/bin/python /tmp/subsystem_add.py"
+  command: "{{ virtualenv_dir }}/bin/python /tmp/subsystem_add.py"
   register: subsys_add
   failed_when: false
   no_log: True
@@ -17,4 +17,3 @@
 - name: Check status of subsystem configure script
   fail: msg="Error in configuring subsystem. Check subsystem_add.log"
   when: subsys_add.rc != 0
-

@@ -49,6 +49,7 @@ c_smglogger* logger = NULL;
 std::atomic<int> submitted(0);
 std::atomic<int> completed(0);
 //std::atomic<int> cur_qdepth[32];
+const char* S3_DELIMITER = "/";
 #define NKV_TEST_META_VAL_LEN 4096
 #define NKV_TEST_META_KEY_LEN 60
 
@@ -1204,6 +1205,18 @@ do {
       keys_out[iter].length = 256;
     }
     auto start = std::chrono::steady_clock::now();
+
+    // Checking key_prefix, and delimiter
+    uint32_t prefix_length = strlen(key_beginning);
+    if ( key_delimiter ) { 
+      if ( key_delimiter[0] != key_beginning[prefix_length -1] ) {
+        strncat(key_beginning, key_delimiter, 1);
+      }
+    } else {
+      if (key_beginning[prefix_length -1] !=  S3_DELIMITER[0]) {
+        strncat(key_beginning, S3_DELIMITER, 1);
+      }
+    }
 
     for (uint32_t cnt_iter = 0; cnt_iter < io_ctx_cnt; cnt_iter++) {
       smg_info(logger, "Iterating for container hash = %u, prefix = %s, delimiter = %s", io_ctx[cnt_iter].container_hash, key_beginning, key_delimiter);

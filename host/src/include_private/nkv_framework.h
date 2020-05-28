@@ -93,8 +93,8 @@
   extern int32_t nkv_data_cache_size_threshold;
   extern int32_t nkv_use_data_cache;
   extern int32_t nkv_remote_listing;
-  extern int32_t nkv_max_key_length;
-  extern int32_t nkv_max_value_length;
+  extern uint32_t nkv_max_key_length;
+  extern uint32_t nkv_max_value_length;
   extern int32_t nkv_in_memory_exec;
   extern std::atomic<uint32_t> nic_load_balance;
   extern std::atomic<uint32_t> nic_load_balance_policy;
@@ -1426,6 +1426,28 @@
       return stat;
 
     }
+
+    // Get nqn name associated to a subsystem or remote paths.
+    nkv_result nkv_get_target_container_name(uint64_t container_hash,
+                                             uint64_t container_path_hash,
+                                             std::string& subsystem_nqn,
+                                             std::string& p_mount) {
+      nkv_result stat = NKV_SUCCESS;
+      auto c_iter = cnt_list.find(container_hash);
+      if (c_iter == cnt_list.end()) {
+        smg_error(logger,"No Container found for hash = %u, number of containers = %u, op = nkv_get_path_mount_point", container_hash, cnt_list.size());
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      NKVTarget* one_cnt = c_iter->second;
+      if (one_cnt) {
+        subsystem_nqn = one_cnt->target_container_name;
+        stat = one_cnt->get_path_mount_point(container_path_hash, p_mount);
+      } else {
+        smg_error(logger, "NULL Container found for hash = %u, op = nkv_get_target_container_name!!", container_hash);
+        return NKV_ERR_NO_CNT_FOUND;
+      }
+      return stat;
+    }
       
     bool populate_container_info(nkv_container_info *cntlist, uint32_t *cnt_count, uint32_t index);
 
@@ -1733,118 +1755,7 @@
     bool update_container(std::string category,
                           std::string node_name,
                           boost::property_tree::ptree& args,
-                          int32_t remote_path_status) {
-
-      bool is_nkv_data_structure_updated =  false;
-
-      // Iterate container list which contain the list of subsystems 
-      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
-        NKVTarget* target_ptr = m_iter->second;
-        std::unordered_map<uint64_t, NKVTargetPath*> target_path_map = target_ptr->get_path_map();
-        // Skip if the event doesn't belog to a target node.
-        if (node_name != target_ptr->target_node_name ) {
-          continue;
-        } 
-
-        // Iterate each path of a subsystem
-        for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
-          NKVTargetPath* target_path_ptr = p_iter->second;
-          
-          bool skip = true;
-          // Target: Check only node name
-          if ( category == "TARGET" ){
-            if ( node_name == target_ptr->target_node_name ) {
-              skip = false;
-            }
-          }
-          else if ( category == "SUBSYSTEM" ) {
-            // Subsystem: Check only nqn
-            if (  target_ptr->target_container_name == args.get<std::string>("nqn", "") ) {
-              skip = false;
-            } 
-          }
-          else if ( category == "NETWORK" ) {
-            if (target_path_ptr->path_ip == args.get<std::string>("address", "10.1.1.0") ) { 
-              skip = false;
-            }
-          }  
-        
-          smg_debug(logger, "Remote PATH = %s , STATUS = %d , EVENT STATUS = %d",
-                  (target_path_ptr->dev_path).c_str(),  (target_path_ptr->path_status).load(std::memory_order_relaxed), remote_path_status);
-          // NIC: Check path if matches and update status accordingly
-          if (! skip) {
-            if ( (target_path_ptr->path_status).load(std::memory_order_relaxed) !=  remote_path_status ) {
-              is_nkv_data_structure_updated = true; 
-                              
-              if ( remote_path_status ) {
-                // target_path_ptr->dev_path , target_path_ptr->path_ip, target_path_ptr->path_port
-                // Check remote device path exist?
-                std::unordered_map<std::string, std::string> subsystem_nqn_to_nvme_dir;
-                std::string nqn_address_port =  target_ptr->target_container_name + ":" + target_path_ptr->path_ip 
-                                              + ":" + std::to_string(target_path_ptr->path_port);
-                bool remote_device_exist = false;
-                // Generally if subsystem/NIC is back within re-connection time period, then automatically
-                // gets mounted on the same remote mount point, else we need to perform nvme connect. 
-                if ( ! get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
-                  if (nvme_connect(target_ptr->target_container_name, target_path_ptr->path_ip,
-                      target_path_ptr->path_port, target_path_ptr->path_type)) {
-                    remote_device_exist = true;
-                  }
-                } else {
-                  remote_device_exist = true;
-                }
-                
-                // Check mount point exist for an nqn:ip:port?
-                if ( remote_device_exist &&  get_nvme_mount_dir(subsystem_nqn_to_nvme_dir, nqn_address_port) ) {
-                  std::string remote_device_path = "/dev/" + subsystem_nqn_to_nvme_dir[nqn_address_port];
-                  if ( remote_device_path.compare(target_path_ptr->dev_path) != 0 ) {
-                    target_path_ptr->dev_path = remote_device_path;
-		    smg_alert(logger, "New remote mount path %s", remote_device_path.c_str());
-                  }
-                  if ( target_path_ptr->open_path(nkv_cnt_list->get_nkv_app_name())) {
-                    smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is UP for IO",(target_path_ptr->dev_path).c_str(),
-                             (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
-                    // Update target path status to UP:
-                    target_path_ptr->set_target_path_status(remote_path_status);
-                  } else {
-                    smg_error(logger,"Remote mount path=%s ip=%s, nqn=%s opened failed!!", (target_path_ptr->dev_path).c_str(),
-                             (target_path_ptr->path_ip).c_str(),(target_ptr->target_container_name).c_str());
-                  }
-                } else {
-                  smg_error(logger, "NVME device doesn't exist for %s", nqn_address_port.c_str() );
-                }
-              } else {
-                // Update target path status to down.
-                target_path_ptr->set_target_path_status(remote_path_status);
-                 // Close kvs_device_path
-                target_path_ptr->close_path();
-                smg_alert(logger,"Remote mount path=%s, ip=%s, nqn=%s is DOWN for IO",(target_path_ptr->dev_path).c_str(),
-                         (target_path_ptr->path_ip).c_str(), (target_ptr->target_container_name).c_str());
-              }
-            }
-          } // End of checking subsystem paths
-        } // End of transporter path iteration
-
-        // Update subsystem status
-        if ( is_nkv_data_structure_updated ) {
-          int32_t target_path_status = 0;
-          for ( auto p_iter = target_path_map.begin(); p_iter != target_path_map.end(); p_iter++ ) {
-            NKVTargetPath* target_path_ptr = p_iter->second;
-            if ( target_path_ptr->get_target_path_status() ) {
-              target_path_status = 1;
-            }
-          }
-          if (! target_ptr->get_ss_status() ^ target_path_status ) {
-            target_ptr->set_ss_status(!target_path_status);
-            smg_alert(logger, "Subsystem=%s status changed to %d", (target_ptr->target_container_name).c_str(), target_path_status);      
-          }
-        }
-
-      } // End of iteration of subsystems
-
-      return is_nkv_data_structure_updated;
-    } 
-
+                          int32_t remote_path_status);
   };
 
 #endif

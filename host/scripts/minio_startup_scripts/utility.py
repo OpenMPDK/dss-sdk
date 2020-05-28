@@ -43,7 +43,11 @@ def exec_cmd(cmd="", output=False, blocking=False):
                 DEVNULL = open(os.devnull, "wb")
                 ret = subprocess.call(cmd.split(), shell=False, stdout=DEVNULL, stderr=subprocess.STDOUT)
         else:
-            subprocess.Popen(cmd.split())
+            with open("minio.log", "ab") as FH:
+                process = subprocess.Popen(cmd.split(), stdout=FH, stderr=subprocess.PIPE)
+            #stdout, stderr = process.communicate()
+            #if stderr :
+            #    print("ERROR:{}".format(stderr))
 
     except subprocess.CalledProcessError as e:
         print(traceback.format_exc())
@@ -92,6 +96,7 @@ def get_file_path(base_dir, file_name):
     file_path = os.path.abspath(base_dir + "/" + file_name)
 
     return file_path
+
 
 
 
