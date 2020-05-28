@@ -263,6 +263,25 @@ def insertEssdUrls(db, essdUrls):
     db.save_key_value("/essd/essdurls", jsonString)
 
 
+def readConfigDataFromFile(filename):
+    installPath="/usr/share/ufm/"
+
+    configData = dict()
+    if os.path.isfile( installPath + filename):
+        with open(installPath + filename) as f:
+            configData = yaml.load(f)
+    else:
+        # look for file in current directory
+        if os.path.isfile(filename):
+            with open(filename) as f:
+                configData = yaml.load(f)
+        else:
+            log.error("Failed to open config file ufm.yaml")
+            sys.exit(-1)
+
+    return configData
+
+
 class StatusChangeCbArg(object):
     def __init__(self, subsystems, target, kwargs, log):
         self.subsystems = subsystems
@@ -341,31 +360,9 @@ def main():
     kwargs['port'] = args.port
 
     # Determine hostname
-    # TODO: We can do this within each subsystem
-    hostname = socket.gethostname()
+    hostname = socket.gethostname().lower()
 
-    # Use this hostname when using snapshot data that Tom took
-    # hostname = "msl-dc-client8"
-
-    ufmMetadata = dict()
-    if os.path.isfile('/etc/ufm.yaml'):
-        with open(r'/etc/ufm.yaml') as f:
-            ufmMetadata = yaml.load(f)
-    else:
-        if os.path.isfile('ufm.yaml'):
-            with open(r'ufm.yaml') as f:
-                ufmMetadata = yaml.load(f)
-        else:
-            log.error("Failed to open config file ufm.yaml")
-            sys.exit(-1)
-
-    '''
-    if ufmMetadata:
-        if isinstance(ufmMetadata, collections.Iterable):
-            for d in ufmMetadata:
-                print("{} {}".format(d, ufmMetadata[d]))
-    '''
-
+    ufmMetadata = readConfigDataFromFile(filename="ufm.yaml")
     try:
         metadataIp = ufmMetadata['metadatabase']['ip']
 
@@ -388,12 +385,12 @@ def main():
         if ufmMetadata['essd']['enable']:
             sub_systems.append( Essd(hostname=hostname, db=db) )
 
-        # Drives are optional
-        try:
-            if ufmMetadata['essd']['essdDrives']:
-                insertEssdUrls(db=db, essdUrls=ufmMetadata['essd']['essdDrives'])
-        except:
-            pass
+            # Drives are optional
+            try:
+                if ufmMetadata['essd']['essdDrives']:
+                    insertEssdUrls(db=db, essdUrls=ufmMetadata['essd']['essdDrives'])
+            except:
+                pass
     except:
         pass
 
