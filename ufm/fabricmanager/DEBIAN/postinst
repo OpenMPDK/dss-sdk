@@ -40,8 +40,6 @@ fi
 cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
 cp ${SERVICE_PATH}/gunicorn.service /etc/systemd/system/
 
-[[ ! -e "/etc/ufm.yaml" ]] && cp /usr/share/${SERVICE}/ufm.yaml /etc
-
 systemctl daemon-reload
 
 systemctl enable gunicorn
