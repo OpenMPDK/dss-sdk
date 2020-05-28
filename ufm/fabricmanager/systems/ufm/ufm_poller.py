@@ -1,4 +1,4 @@
-
+import os
 import threading
 
 from ufm_thread import UfmThread
@@ -22,7 +22,7 @@ class UfmPoller(UfmThread):
     def start(self):
         self.ufmArg.log.info("Start {}".format(self.__class__.__name__))
         self._running = True
-        super(UfmPoller, self).start(threadName='UfmPoller', cb=self.poller, cbArgs=self.ufmArg, repeatIntervalSecs=3.0)
+        super(UfmPoller, self).start(threadName='UfmPoller', cb=self.poller, cbArgs=self.ufmArg, repeatIntervalSecs=60.0)
 
 
     def stop(self):
@@ -36,8 +36,19 @@ class UfmPoller(UfmThread):
 
 
     def poller(self, ufmArg):
-        # This is the function that does the work
+        self.logger.debug("Monitor disk space")
+
+        # Read disk space of node and write it to db
+        df_struct = os.statvfs('/')
+        if df_struct.f_blocks > 0:
+            df_out = df_struct.f_bfree * 100 / df_struct.f_blocks
+            if df_out:
+                ufmArg.db.save_key_value(ufmArg.prefix + "/" + "/space_avail_percent", df_out)
+
+        # Do more here is needed
         pass
+
+
 
 
 
