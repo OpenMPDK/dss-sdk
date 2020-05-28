@@ -1,7 +1,4 @@
 
-import collections
-
-
 
 class SubSystem():
     def __init__(self, services):
@@ -17,18 +14,16 @@ class SubSystem():
 
     def start(self):
         print("SubSystem Start")
-        if isinstance(self.services, collections.Iterable):
-            for service in self.services:
-                if not service.is_running():
-                    service.start()
-                    self._running = True
+        for service in iter(self.services):
+            if not service.is_running():
+                service.start()
+                self._running = True
 
 
     def stop(self):
         print("SubSystem Stop")
-        if isinstance(self.services, collections.Iterable):
-            for service in self.services:
-                service.stop()
+        for service in iter(self.services):
+            service.stop()
 
         self._running = False
 
