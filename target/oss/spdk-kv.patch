@@ -1435,7 +1435,7 @@ index a44e4e4..fb28e4e 100644
  
  	TAILQ_HEAD(, spdk_nvmf_host)		hosts;
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index eec86ba..74c48ad 100644
+index eec86ba..451d637 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -75,6 +75,12 @@ enum spdk_nvmf_rdma_request_state {
@@ -1751,7 +1751,7 @@ index eec86ba..74c48ad 100644
  			rdma_req->req.iov[i].iov_base = NULL;
  			rdma_req->data.buffers[i] = NULL;
  		}
-@@ -1410,9 +1638,70 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -1410,9 +1638,31 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
  				break;
  			}
  
@@ -1780,15 +1780,13 @@ index eec86ba..74c48ad 100644
 +				break;
 +			}
 +
-+			/* If no data to transfer, ready to execute. */
-+			if (rdma_req->req.xfer == SPDK_NVME_DATA_NONE) {
-+				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
-+				break;
-+			}
-+
-+			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_NEED_BUFFER);
-+			TAILQ_INSERT_TAIL(&rqpair->ch->pending_data_buf_queue, rdma_req, link);
-+			break;
+ 			/* If no data to transfer, ready to execute. */
+ 			if (rdma_req->req.xfer == SPDK_NVME_DATA_NONE) {
+ 				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
+@@ -1422,6 +1672,46 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_NEED_BUFFER);
+ 			TAILQ_INSERT_TAIL(&rqpair->ch->pending_data_buf_queue, rdma_req, link);
+ 			break;
 +		//SPDK_CONFIG_OSS_TARGET
 +		case RDMA_REQUEST_STATE_PENDING_GET_KEY:
 +			//spdk_trace_record(TRACE_RDMA_REQUEST_STATE_KEY_TRANSFER_PENDING, 0, 0,
@@ -1819,18 +1817,61 @@ index eec86ba..74c48ad 100644
 +			break;
 +		case RDMA_REQUEST_STATE_READY_WITH_KEY:
 +			//dfly_rdma_fini_key_transfer(device, rdma_req);
- 			/* If no data to transfer, ready to execute. */
- 			if (rdma_req->req.xfer == SPDK_NVME_DATA_NONE) {
- 				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
-@@ -1422,6 +1711,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
- 			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_NEED_BUFFER);
- 			TAILQ_INSERT_TAIL(&rqpair->ch->pending_data_buf_queue, rdma_req, link);
- 			break;
++			/* If no data to transfer, ready to execute. */
++			if (rdma_req->req.xfer == SPDK_NVME_DATA_NONE) {
++				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
++				break;
++			}
++
++			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_NEED_BUFFER);
++			TAILQ_INSERT_TAIL(&rqpair->ch->pending_data_buf_queue, rdma_req, link);
++			break;
 +		//END - SPDK_CONFIG_OSS_TARGET
  		case RDMA_REQUEST_STATE_NEED_BUFFER:
  			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_NEED_BUFFER, 0, 0,
  					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
-@@ -1577,7 +1867,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -1505,6 +1795,13 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 		case RDMA_REQUEST_STATE_READY_TO_EXECUTE:
+ 			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_READY_TO_EXECUTE, 0, 0,
+ 					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
++
++			//SPDK_CONFIG_OSS_TARGET
++			if(!spdk_nvmf_qpair_is_admin_queue(&rqpair->qpair) &&
++					df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++				df_lat_update_tick(rdma_req->req.dreq, DF_LAT_READY_TO_EXECUTE);
++			}
++			//SPDK_CONFIG_OSS_TARGET
+ 			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_EXECUTING);
+ 			spdk_nvmf_request_exec(&rdma_req->req);
+ 			break;
+@@ -1517,6 +1814,13 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 		case RDMA_REQUEST_STATE_EXECUTED:
+ 			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_EXECUTED, 0, 0,
+ 					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
++
++			//SPDK_CONFIG_OSS_TARGET
++			if(!spdk_nvmf_qpair_is_admin_queue(&rqpair->qpair) &&
++					df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++				df_lat_update_tick(rdma_req->req.dreq, DF_LAT_COMPLETED_FROM_DRIVE);
++			}
++			//SPDK_CONFIG_OSS_TARGET
+ 			if (rdma_req->req.xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST) {
+ 				spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_DATA_TRANSFER_PENDING);
+ 			} else {
+@@ -1553,6 +1857,12 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_COMPLETED, 0, 0,
+ 					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
+ 
++			//SPDK_CONFIG_OSS_TARGET
++			if(!spdk_nvmf_qpair_is_admin_queue(&rqpair->qpair) &&
++					df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++				dfly_req_fini(rdma_req->req.dreq);
++			}
++			//SPDK_CONFIG_OSS_TARGET
+ 			nvmf_rdma_request_free(rdma_req, rtransport);
+ 			break;
+ 		case RDMA_REQUEST_NUM_STATES:
+@@ -1577,7 +1887,7 @@ spdk_nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
  #define SPDK_NVMF_RDMA_DEFAULT_IN_CAPSULE_DATA_SIZE 4096
  #define SPDK_NVMF_RDMA_DEFAULT_MAX_IO_SIZE 131072
  #define SPDK_NVMF_RDMA_MIN_IO_BUFFER_SIZE 4096
@@ -1839,7 +1880,7 @@ index eec86ba..74c48ad 100644
  #define SPDK_NVMF_RDMA_DEFAULT_IO_BUFFER_SIZE (SPDK_NVMF_RDMA_DEFAULT_MAX_IO_SIZE / SPDK_NVMF_MAX_SGL_ENTRIES)
  
  static void
-@@ -1680,17 +1970,25 @@ spdk_nvmf_rdma_create(struct spdk_nvmf_transport_opts *opts)
+@@ -1680,17 +1990,25 @@ spdk_nvmf_rdma_create(struct spdk_nvmf_transport_opts *opts)
  		return NULL;
  	}
  
@@ -1875,7 +1916,7 @@ index eec86ba..74c48ad 100644
  	contexts = rdma_get_devices(NULL);
  	if (contexts == NULL) {
  		SPDK_ERRLOG("rdma_get_devices() failed: %s (%d)\n", spdk_strerror(errno), errno);
-@@ -1829,16 +2127,20 @@ spdk_nvmf_rdma_destroy(struct spdk_nvmf_transport *transport)
+@@ -1829,16 +2147,20 @@ spdk_nvmf_rdma_destroy(struct spdk_nvmf_transport *transport)
  		free(device);
  	}
  
@@ -1904,7 +1945,7 @@ index eec86ba..74c48ad 100644
  	spdk_io_device_unregister(rtransport, NULL);
  	pthread_mutex_destroy(&rtransport->lock);
  	free(rtransport);
-@@ -2034,6 +2336,16 @@ spdk_nvmf_rdma_qpair_process_pending(struct spdk_nvmf_rdma_transport *rtransport
+@@ -2034,6 +2356,16 @@ spdk_nvmf_rdma_qpair_process_pending(struct spdk_nvmf_rdma_transport *rtransport
  	struct spdk_nvmf_rdma_recv	*rdma_recv, *recv_tmp;
  	struct spdk_nvmf_rdma_request	*rdma_req, *req_tmp;
  
@@ -1921,13 +1962,13 @@ index eec86ba..74c48ad 100644
  	/* We process I/O in the data transfer pending queue at the highest priority. */
  	TAILQ_FOREACH_SAFE(rdma_req, &rqpair->state_queue[RDMA_REQUEST_STATE_DATA_TRANSFER_PENDING],
  			   state_link, req_tmp) {
-@@ -2706,8 +3018,14 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -2706,8 +3038,14 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
  			rdma_req = SPDK_CONTAINEROF(rdma_wr, struct spdk_nvmf_rdma_request, data.rdma_wr);
  			rqpair = SPDK_CONTAINEROF(rdma_req->req.qpair, struct spdk_nvmf_rdma_qpair, qpair);
  
 -			assert(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER);
 -			spdk_nvmf_rdma_request_set_state(rdma_req, RDMA_REQUEST_STATE_READY_TO_EXECUTE);
-+			assert(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER || 
++			assert(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER ||
 +					rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_KEY);
 +
 +			if(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_KEY) {
@@ -1938,7 +1979,7 @@ index eec86ba..74c48ad 100644
  			spdk_nvmf_rdma_request_process(rtransport, rdma_req);
  
  			/* Try to process other queued requests */
-@@ -2730,6 +3048,10 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
+@@ -2730,6 +3068,10 @@ spdk_nvmf_rdma_poller_poll(struct spdk_nvmf_rdma_transport *rtransport,
  		}
  	}
  
@@ -2025,7 +2066,7 @@ index 4011fd6..f79a2e9 100644
  	if (rc != 0) {
  		SPDK_ERRLOG("Subsystem %s: bdev %s cannot be opened, error=%d\n",
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index e615691..f48178f 100644
+index e615691..3261194 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -60,7 +60,7 @@
@@ -2707,7 +2748,20 @@ index e615691..f48178f 100644
  			if (tcp_req->data_from_pool) {
  				/* Put the buffer/s back in the pool */
  				for (uint32_t i = 0; i < tcp_req->req.iovcnt; i++) {
-@@ -2611,21 +2915,6 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+@@ -2594,6 +2898,12 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+ 			tcp_req->req.length = 0;
+ 			tcp_req->req.iovcnt = 0;
+ 			tcp_req->req.data = NULL;
++			//SPDK_CONFIG_OSS_TARGET
++			if(!spdk_nvmf_qpair_is_admin_queue(&tqpair->qpair) &&
++					df_qpair_susbsys_enabled(&tqpair->qpair, NULL)) {
++				dfly_req_fini(tcp_req->req.dreq);
++			}
++			//SPDK_CONFIG_OSS_TARGET
+ 			spdk_nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_FREE);
+ 			break;
+ 		case TCP_REQUEST_NUM_STATES:
+@@ -2611,21 +2921,6 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
  }
  
  static void
@@ -2729,7 +2783,7 @@ index e615691..f48178f 100644
  spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock *sock)
  {
  	struct nvme_tcp_qpair *tqpair = arg;
-@@ -2639,7 +2928,6 @@ spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock
+@@ -2639,7 +2934,6 @@ spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock
  	}
  
  	ttransport = SPDK_CONTAINEROF(tqpair->qpair.transport, struct spdk_nvmf_tcp_transport, transport);
@@ -2737,7 +2791,7 @@ index e615691..f48178f 100644
  	rc = spdk_nvmf_tcp_sock_process(tqpair);
  	if (rc < 0) {
  		tqpair->state = NVME_TCP_QPAIR_STATE_EXITED;
-@@ -2690,6 +2978,7 @@ spdk_nvmf_tcp_poll_group_add(struct spdk_nvmf_transport_poll_group *group,
+@@ -2690,6 +2984,7 @@ spdk_nvmf_tcp_poll_group_add(struct spdk_nvmf_transport_poll_group *group,
  		return -1;
  	}
  
@@ -2745,7 +2799,7 @@ index e615691..f48178f 100644
  	tqpair->state = NVME_TCP_QPAIR_STATE_INVALID;
  	tqpair->timeout = SPDK_NVME_TCP_QPAIR_EXIT_TIMEOUT;
  	tqpair->last_pdu_time = spdk_get_ticks();
-@@ -2709,6 +2998,9 @@ spdk_nvmf_tcp_poll_group_remove(struct spdk_nvmf_transport_poll_group *group,
+@@ -2709,6 +3004,9 @@ spdk_nvmf_tcp_poll_group_remove(struct spdk_nvmf_transport_poll_group *group,
  	tgroup = SPDK_CONTAINEROF(group, struct spdk_nvmf_tcp_poll_group, group);
  	tqpair = SPDK_CONTAINEROF(qpair, struct nvme_tcp_qpair, qpair);
  
@@ -2755,7 +2809,7 @@ index e615691..f48178f 100644
  	SPDK_DEBUGLOG(SPDK_LOG_NVMF_TCP, "remove tqpair=%p from the tgroup=%p\n", tqpair, tgroup);
  	TAILQ_REMOVE(&tgroup->qpairs, tqpair, link);
  	rc = spdk_sock_group_remove_sock(tgroup->sock_group, tqpair->sock);
-@@ -2748,6 +3040,9 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
+@@ -2748,6 +3046,9 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
  {
  	struct spdk_nvmf_tcp_poll_group *tgroup;
  	int rc;
@@ -2765,7 +2819,7 @@ index e615691..f48178f 100644
  
  	tgroup = SPDK_CONTAINEROF(group, struct spdk_nvmf_tcp_poll_group, group);
  
-@@ -2755,12 +3050,22 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
+@@ -2755,12 +3056,22 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
  		return 0;
  	}
  
@@ -2788,7 +2842,7 @@ index e615691..f48178f 100644
  	return 0;
  }
  
-@@ -2838,6 +3143,11 @@ spdk_nvmf_tcp_qpair_set_sq_size(struct spdk_nvmf_qpair *qpair)
+@@ -2838,6 +3149,11 @@ spdk_nvmf_tcp_qpair_set_sq_size(struct spdk_nvmf_qpair *qpair)
  	rc = spdk_nvmf_tcp_qpair_init_mem_resource(tqpair, tqpair->qpair.sq_head_max);
  	if (!rc) {
  		tqpair->max_queue_depth += tqpair->qpair.sq_head_max;

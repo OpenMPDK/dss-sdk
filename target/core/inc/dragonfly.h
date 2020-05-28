@@ -106,6 +106,8 @@ extern "C" {
 #define MIN(a, b) ((a)<=(b) ? (a):(b))
 #endif
 
+#define DF_LATENCY_MEASURE_ENABLED
+
 #define MAX_SS (64)
 #define KB                  (1024)
 #define KB_SHIFT			(10)
@@ -385,6 +387,12 @@ struct spdk_nvme_ns_data *dfly_nvme_ns_get_data(struct spdk_nvme_ns *ns);
 
 struct spdk_nvme_ctrlr * spdk_bdev_nvme_get_ctrlr(struct spdk_bdev *bdev);
 void dfly_nvme_ctrlr_update_namespaces(struct spdk_nvme_ctrlr *ctrlr);
+
+#ifdef DF_LATENCY_MEASURE_ENABLED
+void df_lat_update_tick(struct dfly_request *dreq, uint32_t state);
+void df_print_tick(struct dfly_request *dreq);
+
+#endif
 
 #ifdef __cplusplus
 }

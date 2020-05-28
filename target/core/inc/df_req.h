@@ -65,6 +65,7 @@ struct dfly_value {
 	int32_t  offset;
 };
 
+
 typedef struct dfly_list_info_s {
 	int pe_cnt_tbd;		//nr of p/e pair to be processed.
 	int pe_total_cnt;	//total nr of prefix/entry pairs from the key path.
@@ -75,6 +76,18 @@ typedef struct dfly_list_info_s {
 	uint16_t options;	// list the root/ from beginning.
 	uint16_t start_key_offset;	// offset of the key payload to delimit the prefix and start_key
 } dfly_list_info_t;
+
+typedef enum df_lat_states_e {
+	DF_LAT_REQ_START = 0,
+	DF_LAT_READY_TO_EXECUTE,
+	DF_LAT_COMPLETED_FROM_DRIVE,
+	DF_LAT_REQ_END,
+	DF_LAT_NUM_STATES
+} df_lat_states_t ;
+
+struct df_io_lat_ticks {
+	uint64_t tick_arr[DF_LAT_NUM_STATES];
+};
 
 #define DFLY_REQF_ANONYMOUS	((uint32_t)0x00000001)
 #define DFLY_REQF_NVMF          ((uint32_t)0x00000002)
@@ -208,6 +221,7 @@ typedef struct dfly_request {
 	TAILQ_ENTRY(dfly_request)	fuse_pending_list;
 
 	int32_t waiting_for_buffer:1;
+	struct df_io_lat_ticks lat;
 } dfly_request_t;
 
 struct df_dev_response_s {

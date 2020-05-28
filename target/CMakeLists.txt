@@ -139,6 +139,7 @@ ADD_CUSTOM_TARGET(dssd
 #
 SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.c
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_spdk.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_subsystem.cpp

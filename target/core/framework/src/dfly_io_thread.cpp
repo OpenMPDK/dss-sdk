@@ -101,7 +101,7 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 					dfly_req->dqpair->df_ctrlr);
 	}
 
-	dfly_req_fini(dfly_req);
+	//dfly_req_fini(dfly_req);
 	dfly_nvmf_request_complete(nvmf_req);
 
 	return;
