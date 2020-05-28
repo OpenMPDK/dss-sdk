@@ -1,12 +1,33 @@
 ---
 
-- name: Kill Nvmf target
-  shell: "ps -ef | grep [n]vmf_tgt | awk '{ print $2 }' | xargs kill -9 "
-  ignore_errors: true
+- name: Stop target services
+  service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - nvmf_tgt
+    - kv_cli
+  failed_when: false
+
+- name: List stuck target processes
+  command: pgrep -f '[n]vmf_tgt'
+  changed_when: false
+  failed_when: false
+  register: tgt_proc
+
+- name: Kill stuck target processes
+  command: "kill -9 {{ item }}"
+  loop: "{{ tgt_proc.stdout_lines }}"
+  when: tgt_proc.stdout_lines
+  become: yes
 
 - name: Unload SPDK
-  shell: "sh {{ product_dir }}/scripts/setup.sh reset"
-  ignore_errors: true
+  command: "{{ product_dir }}/scripts/setup.sh reset"
+  register: unload_spdk
+  changed_when:
+    - unload_spdk.stdout is defined
+    - "'->' in unload_spdk.stdout"
+  failed_when: false
 
 - name: Ensure etcd & other services are stopped
   service:
@@ -16,53 +37,64 @@
   with_items:
     - etcd-gateway
     - etcd
-  ignore_errors: true
+  failed_when: false
 
 - name: Delete etcd data directory
-  file: path={{ etcd_data_dir }} state=absent
+  file:
+    path: "{{ etcd_data_dir }}"
+    state: absent
 
 - name: Delete etcd.conf
-  file: path=/etc/etcd/etcd.conf state=absent
+  file:
+    path: /etc/etcd/etcd.conf
+    state: absent
 
 - name: Remove ntp, keepalived and haproxy packages
   package:
     name: "{{ item }}"
     state: absent
-  with_items: 
+  loop:
     - FM-Agent
+    - FM-Rest-Monitor
+    - FM-Base
     - NKV
     - etcd
     - haproxy
     - keepalived
-  ignore_errors: true
 
 - name: Ensure haproxy directory is removed
-  file: path={{ item }} state=absent
-  with_items:
-    - "/etc/haproxy"
-    - "/var/lib/haproxy"
-    - "/etc/keepalived"
-  ignore_errors: true
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/haproxy
+    - /var/lib/haproxy
+    - /etc/keepalived
 
 - name: Delete etcd services
-  file: path=/etc/systemd/system/{{ item }}.service state=absent
-  with_items:
+  file:
+    path: "/etc/systemd/system/{{ item }}.service"
+    state: absent
+  loop:
     - etcd-gateway
     - etcd-proxy
     - etcd
-  ignore_errors: true
 
 - name: Delete previous paths
-  shell: "sed -i /{{ item }}/d ~/.bashrc"
-  with_items:
+  lineinfile:
+    path: ~/.bashrc
+    regexp: "{{ item }}"
+    state: absent
+  loop:
     - PYTHONPATH
     - PATH
     - ETCDCTL_API
-  ignore_errors: true
 
 - name: Delete dragonfly source, log and config directories
-  file: path={{ item }} state=absent
-  with_items:
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
     - "{{ product_dir }}"
     - "{{ config_file_dir }}"
     - "{{ nkv_agent_config_file_dir }}"

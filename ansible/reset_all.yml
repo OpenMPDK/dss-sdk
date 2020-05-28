@@ -1,3 +1,5 @@
+---
+
 - name: confirm whether user really meant to purge the cluster
   hosts: localhost
   gather_facts: true
@@ -11,14 +13,14 @@
       private: no
 
   tasks:
-  - name: exit playbook, if user did not mean to purge cluster
-    fail:
-      msg: >
-        "Exiting purge-cluster playbook, cluster was NOT purged.
-         To purge the cluster, either say 'yes' on the prompt or
-         or use `-e ireallymeanit=yes` on the command line when
-         invoking the playbook"
-    when: ireallymeanit != 'yes'
+    - name: exit playbook, if user did not mean to purge cluster
+      fail:
+        msg: >
+          Exiting purge-cluster playbook, cluster was NOT purged.
+          To purge the cluster, either say 'yes' on the prompt or
+          or use `-e ireallymeanit=yes` on the command line when
+          invoking the playbook
+      when: ireallymeanit != 'yes'
 
 - name: Reset fm_hosts
   hosts: fm_hosts

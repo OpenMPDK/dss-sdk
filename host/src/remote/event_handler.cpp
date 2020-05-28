@@ -32,6 +32,8 @@
  */
 
 #include "event_handler.h"
+#include "unified_fabric_manager.h"
+#include "native_fabric_manager.h"
 
 std::mutex _mtx;
 boost::property_tree::ptree event_map;
@@ -229,3 +231,38 @@ bool event_mapping()
   is_event_mapping_done.store(true, std::memory_order_relaxed);
   return true;
 }
+
+/* Function Name: update_fm_subsystem_status
+ * Params       : <const string&> nqn = Subsystem NQN
+ *                <const int32_t&> status = Subsystem status to updated.
+ * Return       : None
+ * Description  : Update subsystem status at FM datastructure on receiving event
+ *                for subsystem.
+ */
+void update_fm_subsystem_status(const string& nqn, const int32_t& status)
+{
+  Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(nqn));
+  if ( subsystem ) {
+    subsystem->set_status(status);
+  } 
+}
+
+/* Function Name: update_fm_interface_status
+ * Params       : <const string&> nqn = Subsystem NQN.
+ *                <const string&> address = Interface address.
+ *                <const int32_t&> status = Interface status to updated.
+ * Return       : None
+ * Description  : Update interface status at FM datastructure on receiving event
+ *                for interface.
+ */
+void update_fm_interface_status(const string& nqn, const string& address, const int32_t& status)
+{
+  Subsystem* subsystem = static_cast<Subsystem*>(fm->get_subsystem(nqn));
+  if ( subsystem ) {
+    Interface* interface = static_cast<Interface*>(subsystem->get_interface(address));
+    if( interface ) {
+      interface->set_status(status);
+    }
+  }
+}
+

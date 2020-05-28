@@ -1,13 +1,20 @@
+---
+
 - block:
 
-  - set_fact:
-      ethtest_target_node: "{{inventory_hostname}}"
+  - name: Set interface variables
+    set_fact:
+      ethtest_target_node: "{{ inventory_hostname }}"
       ethtest_interface: "{{ item }}"
-  
-  - debug:
-      var: ethtest_target_node
-  
-  - debug:
-      var: ethtest_interface
 
-  when: hostvars[inventory_hostname]['ansible_%s' | format(item)].ipv4.address is defined and hostvars[inventory_hostname]['ansible_%s' | format(item)].ipv4.address == subsystem_ips[0] #test against first subsystem ip in cluster
+  - name: Print ethtest_target_node
+    debug:
+      msg: "{{ ethtest_target_node }}"
+
+  - name: Print ethtest_interface
+    debug:
+      msg: "{{ ethtest_interface }}"
+
+  when:
+    - hostvars[inventory_hostname]['ansible_%s' | format(item)].ipv4.address is defined
+    - hostvars[inventory_hostname]['ansible_%s' | format(item)].ipv4.address == subsystem_ips[0]

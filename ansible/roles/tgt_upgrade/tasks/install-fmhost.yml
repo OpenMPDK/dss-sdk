@@ -5,11 +5,9 @@
     dest: /tmp/upgrade_packages.py
 
 - name: Upgrade required packages using script.
-  shell: "python /tmp/upgrade_packages.py"
+  command: "python /tmp/upgrade_packages.py"
   register: upgrade_log
 
 - name: Print upgrade log
   debug:
     msg: "{{ upgrade_log.stdout }}"
-
-

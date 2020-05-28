@@ -1,3 +1,5 @@
+---
+
 - name: Gather facts on Fabric Managers
   hosts: fm_hosts
   gather_facts: true

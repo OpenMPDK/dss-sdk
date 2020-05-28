@@ -84,7 +84,8 @@ typedef enum {
 	                                 // the container path hash is different 
 	                                 // from the container hash nkv exposed 
   NKV_ERR_MODE_NOT_SUPPORT = 0x027,   // The feature doesn't support 
-  NKV_ERR_CNT_PATH_DOWN = 0x028   // The Container path status is down 
+  NKV_ERR_CNT_PATH_DOWN = 0x028,   // The Container path status is down
+  NKV_ERR_FM = 0x029 // FM error
 
 } nkv_result;  
 

@@ -42,7 +42,7 @@
 
 - name: Generate service file for the etcd cluster
   template:
-    src: ../templates/ufm_etcd.service.j2
+    src: ufm_etcd.service.j2
     dest: "{{ ufm_etcd_service_file }}"
   register: service_file
   become: true
