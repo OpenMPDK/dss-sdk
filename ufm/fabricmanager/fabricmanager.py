@@ -430,7 +430,7 @@ def main():
     # Main UFM services are required
     hostname = socket.gethostname().lower()
 
-    ufmArg = UfmArg(db=db, hostname=hostname, log=log, uuid=uuid.uuid4())
+    ufmArg = UfmArg(db=db, hostname=hostname, log=log, uuid=uuid.getnode())
 
     subSystems = list()
     initializeSubSystems(subSystems=subSystems, ufmArg=ufmArg, ufmMetadata=ufmMetadata)
