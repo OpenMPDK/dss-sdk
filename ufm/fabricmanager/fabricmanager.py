@@ -51,6 +51,8 @@ from systems.smart.smart import Smart
 from systems.essd.essd import Essd
 from systems.ebof.ebof import Ebof
 from systems.nkv.nkv import Nkv
+from systems.ufm.ufm import Ufm
+from systems.ufmarg import UfmArg
 
 
 # If application is installed, then append the module search path
@@ -231,7 +233,7 @@ else:
         log.error('Failed to Initialize Resource Manager')
 
 
-def start_all_sub_systems(sub_systems):
+def startSubSystems(sub_systems):
     """
     Start all sub_systems and pass in a ref to logger
     """
@@ -240,7 +242,7 @@ def start_all_sub_systems(sub_systems):
             sub.start()
 
 
-def stop_all_sub_systems(sub_systems):
+def stopSubSystems(sub_systems):
     for sub in sub_systems:
         sub.stop()
 
@@ -267,11 +269,10 @@ def readConfigDataFromFile(filename):
     installPath="/usr/share/ufm/"
 
     configData = dict()
-    if os.path.isfile( installPath + filename):
+    if os.path.isfile(installPath + filename):
         with open(installPath + filename) as f:
             configData = yaml.load(f)
     else:
-        # look for file in current directory
         if os.path.isfile(filename):
             with open(filename) as f:
                 configData = yaml.load(f)
@@ -282,28 +283,83 @@ def readConfigDataFromFile(filename):
     return configData
 
 
+def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
+
+    # Ufm is requiered
+    subSystems.append(Ufm(ufmArg))
+
+    try:
+        if ufmMetadata['nkv']['enable']:
+            subSystems.append( Nkv(hostname=ufmArg.hostname, db=ufmArg.db) )
+    except:
+        pass
+
+    try:
+        if ufmMetadata['essd']['enable']:
+            subSystems.append( Essd(ufmArg))
+
+            try:
+                # Urls of the essd in the config file is optional
+                if ufmMetadata['essd']['essdDrives']:
+                    insertEssdUrls(db=ufmArg.db, essdUrls=ufmMetadata['essd']['essdDrives'])
+            except:
+                pass
+    except:
+        pass
+
+    try:
+        if ufmMetadata['ebof']['enable']:
+            subSystems.append( Ebof() )
+    except:
+        pass
+
+    try:
+        if ufmMetadata['smart']['enable']:
+            subSystems.append( Smart() )
+    except:
+        pass
+
+    try:
+        if ufmMetadata['switch']['enable']:
+            subSystems.append( Switch() )
+    except:
+        pass
+
+
 class StatusChangeCbArg(object):
-    def __init__(self, subsystems, target, kwargs, log):
+    def __init__(self, subsystems, target, kwargs, ufmArg, log):
         self.subsystems = subsystems
         self.target = target
         self.kwargs = kwargs
+        self.ufmArg = ufmArg
         self.apiServer = None
         self.isRunning = False
         self.log = log
 
 
+def setMasterInDb(ufmArg):
+    masterInfo = dict()
+    masterInfo['hostname']=ufmArg.hostname
+    masterInfo['uuid']=ufmArg.uuid
+    masterInfo['starttime']=time.time()
+
+    jsonString = json.dumps(masterInfo, indent=4, sort_keys=True)
+    ufmArg.db.save_key_value('/ufm/master', jsonString)
+
+
 def serverStateChange(startup, cbArgs):
     if startup is True and cbArgs.isRunning is not True:
         cbArgs.log.info(f'serverStateChange: Starting up UFM')
+        setMasterInDb(ufmArg=cbArgs.ufmArg)
         cbArgs.server = Process(target=cbArgs.target, kwargs=cbArgs.kwargs)
         cbArgs.server.start()
-        start_all_sub_systems(cbArgs.subsystems)
+        startSubSystems(cbArgs.subsystems)
         cbArgs.isRunning = True
     elif startup is not True and cbArgs.isRunning is True:
         cbArgs.log.info(f'serverStateChange: Shutting down UFM')
         cbArgs.server.terminate()
         cbArgs.server.join()
-        stop_all_sub_systems(cbArgs.subsystems)
+        stopSubSystems(cbArgs.subsystems)
         cbArgs.isRunning = False
 
 
@@ -359,9 +415,6 @@ def main():
     kwargs['host'] = args.host
     kwargs['port'] = args.port
 
-    # Determine hostname
-    hostname = socket.gethostname().lower()
-
     ufmMetadata = readConfigDataFromFile(filename="ufm.yaml")
     try:
         metadataIp = ufmMetadata['metadatabase']['ip']
@@ -374,43 +427,13 @@ def main():
 
     config.rest_base = REST_BASE
 
-    sub_systems = list()
-    try:
-        if ufmMetadata['nkv']['enable']:
-            sub_systems.append( Nkv(hostname=hostname, db=db) )
-    except:
-        pass
+    # Main UFM services are required
+    hostname = socket.gethostname().lower()
 
-    try:
-        if ufmMetadata['essd']['enable']:
-            sub_systems.append( Essd(hostname=hostname, db=db) )
+    ufmArg = UfmArg(db=db, hostname=hostname, log=log, uuid=uuid.getnode())
 
-            # Drives are optional
-            try:
-                if ufmMetadata['essd']['essdDrives']:
-                    insertEssdUrls(db=db, essdUrls=ufmMetadata['essd']['essdDrives'])
-            except:
-                pass
-    except:
-        pass
-
-    try:
-        if ufmMetadata['ebof']['enable']:
-            sub_systems.append( Ebof() )
-    except:
-        pass
-
-    try:
-        if ufmMetadata['smart']['enable']:
-            sub_systems.append( Smart() )
-    except:
-        pass
-
-    try:
-        if ufmMetadata['switch']['enable']:
-            sub_systems.append( Switch() )
-    except:
-        pass
+    subSystems = list()
+    initializeSubSystems(subSystems=subSystems, ufmArg=ufmArg, ufmMetadata=ufmMetadata)
 
     if not ufmMetadata:
         log.error("Fail to start UFM")
@@ -419,9 +442,10 @@ def main():
     # ufm_status will handle all health and leader checks
     #
     # UfmStatus monitors cluster for health and determines leader
-    status_cb_arg = StatusChangeCbArg(subsystems=sub_systems,
+    status_cb_arg = StatusChangeCbArg(subsystems=subSystems,
                                       target=app.run,
                                       kwargs=kwargs,
+                                      ufmArg=ufmArg,
                                       log=log)
 
     ufm_status = UfmStatus(onHealthChangeCb=onHealthChange,

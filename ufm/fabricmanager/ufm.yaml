@@ -5,15 +5,13 @@ metadatabase:
 essd:
     enable: False
     start: False
+    zmqport: 5555
+
     # essdDrive is optional
     essdDrives:
         - "http://172.22.4.58:32768"
         - "http://172.22.4.58:32790"
         - "http://172.22.4.58:32789"
-        - "http://172.22.4.58:32783"
-        - "http://172.22.4.58:32780"
-        - "http://172.22.4.58:32778"
-        - "http://172.22.4.58:32776"
         - "http://172.22.4.58:32791"
         - "http://172.22.4.58:32792"
         - "http://172.22.4.58:32782"
@@ -21,17 +19,20 @@ essd:
 nkv:
     enable: True
     start: True
+    zmqport: 5556
 
 ebof:
     enable: False
     start: False
+    zmqport: 5557
 
 smart:
     enable: False
     start: False
+    zmqport: 5558
 
 switch:
     enable: False
     start: False
-
+    zmqport: 5559
 
