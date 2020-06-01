@@ -5,7 +5,7 @@ metadatabase:
 essd:
     enable: False
     start: False
-    zmqport: 5555
+    mqport: 5555
 
     # essdDrive is optional
     essdDrives:
@@ -19,20 +19,20 @@ essd:
 nkv:
     enable: True
     start: True
-    zmqport: 5556
+    mqport: 5556
 
 ebof:
     enable: False
     start: False
-    zmqport: 5557
+    mqport: 5557
 
 smart:
     enable: False
     start: False
-    zmqport: 5558
+    mqport: 5558
 
 switch:
     enable: False
     start: False
-    zmqport: 5559
+    mqport: 5559
 

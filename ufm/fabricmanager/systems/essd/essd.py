@@ -4,7 +4,6 @@ from systems.subsystem import SubSystem
 
 from systems.essd.essd_poller import EssdPollerArg
 from systems.essd.essd_poller import EssdDrive
-from systems.essd.essd_poller import essdRedFishPoller
 from systems.essd.essd_poller import EssdPoller
 
 from systems.essd.essd_monitor import EssdMonitorArg
@@ -13,26 +12,30 @@ from systems.essd.essd_monitor import essdMonitorCallback
 from systems.essd.essd_monitor import EssdMonitor
 
 
+KEY_ESSDURLS="/essd/essdurls"
+
+
+class EssdArg():
+    def __init__(self):
+        self.updateEssdUrls = False
+
+
 class Essd(SubSystem):
     def __init__(self, ufmArg):
         self.ufmArg = ufmArg
-        self.db = self.ufmArg.db
-        self.log = self.ufmArg.log
-        self.pollerArg = EssdPollerArg(db=self.db, logger=self.log)
+        self.essdArg = EssdArg()
+        self.pollerArg = EssdPollerArg(db=self.ufmArg.db, log=self.ufmArg.log)
         self.monitorArg = EssdMonitorArg()
         SubSystem.__init__(self,
-                           services=(EssdPoller(hostname=self.ufmArg.hostname,
-                                                logger=self.log,
-                                                db=self.db,
-                                                poller=essdRedFishPoller,
+                           services=(EssdPoller(ufmArg=self.ufmArg,
+                                                essdArg=self.essdArg,
                                                 pollerArgs=self.pollerArg),
-                                     EssdMonitor(hostname=self.ufmArg.hostname,
-                                                 logger=self.log,
-                                                 db=self.db,
+                                     EssdMonitor(ufmArg=self.ufmArg,
+                                                 essdArg=self.essdArg,
                                                  monitor=essdMonitor,
                                                  monitorArgs=self.monitorArg,
                                                  monitorCallback=essdMonitorCallback)
                                      ))
 
-        self.log.info("Init {}".format(self.__class__.__name__))
+        self.ufmArg.log.info("Init {}".format(self.__class__.__name__))
 
