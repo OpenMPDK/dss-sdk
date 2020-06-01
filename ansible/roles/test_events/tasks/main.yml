@@ -27,7 +27,7 @@
     - name: Set dfly vars
       set_fact:
         dfly_groups: "{{ dfly_config | regex_findall('(?<!#)\\[(?!GLOBAL)(.*?)\\]') }}"
-        subsystem_ips: "{{ dfly_config | regex_findall('(?<!#)subsystem_ip_port: *([0-9]+.[0-9]+.[0-9]+.[0-9]+):[0-9]+,') }}"
+        subsystem_ips: "{{ dfly_config | regex_findall('(?<!#)subsystem_ip_port: *([0-9]+.[0-9]+.[0-9]+.[0-9]+):[0-9]+,*') }}"
 
     - name: Print dfly vars
       debug:
