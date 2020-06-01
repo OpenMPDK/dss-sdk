@@ -24,7 +24,7 @@ def essdMonitor(cbArgs):
        This function run in a thread
        Do some monitor work here
     """
-    print("_R_", flush=True, end='')
+    print("_M_", flush=True, end='')
 
 
 def essdMonitorCallback(db=None, logger=None, cbArgs=None, event=None):
@@ -32,7 +32,7 @@ def essdMonitorCallback(db=None, logger=None, cbArgs=None, event=None):
        This function is call for every update in dB
     """
     print("========> Process event <=======")
-    print("_C_", flush=True, end='')
+    print("_MC_", flush=True, end='')
 
 
 class EssdMonitor(UfmThread):
@@ -41,10 +41,10 @@ class EssdMonitor(UfmThread):
           This thread is monitor Essd's and add the Essd'd
           metadata to DB
     """
-    def __init__(self, hostname=None, logger=None, db=None, monitor=None, monitorArgs=None, monitorCallback=None):
-        self.hostname = hostname
-        self.logger = logger
-        self.db = db
+    def __init__(self, ufmArg=None, essdArg=None, monitor=None, monitorArgs=None, monitorCallback=None):
+        self.hostname = ufmArg.hostname
+        self.logger = ufmArg.log
+        self.db = ufmArg.db
         self.monitor = monitor
         self.monitorArgs = monitorArgs
         self.monitorCallback = monitorCallback
