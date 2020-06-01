@@ -19,20 +19,17 @@ class EssdMonitorArg():
         self.n = 42
 
 
-def essdMonitor(cbArgs):
-    """
-       This function run in a thread
-       Do some monitor work here
-    """
-    print("_M_", flush=True, end='')
-
-
-def essdMonitorCallback(db=None, logger=None, cbArgs=None, event=None):
+def essdMonitorCallback(ufmArg=None, essdArg=None, event=None):
     """
        This function is call for every update in dB
     """
-    print("========> Process event <=======")
-    print("_MC_", flush=True, end='')
+    print("_EMCB", flush=True, end='')
+
+    eventKeyList = event.key.decode().split('/')
+
+    if '/essd/essdurls' in eventKeyList:
+        # Signal to the poller to re-scan the essd urls
+        self.updateEssdUrls = True
 
 
 class EssdMonitor(UfmThread):
@@ -41,74 +38,80 @@ class EssdMonitor(UfmThread):
           This thread is monitor Essd's and add the Essd'd
           metadata to DB
     """
-    def __init__(self, ufmArg=None, essdArg=None, monitor=None, monitorArgs=None, monitorCallback=None):
-        self.hostname = ufmArg.hostname
-        self.logger = ufmArg.log
+    def __init__(self, ufmArg=None, essdArg=None, monitorArgs=None, monitorCallback=None):
+        self.ufmArg = ufmArg
+        self.essdArg = essdArg
+        self.log = ufmArg.log
         self.db = ufmArg.db
-        self.monitor = monitor
         self.monitorArgs = monitorArgs
         self.monitorCallback = monitorCallback
         self.running = False
         self.watch_id = None
+        self.essdUrlId = None
         super(EssdMonitor, self).__init__()
-        self.logger.info('===> Init Monitor <===')
+        self.log.info('===> Init Monitor <===')
 
 
     def __del__(self):
         if self.running:
             self.stop()
-        self.logger.info('===> Delete Essd Monitor <===')
+        self.log.info('===> Delete Essd Monitor <===')
 
 
-    def __watcher_essd_key_cb(self, event):
+    def _watchEssdKeyCallBack(self, event):
         print("========> The monitor got an event <=======")
         if not isinstance(event.events, list):
             return
 
         if self.monitorCallback:
-            self.monitorCallback(self.db, self.logger, self.monitorArgs, event)
+            self.monitorCallback(self.ufmArg, self.essdArg, event)
 
 
     def start(self):
-        self.logger.info('===> Start Essd Monitor <===')
+        self.log.info('===> Start Essd Monitor <===')
         self.running = True
-        super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self.monitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
+        super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self._essdMonitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
 
-
-        self.logger.info("======> Configure DB key watch'er <=========")
         try:
-            self.watch_id = self.db.watch_callback('/essd', self.__watcher_essd_key_cb, previous_kv=True)
+            self.watch_id = self.db.watch_callback('/essd', self._watchEssdKeyCallBack, previous_kv=True)
 
             if not self.watch_id:
-                self.logger.error("=====> watch_callback returned None")
+                self.log.error("=====> watch_callback returned None")
 
         except Exception as e:
-            logger.error('Exception could not get watch id: {}'.format(str(e)))
+            self.log.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
 
-        self.logger.info("======> Done Configure DB key watch'er <=========")
+        self.log.info("======> Done Configure DB key watch'er <=========")
 
 
     def stop(self):
         super(EssdMonitor, self).stop()
         self.running = False
 
-        self.logger.error("====== Watch ID {} ========".format( self.watch_id ))
+        self.log.error("====== Watch ID {} ========".format( self.watch_id ))
 
         if not self.db:
-            self.logger.error("DB is closed")
+            self.log.error("DB is closed")
         else:
             if not self.watch_id:
-                self.logger.error("Invalid watch ID")
+                self.log.error("Invalid watch ID")
             else:
                 pass
                 # Find out why cancel doesn't work
                 # self.db.cancel_watch(self.watch_id)
 
-        self.logger.info('===> Stop Essd <===')
+        self.log.info('===> Stop Essd <===')
 
 
     def is_running(self):
         return self.running
 
+
+    def _essdMonitor(self, cbArgs):
+        """
+           This function run in a thread
+           Do some monitor work here
+        """
+        print("_EM", flush=True, end='')
 

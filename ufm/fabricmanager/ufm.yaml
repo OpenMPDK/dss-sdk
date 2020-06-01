@@ -3,8 +3,8 @@ metadatabase:
     ip: "127.0.0.1"
 
 essd:
-    enable: False
-    start: False
+    enable: True
+    start: True
     mqport: 5555
 
     # essdDrive is optional
@@ -17,8 +17,8 @@ essd:
         - "http://172.22.4.58:32782"
 
 nkv:
-    enable: True
-    start: True
+    enable: False
+    start: False
     mqport: 5556
 
 ebof:

@@ -2,26 +2,25 @@
 
 class SubSystem():
     def __init__(self, services):
-        print("SubSystem Init")
+        print("Subsystem Init {}".format(self.__class__.__name__))
         self.services = services
         self._running = False
 
 
     def __del__(self):
-        print("SubSystem Del")
+        print("SubSystem Del {}".format(self.__class__.__name__))
         self._running = False
 
 
     def start(self):
-        print("SubSystem Start")
+        print("SubSystem Start {}".format(self.__class__.__name__))
         for service in iter(self.services):
-            if not service.is_running():
-                service.start()
-                self._running = True
+            service.start()
+            self._running = True
 
 
     def stop(self):
-        print("SubSystem Stop")
+        print("SubSystem Stop {}".format(self.__class__.__name__))
         for service in iter(self.services):
             service.stop()
 
