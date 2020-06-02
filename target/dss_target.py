@@ -106,6 +106,8 @@ def exec_cmd(cmd):
    Execute any given command on shell
    @return: Return code, output, error if any.
    '''
+
+   print("Executing command %s..." %(cmd))
    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
    out = out.decode(encoding='UTF-8',errors='ignore')
@@ -302,6 +304,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
             ss_number = ss_number + 1
         else:
             nvme_index +=1
+        if(ss_number > g_kv_ssc):
+            break
 
 
     ss_number = ss_number + 1
@@ -344,6 +348,8 @@ def setup_hugepage():
     hugepage setup
     '''
     ret, out, err = exec_cmd("export NRHUGE=8192")
+    if ret != 0:
+        return ret
     
     sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
     if not os.path.exists(sys_hugepage_path):
@@ -370,7 +376,7 @@ def setup_drive():
     '''
     Bring all drives to the userspace"
     '''
-    cmd = "sh "+ g_path + "/../scripts/setup.sh"
+    cmd = "sh " +g_path + "/../scripts/setup.sh"
     print 'Executing: ' + cmd + '...'
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
@@ -420,11 +426,12 @@ class dss_tgt_args(object):
    	#launch     Launch DSS Target software
         parser = argparse.ArgumentParser(
             description='DSS Target Commands',
-            usage='''dss_tgt <command> [<args>]
+            usage='''dss_target <command> [<args>]
 
 The most commonly used dss target commands are:
    reset      Assign all NVME drives back to system
    set        Assign NVME drives to UIO
+   huge_pages Setup system huge pages
    configure  Configures the system/device(s) and generates necessary config file to run target application 
 ''')
         parser.add_argument('command', help='Subcommand to run')
@@ -485,6 +492,12 @@ The most commonly used dss target commands are:
         global g_set_drives
         g_set_drives = 1
 
+    def huge_pages(self):
+        parser = argparse.ArgumentParser(
+            description='Setup system huge pages')
+        print 'Running dss_target huge_pages'
+        setup_hugepage()
+   
     def build(self):
         parser = argparse.ArgumentParser(
             description='Build target software')
@@ -526,7 +539,8 @@ if __name__ == '__main__':
 	ret = reset_drive()
 
     if g_set_drives  == 1:
-	ret = setup_drive()
+        setup_hugepage()
+        ret = setup_drive()
 
     if g_config  == 1:
 	reset_drive()
