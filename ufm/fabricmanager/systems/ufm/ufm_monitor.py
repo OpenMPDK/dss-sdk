@@ -15,7 +15,6 @@ class UfmMonitor(UfmThread):
         self.watch_id = None
         super(UfmMonitor, self).__init__()
         self.log.info("Init {}".format(self.__class__.__name__))
-        print("Init {}".format(self.__class__.__name__))
 
 
     def __del__(self):
@@ -28,7 +27,7 @@ class UfmMonitor(UfmThread):
         if not isinstance(event.events, list):
             return
 
-        print("_UC_", flush=True, end='')
+        print("_UCB", flush=True, end='')
 
 
     def _ufmMonitor(self, cbArgs):
@@ -36,11 +35,10 @@ class UfmMonitor(UfmThread):
            This function run in a thread
            Do some monitor work here
         """
-        print("_UM_", flush=True, end='')
+        print("_UM", flush=True, end='')
 
 
     def start(self):
-        print("Start {}".format(self.__class__.__name__))
         self.log.info("Start {}".format(self.__class__.__name__))
         self._running = True
         super(UfmMonitor, self).start(threadName='UfmMonitor', cb=self._ufmMonitor, cbArgs=self.ufmArg, repeatIntervalSecs=7.0)

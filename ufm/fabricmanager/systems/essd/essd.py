@@ -7,7 +7,6 @@ from systems.essd.essd_poller import EssdDrive
 from systems.essd.essd_poller import EssdPoller
 
 from systems.essd.essd_monitor import EssdMonitorArg
-from systems.essd.essd_monitor import essdMonitor
 from systems.essd.essd_monitor import essdMonitorCallback
 from systems.essd.essd_monitor import EssdMonitor
 
@@ -32,7 +31,6 @@ class Essd(SubSystem):
                                                 pollerArgs=self.pollerArg),
                                      EssdMonitor(ufmArg=self.ufmArg,
                                                  essdArg=self.essdArg,
-                                                 monitor=essdMonitor,
                                                  monitorArgs=self.monitorArg,
                                                  monitorCallback=essdMonitorCallback)
                                      ))
