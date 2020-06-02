@@ -1,8 +1,11 @@
 from __future__ import print_function
 
+#as3:/usr/local/lib/python2.7/site-packages# cat sitecustomize.py
+# encoding=utf8  
 import sys
 import re
 import argparse
+import time
 import os
 import json
 import shutil
@@ -47,12 +50,44 @@ gl_nkv_config = """
 
 nkv_config_file = "../conf/nkv_config.json"
 
+gl_minio_start_sh = """
+
+export LD_LIBRARY_PATH="../lib"
+export MINIO_NKV_CONFIG="../conf/nkv_config.json"
+export MINIO_ACCESS_KEY=minio
+export MINIO_SECRET_KEY=minio123
+export MINIO_STORAGE_CLASS_STANDARD=EC:%(EC)d
+export MINIO_PER_HOST_INSTANCE_COUNT=%(IC)d
+#export MINIO_ERASURE_SET_DRIVE_COUNT=4
+#export MINIO_NKV_MAX_VALUE_SIZE=2097152
+export MINIO_NKV_MAX_VALUE_SIZE=786432
+export MINIO_NKV_TIMEOUT=20
+export MINIO_NKV_SYNC=1
+#export MINIO_NKV_CHECKSUM=1
+export MINIO_NKV_SHARED_SYNC_INTERVAL=2
+export MINIO_NKV_SHARED=%(DIST)d
+ulimit -n 65535
+ulimit -c unlimited
+#yum install boost-devel
+#yum install jemalloc-devel
+./minio server --address %(IP)s:%(PORT)s """
+
+gl_minio_standalone = "/dev/nvme{%(start)s...%(end)s}n1"
+gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
+g_minio_dist = [""]
+g_minio_stand_alone = [""]
+g_mini_ec = 0
+
+g_etc_hosts = """
+%(IP)s    dssminio%(node)s 
+"""
 
 def exec_cmd(cmd):
    '''
    Execute any given command on shell
    @return: Return code, output, error if any.
    '''
+   print("Executing cmd %s..." %(cmd))
    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
    out = out.decode()
@@ -65,7 +100,6 @@ def exec_cmd(cmd):
 
 def get_list_diff(li1, li2): 
         return (list(set(li1) - set(li2))) 
-
 
 def get_ip_port_nqn_info(out, proto):
     '''
@@ -87,8 +121,10 @@ def get_ip_port_nqn_info(out, proto):
                 tuplist.append([trtype, trsvcid, subnqn, traddr])
 
     # for the last one after "Discover Log" text
-    tuplist.append([trtype, trsvcid, subnqn, traddr])
-
+    if trtype == proto:
+        tuplist.append([trtype, trsvcid, subnqn, traddr])
+    tuplist.sort(key = lambda x: x[3])
+    print (tuplist)
     return tuplist
 
 
@@ -102,6 +138,7 @@ def nvme_discover(proto, ip, port):
     ret, disc_out, err = exec_cmd(discover_cmd)
     if not disc_out:
         print("Discovery Failed: %s, %s" %(disc_out,err))
+        sys.exit(1)
 
     nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
@@ -117,7 +154,6 @@ def nvme_discover_connect(disc_proto, disc_ip, disc_port, qpair):
     if not nqn_info:
         print("Nothing discovered. Exiting")
         sys.exit(1)
-
     print("----- Doing nvme connect -----")
     for i in range(len(nqn_info)):
        #print("nvme connect -t %s -a %s -s %s -n %s -i %s " \
@@ -183,6 +219,7 @@ def get_nvme_drives():
     '''
     Get nvme drive list
     '''
+    #time.sleep(2)
     cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
     ret, out, err = exec_cmd(cmd)
     #if ret != 0:
@@ -237,7 +274,7 @@ def run_nkv_test_cli():
     '''
     print("----- Running sample nkv_test_cli -----")
     nkv_cmd = "LD_LIBRARY_PATH=../lib ./nkv_test_cli -c " + nkv_config_file + \
-            " -i msl-ssg-dl04 -p 1030 -b meta/first/testing -k 60 -v 1048576 -n 1000 -t 128 -o 3"
+            " -i msl-ssg-dl04 -p 1030 -b meta/first/testing -k 60 -v 1048576 -n 100 -t 128 -o 3"
     ret, out, err = exec_cmd(nkv_cmd)
     if ret != 0:
         print("nkv_test_cli Failed: %s" %(err)) 
@@ -246,35 +283,140 @@ def run_nkv_test_cli():
             f.write(out)
         print("nkv_test_cli run output written to nkv.out")
             
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--ipaddr", type=str, required=True, help="IP for nvme discovery (required)")
-    parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
-            default="rdma")
-    parser.add_argument("-s", "--port", type=int, help="Port for nvme discoveryi (default: 1023)", \
-            default=1023)
-    parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
-    parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
-            default=512)
-    args = parser.parse_args()
-
-    disc_port = args.port
-    disc_proto = args.proto
-    driver_memalign = args.memalign
-    disc_qpair = args.qpair
-    disc_ip = args.ipaddr
-    
+def config_host(disc_ip, disc_port, disc_proto, disc_qpair, driver_memalign):
     # Build and install kernel driver based on kernel version
-    install_kernel_driver(driver_memalign) 
+    install_kernel_driver(driver_memalign)
 
 
     # Connect to all discovered NQNs and their IPs.
     nvme_discover_connect(disc_proto, disc_ip, disc_port, disc_qpair)
-    
+
     # Create nkv_config.json file
     create_config_file()
 
     # Run sample nkv_test_cli with "-o 3" option.
     run_nkv_test_cli()
+
+def config_minio_sa(node, ec):
+    print("node details ec %d %s" %(ec, node))
+    ip,port,dev_start,dev_end = node
+    
+    minio_node = ""
+    minio_node += gl_minio_standalone % {"start":dev_start, "end":dev_end} +" "
+    minio_startup = "minio_startup_sa" + ip + ".sh"
+    minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings += minio_node 
+    with open(minio_startup, 'w') as f:
+        f.write(minio_settings)
+    print("Successfully created MINIO startup script %s" %(minio_startup))
+    
+def config_minio_dist(node_details, ec):
+    print("node details ec %d %s" %(ec, node_details))
+    node_count = 0
+    node_index = 0
+    minio_dist_node = ""
+    i = 0
+    j = 0
+    etc_hosts_map = ""
+    while (i < len(node_details)):
+        while (j < len(node_details)):
+            ip,port,dev_start,dev_end = node_details[j:j+4]
+            node_count += 1
+            minio_dist_node += gl_minio_dist_node % {"node":node_count, "port":port, "start":dev_start, "end":dev_end} +" "
+            j += 4
+        ip,port,dev_start, dev = node_details[i:i+4]
+        i += 4
+        node_index += 1
+        minio_startup = "minio_startup_" + ip + ".sh"
+        minio_settings = gl_minio_start_sh % {"EC": ec, "IC":node_count, "DIST":1, "IP":ip, "PORT":port}
+        minio_settings += minio_dist_node 
+        with open(minio_startup, 'w') as f:
+            f.write(minio_settings)
+        print("Successfully created MINIO startup script %s" %(minio_startup))
+        etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
+    with open("etc_hosts", 'w') as f:
+        f.write(etc_hosts_map)
+    print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
+
+def config_minio(dist, sa, ec):
+    if(sa):
+        config_minio_sa(sa, ec)
+    elif(dist):
+        config_minio_dist(dist, ec)
+
+
+class dss_host_args(object):
+
+    def __init__(self):
+        # disable the following commands for now
+        #prereq     Install necessary components for build and deploy
+        #checkout   Do git checkout of DSS Target software
+        #build      Build target software
+        #launch     Launch DSS Target software
+        parser = argparse.ArgumentParser(
+            description='DSS Host Commands',
+            usage='''dss_host <command> [<args>]
+
+The most commonly used dss target commands are:
+   config_host  Discovers/connects device(s), and creates config file for DSS API layer
+   config_minio Generates MINIO scripts based on parameters
+''')
+        parser.add_argument('command', help='Subcommand to run')
+        # parse_args defaults to [1:] for args, but you need to
+        # exclude the rest of the args too, or validation will fail
+        args = parser.parse_args(sys.argv[1:2])
+        #if not hasattr(self, args.command):
+        #    print 'Unrecognized command'
+        #    parser.print_help()
+        #    exit(1)
+        # use dispatch pattern to invoke method with same name
+        getattr(self, args.command)()
+
+    def config_host(self):
+        parser = argparse.ArgumentParser(
+            description='Discovers/connects device(s), and creates config file for DSS API layer')
+        parser.add_argument("-a", "--ipaddr", type=str, required=True, help="IP for nvme discovery (required)")
+        parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
+            default="rdma")
+        parser.add_argument("-s", "--port", type=int, help="Port for nvme discoveryi (default: 1023)", \
+            default=1023)
+        parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
+        parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
+            default=512)
+        args = parser.parse_args(sys.argv[2:])
+
+        disc_port = args.port
+        disc_proto = args.proto
+        driver_memalign = args.memalign
+        disc_qpair = args.qpair
+        disc_ip = args.ipaddr
+        config_host(disc_ip, disc_port, disc_proto, disc_qpair, driver_memalign)
+
+    def config_minio(self):
+        parser = argparse.ArgumentParser(
+            description='Generates MINIO scripts based on parameters')
+        parser.add_argument("-dist", "--dist", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
+        args = parser.parse_args(sys.argv[2:])
+       
+        global g_minio_dist, g_minio_stand_alone
+        if args.dist:
+            g_minio_dist = args.dist 
+        if args.stand_alone:
+            g_minio_stand_alone = args.stand_alone 
+        config_minio(args.dist, args.stand_alone, args.ec)
+
+
+if __name__ == '__main__':
+
+    ret = 0
+
+    #reload(sys)
+    #sys.setdefaultencoding('utf8')
+
+    g_path = os.getcwd()
+    print("Make sure this script is executed from nkv-sdk/bin diretory, running command under path:%s" %(g_path))
+
+    dss_host_args()
+
