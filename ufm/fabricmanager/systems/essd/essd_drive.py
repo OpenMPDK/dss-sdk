@@ -4,6 +4,7 @@ import json
 import time
 from redfish.rest.v1 import redfish_client
 
+from systems.essd import essd_constants
 
 class EssdDrive():
     def __init__(self, url, username=None, password=None, log=None):
@@ -11,7 +12,7 @@ class EssdDrive():
         self.username=username
         self.password=password
         self.logger=log
-        self.essdPrefix="/essd/"
+        self.essdPrefix=essd_constants.ESSD_KEY
 
         self.root = redfish_client(base_url=(self.url), timeout=1, max_retry=1)
         self.uuid = self.root.root['UUID']
@@ -71,13 +72,14 @@ class EssdDrive():
         keyWithPrefix = self.addPrefix(self.essdPrefix, self.uuid, key)
 
         try:
-            value = db.get(keyWithPrefix).decode('utf-8')
-            if value == jsonData:
+            value, _ = db.get(keyWithPrefix)
+            if value.decode('utf-8') == jsonData:
+                print("========================= NOT saveing data ===========")
                 return
         except:
             pass
 
-        db.put(keyWithPrefix, jsonData)
+        db.put(keyWithPrefix, str(jsonData))
 
 
     def updateUuid(self, db):
@@ -85,15 +87,15 @@ class EssdDrive():
             return
 
         tmpString=''
-        lastUpdateKey = "/essd/uptimes"
+        lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
-            tmpString = db.get(lastUpdateKey).decode('utf-8')
+            tmpString, _ = db.get(lastUpdateKey)
         except:
             pass
 
         uuids = dict()
         if tmpString:
-            uuids = json.loads(tmpString)
+            uuids = json.loads(tmpString.decode('utf-8'))
 
         new_uuids = dict()
         for u in uuids:
@@ -111,15 +113,15 @@ class EssdDrive():
             return
 
         tmpString=''
-        lastUpdateKey = "/essd/uptimes"
+        lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
-            tmpString = db.get(lastUpdateKey).decode('utf-8')
+            tmpString, _ = db.get(lastUpdateKey)
         except:
             return
 
         uuids = dict()
         if tmpString:
-            uuids = json.loads(tmpString)
+            uuids = json.loads(tmpString.decode('utf-8'))
 
         allUptimes = uuid.values()
         latestUptime = max(allUptimes)
@@ -141,7 +143,7 @@ class EssdDrive():
             return
 
         for u in remove_uuids:
-            db.delete_key_value("/essd/" + u)
+            db.delete_key_value(essd_constants.ESSD_KEY + "/" + u)
 
 
     def readEssdSystemsData(self, db):

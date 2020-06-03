@@ -3,6 +3,7 @@ Flask==1.1.1
 Flask-HTTPAuth==3.2.3
 Flask-RESTful==0.3.6
 flatten-dict==0.2.0
+pyzmq==19.0.1
 zmq==0.0.0
 configparser==4.0.2
 netifaces==0.10.9

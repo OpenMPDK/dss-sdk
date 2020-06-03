@@ -9,6 +9,7 @@ import time
 import datetime
 
 from ufm_thread import UfmThread
+from systems.essd import essd_constants
 from systems.essd.essd_arg import EssdPollerArg
 from systems.essd.essd_drive import EssdDrive
 
@@ -62,7 +63,7 @@ class EssdPoller(UfmThread):
         # Read essd url's from DB
         if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
             try:
-                tmpString, _ = cbArgs.db.get("/essd/essdurls")
+                tmpString, _ = cbArgs.db.get( essd_constants.ESSDURLS_KEY )
                 cbArgs.essdSystems = json.loads(tmpString.decode('utf-8'))
                 cbArgs.updateEssdUrls = False
             except:

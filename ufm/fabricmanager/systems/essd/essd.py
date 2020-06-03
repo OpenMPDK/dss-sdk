@@ -11,8 +11,6 @@ from systems.essd.essd_monitor import essdMonitorCallback
 from systems.essd.essd_monitor import EssdMonitor
 
 
-KEY_ESSDURLS="/essd/essdurls"
-
 
 class EssdArg():
     def __init__(self):
