@@ -1,6 +1,5 @@
-import threading
 from ufm_thread import UfmThread
-from systems.switch.switch_arg import SwitchArg
+from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 
 class SwitchController(UfmThread):
@@ -8,6 +7,8 @@ class SwitchController(UfmThread):
         self.swArg = swArg
         self.log = self.swArg.log
         self._running = False
+        self.client = None
+
         super(SwitchController, self).__init__()
         self.log.info("Init {}".format(self.__class__.__name__))
 
@@ -20,6 +21,12 @@ class SwitchController(UfmThread):
 
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
+
+        if self.swArg.sw_type.lower() == 'mellanox':
+            self.client = SwitchMellanoxClient(self.swArg)
+        else:
+            raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
+
         self._running = True
         super(SwitchController, self).start(threadName='SwitchController', cb=self._controllerX, cbArgs=self.swArg, repeatIntervalSecs=1.0)
 
