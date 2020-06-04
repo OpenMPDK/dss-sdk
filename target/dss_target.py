@@ -364,8 +364,10 @@ def setup_hugepage():
         ret, out, err = exec_cmd("mkdir /dev/hugepages1G")
 	if ret != 0:
 	    return ret
-
-    ret, out, err = exec_cmd("mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G")
+    if not os.path.ismount("/dev/hugepages1G"):
+        ret, out, err = exec_cmd("mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G", env)
+    else:
+        print("/dev/hugepages1G already exists and is mounted")
     if ret != 0:
 	return ret
 
