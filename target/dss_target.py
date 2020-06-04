@@ -7,6 +7,7 @@ from datetime import date
 import multiprocessing
 from random import randint 
 
+g_env = {}
 
 mp = multiprocessing
 
@@ -101,14 +102,30 @@ def random_with_N_digits(n):
    #seed(1)
    return randint(range_start, range_end)
 
-def exec_cmd(cmd):
+def cmd_to_str(cmd, env=None):
+   ret = ""
+   if env:
+       for key, val in env.items():
+           ret += key + "=" + val + " "
+   return ret + cmd
+
+def setenv(name, value):
+   '''
+   Add or modify new env variable
+   @return: Returns 
+   '''
+   g_env[name] = str(value)
+
+def exec_cmd(cmd, use_env=True):
    '''
    Execute any given command on shell
+   if use_env == True, use the environment built by setenv (in this script)
    @return: Return code, output, error if any.
    '''
 
-   print("Executing command %s..." %(cmd))
-   p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+   env = g_env if use_env else {}
+   print("Executing command %s..." %(cmd_to_str(cmd, env)))
+   p = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
    out = out.decode(encoding='UTF-8',errors='ignore')
    out = out.strip()
@@ -170,7 +187,7 @@ def get_nvme_list_numa():
     numa0_drives = []
     numa1_drives = []
 
-    ret, out, err =  exec_cmd(lspci_cmd)
+    ret, out, err = exec_cmd(lspci_cmd)
     if not out:
         return numa0_drives, numa1_drives
     out = out.split('\n')
@@ -339,7 +356,7 @@ def buildtgt():
     if os.path.exists("build.sh"):
     	ret, out, err = exec_cmd("sh build.sh")
         print (out)
-	return ret
+        return ret
     else:
 	return -1
    
@@ -347,10 +364,9 @@ def setup_hugepage():
     '''
     hugepage setup
     '''
-    ret, out, err = exec_cmd("export NRHUGE=8192")
-    if ret != 0:
-        return ret
-    
+    setenv("NRHUGE", "8192")
+
+
     sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
     if not os.path.exists(sys_hugepage_path):
 	with open(sys_hugepage_path, 'w') as file:
@@ -364,8 +380,10 @@ def setup_hugepage():
         ret, out, err = exec_cmd("mkdir /dev/hugepages1G")
 	if ret != 0:
 	    return ret
-
-    ret, out, err = exec_cmd("mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G")
+    if not os.path.ismount("/dev/hugepages1G"):
+        ret, out, err = exec_cmd("mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G")
+    else:
+        print("/dev/hugepages1G already exists and is mounted")
     if ret != 0:
 	return ret
 
