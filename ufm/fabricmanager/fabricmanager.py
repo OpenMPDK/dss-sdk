@@ -34,8 +34,9 @@ import config
 from common.ufmlog import ufmlog
 from ufm_status import UfmStatus, UfmLeaderStatus, UfmHealthStatus
 
+from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
-from rest_api.redfish.System_api import SystemCollectionEmulationAPI, SystemEmulationAPI
+from rest_api.redfish.System_api import SystemCollectionEmulationAPI, SystemEmulationAPI, SystemAPI, CommonCollectionAPI
 from rest_api.redfish.Storage import StorageCollectionEmulationAPI, StorageEmulationAPI
 from rest_api.redfish.Drive import DriveCollectionEmulationAPI, DriveEmulationAPI
 from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulationAPI, EthernetInterfaceEmulationAPI
@@ -73,7 +74,7 @@ CONFIG_LOGFILE = '/tmp/fabricmanager-log.conf'
 LOCAL_HOST = "127.0.0.1"
 
 # Base URL of REST APIs
-REST_BASE = '/redfish/v1/'
+REST_BASE = redfish_constants.REST_BASE + '/'
 
 # Create Flask server
 app = Flask(__name__)
@@ -186,6 +187,8 @@ def call_populate(local_path):
 if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(ServiceRoot, REST_BASE,
                      resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(SystemAPI, REST_BASE + 'Systems/<string:ident>')
+    api.add_resource(CommonCollectionAPI, REST_BASE + 'Systems')
     api.add_resource(UfmdbSystemAPI, '/<path:path>')
     api.add_resource(UfmdbFabricAPI, '/<path:path>')
 elif (MODE is not None and MODE.lower() == 'local'):
