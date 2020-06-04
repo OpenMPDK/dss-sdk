@@ -115,7 +115,6 @@ def cmd_to_str(cmd, env=None):
 def setenv(name, value):
     """
    Add or modify new env variable
-   @return: Returns 
    """
     global g_env
     if g_env is None:
@@ -126,13 +125,14 @@ def setenv(name, value):
 def exec_cmd(cmd, use_env=True):
     """
    Execute any given command on shell
-   if use_env == True, use the environment built by setenv (in this script)
+   if use_env == True, use the environment built by setenv (g_env in this script)
    @return: Return code, output, error if any.
    """
     global g_env
     env = g_env if use_env else None
-    print ("Executing command %s..." % (cmd_to_str(cmd, env)))
-    p = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, shell=True)
+    full_cmd = cmd_to_str(cmd, env)
+    print ("Executing command %s..." % (full_cmd))
+    p = Popen(full_cmd, stdout=PIPE, stderr=PIPE, shell=True)
     out, err = p.communicate()
     out = out.decode(encoding="UTF-8", errors="ignore")
     out = out.strip()
