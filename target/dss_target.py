@@ -7,6 +7,7 @@ from datetime import date
 import multiprocessing
 from random import randint 
 
+env = {}
 
 mp = multiprocessing
 
@@ -101,14 +102,21 @@ def random_with_N_digits(n):
    #seed(1)
    return randint(range_start, range_end)
 
-def exec_cmd(cmd):
+def cmd_to_str(cmd, env=None):
+   ret = ""
+   if env:
+       for key, val in env.items():
+           ret += key + "=" + val + " "
+   return ret + cmd
+
+def exec_cmd(cmd, env=None):
    '''
    Execute any given command on shell
    @return: Return code, output, error if any.
    '''
 
-   print("Executing command %s..." %(cmd))
-   p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+   print("Executing command %s..." %(cmd_to_str(cmd, env)))
+   p = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
    out = out.decode(encoding='UTF-8',errors='ignore')
    out = out.strip()
@@ -139,7 +147,7 @@ def get_pcie_address_firmware_mapping():
     """
 
     signature ="ls /sys/class/pci_bus/0000:*/device/*/nvme/nvme*/firmware_rev"
-    ret, fw_revision_files, err = exec_cmd(signature)
+    ret, fw_revision_files, err = exec_cmd(signature, env)
     address_kv_firmware = {}
     address_block_firmware = {}
     fw_revision_files = fw_revision_files.split("\n")
@@ -170,7 +178,7 @@ def get_nvme_list_numa():
     numa0_drives = []
     numa1_drives = []
 
-    ret, out, err =  exec_cmd(lspci_cmd)
+    ret, out, err = exec_cmd(lspci_cmd, env)
     if not out:
         return numa0_drives, numa1_drives
     out = out.split('\n')
@@ -204,10 +212,10 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     #print block_pcie_address
 
     # Get hostname
-    ret, hostname, err = exec_cmd('hostname -s')
+    ret, hostname, err = exec_cmd('hostname -s', env)
 
     # Get number of processors
-    retcode, nprocs, err = exec_cmd('nproc')
+    retcode, nprocs, err = exec_cmd('nproc', env)
 
     # Initialize list for all cores. It will be used in for loops below.
     proc_list = [0 for i in range(0,int(nprocs))]
@@ -337,9 +345,9 @@ def buildtgt():
     Build the executable
     '''
     if os.path.exists("build.sh"):
-    	ret, out, err = exec_cmd("sh build.sh")
+    	ret, out, err = exec_cmd("sh build.sh", env)
         print (out)
-	return ret
+        return ret
     else:
 	return -1
    
@@ -347,21 +355,20 @@ def setup_hugepage():
     '''
     hugepage setup
     '''
-    ret, out, err = exec_cmd("export NRHUGE=8192")
-    if ret != 0:
-        return ret
-    
+    env["NRHUGE"] = "8192"
+
+
     sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
     if not os.path.exists(sys_hugepage_path):
 	with open(sys_hugepage_path, 'w') as file:
 	    file.write('40')
     else:
-	ret, out, err = exec_cmd("echo 40 > " + sys_hugepage_path)
+	ret, out, err = exec_cmd("echo 40 > " + sys_hugepage_path, env)
 	if ret != 0:
 	    return ret
 
     if not os.path.exists("/dev/hugepages1G"):
-        ret, out, err = exec_cmd("mkdir /dev/hugepages1G")
+        ret, out, err = exec_cmd("mkdir /dev/hugepages1G", env)
 	if ret != 0:
 	    return ret
     if not os.path.ismount("/dev/hugepages1G"):
@@ -380,7 +387,7 @@ def setup_drive():
     '''
     cmd = "sh " +g_path + "/../scripts/setup.sh"
     print 'Executing: ' + cmd + '...'
-    ret, out, err = exec_cmd(cmd)
+    ret, out, err = exec_cmd(cmd, env)
     if ret != 0:
         print("****** Assign drives to user is failed ******")
 
@@ -395,7 +402,7 @@ def reset_drive():
     '''
     cmd = "sh "+ g_path + "/../scripts/setup.sh reset"
     print 'Executing: ' + cmd + '...'
-    ret, out, err = exec_cmd(cmd)
+    ret, out, err = exec_cmd(cmd, env)
     if ret != 0:
         print("****** Bring back drives to system is failed ******")
 
@@ -410,7 +417,7 @@ def execute_tgt(tgt_binary):
     global g_core_mask, g_conf_path
     cmd = g_path + '/nvmf_tgt -c ' + g_conf_path + ' -r /var/run/spdk.sock -m ' + g_core_mask + ' -L dfly_list'
     print 'Executing: ' + cmd + '...'
-    ret, out, err = exec_cmd(cmd)
+    ret, out, err = exec_cmd(cmd, env)
     if ret != 0:
 	print("Failed to execute target binary.....")
 	return ret   
