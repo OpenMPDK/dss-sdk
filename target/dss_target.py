@@ -7,7 +7,7 @@ from datetime import date
 import multiprocessing
 from random import randint
 
-g_env = {}
+g_env = None
 
 mp = multiprocessing
 
@@ -117,6 +117,9 @@ def setenv(name, value):
    Add or modify new env variable
    @return: Returns 
    """
+    global g_env
+    if g_env is None:
+        g_env = {}
     g_env[name] = str(value)
 
 
@@ -126,8 +129,8 @@ def exec_cmd(cmd, use_env=True):
    if use_env == True, use the environment built by setenv (in this script)
    @return: Return code, output, error if any.
    """
-
-    env = g_env if use_env else {}
+    global g_env
+    env = g_env if use_env else None
     print ("Executing command %s..." % (cmd_to_str(cmd, env)))
     p = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, shell=True)
     out, err = p.communicate()
