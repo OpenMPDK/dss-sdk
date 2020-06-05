@@ -6,10 +6,13 @@ import traceback
 # Flask imports
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
+from os.path import basename
 
 from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from common.ufmlog import ufmlog
-from uuid import uuid4
+from common.ufmdb.redfish import ufmdb_redfish_resource
+from common.ufmdb.redfish.redfish_system_backend import RedfishSystemBackend, RedfishSystemCollectionBackend, \
+    RedfishCollectionBackend
 
 # Internal imports
 from rest_api.redfish.templates.System import get_System_instance
@@ -63,6 +66,39 @@ class UfmdbSystemAPI(Resource):
             response = { "Status": 500, "Message": "Internal Server Error" }
 
         return response
+
+
+class SystemAPI(Resource):
+    def get(self, ident):
+        try:
+            (resource_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db('Systems', ident)
+            redfish_backend = RedfishSystemBackend.create_instance(resource_type, entry, ident)
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR, "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class CommonCollectionAPI(Resource):
+
+    def __init__(self):
+        self.collection = basename(request.path.strip('/'))
+
+    def get(self):
+        try:
+            collection_backend = RedfishCollectionBackend.create_instance(self.collection)
+            response = collection_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR, "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
 
 
 class SystemEmulationAPI(Resource):
