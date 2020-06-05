@@ -71,13 +71,13 @@ class EssdDrive():
         keyWithPrefix = self.addPrefix(self.essdPrefix, self.uuid, key)
 
         try:
-            value = db.get_key_value(keyWithPrefix).decode('utf-8')
+            value = db.get(keyWithPrefix).decode('utf-8')
             if value == jsonData:
                 return
         except:
             pass
 
-        db.save_key_value(keyWithPrefix, jsonData)
+        db.put(keyWithPrefix, jsonData)
 
 
     def updateUuid(self, db):
@@ -87,7 +87,7 @@ class EssdDrive():
         tmpString=''
         lastUpdateKey = "/essd/uptimes"
         try:
-            tmpString = db.get_key_value(lastUpdateKey).decode('utf-8')
+            tmpString = db.get(lastUpdateKey).decode('utf-8')
         except:
             pass
 
@@ -103,7 +103,7 @@ class EssdDrive():
         new_uuids[self.uuid] = int(time.time())
         jsonString = json.dumps(new_uuids, indent=4, sort_keys=True)
 
-        db.save_key_value(lastUpdateKey, jsonString)
+        db.put(lastUpdateKey, jsonString)
 
 
     def removeUuidOlderThan(self, db, sec):
@@ -113,7 +113,7 @@ class EssdDrive():
         tmpString=''
         lastUpdateKey = "/essd/uptimes"
         try:
-            tmpString = db.get_key_value(lastUpdateKey).decode('utf-8')
+            tmpString = db.get(lastUpdateKey).decode('utf-8')
         except:
             return
 
@@ -135,7 +135,7 @@ class EssdDrive():
 
         # Update the update list
         jsonString = json.dumps(keep_uuids, indent=4, sort_keys=True)
-        db.save_key_value(lastUpdateKey, jsonString)
+        db.put(lastUpdateKey, jsonString)
 
         if not bool(remove_uuids):
             return

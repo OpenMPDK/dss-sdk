@@ -11,18 +11,12 @@ import argparse
 import uuid
 import datetime
 import yaml
-import collections
 from multiprocessing import Process
 from subprocess import PIPE, Popen, STDOUT
-
-import etcd3
-
-from common.clusterlib import lib, lib_constants
 
 # Flask Imports
 from flask import Flask, request, make_response, render_template
 from flask_restful import reqparse, Api, Resource
-
 
 # REST API Imports
 from rest_api.resource_manager import ResourceManager
@@ -32,8 +26,16 @@ from rest_api.redfish.Fabric_api import UfmdbFabricAPI
 # Internal Imports
 import config
 from common.ufmlog import ufmlog
-from ufm_status import UfmStatus, UfmLeaderStatus, UfmHealthStatus
+from common.ufmdb import ufmdb
 
+# Depricated library
+from common.clusterlib import lib
+
+from ufm_status import UfmStatus
+from ufm_status import UfmLeaderStatus
+from ufm_status import UfmHealthStatus
+
+# Redfish
 from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
 from rest_api.redfish.System_api import SystemCollectionEmulationAPI, SystemEmulationAPI, SystemAPI, CommonCollectionAPI
@@ -47,13 +49,22 @@ from rest_api.redfish.Port import PortCollection, Port
 from rest_api.redfish.VLAN import VLANCollection, VLAN
 
 from backend.populate import populate
-from systems.switch.switch import Switch
-from systems.smart.smart import Smart
-from systems.essd.essd import Essd
-from systems.ebof.ebof import Ebof
-from systems.nkv.nkv import Nkv
+
+from systems import port_def
+
 from systems.ufm.ufm import Ufm
 from systems.ufmarg import UfmArg
+
+from systems.switch.switch import Switch
+
+from systems.smart.smart import Smart
+
+from systems.essd.essd import Essd
+
+from systems.ebof.ebof import Ebof
+
+from systems.nkv.nkv import Nkv
+
 
 
 # If application is installed, then append the module search path
@@ -246,14 +257,14 @@ def startSubSystems(sub_systems):
 
 
 def stopSubSystems(sub_systems):
-    for sub in sub_systems:
+    for sub in reversed(sub_systems):
         sub.stop()
 
 
 def insertEssdUrls(db, essdUrls):
     listOfDrives = list()
     try:
-        tmpString = db.get_key_value("/essd/essdurls").decode('utf-8')
+        tmpString = db.get_key_value(essd_constants.ESSDURLS_KEY).decode('utf-8')
 
         if tmpString:
             listOfDrives = json.loads(tmpString)
@@ -265,7 +276,7 @@ def insertEssdUrls(db, essdUrls):
             listOfDrives.append(d)
 
     jsonString = json.dumps(listOfDrives, indent=4, sort_keys=True)
-    db.save_key_value("/essd/essdurls", jsonString)
+    db.put(essd_constants.ESSDURLS_KEY, jsonString)
 
 
 def readConfigDataFromFile(filename):
@@ -289,17 +300,19 @@ def readConfigDataFromFile(filename):
 def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     # Ufm is requiered
-    subSystems.append(Ufm(ufmArg))
+    subSystems.append( Ufm(ufmArg) )
 
     try:
         if ufmMetadata['nkv']['enable']:
-            subSystems.append( Nkv(hostname=ufmArg.hostname, db=ufmArg.db) )
+            ufmArg.nkvConfig=ufmMetadata['nkv']
+            subSystems.append( Nkv(hostname=ufmArg.hostname, db=ufmArg.deprecatedDb) )
     except:
         pass
 
     try:
         if ufmMetadata['essd']['enable']:
-            subSystems.append( Essd(ufmArg))
+            ufmArg.essdConfig=ufmMetadata['essd']
+            subSystems.append( Essd(ufmArg) )
 
             try:
                 # Urls of the essd in the config file is optional
@@ -312,18 +325,21 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     try:
         if ufmMetadata['ebof']['enable']:
+            ufmArg.ebofConfig=ufmMetadata['ebof']
             subSystems.append( Ebof() )
     except:
         pass
 
     try:
         if ufmMetadata['smart']['enable']:
+            ufmArg.smartConfig=ufmMetadata['smart']
             subSystems.append( Smart() )
     except:
         pass
 
     try:
         if ufmMetadata['switch']['enable']:
+            ufmArg.switchConfig=ufmMetadata['switch']
             subSystems.append( Switch() )
     except:
         pass
@@ -347,7 +363,7 @@ def setMasterInDb(ufmArg):
     masterInfo['starttime']=time.time()
 
     jsonString = json.dumps(masterInfo, indent=4, sort_keys=True)
-    ufmArg.db.save_key_value('/ufm/master', jsonString)
+    ufmArg.db.put('/ufm/master', jsonString)
 
 
 def serverStateChange(startup, cbArgs):
@@ -419,13 +435,19 @@ def main():
     kwargs['port'] = args.port
 
     ufmMetadata = readConfigDataFromFile(filename="ufm.yaml")
-    try:
-        metadataIp = ufmMetadata['metadatabase']['ip']
 
-        # Connect to database.
-        db = lib.create_db_connection(ip_address=metadataIp, log=log)
+    try:
+        db = ufmdb.client(db_type = 'etcd')
     except:
         log.error("Failed to connect to DB.")
+        sys.exit(-1)
+
+    # Connect to db with deprecated library.
+    try:
+        metadataIp = ufmMetadata['metadatabase']['ip']
+        deprecatedDb = lib.create_db_connection(ip_address=metadataIp, log=log)
+    except:
+        log.error("Failed to connect to deprecatedDb.")
         sys.exit(-1)
 
     config.rest_base = REST_BASE
@@ -434,6 +456,7 @@ def main():
     hostname = socket.gethostname().lower()
 
     ufmArg = UfmArg(db=db, hostname=hostname, log=log, uuid=uuid.getnode())
+    ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
     initializeSubSystems(subSystems=subSystems, ufmArg=ufmArg, ufmMetadata=ufmMetadata)
@@ -470,3 +493,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

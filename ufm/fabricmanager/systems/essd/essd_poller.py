@@ -62,7 +62,7 @@ class EssdPoller(UfmThread):
         # Read essd url's from DB
         if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
             try:
-                tmpString = cbArgs.db.get_key_value("/essd/essdurls").decode('utf-8')
+                tmpString = cbArgs.db.get("/essd/essdurls").decode('utf-8')
                 cbArgs.essdSystems = json.loads(tmpString)
                 cbArgs.updateEssdUrls = False
             except:
