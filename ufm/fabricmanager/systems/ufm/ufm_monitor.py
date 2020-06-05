@@ -44,11 +44,7 @@ class UfmMonitor(UfmThread):
         super(UfmMonitor, self).start(threadName='UfmMonitor', cb=self._ufmMonitor, cbArgs=self.ufmArg, repeatIntervalSecs=7.0)
 
         try:
-            self.watch_id = None # self.db.watch_callback(self.prefix, self._ufmMonitorCallback, previous_kv=True)
-
-            if not self.watch_id:
-                self.log.error("=====> watch_callback returned None")
-
+            self.watch_id = self.db.watch_callback(self.prefix, self._ufmMonitorCallback, previous_kv=True)
         except Exception as e:
             self.log.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
