@@ -55,8 +55,6 @@ from systems import port_def
 from systems.ufm.ufm import Ufm
 from systems.ufmarg import UfmArg
 
-from systems.switch.switch import Switch
-
 from systems.switch.switch import EthSwitch
 from systems.switch.switch_arg import SwitchArg
 
