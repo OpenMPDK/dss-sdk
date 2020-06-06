@@ -17,7 +17,7 @@ essd:
         - "http://172.22.4.58:32782"
 
 nkv:
-    enable: False
+    enable: False #LUFAN
     start: True
     mqport: 5556
 
@@ -35,7 +35,7 @@ switch:
     -   sw_type: mellanox
         sw_ip: 10.1.10.191
         enable: True
-        start: False
+        start: True
         mqport: 5559
 
     -   sw_type: broadcom

@@ -19,7 +19,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         self.log.info("SwitchMellanoxClient ip = {}".format(self.swArg.sw_ip))
         self.log.info("Init {}".format(self.__class__.__name__))
 
-
     def _connect(self):
         self.url = 'https://' + self.swArg.sw_ip + '/admin/launch'
         self.log.info('EthSwitch login url: ' + self.url)

@@ -42,7 +42,6 @@ class SwitchController(UfmThread):
     def is_running(self):
         return self._running
 
-
     '''
     switch operations
     '''

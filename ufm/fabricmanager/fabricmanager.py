@@ -58,6 +58,9 @@ from systems.ufmarg import UfmArg
 from systems.switch.switch import EthSwitch
 from systems.switch.switch_arg import SwitchArg
 
+from systems.switch.switch import EthSwitch
+from systems.switch.switch_arg import SwitchArg
+
 from systems.smart.smart import Smart
 
 from systems.essd.essd import Essd
@@ -300,7 +303,7 @@ def readConfigDataFromFile(filename):
 
 def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
-    # Ufm is requiered
+    # Ufm is required
     subSystems.append( Ufm(ufmArg) )
 
     try:

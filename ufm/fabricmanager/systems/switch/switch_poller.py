@@ -1,3 +1,4 @@
+
 from ufm_thread import UfmThread
 from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
@@ -43,5 +44,4 @@ class SwitchPoller(UfmThread):
     def _pollerX(self, ufmArg):
         print("_SP_", flush=True, end='')
         self.client.poll_to_db()
-        pass
 
