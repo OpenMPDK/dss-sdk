@@ -1,0 +1,5 @@
+SUCCESS = 200
+
+
+SWITCH_BASE = '/switches'
+SWITCH_LIST_KEY_PREFIX = SWITCH_BASE + '/list'

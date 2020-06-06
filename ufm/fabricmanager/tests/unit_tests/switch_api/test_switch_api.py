@@ -1,15 +1,23 @@
-from systems.switch import switch_controller
+
 from common.ufmlog import ufmlog
+from common.ufmdb import ufmdb
+from systems.switch import switch_constants
+from systems.switch.switch_arg import SwitchArg
+from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 import pytest
 import requests
 
 MELLANOX_SWITCH_TYPE = 'mellanox'
 MELLANOX_SWITCH_IP = '10.1.10.191'
+MELLANOX_UUID = 'f1ec15f8-c832-11e9-8000-b8599f784980'
+
+db = ufmdb.client(db_type = 'etcd')
 
 @pytest.fixture(scope='module')
 def sw():
     print('----------login----------')
+
     ufmlog.ufmlog.filename = "/tmp/test_switch.log"
     #print(ufmlog.ufmlog.filename)
     log = ufmlog.log(module="switch_test", mask=ufmlog.UFM_SWITCH)
@@ -17,12 +25,16 @@ def sw():
     log.log_debug_on()
     print(log)
 
-    sw = switch_controller.client(MELLANOX_SWITCH_TYPE, MELLANOX_SWITCH_IP, log)
-    sw.start()
+    global db
+    swArg = SwitchArg(sw_type = MELLANOX_SWITCH_TYPE,
+                      sw_ip = MELLANOX_SWITCH_IP,
+                      log = log,
+                      db = db)
+
+    sw = SwitchMellanoxClient(swArg)
     yield sw
 
     print('----------teardown----------')
-    sw.stop()
 
 
 def test_show_version(sw):
@@ -72,47 +84,39 @@ def test_show_version(sw):
     assert(json_obj["results"][0]["executed_command"] == "show version")
     assert(json_obj["results"][0]["status"] == "OK")
 
-def test_config_access_mode_and_assign_pvid(sw):
-    vlan_id = 7
-    port = '1/31'
 
-    #sw.enter_config_cmd()
-    sw.config_access_mode_and_assign_pvid(vlan_id, port)
+def test_poll_to_db(sw):
+    sw.poll_to_db()
 
-    data = {
-        "commands":
-        [
-            "show vlan id " + str(vlan_id),
-        ]
-    }
-    resp = sw.send_cmd(data)
+    ret_uuid_list = []
+    ret_vlan_list = []
 
-    json_obj = resp.json()
-    assert(json_obj["results"][0]["executed_command"] == "show vlan id 7")
-    assert(json_obj["results"][0]["status"] == "OK")
-    assert(json_obj["results"][0]["data"]["7"][0]["Ports"] == "Eth1/31")
+    global db
+    for value, md in db.get_prefix(switch_constants.SWITCH_LIST_KEY_PREFIX):
+        key_str = (md.key).decode('utf-8')
+        key_list = key_str.split('/')
+        ret_uuid = key_list[-1]
+        ret_uuid_list.append(ret_uuid)
 
-    #delete port and vlan for next run
-    data1 = {
-        "commands":
-        [
-            "interface ethernet " + port,
-            "no switchport access vlan",
-            "exit",
-            "no vlan " + str(vlan_id)
-        ]
-    }
-    resp = sw.send_cmd(data1)
-    assert(resp.status_code == 200)
+    assert(MELLANOX_UUID in ret_uuid_list)
 
-    json_obj = resp.json()
-    assert(json_obj["results"][0]["executed_command"] == "interface ethernet 1/31")
-    assert(json_obj["results"][0]["status"] == "OK")
-    assert(json_obj["results"][1]["executed_command"] == "no switchport access vlan")
-    assert(json_obj["results"][1]["status"] == "OK")
-    assert(json_obj["results"][2]["executed_command"] == "exit")
-    assert(json_obj["results"][2]["status"] == "OK")
-    assert(json_obj["results"][3]["executed_command"] == "no vlan 7")
-    assert(json_obj["results"][3]["status"] == "OK")
+    # There is always a vlan '1' with name 'default'
+    key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/list'
+    for value, md in db.get_prefix(key):
+        key_str = (md.key).decode('utf-8')
+        key_list = key_str.split('/')
+        ret_vlan_id = key_list[-1]
+        ret_vlan_list.append(ret_vlan_id)
 
+    assert( '1' in ret_vlan_list)
+
+    key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/1/name'
+    ret_name, md = db.get(key)
+    assert( 'default' == ret_name.decode())
+    
+
+
+
+
+    
 
