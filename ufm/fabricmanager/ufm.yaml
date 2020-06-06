@@ -35,7 +35,7 @@ switch:
     -   sw_type: mellanox
         sw_ip: 10.1.10.191
         enable: True
-        start: True
+        start: False
         mqport: 5559
 
     -   sw_type: broadcom
