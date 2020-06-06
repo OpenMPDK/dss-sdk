@@ -27,7 +27,7 @@ class SwitchPoller(UfmThread):
             raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
 
         self._running = True
-        super(SwitchPoller, self).start(threadName='SwitchPoller', cb=self.pollerX, cbArgs=self.swArg, repeatIntervalSecs=1.0)
+        super(SwitchPoller, self).start(threadName='SwitchPoller', cb=self._pollerX, cbArgs=self.swArg, repeatIntervalSecs=10.0)
 
 
     def stop(self):
@@ -40,9 +40,8 @@ class SwitchPoller(UfmThread):
         return self._running
 
 
-    def pollerX(self, ufmArg):
+    def _pollerX(self, ufmArg):
         print("_SP_", flush=True, end='')
-        self.client.do_something()
-        # Do more here if needed
+        self.client.poll_to_db()
         pass
 
