@@ -16,9 +16,9 @@ class SwitchController(UfmThread):
 
 
     def __del__(self):
+        if self._running:
+            self.stop()
         self.log.info("Del {}".format(self.__class__.__name__))
-        # self.stop()
-        pass
 
 
     def start(self):
