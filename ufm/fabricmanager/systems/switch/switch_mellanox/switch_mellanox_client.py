@@ -1,4 +1,13 @@
 
+
+
+'''
+ignore warnings from this statement:
+session.post( , , verify=False)
+'''
+import warnings
+warnings.filterwarnings("ignore", message="InsecureRequestWarning: Unverified HTTPS request is being made to host")
+
 import time
 import json
 import requests
