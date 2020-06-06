@@ -74,10 +74,6 @@ class EssdMonitor(UfmThread):
 
         try:
             self.watch_id = self.db.watch_callback('/essd', self._watchEssdKeyCallBack, previous_kv=True)
-
-            if not self.watch_id:
-                self.log.error("=====> watch_callback returned None")
-
         except Exception as e:
             self.log.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
