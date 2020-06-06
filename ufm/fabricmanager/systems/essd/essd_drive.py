@@ -6,11 +6,11 @@ from redfish.rest.v1 import redfish_client
 
 
 class EssdDrive():
-    def __init__(self, url, username=None, password=None, logger=None):
+    def __init__(self, url, username=None, password=None, log=None):
         self.url=url
         self.username=username
         self.password=password
-        self.logger=logger
+        self.logger=log
         self.essdPrefix="/essd/"
 
         self.root = redfish_client(base_url=(self.url), timeout=1, max_retry=1)
