@@ -41,7 +41,7 @@ class UfmPoller(UfmThread):
         if df_struct.f_blocks > 0:
             df_out = df_struct.f_bfree * 100 / df_struct.f_blocks
             if df_out:
-                ufmArg.db.put(ufmArg.prefix + "/space_avail_percent", df_out)
+                ufmArg.db.put(ufmArg.prefix + "/space_avail_percent", str(df_out))
 
         # Do more here is needed
         pass
