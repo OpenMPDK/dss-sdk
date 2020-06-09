@@ -62,19 +62,21 @@ class EssdPoller(UfmThread):
         # Read essd url's from DB
         if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
             try:
-                tmpString = cbArgs.db.get("/essd/essdurls").decode('utf-8')
-                cbArgs.essdSystems = json.loads(tmpString)
+                tmpString, _ = cbArgs.db.get("/essd/essdurls")
+                cbArgs.essdSystems = json.loads(tmpString.decode('utf-8'))
                 cbArgs.updateEssdUrls = False
             except:
                 cbArgs.log.error("Failed to read essd Urls from db {}".format(tmpString))
 
         essdToScan = cbArgs.essdCounter % len(cbArgs.essdSystems)
         essdUrl = cbArgs.essdSystems[essdToScan]
+        # cbArgs.log.info(f'\nPolling ESSD {essdUrl}\n')
 
         try:
             essd = EssdDrive(url=essdUrl, username=None, password=None, log=cbArgs.log)
-        except:
+        except Exception as e:
             cbArgs.log.error("Failed to connect to essd {}".format(essdUrl))
+            cbArgs.log.exception(e)
             return
 
         # Update uuid's latest upTime
