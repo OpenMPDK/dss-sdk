@@ -81,6 +81,7 @@ typedef enum df_lat_states_e {
 	DF_LAT_REQ_START = 0,
 	DF_LAT_READY_TO_EXECUTE,
 	DF_LAT_COMPLETED_FROM_DRIVE,
+	DF_LAT_RO_STARTED,
 	DF_LAT_REQ_END,
 	DF_LAT_NUM_STATES
 } df_lat_states_t ;

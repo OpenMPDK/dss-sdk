@@ -41,12 +41,6 @@ int dfly_req_fini(struct dfly_request *req)
 
 	void *key_data_buf = req->key_data_buf;//Still valid after fini
 
-#ifdef DF_LATENCY_MEASURE_ENABLED
-	df_lat_update_tick(req, DF_LAT_REQ_END);
-
-	df_print_tick(req);
-#endif
-
 	if (req->req_fuse_data) {
 		dfly_fuse_release(req);
 	}
@@ -302,12 +296,6 @@ int dfly_req_ini(struct dfly_request *req, int flags, void *ctx)
 	req->dev = NULL;
 
 	req->ops = df_req_ops_inst;
-
-#ifdef DF_LATENCY_MEASURE_ENABLED
-	df_lat_update_tick(req, DF_LAT_REQ_START);
-#else
-	error
-#endif
 
 	return 0;
 }

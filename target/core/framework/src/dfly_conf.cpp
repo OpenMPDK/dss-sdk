@@ -298,6 +298,7 @@ dfly_config_read(struct spdk_conf_section *sp)
 				       SPDK_LOG_INFO);
 	g_list_conf.list_timeout_ms = dfly_spdk_conf_section_get_intval_default(sp, "list_timeout_ms", 0);
 
+	g_dragonfly->req_lat_to = dfly_spdk_conf_section_get_intval_default(sp, "latency_threshold_s", 0);
 	g_dragonfly->df_qos_enable = spdk_conf_section_get_boolval(sp, "QoS", false);
 
 	if (g_dragonfly->df_qos_enable) {

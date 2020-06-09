@@ -251,6 +251,7 @@ struct dragonfly {
 	pthread_mutex_t			df_ses_lock;
 
 	dict_t	 			*disk_stat_table;
+	uint64_t req_lat_to;//Request latency timeout
 };
 
 struct dfly_qpair_s {
