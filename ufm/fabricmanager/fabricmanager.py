@@ -11,6 +11,7 @@ import argparse
 import uuid
 import datetime
 import yaml
+import threading
 from multiprocessing import Process
 from subprocess import PIPE, Popen, STDOUT
 
@@ -35,6 +36,8 @@ from ufm_status import UfmStatus
 from ufm_status import UfmLeaderStatus
 from ufm_status import UfmHealthStatus
 
+from ufm_msg_server import UfmMessageServer
+
 # Redfish
 from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
@@ -58,6 +61,8 @@ from systems.ufmarg import UfmArg
 from systems.switch.switch import Switch
 
 from systems.smart.smart import Smart
+
+from systems.essd import essd_constants
 
 from systems.essd.essd import Essd
 
@@ -100,7 +105,7 @@ MASTER_CHECK_INTERVAL = 1
 
 CLUSTER_TIMEOUT = (3 * 60)
 
-g_is_main_running = True
+ufmMainEvent=threading.Event()
 
 # MODE: static, local or db
 # MODE determines the data source for REST API resources
@@ -112,8 +117,7 @@ kwargs = {}
 
 
 def signal_handler(sig, frame):
-    global g_is_main_running
-    g_is_main_running = False
+    ufmMainEvent.set()
 
 
 # End point defined for http://<host:port>/
@@ -264,10 +268,10 @@ def stopSubSystems(sub_systems):
 def insertEssdUrls(db, essdUrls):
     listOfDrives = list()
     try:
-        tmpString = db.get_key_value(essd_constants.ESSDURLS_KEY).decode('utf-8')
+        tmpString, _ = db.get(essd_constants.ESSDURLS_KEY)
 
         if tmpString:
-            listOfDrives = json.loads(tmpString)
+            listOfDrives = json.loads(tmpString.decode('utf-8'))
     except:
         pass
 
@@ -465,6 +469,10 @@ def main():
         log.error("Fail to start UFM")
         sys.exit(-1)
 
+    # Always start the internal message server
+    messageServer = UfmMessageServer(ufmMainEvent, args=(10, 1, 0))
+    messageServer.start()
+
     # ufm_status will handle all health and leader checks
     #
     # UfmStatus monitors cluster for health and determines leader
@@ -482,11 +490,11 @@ def main():
     # Start watching status, need cbs and cb args
     ufm_status.start()
 
-    global g_is_main_running
-    while g_is_main_running:
+    while not ufmMainEvent.is_set():
         time.sleep(MASTER_CHECK_INTERVAL)
 
     ufm_status.stop()
+    messageServer.join()
 
     log.info(" ===> UFM is Stopped! <===")
 

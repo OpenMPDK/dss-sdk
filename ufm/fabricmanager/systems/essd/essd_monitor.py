@@ -8,6 +8,7 @@ import time
 import datetime
 
 from ufm_thread import UfmThread
+from systems.essd import essd_constants
 
 
 class EssdMonitorArg():
@@ -73,7 +74,7 @@ class EssdMonitor(UfmThread):
         super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self._essdMonitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
 
         try:
-            self.watch_id = self.db.watch_callback('/essd', self._watchEssdKeyCallBack, previous_kv=True)
+            self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY, self._watchEssdKeyCallBack, previous_kv=True)
         except Exception as e:
             self.log.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
