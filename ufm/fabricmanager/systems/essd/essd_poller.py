@@ -82,6 +82,8 @@ class EssdPoller(UfmThread):
 
         # Update uuid's latest upTime
         essd.updateUuid(cbArgs.db)
+        # Add lookup entry
+        essd.checkAddLookupEntry(cbArgs.db)
 
         # Read all the RedFish data from essds
         essd.readEssdData(cbArgs.db)
