@@ -57,30 +57,40 @@ class EssdDrive():
         return ''.join(result)
 
 
-    def addPrefix(self, tag, uuid, key):
-        return self.removeDuplicates(tag + "/" + str(uuid) + "/" + str(key))
+    def buildKey(self, tags):
+        if not tags:
+            return None
+
+        result = '/'.join(tags)
+        return self.removeDuplicates(result)
 
 
-    def save(self, db, key, jsonData):
-        if db == None:
+    def saveKeyValue(self, db, keyWithPrefix, jsonData):
+        if not db:
             return
-
-        # If uuid doesn't exist, no data can be saved to DB
-        if self.uuid == None:
-            return
-
-        keyWithPrefix = self.addPrefix(self.essdPrefix, self.uuid, key)
 
         try:
             value, _ = db.get(keyWithPrefix)
-            if value.decode('utf-8') == jsonData:
-                print("========================= NOT saveing data ===========")
+            if value and value.decode('utf-8') == jsonData:
+                self.logger.info("=========== NOT saving data ===========")
                 return
-        except:
+        except Exception as e:
+            self.logger.exception(e)
             pass
 
         db.put(keyWithPrefix, str(jsonData))
 
+    def save(self, db, key, jsonData):
+        # If uuid doesn't exist, no data can be saved to DB
+        if not self.uuid:
+            self.logger.error('Unable to save data without UUID')
+            return
+
+        keyWithPrefix = self.buildKey([self.essdPrefix, str(self.uuid), str(key)])
+        if not keyWithPrefix:
+            self.logger.error('Unable to build key to save ESSD data')
+            return
+        self.saveKeyValue(db, keyWithPrefix, jsonData)
 
     def updateUuid(self, db):
         if db == None:
@@ -143,7 +153,9 @@ class EssdDrive():
             return
 
         for u in remove_uuids:
-            db.delete_key_value(essd_constants.ESSD_KEY + "/" + u)
+            db.delete(essd_constants.ESSD_KEY + "/" + u)
+            # Remove the lookup entry
+            db.delete(essd_constants.SYSTEMS_KEY + "/" + u)
 
 
     def readEssdSystemsData(self, db):
@@ -206,5 +218,24 @@ class EssdDrive():
                 # TODO
                 pass
 
+    def checkAddLookupEntry(self, db):
+        if not self.uuid:
+            self.logger.warning(f'Unable to add lookup entry for {self.url}: UUID not defined')
 
+        uuid = str(self.uuid)
+        key = self.buildKey([essd_constants.SYSTEMS_KEY, uuid])
+        essdSystemKey = self.buildKey([self.essdPrefix, uuid, 'redfish/v1/Systems/System.eSSD.1'])
+        if not key:
+            self.logger.error('Unable to build key to save ESSD data')
+            return
+
+        jsonData = {
+            'type': 'essd',
+            'key': essdSystemKey,
+            'type_specific_data': {
+                'suuid': uuid
+            }
+        }
+        # Save Function will check if it already exists
+        self.saveKeyValue(db, key, jsonData)
 
