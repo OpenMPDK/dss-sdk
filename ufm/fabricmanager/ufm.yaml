@@ -32,7 +32,15 @@ smart:
     mqport: 5558
 
 switch:
-    enable: False
-    start: False
-    mqport: 5559
+    -   sw_type: mellanox
+        sw_ip: 10.1.10.191
+        enable: False
+        start: False
+        mqport: 5559
+
+    -   sw_type: broadcom
+        sw_ip: xx.x.xx.xxx
+        enable: False
+        start: False
+        mqport: 5559
 

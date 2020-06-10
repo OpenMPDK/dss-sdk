@@ -11,7 +11,7 @@ from rest_api.redfish import redfish_constants
 
 members = {}
 
-class SwitchApi(Resource):
+class Switch(Resource):
     """
     Switch
     """

@@ -1,175 +1,91 @@
-import importlib
-from functools import wraps
-from common.system.controller import Controller
 
-#Switch module to use
-sw = None
-
-class SwitchController(Controller):
-    def __new__(self, sw_type, ip_address, log=None, db=None, mq=None):
-        #Get the switch type, load the required module
-        global sw
-        if sw_type == 'mellanox':
-            sw = importlib.import_module('systems.switch.switch_mellanox.switch_mellanox_client')
-        else:
-            raise Exception('Invalid switch type provided, {} is not valid'.format(sw_type))
-        # Create an instance of the class
-        return Controller.__new__(self)
+from ufm_thread import UfmThread
+from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 
-    def __init__(self, sw_type, ip_address, log=None, db=None, mq=None):
-        Controller.__init__(self)
-        self.ip_address = ip_address
-        self.log = log
-        self.db = db
-        self.mq = mq
-        self.running = False
-        self.client = sw.client(sw_type, ip_address, log, db, mq)
+class SwitchController(UfmThread):
+    def __init__(self, swArg=None):
+        self.swArg = swArg
+        self.log = self.swArg.log
+        self._running = False
+        self.client = None
+        self.uuid = None
 
-
-    def log_error(func):
-        @wraps(func)
-        def func_wrapper(*args, **kwargs):
-            self = args[0]
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                self.log.exception(e)
-                return None
-        return func_wrapper
+        super(SwitchController, self).__init__()
+        self.log.info("Init {}".format(self.__class__.__name__))
 
 
     def __del__(self):
-        pass
+        if self._running:
+            self.stop()
+        self.log.info("Del {}".format(self.__class__.__name__))
 
 
-    @log_error
     def start(self):
-        self.log.detail('SwitchController Start: ')
-        return self.client.start()
+        self.log.info("Start {}".format(self.__class__.__name__))
 
-    @log_error
+        if self.swArg.sw_type.lower() == 'mellanox':
+            self.client = SwitchMellanoxClient(self.swArg)
+            self.uuid = self.client.get_uuid()
+        else:
+            raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
+
+        self._running = True
+        super(SwitchController, self).start(threadName='SwitchController')
+
+
     def stop(self):
-        self.log.detail('SwitchController Stop: ')
-        return self.client.stop()
+        super(SwitchController, self).stop()
+        self._running = False
+        self.log.info("Stop {}".format(self.__class__.__name__))
 
-
-
-    @log_error
     def is_running(self):
-        return self.running
-
-
-    @log_error
-    def connect(self):
-        self.log.detail('SwitchController Connect: ')
-        return self.client.connect()
-
-
-    @log_error
-    def send_cmd(self, json_data):
-        self.log.detail('SwitchController Send Cmd: ')
-        return self.client.send_cmd(json_data)
+        return self._running
 
 
     '''
-    Basic Commands
+    switch operations
     '''
-    @log_error
-    def enter_config_cmd(self):
-        self.log.detail('SwitchController enter_config_cmd:')
-        return self.client.enter_config_cmd()
+    def handle_show_version(self, vlan_id):
+        resp = self.client.show_version(vlan_id)
 
-    @log_error
-    def back_to_config_mode(self):
-        self.log.detail('SwitchController back_to_config_mode:')
-        return self.client.back_to_config_mode()
+    '''
+    vlan operations
+    '''
+    def handle_show_vlan(self, vlan_id):
+        resp = self.client.show_vlan(vlan_id)
 
-    @log_error
-    def no_vlan(self, vlan_id):
-        self.log.detail('SwitchController no_vlan: vlan_id=%d',
-                        vlan_id)
-        return self.client.no_vlan(vlan_id)
+    def handle_create_vlan(self, vlan_id):
+        resp = self.client.create_vlan(vlan_id)
+        #todo: adjust db entries
 
-    @log_error
-    def show_interface_vlan(self, vlan_id):
-        self.log.detail('SwitchController show_interface_vlan: vlan_id=%d',
-                        vlan_id)
-        return self.client.show_interface_vlan(vlan_id)
+    def handle_delete_vlan(self, vlan_id):
+        resp = self.client.delete_vlan(vlan_id)
+        #todo: adjust db entries
 
-    @log_error
-    def show_interface_ethernet_switchport(self, port):
-        self.log.detail('SwitchController show_interface_ethernet_switchport: port=%s',
-                        port)
-        return self.client.show_interface_ethernet_switchport(port)
+    def handle_associate_ip_to_vlan(self, vlan_id, ip_address):
+        resp = self.client.associate_ip_to_vlan(vlan_id, ip_address)
+        #todo: adjust db entries
 
-    @log_error
-    def write_memory(self): #requires running in enable mode
-        self.log.detail('SwitchController write_memory:')
-        return self.client.write_memory()
-
-    @log_error
-    def configuration_write(self): #requires running in config mode
-        self.log.detail('SwitchController configuration_write:')
-        return self.client.configuration_write()
+    def handle_remove_ip_from_vlan(self, vlan_id, ip_address):
+        resp = self.client.remove_ip_from_vlan(vlan_id, ip_address)
+        #todo: adjust db entries
 
 
     '''
-    Combo Commands
+    port operations
     '''
-    @log_error
-    def assign_port_to_vlan(self, port, vlan_id):
-        self.log.detail('SwitchController assign_port_to_vlan: port=%s, vlan_id=%d',
-                        port, vlan_id)
-        return self.client.assign_port_to_vlan(port, vlan_id)
-
-    @log_error
-    def add_mode_port_to_vlan(self, port, mode, vlan_id):
-        self.log.detail('SwitchController add_mode_port_to_vlan: port=%s, mode=%s, vlan_id=%d',
-                        port, mode, vlan_id)
-        return self.client.add_mode_port_to_vlan(port, mode, vlan_id)
-
-    @log_error
-    def associate_ip_to_vlan(self, vlan_id, ip_address):
-        self.log.detail('SwitchController associate_ip_to_vlan: vlan_id=%d, ip_address=%s',
-                        vlan_id, ip_address)
-        return self.client.associate_ip_to_vlan(vlan_id, ip_address)
-
-    @log_error
-    def remove_ip_from_vlan(self, vlan_id, ip_address):
-        self.log.detail("SwitchController remove_ip_from_vlan: vlan_id=%d, ip_address=%s",
-                        vlan_id, ip_address)
-        return self.client.remove_ip_from_vlan(vlan_id, ip_address)
-
-    @log_error
-    def config_access_mode_and_assign_pvid(self, vlan_id, port):
-        self.log.detail('SwitchController config_access_mode_and_assign_pvid: vlan_id=%d, port=%s',
-                        vlan_id, port)
-        return self.client.config_access_mode_and_assign_pvid(vlan_id, port)
+    def handle_show_port(self, port_id):
+        resp = self.client.show_port(port_id)
 
 
-    @log_error
-    def config_hybrid_mode_and_assign_pvid(self, vlan_id, port):
-        self.log.detail('SwitchController config_hybrid_mode_and_assign_pvid: vlan_id=%d, port=%s',
-                        vlan_id, port)
-        return self.client.config_hybrid_mode_and_assign_pvid(vlan_id, port)
+    '''
+    vlan and port operations
+    '''
+    def handle_assign_port_to_vlan(self, port_id, vlan_id):
+        resp = self.client.assign_port_to_vlan(port_id, vlan_id)
+        #todo: adjust db entries
 
-
-    @log_error
-    def config_trunk_mode_vlan_membership(self, vlan_id, port):
-        self.log.detail('SwitchController config_trunk_mode_vlan_membership: vlan_id=%d, port=%s',
-                        vlan_id, port)
-        return self.client.config_trunk_mode_vlan_membership(vlan_id, port)
-
-
-    @log_error
-    def config_hybrid_mode_vlan_membership(self, vlan_id, port):
-        self.log.detail('SwitchController config_hybrid_mode_vlan_membership: vlan_id=%d, port=%s',
-                        vlan_id, port)
-        return self.client.config_hybrid_mode_vlan_membership(vlan_id, port)
-
-
-def client(sw_type, ip_address, log=None, db=None, mq=None):
-    """Return an instance of SwitchController."""
-    return SwitchController(sw_type, ip_address, log, db, mq)
-
+    def handle_add_mode_port_to_vlan(self, port, mode, vlan_id):
+        resp = self.client.add_mode_port_to_vlan(port, mode, vlan_id)
+        #todo: adjust db entries

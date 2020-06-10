@@ -263,7 +263,7 @@ class Ufmdb(object):
         return self.client.lock(name, ttl)
 
     @log_error
-    def lease(self, ttl, lease_id):
+    def lease(self, ttl, lease_id=None):
         """
         Create a new lease.
 

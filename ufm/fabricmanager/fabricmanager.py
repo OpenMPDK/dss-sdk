@@ -47,7 +47,7 @@ from rest_api.redfish.Drive import DriveCollectionEmulationAPI, DriveEmulationAP
 from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulationAPI, EthernetInterfaceEmulationAPI
 
 from rest_api.redfish.Fabric_api import FabricCollectionAPI, FabricAPI
-from rest_api.redfish.Switch import SwitchCollection, SwitchApi
+from rest_api.redfish.Switch import SwitchCollection, Switch
 from rest_api.redfish.Port import PortCollection, Port
 from rest_api.redfish.VLAN import VLANCollection, VLAN
 
@@ -58,7 +58,8 @@ from systems import port_def
 from systems.ufm.ufm import Ufm
 from systems.ufmarg import UfmArg
 
-from systems.switch.switch import Switch
+from systems.switch.switch import EthSwitch
+from systems.switch.switch_arg import SwitchArg
 
 from systems.smart.smart import Smart
 
@@ -229,7 +230,7 @@ elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(FabricAPI, REST_BASE + 'Fabrics/<string:ident>')
     api.add_resource(SwitchCollection, REST_BASE + 'Fabrics/<string:ident>/Switches',
                      resource_class_kwargs={'rest_base': REST_BASE, 'suffix': 'Fabrics'})
-    api.add_resource(SwitchApi, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>',
+    api.add_resource(Switch, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>',
                      resource_class_kwargs={'rest_base': REST_BASE})
     api.add_resource(PortCollection, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/Ports',
                      resource_class_kwargs={'rest_base': REST_BASE, 'suffix': 'Fabrics'})
@@ -289,11 +290,11 @@ def readConfigDataFromFile(filename):
     configData = dict()
     if os.path.isfile(installPath + filename):
         with open(installPath + filename) as f:
-            configData = yaml.load(f)
+            configData = yaml.safe_load(f)
     else:
         if os.path.isfile(filename):
             with open(filename) as f:
-                configData = yaml.load(f)
+                configData = yaml.safe_load(f)
         else:
             log.error("Failed to open config file ufm.yaml")
             sys.exit(-1)
@@ -303,7 +304,7 @@ def readConfigDataFromFile(filename):
 
 def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
-    # Ufm is requiered
+    # Ufm is required
     subSystems.append( Ufm(ufmArg) )
 
     try:
@@ -342,9 +343,13 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
         pass
 
     try:
-        if ufmMetadata['switch']['enable']:
-            ufmArg.switchConfig=ufmMetadata['switch']
-            subSystems.append( Switch() )
+        for switch_arg in ufmMetadata['switch']:
+            if switch_arg['enable']:
+                swArg = SwitchArg(sw_type = switch_arg['sw_type'],
+                                  sw_ip = switch_arg['sw_ip'],
+                                  log = ufmArg.log,
+                                  db = ufmArg.db)
+                subSystems.append( EthSwitch(swArg) )
     except:
         pass
 
