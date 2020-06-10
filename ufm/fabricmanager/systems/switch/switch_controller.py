@@ -31,6 +31,7 @@ class SwitchController(UfmThread):
             raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
 
         self._running = True
+        super(SwitchController, self).start(threadName='SwitchController')
 
 
     def stop(self):

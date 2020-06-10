@@ -7,6 +7,7 @@ from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanox
 
 import pytest
 import requests
+import time
 
 MELLANOX_SWITCH_TYPE = 'mellanox'
 MELLANOX_SWITCH_IP = '10.1.10.191'
@@ -35,7 +36,8 @@ def sw():
     yield sw
 
     print('----------teardown----------')
-
+    db.client.delete_prefix(switch_constants.SWITCH_LIST_KEY_PREFIX)
+    db.client.delete_prefix(switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID)
 
 def test_show_version(sw):
     '''
@@ -85,9 +87,7 @@ def test_show_version(sw):
     assert(json_obj["results"][0]["status"] == "OK")
 
 
-def test_poll_to_db(sw):
-    sw.poll_to_db()
-
+def verify_db():
     ret_uuid_list = []
     ret_vlan_list = []
 
@@ -100,6 +100,11 @@ def test_poll_to_db(sw):
 
     assert(MELLANOX_UUID in ret_uuid_list)
 
+    # more direct way for above
+    key = switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + MELLANOX_UUID
+    value, md = db.get(key)
+    assert(md.key.decode('utf-8') == key)
+    ''' 
     # There is always a vlan '1' with name 'default'
     key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/list'
     for value, md in db.get_prefix(key):
@@ -110,12 +115,28 @@ def test_poll_to_db(sw):
 
     assert( '1' in ret_vlan_list)
 
-    key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/1/name'
-    ret_name, md = db.get(key)
-    assert( 'default' == ret_name.decode())
-    
+    # more direct way for above
+    key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/list/1'
+    value, md = db.get(key)
+    assert( md.key.decode('utf-8') == key)
 
+ 
+    key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/1/name/default'
+    value, md = db.get(key)
+    assert( md.key.decode('utf-8') == key)
+    ''' 
 
+def test_poll_to_db(sw):
+
+    count = 5
+    while count > 0:
+        count -= 1
+
+        sw.poll_to_db()
+        verify_db()
+
+        time.sleep(switch_constants.SWITCH_POLLER_INTERVAL_SECS)
+        verify_db()
 
 
     

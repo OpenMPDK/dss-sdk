@@ -1,11 +1,13 @@
 
 from ufm_thread import UfmThread
+from systems.switch import switch_constants
 from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 class SwitchPoller(UfmThread):
     def __init__(self, swArg):
         self.swArg = swArg
         self.log = self.swArg.log
+        self.repeat_interval_secs = switch_constants.SWITCH_POLLER_INTERVAL_SECS
         self._running = False
         self.client = None
 
@@ -28,7 +30,8 @@ class SwitchPoller(UfmThread):
             raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
 
         self._running = True
-        super(SwitchPoller, self).start(threadName='SwitchPoller', cb=self._pollerX, cbArgs=self.swArg, repeatIntervalSecs=10.0)
+        super(SwitchPoller, self).start(threadName='SwitchPoller', cb=self._pollerX, cbArgs=self.swArg, 
+                                        repeatIntervalSecs=self.repeat_interval_secs)
 
 
     def stop(self):

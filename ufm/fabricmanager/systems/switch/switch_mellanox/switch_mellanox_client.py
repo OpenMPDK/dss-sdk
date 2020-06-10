@@ -6,7 +6,8 @@ ignore warnings from this statement:
 session.post( , , verify=False)
 '''
 import warnings
-warnings.filterwarnings("ignore", message="InsecureRequestWarning: Unverified HTTPS request is being made to host")
+#warnings.filterwarnings("ignore", message="InsecureRequestWarning: Unverified HTTPS request is being made to host")
+warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made to host")
 
 import time
 import json
@@ -18,9 +19,11 @@ from systems.switch.switch_client import SwitchClientTemplate
 class SwitchMellanoxClient(SwitchClientTemplate):
     def __init__(self, swArg):
         self.swArg = swArg
-        self.db = swArg.db
         self.log = swArg.log
         self.url = None
+
+        self.db = swArg.db
+        self.lease_ttl = switch_constants.SWITCH_DB_KEY_TTL_SECS
 
         self.session = self._connect()
         self.uuid = self._poll_uuid()
@@ -263,48 +266,58 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         '''
         Poll from the switch and add to db:
 
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/ipv4
-        10.1.10.191
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/manufacturer
-        mellanox
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/model
-        x86onie
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/serial_number
-        MT1935J01956
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uptime
-        1591390118
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uuid
-        f1ec15f8-c832-11e9-8000-b8599f784980
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/ipv4/10.1.10.191
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/manufacturer/mellanox
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/model/x86onie
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/serial_number/MT1935J01956
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uptime/1591390118
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uuid/f1ec15f8-c832-11e9-8000-b8599f784980
         /switches/list/f1ec15f8-c832-11e9-8000-b8599f784980
         '''
         resp = self.show_version()
         json_obj = resp.json()
 
-        if json_obj['results'][0]['executed_command'] == 'show version':
-            self.uuid = json_obj['results'][0]['data']['System UUID']
-            self.db.put(switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + self.uuid, "")
+        '''
+        Parsing the response from show_version cmd
+        '''
+        if 'results' in json_obj:
+            if len(json_obj['results']) > 0:
+                if 'executed_command' in json_obj['results'][0] and 'data' in json_obj['results'][0]:
 
-            SWITCH_ATTR_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/manufacturer', self.swArg.sw_type.lower())
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/model', json_obj['results'][0]['data']['Product model'])
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/serial_number', json_obj['results'][0]['data']['System serial num'])
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uuid', self.uuid)
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/ipv4', self.swArg.sw_ip)
-            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uptime', str(int(time.time())))
+                    if json_obj['results'][0]['executed_command'] == 'show version':
+                        data = json_obj['results'][0]['data']
+                        if 'System UUID' in data:
+                            lease = self.db.lease(self.lease_ttl)
+
+                            self.uuid = data['System UUID']
+                            self.db.put(switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + self.uuid, '', lease=lease)
+                            SWITCH_ATTR_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uptime', str(int(time.time())), lease=lease)
+
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uuid/' + self.uuid, '', lease=lease)
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/manufacturer/' + self.swArg.sw_type.lower(), '', lease=lease)
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/ipv4/' + self.swArg.sw_ip, '', lease=lease)
+
+                            if 'Product model' in data:
+                                self.db.put(SWITCH_ATTR_KEY_PREFIX + '/model/' + data['Product model'], '', lease=lease)
+                            if 'System serial num' in data:
+                                self.db.put(SWITCH_ATTR_KEY_PREFIX + '/serial_number/' + data['System serial num'], '', lease=lease)
+
 
 
     def _poll_vlan_info(self):
         '''
         Poll from the switch and add to db:
 
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/name
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/1/name/default
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/name/
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/Eth1/53
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/Eth1/55
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/name
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/name/
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/49
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/50
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/54
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/name
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/name/
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/network/ports/Eth1/1
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/list/1
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/list/100
@@ -313,63 +326,72 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         '''
         resp = self.show_vlan()
         json_obj = resp.json()
-        if json_obj['results'][0]['executed_command'] == 'show vlan':
-            for vlan_id, vlan_info in json_obj['results'][0]['data'].items():
-                VLAN_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/VLANs'
 
-                self.db.put(VLAN_KEY_PREFIX + '/list/' + vlan_id, "")
+        '''
+        Parsing response from show_vlan cmd
+        '''
+        if 'results' in json_obj:
+            if len(json_obj['results']) > 0:
+                if 'executed_command' in json_obj['results'][0] and 'data' in json_obj['results'][0]:
 
-                this_vlan_key_prefix = VLAN_KEY_PREFIX + '/' + vlan_id
-                for k, v in vlan_info[0].items():
-                   if k == 'Name':
-                       self.db.put(this_vlan_key_prefix + '/name', v)
-                   elif k == 'Ports':
-                       for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
-                           self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, "")
+                    if json_obj['results'][0]['executed_command'] == 'show vlan':
+
+                        for vlan_id, vlan_info in json_obj['results'][0]['data'].items():
+                            lease = self.db.lease(self.lease_ttl)
+
+                            VLAN_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/VLANs'
+                            self.db.put(VLAN_KEY_PREFIX + '/list/' + vlan_id, '', lease=lease)
+
+                            this_vlan_key_prefix = VLAN_KEY_PREFIX + '/' + vlan_id
+                            for k, v in vlan_info[0].items():
+                                if k == 'Name':
+                                    self.db.put(this_vlan_key_prefix + '/name/' + v, '', lease=lease)
+                                elif k == 'Ports':
+                                    for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
+                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, lease=lease)
 
 
     def _poll_port_info(self):
         '''
         Poll from the switch and add to db:
 
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/mode
-        access
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/access_vlan
-        1
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/allowed_vlans
-
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/mode
-        trunk
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/access_vlan
-
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/allowed_vlans
-        100
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/mode
-        trunk
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/access_vlan
-
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/allowed_vlans
-        101
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/mode/access
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/access_vlan/1
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/allowed_vlans/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/mode/trunk
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/access_vlan/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/allowed_vlans/100
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/mode/trunk
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/access_vlan/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/allowed_vlans/101
         '''
         resp = self.show_port()
         json_obj = resp.json()
 
-        if json_obj['results'][0]['executed_command'] == 'show interfaces switchport':
-            for port_id, port_info in json_obj['results'][0]['data'].items():
-                PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports'
+        '''
+        Parsing repsonse from show_port
+        '''
+        if 'results' in json_obj:
+            if len(json_obj['results']) > 0:
+                if 'executed_command' in json_obj['results'][0] and 'data' in json_obj['results'][0]:
 
-                self.db.put(PORT_KEY_PREFIX + '/list/' + port_id, "")
+                    if json_obj['results'][0]['executed_command'] == 'show interfaces switchport':
+                        for port_id, port_info in json_obj['results'][0]['data'].items():
+                            lease = self.db.lease(self.lease_ttl)
 
-                this_port_key_prefix = PORT_KEY_PREFIX + '/' + port_id
-                for k, v in port_info[0].items():
-                   if k == 'Mode':
-                       self.db.put(this_port_key_prefix + '/mode', v)
-                   elif k == 'Access vlan':
-                       #Note: some port's Access vlan is N/A, different from empty?
-                       self.db.put(this_port_key_prefix + '/network/access_vlan', v)
-                   elif k == 'Allowed vlans':
-                       for allowed_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
-                           self.db.put(this_port_key_prefix + '/network/allowed_vlans', v)
+                            PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports'
+                            self.db.put(PORT_KEY_PREFIX + '/list/' + port_id, '', lease=lease)
+
+                            this_port_key_prefix = PORT_KEY_PREFIX + '/' + port_id
+                            for k, v in port_info[0].items():
+                                if k == 'Mode':
+                                    self.db.put(this_port_key_prefix + '/mode/' + v, '', lease=lease)
+                                elif k == 'Access vlan':
+                                    #Note: some port's Access vlan is N/A, different from empty?
+                                    self.db.put(this_port_key_prefix + '/network/access_vlan/' + v, '', lease=lease)
+                                elif k == 'Allowed vlans':
+                                    for allowed_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
+                                        self.db.put(this_port_key_prefix + '/network/allowed_vlans/' + v, '', lease=lease)
 
 
 
