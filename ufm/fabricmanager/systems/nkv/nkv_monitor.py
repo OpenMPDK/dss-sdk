@@ -258,7 +258,7 @@ class NkvMonitor(Monitor):
             # Old code was following:
             self.watch_id = self.db.watch_callback('/', self.key_watcher_cb, previous_kv=True)
         except Exception as e:
-            logger.error('Exception could not get watch id: {}'.format(str(e)))
+            self.logger.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
 
         self.running = True
