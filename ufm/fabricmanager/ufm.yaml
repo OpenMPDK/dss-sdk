@@ -1,11 +1,14 @@
 ---
-metadatabase:
-    ip: "127.0.0.1"
+ufm:
+    dbType: "etcd"
+    dbIp: "127.0.0.1"
+    messageQueuePort: 5510
+    externalPublisher: 5509
 
 essd:
     enable: False
-    start: False
-    mqport: 5555
+    start: True
+    messageQueuePort: 5511
 
     # essdDrive is optional
     essdDrives:
@@ -18,29 +21,29 @@ essd:
 
 nkv:
     enable: True
-    start: True
-    mqport: 5556
+    start: False
+    messageQueuePort: 5512
 
 ebof:
     enable: False
     start: False
-    mqport: 5557
+    messageQueuePort: 5513
 
 smart:
     enable: False
     start: False
-    mqport: 5558
+    messageQueuePort: 5514
 
 switch:
     -   sw_type: mellanox
         sw_ip: 10.1.10.191
         enable: False
         start: False
-        mqport: 5559
+        mqport: 5514
 
     -   sw_type: broadcom
         sw_ip: xx.x.xx.xxx
         enable: False
         start: False
-        mqport: 5559
+        mqport: 5515
 

@@ -13,8 +13,8 @@ class Ufm(SubSystem):
         self.ufmArg = ufmArg
         self.log = self.ufmArg.log
         SubSystem.__init__(self, services=(UfmMonitor(ufmArg=self.ufmArg),
-                                           UfmPoller(ufmArg=self.ufmArg)
-                                           # UfmController(ufmArg=self.ufmArg)
+                                           UfmPoller(ufmArg=self.ufmArg),
+                                           UfmController(ufmArg=self.ufmArg)
                                            ))
 
         self.log.info("Init {}".format(self.__class__.__name__))

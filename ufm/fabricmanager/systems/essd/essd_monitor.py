@@ -8,6 +8,10 @@ import time
 import datetime
 
 from ufm_thread import UfmThread
+
+from systems import port_def
+from systems.ufm_message import Subscriber
+
 from systems.essd import essd_constants
 
 
@@ -49,6 +53,13 @@ class EssdMonitor(UfmThread):
         self.running = False
         self.watch_id = None
         self.essdUrlId = None
+
+        self.event = threading.Event()
+        self.msgListner = Subscriber(event=self.event,
+                                     ports=(port_def.ESSD,
+                                            port_def.UFM),
+                                     topics=('monitor',))
+
         super(EssdMonitor, self).__init__()
         self.log.info('===> Init Monitor <===')
 
@@ -70,8 +81,11 @@ class EssdMonitor(UfmThread):
 
     def start(self):
         self.log.info('===> Start Essd Monitor <===')
+        self.msgListner.start()
+
         self.running = True
         super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self._essdMonitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
+        self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
 
         try:
             self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY, self._watchEssdKeyCallBack, previous_kv=True)
@@ -84,7 +98,11 @@ class EssdMonitor(UfmThread):
 
     def stop(self):
         super(EssdMonitor, self).stop()
+        self.msgListner.stop()
+        self.msgListner.join()
+
         self.running = False
+        self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
 
         self.log.error("====== Watch ID {} ========".format( self.watch_id ))
 

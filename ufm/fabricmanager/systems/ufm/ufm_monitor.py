@@ -2,6 +2,9 @@ import threading
 
 from ufm_thread import UfmThread
 
+from systems import port_def
+from systems.ufm_message import Subscriber
+
 
 class UfmMonitor(UfmThread):
     def __init__(self, ufmArg=None):
@@ -11,6 +14,11 @@ class UfmMonitor(UfmThread):
         self.db = self.ufmArg.db
         self.prefix = self.ufmArg.prefix
 
+        self.event = threading.Event()
+        self.msgListner = Subscriber(event=self.event,
+                                     ports=(port_def.ESSD,
+                                            self.ufmArg.ufmConfig['messageQueuePort']),
+                                     topics=('monitor',))
         self._running = False
         self.watch_id = None
         super(UfmMonitor, self).__init__()
@@ -36,10 +44,15 @@ class UfmMonitor(UfmThread):
            Do some monitor work here
         """
         print("_UM", flush=True, end='')
+        msg=dict()
+        msg['status'] = True
+        cbArgs.publisher.send('ufmcontroller', msg)
 
 
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
+        self.msgListner.start()
+
         self._running = True
         super(UfmMonitor, self).start(threadName='UfmMonitor', cb=self._ufmMonitor, cbArgs=self.ufmArg, repeatIntervalSecs=7.0)
 
@@ -52,6 +65,9 @@ class UfmMonitor(UfmThread):
 
     def stop(self):
         self.log.info("Stop {}".format(self.__class__.__name__))
+        self.msgListner.stop()
+        self.msgListner.join()
+
         super(UfmMonitor, self).stop()
         self._running = False
 
