@@ -250,7 +250,7 @@ class NkvMonitor(Monitor):
 
 
         # The watch callback must be set after the event processor is initialize
-        self.logger.info("======> Configure DB key watch'er <=========")
+        self.logger.info("======> Configure DB key watcher <=========")
         try:
             # New way
             # self.watch_id = self.db.client.watch_callback('/', self.key_watcher_cb, previous_kv=True)
@@ -258,7 +258,7 @@ class NkvMonitor(Monitor):
             # Old code was following:
             self.watch_id = self.db.watch_callback('/', self.key_watcher_cb, previous_kv=True)
         except Exception as e:
-            logger.error('Exception could not get watch id: {}'.format(str(e)))
+            self.logger.error('Exception could not get watch id: {}'.format(str(e)))
             self.watch_id = None
 
         self.running = True
@@ -272,7 +272,7 @@ class NkvMonitor(Monitor):
             # Cancel watcher so no more events get added to the queue
             # when a stop is issued. See [FAB-332]
             if not self.watch_id:
-                self.logger.error("Files to cancel DB watch'er")
+                self.logger.error("Failed to cancel DB watcher")
             else:
                 self.db.cancel_watch(self.watch_id)
 
