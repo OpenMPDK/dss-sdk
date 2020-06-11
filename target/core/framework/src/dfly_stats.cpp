@@ -207,7 +207,7 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 
 	stat_subsys_t *s0;
 	stat_kvio_t *s1;
-	dfly_ustat_insert_stat_subsys_table(&s0, subsystem->id, &stat_subsys_nqn_table);
+	dfly_ustat_insert_stat_subsys_table((ustat_struct_t **)&s0, subsystem->id, &stat_subsys_nqn_table);
 	dfly_ustat_set_string(s0, &s0->name, nqn);
 
 	dfly_ustat_insert_stat_subsys_kvio(&s1, subsystem->id, &stat_subsys_io_table);

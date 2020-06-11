@@ -136,7 +136,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
 	}
 
-	io_device = req->dreq->io_device;
+	io_device = (struct dfly_io_device_s *) req->dreq->io_device;
 	DFLY_ASSERT(io_device);
 
 	bdev = io_device->ns->bdev;

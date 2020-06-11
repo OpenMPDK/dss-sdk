@@ -504,7 +504,6 @@ dragonfly_nvme_passthru(struct spdk_jsonrpc_request *request,
 
 	/* Call Dragonfly passthru API
 	 */
-	df_dev_io_completion_cb;
 	rc = dfly_device_admin_passthru(bdev, &ctx->cmd,
 					(void *)ctx->data, ctx->data_len,
 					passthru_cb, ctx);

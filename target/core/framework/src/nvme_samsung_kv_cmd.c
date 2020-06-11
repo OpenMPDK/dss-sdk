@@ -59,7 +59,7 @@ _nvme_kv_cmd_setup_store_request(struct spdk_nvme_ns *ns, struct nvme_request *r
 
 	cmd = &req->cmd;
 
-	cdw11 = &cmd->cdw11;
+	cdw11 =(struct dword_bytes *)&cmd->cdw11;
 
 	if (option & 0x100) { //Fuse 1op
 		assert(0);//Store cannot be first fuse OP
@@ -100,7 +100,7 @@ _nvme_kv_cmd_setup_cmp_request(struct spdk_nvme_ns *ns, struct nvme_request *req
 
 	cmd = &req->cmd;
 
-	cdw11 = &cmd->cdw11;
+	cdw11 = (struct dword_bytes *)&cmd->cdw11;
 
 	if (option & 0x100) { //Fuse 1op
 		cmd->fuse = 0x1;
@@ -138,7 +138,7 @@ _nvme_kv_cmd_setup_retrieve_request(struct spdk_nvme_ns *ns, struct nvme_request
 
 	cmd = &req->cmd;
 
-	cdw11 = &cmd->cdw11;
+	cdw11 = (struct dword_bytes *)&cmd->cdw11;
 
 	cdw11->cdwb1 = key_size - 1;
 	cdw11->cdwb2 = option;
@@ -175,7 +175,7 @@ _nvme_kv_cmd_setup_delete_request(struct spdk_nvme_ns *ns, struct nvme_request *
 	}
 	option &= 0xFF;
 
-	cdw11 = &cmd->cdw11;
+	cdw11 = (struct dword_bytes *)&cmd->cdw11;
 
 	cdw11->cdwb1 = key_size - 1;
 	cdw11->cdwb2 = option;
@@ -287,7 +287,6 @@ _nvme_kv_cmd_allocate_request(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *q
 void nvme_kv_cmd_setup_key(struct spdk_nvme_cmd *cmd, void *src_key, uint32_t keylen, void *dst_key)
 {
 
-	size_t req_size_padded;
 	uint64_t phys_addr;
 
 	assert(keylen <= SAMSUNG_KV_MAX_KEY_SIZE);
@@ -297,8 +296,8 @@ void nvme_kv_cmd_setup_key(struct spdk_nvme_cmd *cmd, void *src_key, uint32_t ke
 		uint64_t *prp1, *prp2;
 		char     *key_data;
 
-		prp1 = &cmd->cdw12;
-		prp2 = &cmd->cdw14;
+		prp1 = (uint64_t *)&cmd->cdw12;
+		prp2 = (uint64_t *)&cmd->cdw14;
 
 		key_data = (char *)dst_key;
 
@@ -317,11 +316,11 @@ void nvme_kv_cmd_setup_key(struct spdk_nvme_cmd *cmd, void *src_key, uint32_t ke
 
 		if (((uint64_t)(phys_addr + keylen - 1)  & PAGE_SZ_MASK) !=
 		    (((uint64_t)phys_addr & PAGE_SZ_MASK))) {
-			*prp2 = ((uint64_t)(phys_addr + keylen - 1) & PAGE_SZ_MASK);
+			*prp2 = (uint64_t)((uint64_t)(phys_addr + keylen - 1) & PAGE_SZ_MASK);
 			//SPDK_WARNLOG("key split across two prp PRP1:%p PRP2:%p \n", *prp1, *prp2);
 			//assert(0);
 		} else {
-			*prp2 = NULL;
+			*prp2 = 0;
 		}
 	} else {
 		if (src_key) {

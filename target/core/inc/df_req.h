@@ -102,6 +102,14 @@ struct df_io_lat_ticks {
 #define DFLY_REQ_OPC_STORE_FUSE2 (0xC2)
 #define DFLY_REQ_OPC_DELETE_FUSE2 (0xC3)
 
+struct df_dev_response_s {
+	bool rc;
+	int32_t opc;
+	uint32_t cdw0;
+	uint32_t nvme_sct;
+	uint32_t nvme_sc;
+};
+
 struct dfly_request_ops {
 
 	/**--------- For consumer like data distribution --------------**/
@@ -224,14 +232,6 @@ typedef struct dfly_request {
 	int32_t waiting_for_buffer:1;
 	struct df_io_lat_ticks lat;
 } dfly_request_t;
-
-struct df_dev_response_s {
-	bool rc;
-	int32_t opc;
-	uint32_t cdw0;
-	uint32_t nvme_sct;
-	uint32_t nvme_sc;
-};
 
 int dfly_req_ini(struct dfly_request *req, int flags, void *ctx);
 int dfly_req_fini(struct dfly_request *req);

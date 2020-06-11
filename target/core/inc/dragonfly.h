@@ -340,9 +340,6 @@ void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled);
 void df_subsystem_parse_conf(uint32_t ssid, struct spdk_conf_section *subsys_sp);
 uint32_t df_subsystem_enabled(uint32_t ssid);
 
-char *
-dfly_nvmf_rdma_qpair_peer_addr(struct spdk_nvmf_qpair *qp, char *addr, size_t len);
-
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req);
 
 int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
@@ -394,6 +391,10 @@ void df_lat_update_tick(struct dfly_request *dreq, uint32_t state);
 void df_print_tick(struct dfly_request *dreq);
 
 #endif
+
+//Pool device submit function
+void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_device,
+			struct spdk_io_channel *ch);
 
 #ifdef __cplusplus
 }
