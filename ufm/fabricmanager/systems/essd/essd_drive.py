@@ -195,6 +195,20 @@ class EssdDrive():
 
                     self.save(db, key, jsonDrives)
 
+            ethernetCollection = jsonMembers['EthernetInterfaces']['@odata.id']
+            status, key, jsonEthernetCollection = self.get(request=ethernetCollection)
+            if status != 200:
+                continue
+            self.save(db, key, jsonEthernetCollection)
+            interfaces = jsonEthernetCollection['Members']
+            for interface in interfaces:
+                ifc_url = interface['@odata.id']
+                status, key, jsonEthernetInterface = self.get(request=ifc_url)
+                if status != 200:
+                    continue
+                self.save(db, key, jsonEthernetInterface)
+
+
 
     def readEssdData(self, db):
         # Reads data from essd drive and writes it to db
