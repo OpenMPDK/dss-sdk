@@ -407,6 +407,21 @@ The most commonly used dss target commands are:
             g_minio_stand_alone = args.stand_alone 
         config_minio(args.dist, args.stand_alone, args.ec)
 
+    def remove(self):
+        parser = argparse.ArgumentParser(
+                description='Resets the system to stock nvme'
+        )
+        # Disconnect from all subsystems
+        exec_cmd("nvme disconnect-all")
+        # Remove all nvme drivers
+        exec_cmd("rmmod nvme_tcp")
+        exec_cmd("rmmod nvme_rdma")
+        exec_cmd("rmmod nvme_fabrics")
+        exec_cmd("rmmod nvme")
+        exec_cmd("rmmod nvme_core")
+        # Load stock nvme driver
+        exec_cmd("modprobe nvme")
+
 
 if __name__ == '__main__':
 
