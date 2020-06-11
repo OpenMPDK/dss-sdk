@@ -198,7 +198,6 @@ class EssdDrive():
             ethernetCollection = jsonMembers['EthernetInterfaces']['@odata.id']
             status, key, jsonEthernetCollection = self.get(request=ethernetCollection)
             if status != 200:
-                print(f'Unable to get {ethernetCollection}')
                 continue
             self.save(db, key, jsonEthernetCollection)
             interfaces = jsonEthernetCollection['Members']
