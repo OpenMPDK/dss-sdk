@@ -256,6 +256,26 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS oss
 )
 
+add_subdirectory(test)
+
+add_library(dss_lat STATIC	utils/dss_count_latency.c)
+target_link_libraries(dss_lat -ljudyL)
+target_compile_options(dss_lat PRIVATE -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+add_dependencies(dss_lat judyL)
+add_custom_command(
+        TARGET dss_lat PRE_BUILD
+		COMMENT ${CMAKE_SOURCE_DIR}
+        COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
+)
+
+ADD_CUSTOM_TARGET(test_latency_counter
+	COMMENT "Buiulding test latency counter"
+	WORKING_DIRECTORY test/test_latency_counter
+	COMMAND make
+	DEPENDS spdk_tcp
+	DEPENDS dss_lat
+)
+
 add_custom_command(
         TARGET spdk_tcp POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin
@@ -268,3 +288,4 @@ add_custom_command(
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk/
 	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
 )
+
