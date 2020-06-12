@@ -81,7 +81,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         response = self.session.post(self.url + '?script=json', json=json_data, verify=False)
 
         self.log.info('Switch response status_code (200=OK): ' + str(response.status_code))
-        self.log.info('Switch response: %s', response.text)
+        #self.log.info('Switch response: %s', response.text)
         return response
 
 
@@ -348,7 +348,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                     self.db.put(this_vlan_key_prefix + '/name/' + v, '', lease=lease)
                                 elif k == 'Ports':
                                     for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
-                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, lease=lease)
+                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
 
 
     def _poll_port_info(self):
