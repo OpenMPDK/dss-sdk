@@ -34,7 +34,7 @@ smart:
 switch:
     -   sw_type: mellanox
         sw_ip: 10.1.10.191
-        enable: False
+        enable: True
         start: False
         usrname: admin
         pwd: admin
