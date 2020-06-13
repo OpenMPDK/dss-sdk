@@ -71,8 +71,7 @@ class UfmdbSystemAPI(Resource):
 class SystemAPI(Resource):
     def get(self, ident):
         try:
-            (resource_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db('Systems', ident)
-            redfish_backend = RedfishSystemBackend.create_instance(resource_type, entry, ident)
+            redfish_backend = RedfishSystemBackend.create_instance(ident)
             response = redfish_backend.get()
         except Exception as e:
             self.log.exception(e)
@@ -83,8 +82,8 @@ class SystemAPI(Resource):
         raise NotImplementedError
 
 
+# Collections at Top level: System, Chassis etc
 class CommonCollectionAPI(Resource):
-
     def __init__(self):
         self.collection = basename(request.path.strip('/'))
 

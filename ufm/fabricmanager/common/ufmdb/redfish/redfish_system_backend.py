@@ -16,11 +16,12 @@ class RedfishSystemBackend:
         raise NotImplementedError
 
     @classmethod
-    def create_instance(cls, sys_type, entry, ident):
-        if sys_type == 'essd':
+    def create_instance(cls, ident):
+        (resource_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(redfish_constants.SYSTEMS, ident)
+        if resource_type == 'essd':
             return RedfishEssdSystemBackend(entry)
-        elif sys_type == 'nkv':
-            path = join(redfish_constants.REST_BASE, 'Systems', ident)
+        elif resource_type == 'nkv':
+            path = join(redfish_constants.REST_BASE, redfish_constants.SYSTEMS, ident)
             return RedfishNkvSystemBackend(path)
         else:
             raise NotImplementedError
@@ -77,7 +78,7 @@ class RedfishCollectionBackend:
 
     @classmethod
     def create_instance(cls, collection):
-        if collection == 'Systems':
+        if collection == redfish_constants.SYSTEMS:
             return RedfishSystemCollectionBackend()
         else:
             raise NotImplementedError
@@ -86,8 +87,8 @@ class RedfishCollectionBackend:
 class RedfishSystemCollectionBackend(RedfishCollectionBackend):
 
     def __init__(self):
-        super().__init__('Systems')
-        self.path = join(redfish_constants.REST_BASE, 'Systems')
+        super().__init__(redfish_constants.SYSTEMS)
+        self.path = join(redfish_constants.REST_BASE, redfish_constants.SYSTEMS)
 
     def get(self):
         # Get the nkv systems
@@ -99,7 +100,7 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
             resp['Members'] = resp['Members'] + nkv_resp['Members']
             resp['Members@odata.count'] = resp['Members@odata.count'] + len(nkv_resp['Members'])
         # Get All other systems from the lookup prefix
-        systems = ufmdb_redfish_resource.get_resources_list('Systems')
+        systems = ufmdb_redfish_resource.get_resources_list(redfish_constants.SYSTEMS)
         if systems:
             # Update the Members and count
             resp['Members'] = resp['Members'] + systems
@@ -121,4 +122,3 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
 
     def post(self):
         raise NotImplementedError
-

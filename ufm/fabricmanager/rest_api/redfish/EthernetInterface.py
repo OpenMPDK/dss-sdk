@@ -6,10 +6,44 @@ from flask_restful import reqparse, Api, Resource
 
 # Internal imports
 import config
+from common.ufmdb.redfish import ufmdb_redfish_resource
+from common.ufmdb.redfish.redfish_ethernet_backend import RedfishEthernetBackend, RedfishEthernetCollectionBackend
 from .templates.EthernetInterface import get_ethernet_interface_instance
 from rest_api.redfish import redfish_constants
 
 members = {}
+
+
+class EthernetInterfaceAPI(Resource):
+    def get(self, sys_id, eth_id):
+        try:
+            redfish_backend = RedfishEthernetBackend.create_instance(
+                sys_id, eth_id)
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class EthernetInterfaceCollectionAPI(Resource):
+    def get(self, sys_id):
+        try:
+            redfish_backend = RedfishEthernetCollectionBackend.create_instance(
+                sys_id)
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
 
 
 class EthernetInterfaceEmulationAPI(Resource):
