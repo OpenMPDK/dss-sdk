@@ -167,6 +167,7 @@ class RedfishAPI(Resource):
             if path is not None:
                 config = RedfishAPI.load_configuration(resource_manager, path)
             else:
+                print('LUFAN: calling resource_manager.configuration')
                 config = resource_manager.configuration
 
             response = config, 200
@@ -348,7 +349,9 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
                 swArg = SwitchArg(sw_type = switch_arg['sw_type'],
                                   sw_ip = switch_arg['sw_ip'],
                                   log = ufmArg.log,
-                                  db = ufmArg.db)
+                                  db = ufmArg.db,
+                                  usrname = switch_arg['usrname'],
+                                  pwd = switch_arg['pwd'])
                 subSystems.append( EthSwitch(swArg) )
     except:
         pass

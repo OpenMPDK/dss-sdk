@@ -34,8 +34,10 @@ smart:
 switch:
     -   sw_type: mellanox
         sw_ip: 10.1.10.191
-        enable: True
+        enable: False
         start: False
+        usrname: admin
+        pwd: admin
         mqport: 5559
 
     -   sw_type: broadcom
@@ -43,4 +45,21 @@ switch:
         enable: False
         start: False
         mqport: 5559
+
+    -   sw_type: mellanox
+        sw_ip: 172.22.0.109
+        enable: True
+        start: False
+        usrname: ssgroot
+        pwd: proximal
+        mqport: 5559
+
+    -   sw_type: mellanox
+        sw_ip: 172.22.0.110
+        enable: True
+        start: False
+        usrname: ssgroot
+        pwd: proximal
+        mqport: 5559
+
 
