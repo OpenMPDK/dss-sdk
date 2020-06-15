@@ -25,14 +25,14 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         self.db = swArg.db
         self.lease_ttl = switch_constants.SWITCH_DB_KEY_TTL_SECS
 
-        self.session = self._connect()
+        self.session = self._connect(swArg.usrname, swArg.pwd)
         self.uuid = self._poll_uuid()
 
         self.log.info("SwitchMellanoxClient ip = {}".format(self.swArg.sw_ip))
         self.log.info("Init {}".format(self.__class__.__name__))
 
 
-    def _connect(self):
+    def _connect(self, usrname, pwd):
         self.url = 'https://' + self.swArg.sw_ip + '/admin/launch'
         self.log.info('EthSwitch login url: ' + self.url)
         ses = requests.session()
@@ -42,8 +42,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             ('action', 'login'),
         )
         data = {
-            'f_user_id': 'admin',
-            'f_password': 'admin',
+            'f_user_id': usrname,
+            'f_password': pwd,
         }
 
         response = ses.post(self.url, params=params, data=data, verify=False)
