@@ -4,3 +4,7 @@ SUCCESS = 200
 
 # Base URL of REST APIs
 REST_BASE = '/redfish/v1'
+# NAC constants
+SYSTEM = 'System'
+SYSTEMS = 'Systems'
+ETH_INTERFACES = 'EthernetInterfaces'
