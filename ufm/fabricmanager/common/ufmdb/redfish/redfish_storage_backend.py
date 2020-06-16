@@ -43,7 +43,7 @@ class RedfishEssdStorageBackend(RedfishStorageBackend):
         return resp
 
     def put(self, payload):
-        pass
+        raise NotImplementedError
 
 
 class RedfishStorageCollectionBackend:
@@ -83,4 +83,4 @@ class RedfishEssdStorageCollectionBackend(RedfishStorageCollectionBackend):
         return resp
 
     def put(self, payload):
-        pass
+        raise NotImplementedError

@@ -2,12 +2,14 @@
 import traceback
 
 # Flask imports
+from flask import request
 from flask_restful import reqparse, Api, Resource
 
 # Internal imports
 import config
-from common.ufmdb.redfish import ufmdb_redfish_resource
+from common.ufmlog import ufmlog
 from common.ufmdb.redfish.redfish_ethernet_backend import RedfishEthernetBackend, RedfishEthernetCollectionBackend
+from .redfish_error_response import RedfishErrorResponse
 from .templates.EthernetInterface import get_ethernet_interface_instance
 from rest_api.redfish import redfish_constants
 
@@ -15,35 +17,46 @@ members = {}
 
 
 class EthernetInterfaceAPI(Resource):
+    def __init__(self):
+        self.rf_err_resp = RedfishErrorResponse()
+
     def get(self, sys_id, eth_id):
         try:
             redfish_backend = RedfishEthernetBackend.create_instance(
                 sys_id, eth_id)
             response = redfish_backend.get()
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
+            response = self.rf_err_resp.get_server_error_response(e)
         return response
 
-    def post(self):
-        raise NotImplementedError
+    def post(self, sys_id, eth_id):
+        try:
+            payload = request.get_json(force=True)
+            redfish_backend = RedfishEthernetBackend.create_instance(
+                sys_id, eth_id)
+            response = redfish_backend.put(payload)
+        except NotImplementedError as e:
+            response = self.rf_err_resp.get_method_not_allowed_response('EthernetInterface: ' + eth_id)
+        except Exception as e:
+            response = self.rf_err_resp.get_server_error_response(e)
+        return response
 
 
 class EthernetInterfaceCollectionAPI(Resource):
+    def __init__(self):
+        self.rf_err_resp = RedfishErrorResponse()
+
     def get(self, sys_id):
         try:
             redfish_backend = RedfishEthernetCollectionBackend.create_instance(
                 sys_id)
             response = redfish_backend.get()
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
+            response = self.rf_err_resp.get_server_error_response(e)
         return response
 
     def post(self):
-        raise NotImplementedError
+        return self.rf_err_resp.get_method_not_allowed_response('EthernetInterfaces')
 
 
 class EthernetInterfaceEmulationAPI(Resource):

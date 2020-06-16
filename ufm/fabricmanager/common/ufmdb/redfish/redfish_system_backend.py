@@ -39,7 +39,7 @@ class RedfishEssdSystemBackend(RedfishSystemBackend):
         return resp
 
     def put(self, payload):
-        pass
+        raise NotImplementedError
 
 
 class RedfishNkvSystemBackend(RedfishSystemBackend):
@@ -120,5 +120,5 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
             'Name': 'System Collection'
         }
 
-    def post(self):
+    def put(self, payload):
         raise NotImplementedError
