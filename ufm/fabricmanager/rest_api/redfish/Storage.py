@@ -6,10 +6,44 @@ from flask_restful import reqparse, Api, Resource
 
 # Internal imports
 import config
+from common.ufmdb.redfish.redfish_ethernet_backend import RedfishEthernetBackend
+from common.ufmdb.redfish.redfish_storage_backend import RedfishStorageCollectionBackend, RedfishStorageBackend
 from .templates.Storage import get_storage_instance
 from rest_api.redfish import redfish_constants
 
 members = {}
+
+
+class StorageAPI(Resource):
+    def get(self, sys_id, storage_id):
+        try:
+            redfish_backend = RedfishStorageBackend.create_instance(
+                sys_id, storage_id)
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class StorageCollectionAPI(Resource):
+    def get(self, sys_id):
+        try:
+            redfish_backend = RedfishStorageCollectionBackend.create_instance(
+                sys_id)
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+        return response
+
+    def post(self):
+        raise NotImplementedError
 
 
 class StorageEmulationAPI(Resource):
