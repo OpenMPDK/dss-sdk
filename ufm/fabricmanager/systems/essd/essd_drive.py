@@ -172,7 +172,7 @@ class EssdDrive():
                 continue
 
             self.save(db, key, jsonMembers)
-            storage = jsonMembers['SimpleStorage']['@odata.id']
+            storage = jsonMembers['Storage']['@odata.id']
             status, key, jsonStorage = self.get(request=storage)
             if status != 200:
                 continue

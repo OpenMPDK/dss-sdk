@@ -42,7 +42,8 @@ from ufm_msg_server import UfmMessageServer
 from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
 from rest_api.redfish.System_api import SystemCollectionEmulationAPI, SystemEmulationAPI, SystemAPI, CommonCollectionAPI
-from rest_api.redfish.Storage import StorageCollectionEmulationAPI, StorageEmulationAPI
+from rest_api.redfish.Storage import StorageCollectionEmulationAPI, StorageEmulationAPI, StorageCollectionAPI, \
+    StorageAPI
 from rest_api.redfish.Drive import DriveCollectionEmulationAPI, DriveEmulationAPI
 from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulationAPI, EthernetInterfaceEmulationAPI, \
     EthernetInterfaceAPI, EthernetInterfaceCollectionAPI
@@ -208,6 +209,8 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(CommonCollectionAPI, REST_BASE + 'Systems')
     api.add_resource(EthernetInterfaceCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/EthernetInterfaces')
     api.add_resource(EthernetInterfaceAPI, REST_BASE + 'Systems/<string:sys_id>/EthernetInterfaces/<string:eth_id>')
+    api.add_resource(StorageCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage')
+    api.add_resource(StorageAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
     api.add_resource(UfmdbSystemAPI, '/<path:path>')
     api.add_resource(UfmdbFabricAPI, '/<path:path>')
 elif (MODE is not None and MODE.lower() == 'local'):
