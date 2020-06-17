@@ -2,11 +2,10 @@ from os.path import join
 
 from common.ufmdb.redfish import ufmdb_redfish_resource
 from common.ufmdb.redfish.redfish_system_backend import RedfishNkvSystemBackend
-from common.ufmlog import ufmlog
 from rest_api.redfish import redfish_constants
 
 
-class RedfishEthernetBackend:
+class RedfishDriveBackend:
     def get(self):
         # The derived classes need to override this method
         raise NotImplementedError
@@ -16,15 +15,16 @@ class RedfishEthernetBackend:
         raise NotImplementedError
 
     @classmethod
-    def create_instance(cls, sys_id, eth_id):
+    def create_instance(cls, sys_id, storage_id, drive_id):
         (sys_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(
             redfish_constants.SYSTEMS, sys_id)
         if sys_type == 'essd':
-            return RedfishEssdEthernetBackend(entry, eth_id)
+            return RedfishEssdDriveBackend(entry, storage_id, drive_id)
         elif sys_type == 'nkv':
             path = join(redfish_constants.REST_BASE,
                         redfish_constants.SYSTEMS, sys_id,
-                        redfish_constants.ETH_INTERFACES, eth_id)
+                        redfish_constants.STORAGE, storage_id,
+                        redfish_constants.DRIVES, drive_id)
             # A bit strange but that is how NKV Redfish UFMDB is wired.
             # It's a single API entry point for all endpoints.
             return RedfishNkvSystemBackend(path)
@@ -32,13 +32,16 @@ class RedfishEthernetBackend:
             raise NotImplementedError
 
 
-class RedfishEssdEthernetBackend(RedfishEthernetBackend):
-    def __init__(self, entry, eth_id):
+class RedfishEssdDriveBackend(RedfishDriveBackend):
+    def __init__(self, entry, storage_id, drive_id):
         self.entry = entry
-        self.eth_id = eth_id
+        self.storage_id = storage_id
+        self.drive_id = drive_id
 
     def get(self):
-        key = join(self.entry['key'], redfish_constants.ETH_INTERFACES, self.eth_id)
+        key = join(self.entry['key'],
+                   redfish_constants.STORAGE, self.storage_id,
+                   redfish_constants.DRIVES, self.drive_id)
         resp = ufmdb_redfish_resource.get_resource_value(key)
         ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
         return resp
@@ -47,7 +50,7 @@ class RedfishEssdEthernetBackend(RedfishEthernetBackend):
         raise NotImplementedError
 
 
-class RedfishEthernetCollectionBackend:
+class RedfishDriveCollectionBackend:
     def get(self):
         # The derived classes need to override this method
         raise NotImplementedError
@@ -57,15 +60,16 @@ class RedfishEthernetCollectionBackend:
         raise NotImplementedError
 
     @classmethod
-    def create_instance(cls, sys_id):
+    def create_instance(cls, sys_id, storage_id):
         (sys_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(
             redfish_constants.SYSTEMS, sys_id)
         if sys_type == 'essd':
-            return RedfishEssdEthernetCollectionBackend(entry)
+            return RedfishEssdDriveCollectionBackend(entry, storage_id)
         elif sys_type == 'nkv':
             path = join(redfish_constants.REST_BASE,
                         redfish_constants.SYSTEMS, sys_id,
-                        redfish_constants.ETH_INTERFACES)
+                        redfish_constants.STORAGE, storage_id,
+                        redfish_constants.DRIVES)
             # A bit strange but that is how NKV Redfish UFMDB is wired.
             # It's a single API entry point for all endpoints.
             return RedfishNkvSystemBackend(path)
@@ -73,12 +77,15 @@ class RedfishEthernetCollectionBackend:
             raise NotImplementedError
 
 
-class RedfishEssdEthernetCollectionBackend(RedfishEthernetCollectionBackend):
-    def __init__(self, entry):
+class RedfishEssdDriveCollectionBackend(RedfishDriveCollectionBackend):
+    def __init__(self, entry, storage_id):
         self.entry = entry
+        self.storage_id = storage_id
 
     def get(self):
-        key = join(self.entry['key'], redfish_constants.ETH_INTERFACES)
+        key = join(self.entry['key'],
+                   redfish_constants.STORAGE, self.storage_id,
+                   redfish_constants.DRIVES)
         resp = ufmdb_redfish_resource.get_resource_value(key)
         ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
         return resp

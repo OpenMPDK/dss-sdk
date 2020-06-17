@@ -15,6 +15,7 @@ from common.ufmdb.redfish.redfish_system_backend import RedfishSystemBackend, Re
     RedfishCollectionBackend
 
 # Internal imports
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from rest_api.redfish.templates.System import get_System_instance
 from rest_api.redfish import redfish_constants
 import config
@@ -69,35 +70,45 @@ class UfmdbSystemAPI(Resource):
 
 
 class SystemAPI(Resource):
+    def __init__(self):
+        self.rf_err_resp = RedfishErrorResponse()
+
     def get(self, ident):
         try:
             redfish_backend = RedfishSystemBackend.create_instance(ident)
             response = redfish_backend.get()
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR, "Message": "Internal Server Error"}
+            response = self.rf_err_resp.get_server_error_response(e)
         return response
 
-    def post(self):
-        raise NotImplementedError
+    def post(self, ident):
+        try:
+            payload = request.get_json(force=True)
+            redfish_backend = RedfishSystemBackend.create_instance(ident)
+            response = redfish_backend.put(payload)
+        except NotImplementedError as e:
+            response = self.rf_err_resp.get_method_not_allowed_response('System: ' + ident)
+        except Exception as e:
+            response = self.rf_err_resp.get_server_error_response(e)
+        return response
 
 
-# Collections at Top level: System, Chassis etc
-class CommonCollectionAPI(Resource):
+class SystemCollectionAPI(Resource):
     def __init__(self):
         self.collection = basename(request.path.strip('/'))
+        self.rf_err_resp = RedfishErrorResponse()
 
     def get(self):
         try:
             collection_backend = RedfishCollectionBackend.create_instance(self.collection)
             response = collection_backend.get()
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR, "Message": "Internal Server Error"}
+            response = self.rf_err_resp.get_server_error_response(e)
         return response
 
+    # Or we can just not define it and flask will return the same response
     def post(self):
-        raise NotImplementedError
+        return self.rf_err_resp.get_method_not_allowed_response('Systems')
 
 
 class SystemEmulationAPI(Resource):
