@@ -28,7 +28,7 @@ def getSystemInfo(service_addr):
 
     for system in root.Systems.Members:
         # Add nqn for any subsystems
-        if system.Identifiers:
+        if 'Identifiers' in system:
             for identifier in system.Identifiers:
                 if identifier.DurableNameFormat == 'NQN':
                     tgt_cnt += 1
@@ -37,8 +37,8 @@ def getSystemInfo(service_addr):
                     system_info_dict[tgt_str]['NQN'] = identifier.DurableName
                     system_info_dict[tgt_str]['Target_Server_Name'] = system.oem['ServerName']
 
-                    #Add Network Information
-                    if system.EthernetInterfaces:
+                    # Add Network Information
+                    if 'EthernetInterfaces' in system:
                         # No transports to add since no NICs available
                         if not system.EthernetInterfaces.Members:
                             continue
@@ -57,9 +57,9 @@ def getSystemInfo(service_addr):
                                                        '{:^10}'.format(''.rjust(10,'-')))))
                         ethernet_list.append(ethernet_str)
                         for interface in system.EthernetInterfaces.Members:
-                            if interface.IPv4Addresses:
+                            if 'IPv4Addresses' in interface:
                                 for ipv4addr in interface.IPv4Addresses:
-                                    if ipv4addr.Address:
+                                    if 'Address' in ipv4addr:
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
                                             '{:^14}'.format(str(ipv4addr.Address)),
@@ -67,9 +67,9 @@ def getSystemInfo(service_addr):
                                             '{:^12}'.format(str(ipv4addr.oem.SupportedProtocol)),
                                             '{:^10}'.format(str(interface.LinkStatus)))))
                                         ethernet_list.append(ethernet_str)
-                            if interface.IPv6Addresses:
+                            if 'IPv6Addresses' in interface:
                                 for ipv6addr in interface.IPv6Addresses:
-                                    if ipv6addr.Address:
+                                    if 'Address' in ipv6addr:
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
                                             '{:^14}'.format(str(ipv6addr.Address)),
@@ -80,8 +80,8 @@ def getSystemInfo(service_addr):
 
                             system_info_dict[tgt_str]['EthernetInterfaces'] = ethernet_list
 
-                    #Add storage Information
-                    if system.Storage:
+                    # Add storage Information
+                    if 'Storage' in system:
                         # No storage drives to add
                         if not system.Storage.Members:
                             continue
@@ -100,7 +100,7 @@ def getSystemInfo(service_addr):
                                                        '{:^18}'.format(''.rjust(18,'-')))))
                         storage_list.append(storage_str)
                         for storage in system.Storage.Members:
-                            if storage.Drives:
+                            if 'Drives' in storage:
                                 for drive in storage.Drives:
                                     storage_str = ','.join(tuple(('{:^18}'.format(str(drive.SerialNumber)),
                                                                    '{:^18}'.format(str(drive.MediaType)),
