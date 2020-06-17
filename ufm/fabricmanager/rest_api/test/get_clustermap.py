@@ -71,7 +71,7 @@ def getCM(service_addr):
                         for interface in system.EthernetInterfaces.Members:
                             if 'IPv4Addresses' in interface:
                                 for ipv4addr in interface.IPv4Addresses:
-                                    if 'Address' in ipv4addr:
+                                    if ipv4addr.Address:
                                         subsystem_transport = {}
                                         addTransport(subsystem_transport,
                                                      ipv4addr.Address,
@@ -81,9 +81,9 @@ def getCM(service_addr):
                                                      ipv4addr.oem.Port,
                                                      interface.LinkStatus)
                                         subsystem_transport_list.append(subsystem_transport)
-                            if 'IPv6Addresses'  in interface:
+                            if 'IPv6Addresses' in interface:
                                 for ipv6addr in interface.IPv6Addresses:
-                                    if 'Address' in ipv6addr:
+                                    if ipv6addr.Address:
                                         subsystem_transport = {}
                                         addTransport(subsystem_transport,
                                                      ipv6addr.Address,
@@ -94,7 +94,7 @@ def getCM(service_addr):
                                                      interface.LinkStatus)
                                         subsystem_transport_list.append(subsystem_transport)
                         subsystem['subsystem_transport'] = subsystem_transport_list
-                    if system.Storage:
+                    if 'Storage' in system:
                         subsystem['subsystem_avail_percent'] = system.Storage.oem.PercentAvailable
 
                     subsystems_map.append(subsystem)

@@ -59,7 +59,7 @@ def getSystemInfo(service_addr):
                         for interface in system.EthernetInterfaces.Members:
                             if 'IPv4Addresses' in interface:
                                 for ipv4addr in interface.IPv4Addresses:
-                                    if 'Address' in ipv4addr:
+                                    if ipv4addr.Address:
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
                                             '{:^14}'.format(str(ipv4addr.Address)),
@@ -69,7 +69,7 @@ def getSystemInfo(service_addr):
                                         ethernet_list.append(ethernet_str)
                             if 'IPv6Addresses' in interface:
                                 for ipv6addr in interface.IPv6Addresses:
-                                    if 'Address' in ipv6addr:
+                                    if ipv6addr.Address:
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
                                             '{:^14}'.format(str(ipv6addr.Address)),
