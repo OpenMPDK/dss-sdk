@@ -54,7 +54,7 @@ def getCM(service_addr):
         subsystem = {}
 
         # Add nqn for any subsystems
-        if system.Identifiers:
+        if 'Identifiers' in system:
             for identifier in system.Identifiers:
                 if identifier.DurableNameFormat == 'NQN':
                     subsystem['subsystem_nqn'] = identifier.DurableName
@@ -62,16 +62,16 @@ def getCM(service_addr):
                     subsystem['target_server_name'] = system.oem['ServerName']
                     subsystem['subsystem_numa_aligned'] = system.oem['NumaAligned']
 
-                    if system.EthernetInterfaces:
+                    if 'EthernetInterfaces' in system:
                         # No transports to add since no NICs
                         if not system.EthernetInterfaces.Members:
                             continue
                         # Add the transport fields for each NIC
                         subsystem_transport_list = []
                         for interface in system.EthernetInterfaces.Members:
-                            if interface.IPv4Addresses:
+                            if 'IPv4Addresses' in interface:
                                 for ipv4addr in interface.IPv4Addresses:
-                                    if ipv4addr.Address:
+                                    if 'Address' in ipv4addr:
                                         subsystem_transport = {}
                                         addTransport(subsystem_transport,
                                                      ipv4addr.Address,
@@ -81,9 +81,9 @@ def getCM(service_addr):
                                                      ipv4addr.oem.Port,
                                                      interface.LinkStatus)
                                         subsystem_transport_list.append(subsystem_transport)
-                            if interface.IPv6Addresses:
+                            if 'IPv6Addresses'  in interface:
                                 for ipv6addr in interface.IPv6Addresses:
-                                    if ipv6addr.Address:
+                                    if 'Address' in ipv6addr:
                                         subsystem_transport = {}
                                         addTransport(subsystem_transport,
                                                      ipv6addr.Address,

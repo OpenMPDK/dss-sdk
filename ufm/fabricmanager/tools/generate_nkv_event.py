@@ -92,19 +92,19 @@ def agent_event_down(timeout=g_cmd_timeout):
 
 @register_processor('AGENT_UP')
 @generate_event
-def agent_event_down(timeout=g_cmd_timeout):
+def agent_event_up(timeout=g_cmd_timeout):
     return get_service_command('kv_cli', 'start')
 
 
 @register_processor('SUBSYSTEM_DOWN')
 @generate_event
-def subsystem_event(timeout=g_cmd_timeout):
+def subsystem_event_down(timeout=g_cmd_timeout):
     return get_service_command('nvmf_tgt', 'stop')
 
 
 @register_processor('SUBSYSTEM_UP')
 @generate_event
-def subsystem_event(timeout=g_cmd_timeout):
+def subsystem_event_up(timeout=g_cmd_timeout):
     return get_service_command('nvmf_tgt', 'start')
 
 
