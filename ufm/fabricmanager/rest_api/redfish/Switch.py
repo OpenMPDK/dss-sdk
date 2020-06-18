@@ -9,9 +9,53 @@ import config
 from rest_api.redfish.templates.Switch import get_switch_instance
 from rest_api.redfish import redfish_constants
 
+from common.ufmdb.redfish.redfish_switch_backend import RedfishSwitchBackend, RedfishSwitchCollectionBackend
+
 members = {}
 
-class Switch(Resource):
+class SwitchAPI(Resource):
+
+    def get(self, fab_id, sw_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishSwitchBackend()
+            response = redfish_backend.get(fab_id, sw_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class SwitchCollectionAPI(Resource):
+
+    def get(self, fab_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishSwitchCollectionBackend()
+            response = redfish_backend.get(fab_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+
+
+class SwitchEmulationAPI(Resource):
     """
     Switch
     """
@@ -31,7 +75,7 @@ class Switch(Resource):
         return members[ident1][ident2], redfish_constants.SUCCESS
 
 
-class SwitchCollection(Resource):
+class SwitchCollectionEmulationAPI(Resource):
     """
     Switch Collection
     """
@@ -67,7 +111,7 @@ class SwitchCollection(Resource):
         return response
 
 
-def CreateSwitch(**kwargs):
+def CreateSwitchEmulation(**kwargs):
     fab_id = kwargs['fab_id']
     switch_id = kwargs['switch_id']
     if fab_id not in members:

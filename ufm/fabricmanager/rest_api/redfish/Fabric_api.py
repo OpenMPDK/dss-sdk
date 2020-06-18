@@ -11,60 +11,57 @@ from common.ufmlog import ufmlog
 from uuid import uuid4
 
 # Internal imports
-from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from rest_api.redfish.templates.Fabric import get_Fabric_instance
 from rest_api.redfish import redfish_constants
 import config
 
+from common.ufmdb.redfish.redfish_fabric_backend import RedfishFabricBackend, RedfishFabricCollectionBackend
+
 members = {}
 
-class UfmdbFabricAPI(Resource):
-    """
-    System UFMDB API
-    """
-    def __init__(self, **kwargs):
-        self.rfdb = RedfishUfmdb(auto_update=True)
-        self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
-        self.log.detail("UfmdbFabricAPI started.")
-
-    def __del__(self):
-        self.log.detail("UfmdbFabricAPI stopped.")
-
-    def post(self, path="", **kwargs):
-        """
-        HTTP POST
-        """
-        try:
-            path = path.strip('/')
-            path = "/" + path
-            payload = request.get_json(force=True)
-            response = self.rfdb.post(path, payload)
-
-        except Exception as e:
-            self.log.exception(e)
-            #traceback.print_exc()
-            response = { "Status": 500, "Message": "Internal Server Error" }
-
-        return response
-
-    def get(self, path="", **kwargs):
-        """
-        HTTP GET
-        """
-        try:
-            path = path.strip('/')
-            path = "/" + path
-            response = self.rfdb.get(path, "{}")
-
-        except Exception as e:
-            self.log.exception(e)
-            traceback.print_exc()
-            response = { "Status": 500, "Message": "Internal Server Error" }
-
-        return response
-
-
 class FabricAPI(Resource):
+
+    def get(self, fab_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishFabricBackend()
+            response = redfish_backend.get(fab_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class FabricCollectionAPI(Resource):
+
+    def get(self):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishFabricCollectionBackend()
+            response = redfish_backend.get()
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+
+
+class FabricEmulationAPI(Resource):
     """
     Fabric Singleton API
     """
@@ -77,17 +74,17 @@ class FabricAPI(Resource):
         HTTP GET
         """
         try:
-            response = redfish_constant.NOT_FOUND
+            response = redfish_constants.NOT_FOUND
             if ident in members:
                 con = members[ident]
-                response = con, redfish_constant.SUCCESS
+                response = con, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = redfish_constant.SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
         return response
 
 
-class FabricCollectionAPI(Resource):
+class FabricCollectionEmulationAPI(Resource):
     """
     Fabric Collection API
     """
@@ -110,15 +107,15 @@ class FabricCollectionAPI(Resource):
         HTTP GET
         """
         try:
-            response = self.config, redfish_constant.SUCCESS
+            response = self.config, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = redfish_constant.SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
 
-class CreateFabric(Resource):
+class CreateFabricEmulation(Resource):
     """
     CreateFabric
     """
@@ -135,10 +132,10 @@ class CreateFabric(Resource):
             wildcards['fab_id'] = ident
             cfg = get_Fabric_instance(wildcards)
             members[ident] = cfg
-            response = cfg, redfish_constant.SUCCESS
+            response = cfg, redfish_constants.SUCCESS
 
         except Exception:
             traceback.print_exc()
-            response = redfish_constant.SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response

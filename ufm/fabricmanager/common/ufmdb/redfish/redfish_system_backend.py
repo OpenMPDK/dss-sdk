@@ -95,7 +95,7 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
         resp = self.get_response_base()
         nkv_sys_backend = RedfishNkvSystemBackend(self.path)
         nkv_resp = nkv_sys_backend.get()
-        if nkv_resp:
+        if 'Members' in nkv_resp:
             # Update the Members and count
             resp['Members'] = resp['Members'] + nkv_resp['Members']
             resp['Members@odata.count'] = resp['Members@odata.count'] + len(nkv_resp['Members'])
