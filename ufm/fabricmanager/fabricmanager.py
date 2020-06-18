@@ -223,6 +223,7 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(VlanAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>')
     api.add_resource(VlanCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs')
 
+
 elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(ServiceRoot, REST_BASE,
                      resource_class_kwargs={'rest_base': REST_BASE})
