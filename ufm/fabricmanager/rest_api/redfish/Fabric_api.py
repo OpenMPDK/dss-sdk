@@ -79,8 +79,9 @@ class FabricEmulationAPI(Resource):
                 con = members[ident]
                 response = con, redfish_constants.SUCCESS
         except Exception:
-            traceback.print_exc()
-            response = redfish_constants.SERVER_ERROR
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
         return response
 
 
@@ -109,8 +110,9 @@ class FabricCollectionEmulationAPI(Resource):
         try:
             response = self.config, redfish_constants.SUCCESS
         except Exception:
-            traceback.print_exc()
-            response = redfish_constants.SERVER_ERROR
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
 
         return response
 
@@ -135,7 +137,8 @@ class CreateFabricEmulation(Resource):
             response = cfg, redfish_constants.SUCCESS
 
         except Exception:
-            traceback.print_exc()
-            response = redfish_constants.SERVER_ERROR
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
 
         return response

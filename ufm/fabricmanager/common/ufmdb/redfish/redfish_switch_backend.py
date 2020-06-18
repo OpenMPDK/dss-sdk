@@ -113,9 +113,9 @@ class RedfishSwitchCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception:
-            traceback.print_exc()
-            response = redfish_constants.SERVER_ERROR
-
+            self.log.exception(e)
+            response = {"Status": redfish_constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
         return response
 
 

@@ -115,8 +115,9 @@ class VlanCollectionEmulationAPI(Resource):
             self.cfg['Members@odata.count'] = len(vlans)
             response = self.cfg, redfish_constants.SUCCESS
         except Exception:
-            traceback.print_exc()
-            response = redfish_constants.SERVER_ERROR
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
 
         return response
 
