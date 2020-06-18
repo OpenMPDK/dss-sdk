@@ -9,6 +9,7 @@ import config
 from rest_api.redfish.templates.VLAN import get_vlan_instance
 from rest_api.redfish import redfish_constants
 
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_vlan_backend import RedfishVlanBackend, RedfishVlanCollectionBackend
 
 members = {}
@@ -24,10 +25,7 @@ class VlanAPI(Resource):
             redfish_backend = RedfishVlanBackend()
             response = redfish_backend.get(fab_id, sw_id, vlan_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -46,10 +44,7 @@ class VlanCollectionAPI(Resource):
             redfish_backend = RedfishVlanCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -115,10 +110,7 @@ class VlanCollectionEmulationAPI(Resource):
             self.cfg['Members@odata.count'] = len(vlans)
             response = self.cfg, redfish_constants.SUCCESS
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 
