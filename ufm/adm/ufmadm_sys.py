@@ -3,13 +3,14 @@
 from ufmmenu import UfmMenu
 import ufmapi
 
+
 class SystemsMenu(UfmMenu):
     def __init__(self):
         UfmMenu.__init__(self, name="sys", back_func=self._back_action)
-        
+
         rsp = ufmapi.rf_get_systems()
 
-        if rsp == None:
+        if rsp is None:
             return
 
         if "Members" not in rsp:
@@ -18,14 +19,13 @@ class SystemsMenu(UfmMenu):
         count = 0
         print()
         print("*  System Collection:")
-        #print("---------------------------------------------")
 
         for member in rsp["Members"]:
             sys = member["@odata.id"].split("/")[4]
             print("      System: ("+str(count)+")", sys)
 
-            self.add_item(labels=[str(count)], \
-                action=self._menu_action, priv=sys, desc=sys)
+            self.add_item(labels=[str(count)],
+                          action=self._menu_action, priv=sys, desc=sys)
 
             count = count + 1
 
@@ -50,7 +50,7 @@ class SysMenu(UfmMenu):
 
         rsp = ufmapi.rf_get_system(sys)
 
-        if rsp == None:
+        if rsp is None:
             return
 
         if "Identifiers" not in rsp:
@@ -61,50 +61,50 @@ class SysMenu(UfmMenu):
         if format == "NQN":
             self.name = "subsys"
             print()
-            print("*  Subsystem:",sys)
-            #print("---------------------------------------------")
-            print("         NQN:",rsp["Identifiers"][0]["DurableName"])
-            print("       State:",rsp["Status"]["State"])
-            print("      Health:",rsp["Status"]["Health"])
-            print(" Server Name:",rsp["oem"]["ServerName"])
-            print("        NSID:",str(rsp["oem"]["NSID"]))
-            print(" NumaAligned:",rsp["oem"]["NumaAligned"])
+            print("*  Subsystem:", sys)
+            print("         NQN:", rsp["Identifiers"][0]["DurableName"])
+            print("       State:", rsp["Status"]["State"])
+            print("      Health:", rsp["Status"]["Health"])
+            print(" Server Name:", rsp["oem"]["ServerName"])
+            print("        NSID:", str(rsp["oem"]["NSID"]))
+            print(" NumaAligned:", rsp["oem"]["NumaAligned"])
 
             if len(rsp["Storage"]) > 0:
                 print("     Storage: (stor) Present")
-                self.add_item(labels=["stor", "st"], action=self._stor_action, desc="Storage Management")
+                self.add_item(labels=["stor", "st"], action=self._stor_action,
+                              desc="Storage Management")
             else:
                 print("     Storage: Not Present")
 
             if len(rsp["EthernetInterfaces"]) > 0:
                 print("    Ethernet: (ethr) Present")
-                self.add_item(labels=["ethr", "et"], action=self._eth_action, desc="Ethernet Management")
+                self.add_item(labels=["ethr", "et"], action=self._eth_action,
+                              desc="Ethernet Management")
             else:
                 print("    Ethernet: Not Present")
-                
+
         elif format == "UUID":
             self.name = "system"
             print()
-            print("*     System:",sys)
-            #print("---------------------------------------------")
-            print("        UUID:",rsp["Identifiers"][0]["DurableName"])
+            print("*     System:", sys)
+            print("        UUID:", rsp["Identifiers"][0]["DurableName"])
 
             for address in rsp["IPv4Addresses"]:
-                print("IPv4 Address:",address["Address"])
-                print("          Subnet:",address["SubnetMask"])
-                print("          Origin:",address["AddressOrigin"])
-                print("         Gateway:",address["Gateway"])
+                print("IPv4 Address:", address["Address"])
+                print("          Subnet:", address["SubnetMask"])
+                print("          Origin:", address["AddressOrigin"])
+                print("         Gateway:", address["Gateway"])
 
-            print("IPv6 Gateway: ",rsp["IPv6DefaultGateway"])
+            print("IPv6 Gateway: ", rsp["IPv6DefaultGateway"])
             for address in rsp["IPv6Addresses"]:
-                print("IPv6 Address:",address["Address"])
-                print("    PrefixLength:",address["PrefixLength"])
-                print("          Origin:",address["AddressOrigin"])
-                print("           State:",address["AddressState"])
+                print("IPv6 Address:", address["Address"])
+                print("    PrefixLength:", address["PrefixLength"])
+                print("          Origin:", address["AddressOrigin"])
+                print("           State:", address["AddressState"])
 
         else:
             self.name = "unknown"
-            print("Unknown DurableNameFormat:",format)
+            print("Unknown DurableNameFormat:", format)
 
         self.sys = sys
         return

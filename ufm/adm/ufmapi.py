@@ -5,22 +5,27 @@ import requests
 REDFISH = "/redfish/v1"
 g_ufm_address = ""
 
+
 def cfg_ufm_address(address=None, port=None):
     global g_ufm_address
 
-    if address != None:
+    if address is not None:
         g_ufm_address = "http://"+address
     else:
         g_ufm_address = "http://127.0.0.0"
 
-    if port != None:
+    if port is not None:
         g_ufm_address += ":"+port
 
     return
 
+
+'''
 #-------------------------------------------------------------------
 # REDFISH Query Calls
 #-------------------------------------------------------------------
+'''
+
 
 def redfish_get(request, parms={}):
     global g_ufm_address
@@ -39,6 +44,7 @@ def redfish_get(request, parms={}):
 
     return None
 
+
 def redfish_post(request, parms={}):
     global g_ufm_address
 
@@ -50,7 +56,7 @@ def redfish_post(request, parms={}):
             return None
 
         return response.json()
-        
+
     except:
         print("Unable to contact UFM. (POST)")
 
@@ -61,7 +67,7 @@ def rf_get_systems():
 
     rsp = redfish_get("/Systems")
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -81,7 +87,7 @@ def rf_get_storage_list(subsystem):
 
     rsp = redfish_get("/Systems/"+subsystem+"/Storage")
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -91,7 +97,7 @@ def rf_get_storage(subsystem, storage_id):
 
     rsp = redfish_get("/Systems/"+subsystem+"/Storage/"+storage_id)
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -101,16 +107,17 @@ def rf_get_storage_drive(subsystem, storage_id, drive_id):
 
     rsp = redfish_get("/Systems/"+subsystem+"/Storage/"+storage_id+"/Drives/"+drive_id)
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
+
 
 def rf_get_managers():
 
     rsp = redfish_get("/Managers")
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -120,7 +127,7 @@ def rf_get_manager(manager):
 
     rsp = redfish_get("/Managers/"+manager)
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -130,7 +137,7 @@ def rf_get_ufm():
 
     rsp = redfish_get("/Managers/ufm")
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -140,7 +147,7 @@ def rf_get_ufm_log():
 
     rsp = redfish_get("/Managers/ufm/LogServices/Log")
 
-    if rsp == None:
+    if rsp is None:
         return None
 
     return rsp
@@ -167,7 +174,7 @@ def ufm_get_log_entries(id, count):
     payload = {}
     rf_entries = []
     log_entries = []
-    
+
     if id >= 1:
         payload["$skip"] = id
 

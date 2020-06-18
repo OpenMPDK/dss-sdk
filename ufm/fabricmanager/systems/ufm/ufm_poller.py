@@ -3,11 +3,19 @@ import threading
 
 from ufm_thread import UfmThread
 
+from systems import port_def
+from systems.ufm_message import Subscriber
+
 
 class UfmPoller(UfmThread):
     def __init__(self, ufmArg=None):
         self.ufmArg = ufmArg
         self._running = False
+
+        self.event = threading.Event()
+        self.msgListner = Subscriber(event=self.event,
+                                     ports=(self.ufmArg.ufmConfig['messageQueuePort'],),
+                                     topics=('poller',))
 
         super(UfmPoller, self).__init__()
         self.ufmArg.log.info("Init {}".format(self.__class__.__name__))
@@ -21,12 +29,17 @@ class UfmPoller(UfmThread):
 
     def start(self):
         self.ufmArg.log.info("Start {}".format(self.__class__.__name__))
+        self.msgListner.start()
+
         self._running = True
         super(UfmPoller, self).start(threadName='UfmPoller', cb=self._poller, cbArgs=self.ufmArg, repeatIntervalSecs=6.0)
 
 
     def stop(self):
         super(UfmPoller, self).stop()
+        self.msgListner.stop()
+        self.msgListner.join()
+
         self._running = False
         self.ufmArg.log.info("Stop {}".format(self.__class__.__name__))
 
@@ -43,10 +56,9 @@ class UfmPoller(UfmThread):
             if df_out:
                 ufmArg.db.put(ufmArg.prefix + "/space_avail_percent", str(df_out))
 
-        # Do more here is needed
+            if df_out > 95.0:
+                self.ufmArg.publisher.send("diskspace", "{ local_disk_space: {} }".format(df_out))
+
+        # Do more here if needed
         pass
-
-
-
-
 

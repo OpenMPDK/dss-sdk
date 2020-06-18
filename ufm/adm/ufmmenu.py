@@ -2,15 +2,16 @@
 
 g_util_name = None
 
+
 class UfmMenuItem(object):
-    def __init__(self, labels=[""], args=[], action=None, desc="", \
-        priv=None, hidden=False):
+    def __init__(self, labels=[""], args=[], action=None, desc="",
+                 priv=None, hidden=False):
         self.labels = labels
         self.args = args
         self.priv = priv
 
-        if action == None:
-            action = self._nop      
+        if action is None:
+            action = self._nop
 
         self.action = action
         self.desc = desc
@@ -18,7 +19,7 @@ class UfmMenuItem(object):
         self.hidden = hidden
         return
 
-    def _nop (self, menu, item):
+    def _nop(self, menu, item):
         return
 
 class UfmMenu(object):
@@ -50,7 +51,7 @@ class UfmMenu(object):
         self.default_items.append(item)
 
         item = UfmMenuItem(labels=["h","-h", "-help", "help"], action=self._help_action,\
-            desc="Display the help screen.") 
+            desc="Display the help screen.")
         self.default_items.append(item)
 
         item = UfmMenuItem(labels=["p"], action=self._prev_action,\
@@ -180,12 +181,12 @@ class UfmMenu(object):
             if self.next_menu != self:
                 break
 
-        return  
+        return
 
     def _cli_mode(self):
         self.cli = True
         self._process()
-        return  
+        return
 
     def _process(self):
         if len(self.argv) == 0:
@@ -200,7 +201,7 @@ class UfmMenu(object):
             if selection in item.labels:
                 found = True
                 break
-            
+
         if found == False:
             print()
             print("Invalid command. ("+selection+")")
@@ -238,8 +239,8 @@ class UfmMenu(object):
             return
 
         self.set_menu(self)
-        item.action(menu, item)     
-        return 
+        item.action(menu, item)
+        return
 
     # embedded item action
     def _help_action(self, menu, item):

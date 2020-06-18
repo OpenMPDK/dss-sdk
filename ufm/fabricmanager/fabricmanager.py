@@ -9,11 +9,10 @@ import signal
 import time
 import argparse
 import uuid
-import datetime
-import yaml
 import threading
 from multiprocessing import Process
-from subprocess import PIPE, Popen, STDOUT
+
+import yaml
 
 # Flask Imports
 from flask import Flask, request, make_response, render_template
@@ -35,8 +34,6 @@ from ufm_status import UfmStatus
 from ufm_status import UfmLeaderStatus
 from ufm_status import UfmHealthStatus
 
-from ufm_msg_server import UfmMessageServer
-
 # Redfish
 from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
@@ -55,6 +52,7 @@ from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, VlanEmulationAPI, 
 from backend.populate import populate
 
 from systems import port_def
+from systems.ufm_message import Publisher
 
 from systems.ufm.ufm import Ufm
 from systems.ufmarg import UfmArg
@@ -107,7 +105,7 @@ MASTER_CHECK_INTERVAL = 1
 
 CLUSTER_TIMEOUT = (3 * 60)
 
-ufmMainEvent=threading.Event()
+ufmMainEvent = threading.Event()
 
 # MODE: static, local or db
 # MODE determines the data source for REST API resources
@@ -302,7 +300,7 @@ def insertEssdUrls(db, essdUrls):
 
 
 def readConfigDataFromFile(filename):
-    installPath="/usr/share/ufm/"
+    installPath = "/usr/share/ufm/"
 
     configData = dict()
     if os.path.isfile(installPath + filename):
@@ -322,19 +320,19 @@ def readConfigDataFromFile(filename):
 def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     # Ufm is required
-    subSystems.append( Ufm(ufmArg) )
+    subSystems.append(Ufm(ufmArg))
 
     try:
         if ufmMetadata['nkv']['enable']:
-            ufmArg.nkvConfig=ufmMetadata['nkv']
-            subSystems.append( Nkv(hostname=ufmArg.hostname, db=ufmArg.deprecatedDb) )
+            ufmArg.nkvConfig = ufmMetadata['nkv']
+            subSystems.append(Nkv(hostname=ufmArg.hostname, db=ufmArg.deprecatedDb))
     except:
         pass
 
     try:
         if ufmMetadata['essd']['enable']:
-            ufmArg.essdConfig=ufmMetadata['essd']
-            subSystems.append( Essd(ufmArg) )
+            ufmArg.essdConfig = ufmMetadata['essd']
+            subSystems.append(Essd(ufmArg))
 
             try:
                 # Urls of the essd in the config file is optional
@@ -347,15 +345,15 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     try:
         if ufmMetadata['ebof']['enable']:
-            ufmArg.ebofConfig=ufmMetadata['ebof']
-            subSystems.append( Ebof() )
+            ufmArg.ebofConfig = ufmMetadata['ebof']
+            subSystems.append(Ebof())
     except:
         pass
 
     try:
         if ufmMetadata['smart']['enable']:
-            ufmArg.smartConfig=ufmMetadata['smart']
-            subSystems.append( Smart() )
+            ufmArg.smartConfig = ufmMetadata['smart']
+            subSystems.append(Smart())
     except:
         pass
 
@@ -368,7 +366,7 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
                                   db = ufmArg.db,
                                   usrname = switch_arg['usrname'],
                                   pwd = switch_arg['pwd'])
-                subSystems.append( EthSwitch(swArg) )
+                subSystems.append(EthSwitch(swArg))
     except:
         pass
 
@@ -386,9 +384,9 @@ class StatusChangeCbArg(object):
 
 def setMasterInDb(ufmArg):
     masterInfo = dict()
-    masterInfo['hostname']=ufmArg.hostname
-    masterInfo['uuid']=ufmArg.uuid
-    masterInfo['starttime']=time.time()
+    masterInfo['hostname'] = ufmArg.hostname
+    masterInfo['uuid'] = ufmArg.uuid
+    masterInfo['starttime'] = time.time()
 
     jsonString = json.dumps(masterInfo, indent=4, sort_keys=True)
     ufmArg.db.put('/ufm/master', jsonString)
@@ -463,19 +461,27 @@ def main():
     kwargs['port'] = args.port
 
     ufmMetadata = readConfigDataFromFile(filename="ufm.yaml")
+    try:
+        ufmConfig = ufmMetadata['ufm']
+
+        dbType = ufmConfig['dbType']
+        dbAddress = ufmConfig['dbIp']
+        ufmMessageQueuePort = ufmConfig['messageQueuePort']
+    except:
+        log.error("Failed to read ufm configuration file.")
+        sys.exit(-1)
 
     try:
-        db = ufmdb.client(db_type = 'etcd')
+        db = ufmdb.client(db_type=dbType)
     except:
-        log.error("Failed to connect to DB.")
+        log.error("Failed to connect to database.")
         sys.exit(-1)
 
     # Connect to db with deprecated library.
     try:
-        metadataIp = ufmMetadata['metadatabase']['ip']
-        deprecatedDb = lib.create_db_connection(ip_address=metadataIp, log=log)
+        deprecatedDb = lib.create_db_connection(ip_address=dbAddress, log=log)
     except:
-        log.error("Failed to connect to deprecatedDb.")
+        log.error("Failed to connect to deprecated DB.")
         sys.exit(-1)
 
     config.rest_base = REST_BASE
@@ -483,19 +489,17 @@ def main():
     # Main UFM services are required
     hostname = socket.gethostname().lower()
 
-    ufmArg = UfmArg(db=db, hostname=hostname, log=log, uuid=uuid.getnode())
+    ufmArg = UfmArg(db=db,
+                    hostname=hostname,
+                    log=log,
+                    uuid=uuid.getnode(),
+                    ufmMainEvent=ufmMainEvent,
+                    publisher=Publisher(ufmMessageQueuePort))
+    ufmArg.ufmConfig = ufmConfig
     ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
     initializeSubSystems(subSystems=subSystems, ufmArg=ufmArg, ufmMetadata=ufmMetadata)
-
-    if not ufmMetadata:
-        log.error("Fail to start UFM")
-        sys.exit(-1)
-
-    # Always start the internal message server
-    messageServer = UfmMessageServer(ufmMainEvent, args=(10, 1, 0))
-    messageServer.start()
 
     # ufm_status will handle all health and leader checks
     #
@@ -518,7 +522,6 @@ def main():
         time.sleep(MASTER_CHECK_INTERVAL)
 
     ufm_status.stop()
-    messageServer.join()
 
     log.info(" ===> UFM is Stopped! <===")
 
