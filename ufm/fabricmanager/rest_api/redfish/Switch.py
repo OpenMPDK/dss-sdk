@@ -9,6 +9,7 @@ import config
 from rest_api.redfish.templates.Switch import get_switch_instance
 from rest_api.redfish import redfish_constants
 
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_switch_backend import RedfishSwitchBackend, RedfishSwitchCollectionBackend
 
 members = {}
@@ -23,10 +24,7 @@ class SwitchAPI(Resource):
             redfish_backend = RedfishSwitchBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -43,10 +41,7 @@ class SwitchCollectionAPI(Resource):
             redfish_backend = RedfishSwitchCollectionBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -105,10 +100,7 @@ class SwitchCollectionEmulationAPI(Resource):
             self.cfg['Members@odata.count'] = len(switches)
             response = self.cfg, redfish_constants.SUCCESS
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 

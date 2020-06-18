@@ -15,6 +15,7 @@ from rest_api.redfish.templates.Fabric import get_Fabric_instance
 from rest_api.redfish import redfish_constants
 import config
 
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_fabric_backend import RedfishFabricBackend, RedfishFabricCollectionBackend
 
 members = {}
@@ -29,10 +30,7 @@ class FabricAPI(Resource):
             redfish_backend = RedfishFabricBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -49,10 +47,7 @@ class FabricCollectionAPI(Resource):
             redfish_backend = RedfishFabricCollectionBackend()
             response = redfish_backend.get()
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -79,9 +74,7 @@ class FabricEmulationAPI(Resource):
                 con = members[ident]
                 response = con, redfish_constants.SUCCESS
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 
@@ -110,10 +103,7 @@ class FabricCollectionEmulationAPI(Resource):
         try:
             response = self.config, redfish_constants.SUCCESS
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 
@@ -137,8 +127,5 @@ class CreateFabricEmulation(Resource):
             response = cfg, redfish_constants.SUCCESS
 
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response

@@ -1,5 +1,6 @@
 
 from rest_api.redfish import redfish_constants
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 class RedfishSwitchBackend():
@@ -48,10 +49,9 @@ class RedfishSwitchBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
+            response = RedfishErrorResponse.get_server_error_response()
         return response
+
 
     def put(self, payload):
         pass
@@ -113,9 +113,7 @@ class RedfishSwitchCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 

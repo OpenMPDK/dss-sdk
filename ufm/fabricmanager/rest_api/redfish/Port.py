@@ -9,6 +9,7 @@ import config
 from rest_api.redfish.templates.Port import get_port_instance
 from rest_api.redfish import redfish_constants
 
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, RedfishPortCollectionBackend
 
 members = {}
@@ -23,10 +24,7 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -43,10 +41,7 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
     def post(self):
@@ -109,10 +104,7 @@ class PortCollectionEmulationAPI(Resource):
             self.cfg['Members@odata.count'] = len(ports)
             response = self.cfg, redfish_constants.SUCCESS
         except Exception:
-            self.log.exception(e)
-            response = {"Status": redfish_Constants.SERVER_ERROR,
-                        "Message": "Internal Server Error"}
-
+            response = RedfishErrorResponse.get_server_error_response()
         return response
 
 
