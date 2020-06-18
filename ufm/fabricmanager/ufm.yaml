@@ -3,7 +3,7 @@ metadatabase:
     ip: "127.0.0.1"
 
 essd:
-    enable: True
+    enable: False
     start: False
     mqport: 5555
 
