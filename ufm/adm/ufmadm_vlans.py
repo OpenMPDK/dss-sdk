@@ -28,6 +28,11 @@ class VlansMenu(UfmMenu):
 
             count = count + 1
 
+        print("      Action: (create) Create VLAN")
+        self.add_item(labels=["create", "cr"], args=["<vlan_id>"],
+                      action=self._create_action,
+                      desc="Create new vlan with id")
+
         self.fab = fab
         self.sw = sw
         self.vlan = vlan
@@ -43,6 +48,35 @@ class VlansMenu(UfmMenu):
     def _menu_action(self, menu, item):
         vlan_menu = VlanMenu(fab=self.fab, sw=self.sw, vlan=item.priv)
         self.set_menu(vlan_menu)
+        return
+
+    def _create_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id = int(argv[1], 10)
+        if vlan_id is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["id"] = vlan_id
+
+        rsp = ufmapi.redfish_post(
+            "/Fabrics/"
+            + self.fab + "/Switches/" + self.sw + "/VLANs/" + self.vlan,
+            payload)
+        '''
+            TODO: remove these two lines once the backend UFM supports the
+            Post command
+        '''
+        print(rsp)
+        return
+
+        if rsp['Status'] != 200:
+            print("VLAN Create request failed.")
+        else:
+            print("VLAN Created.")
+
         return
 
 
