@@ -2,6 +2,7 @@ from uuid import uuid4
 from flask_restful import Resource
 
 from rest_api.redfish import redfish_constants
+from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 
 class ServiceRoot(Resource):
@@ -12,7 +13,7 @@ class ServiceRoot(Resource):
         self.rest_base = rest_base
 
     def get(self):
-        return {
+        resp = {
                    '@odata.context': self.rest_base + '$metadata#ServiceRoot.ServiceRoot',
                    '@odata.type': '#ServiceRoot.v1_0_0.ServiceRoot',
                    '@odata.id': self.rest_base,
@@ -34,4 +35,9 @@ class ServiceRoot(Resource):
                        '@odata.id': self.rest_base + 'Systems'
                    }
 
-               }, redfish_constants.SUCCESS
+               }
+
+        if ufmdb_util.has_fabrics():
+            resp['Fabrics'] = { '@odata.id': self.rest_base + 'Fabrics' }
+
+        return resp, redfish_constants.SUCCESS

@@ -10,8 +10,14 @@ import requests
 import time
 
 MELLANOX_SWITCH_TYPE = 'mellanox'
-MELLANOX_SWITCH_IP = '10.1.10.191'
-MELLANOX_UUID = 'f1ec15f8-c832-11e9-8000-b8599f784980'
+#SJ: MELLANOX_SWITCH_IP = '10.1.10.191'
+#SJ: MELLANOX_UUID = 'f1ec15f8-c832-11e9-8000-b8599f784980'
+#SJ: usrname = 'admin'
+#SJ: pwd = 'admin'
+MELLANOX_SWITCH_IP = '172.22.0.109'
+MELLANOX_UUID = 'cd440a20-828c-11ea-8000-1c34da948340'
+USRNAME = 'ssgroot'
+PWD = 'proximal'
 
 db = ufmdb.client(db_type = 'etcd')
 
@@ -30,7 +36,9 @@ def sw():
     swArg = SwitchArg(sw_type = MELLANOX_SWITCH_TYPE,
                       sw_ip = MELLANOX_SWITCH_IP,
                       log = log,
-                      db = db)
+                      db = db,
+                      usrname = USRNAME,
+                      pwd = PWD)
 
     sw = SwitchMellanoxClient(swArg)
     yield sw
@@ -104,7 +112,7 @@ def verify_db():
     key = switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + MELLANOX_UUID
     value, md = db.get(key)
     assert(md.key.decode('utf-8') == key)
-    ''' 
+
     # There is always a vlan '1' with name 'default'
     key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/list'
     for value, md in db.get_prefix(key):
@@ -120,11 +128,11 @@ def verify_db():
     value, md = db.get(key)
     assert( md.key.decode('utf-8') == key)
 
- 
+
     key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/1/name/default'
     value, md = db.get(key)
     assert( md.key.decode('utf-8') == key)
-    ''' 
+
 
 def test_poll_to_db(sw):
 
@@ -139,5 +147,5 @@ def test_poll_to_db(sw):
         verify_db()
 
 
-    
+
 

@@ -7,10 +7,10 @@ from rest_api.redfish.Storage import CreateStorageEmulation
 from rest_api.redfish.EthernetInterface import CreateEthernetInterfaceEmulation
 from rest_api.redfish.Drive import CreateDriveEmulation
 
-from rest_api.redfish.Fabric_api import CreateFabric
-from rest_api.redfish.Switch import CreateSwitch
-from rest_api.redfish.Port import CreatePort
-from rest_api.redfish.VLAN import CreateVLAN
+from rest_api.redfish.Fabric_api import CreateFabricEmulation
+from rest_api.redfish.Switch import CreateSwitchEmulation
+from rest_api.redfish.Port import CreatePortEmulation
+from rest_api.redfish.VLAN import CreateVlanEmulation
 
 def create_storage_resources(storage_template, drive_ids, system, storage_id):
     """

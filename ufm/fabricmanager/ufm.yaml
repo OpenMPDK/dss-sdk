@@ -36,14 +36,36 @@ smart:
 
 switch:
     -   sw_type: mellanox
+        sw_ip: 172.22.0.109
+        enable: False
+        start: False
+        usrname: ssgroot
+        pwd: proximal
+        messageQueuePort: 5515
+
+    -   sw_type: mellanox
+        sw_ip: 172.22.0.110
+        enable: False
+        start: False
+        usrname: ssgroot
+        pwd: proximal
+        messageQueuePort: 5516
+
+    -   sw_type: mellanox
         sw_ip: 10.1.10.191
         enable: False
         start: False
-        mqport: 5514
+        usrname: admin
+        pwd: admin
+        messageQueuePort: 5517
 
     -   sw_type: broadcom
         sw_ip: xx.x.xx.xxx
         enable: False
         start: False
-        mqport: 5515
+        usrname: xxxx
+        pwd: xxxx
+        mqport: xxxx
+
+
 

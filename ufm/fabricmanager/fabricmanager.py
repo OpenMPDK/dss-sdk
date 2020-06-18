@@ -21,7 +21,6 @@ from flask_restful import reqparse, Api, Resource
 # REST API Imports
 from rest_api.resource_manager import ResourceManager
 from rest_api.redfish.System_api import UfmdbSystemAPI
-from rest_api.redfish.Fabric_api import UfmdbFabricAPI
 
 # Internal Imports
 import config
@@ -45,10 +44,10 @@ from rest_api.redfish.Drive import DriveCollectionEmulationAPI, DriveEmulationAP
 from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulationAPI, EthernetInterfaceEmulationAPI, \
     EthernetInterfaceAPI, EthernetInterfaceCollectionAPI
 
-from rest_api.redfish.Fabric_api import FabricCollectionAPI, FabricAPI
-from rest_api.redfish.Switch import SwitchCollection, Switch
-from rest_api.redfish.Port import PortCollection, Port
-from rest_api.redfish.VLAN import VLANCollection, VLAN
+from rest_api.redfish.Fabric_api import FabricCollectionEmulationAPI, FabricEmulationAPI, FabricAPI, FabricCollectionAPI
+from rest_api.redfish.Switch import SwitchEmulationAPI, SwitchCollectionEmulationAPI, SwitchCollectionAPI, SwitchAPI
+from rest_api.redfish.Port import PortCollectionEmulationAPI, PortEmulationAPI, PortCollectionAPI, PortAPI
+from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, VlanEmulationAPI, VlanCollectionAPI, VlanAPI
 
 from backend.populate import populate
 
@@ -212,7 +211,17 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(DriveCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
     api.add_resource(DriveAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>/Drives/<string:drive_id>')
     # api.add_resource(UfmdbSystemAPI, '/<path:path>')
-    api.add_resource(UfmdbFabricAPI, '/<path:path>')
+
+    api.add_resource(FabricAPI, REST_BASE + 'Fabrics/<string:fab_id>')
+    api.add_resource(FabricCollectionAPI, REST_BASE + 'Fabrics')
+    api.add_resource(SwitchAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>')
+    api.add_resource(SwitchCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches')
+    api.add_resource(PortAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>')
+    api.add_resource(PortCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports')
+    api.add_resource(VlanAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>')
+    api.add_resource(VlanCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs')
+
+
 elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(ServiceRoot, REST_BASE,
                      resource_class_kwargs={'rest_base': REST_BASE})
@@ -232,19 +241,19 @@ elif (MODE is not None and MODE.lower() == 'local'):
                      resource_class_kwargs={'rest_base': REST_BASE})
 
 
-    api.add_resource(FabricCollectionAPI, REST_BASE + 'Fabrics')
-    api.add_resource(FabricAPI, REST_BASE + 'Fabrics/<string:ident>')
-    api.add_resource(SwitchCollection, REST_BASE + 'Fabrics/<string:ident>/Switches',
+    api.add_resource(FabricCollectionEmulationAPI, REST_BASE + 'Fabrics')
+    api.add_resource(FabricEmulationAPI, REST_BASE + 'Fabrics/<string:ident>')
+    api.add_resource(SwitchCollectionEmulationAPI, REST_BASE + 'Fabrics/<string:ident>/Switches',
                      resource_class_kwargs={'rest_base': REST_BASE, 'suffix': 'Fabrics'})
-    api.add_resource(Switch, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>',
+    api.add_resource(SwitchEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>',
                      resource_class_kwargs={'rest_base': REST_BASE})
-    api.add_resource(PortCollection, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/Ports',
+    api.add_resource(PortCollectionEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/Ports',
                      resource_class_kwargs={'rest_base': REST_BASE, 'suffix': 'Fabrics'})
-    api.add_resource(Port, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/Ports/<string:ident3>',
+    api.add_resource(PortEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/Ports/<string:ident3>',
                      resource_class_kwargs={'rest_base': REST_BASE})
-    api.add_resource(VLANCollection, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/VLANs',
+    api.add_resource(VlanCollectionEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/VLANs',
                      resource_class_kwargs={'rest_base': REST_BASE, 'suffix': 'Fabrics'})
-    api.add_resource(VLAN, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/VLANs/<string:ident3>',
+    api.add_resource(VlanEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/VLANs/<string:ident3>',
                      resource_class_kwargs={'rest_base': REST_BASE})
 
 
@@ -351,10 +360,12 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
     try:
         for switch_arg in ufmMetadata['switch']:
             if switch_arg['enable']:
-                swArg = SwitchArg(sw_type=switch_arg['sw_type'],
-                                  sw_ip=switch_arg['sw_ip'],
-                                  log=ufmArg.log,
-                                  db=ufmArg.db)
+                swArg = SwitchArg(sw_type = switch_arg['sw_type'],
+                                  sw_ip = switch_arg['sw_ip'],
+                                  log = ufmArg.log,
+                                  db = ufmArg.db,
+                                  usrname = switch_arg['usrname'],
+                                  pwd = switch_arg['pwd'])
                 subSystems.append(EthSwitch(swArg))
     except:
         pass

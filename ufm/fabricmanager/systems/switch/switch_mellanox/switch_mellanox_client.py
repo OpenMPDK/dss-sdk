@@ -25,14 +25,14 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         self.db = swArg.db
         self.lease_ttl = switch_constants.SWITCH_DB_KEY_TTL_SECS
 
-        self.session = self._connect()
+        self.session = self._connect(swArg.usrname, swArg.pwd)
         self.uuid = self._poll_uuid()
 
         self.log.info("SwitchMellanoxClient ip = {}".format(self.swArg.sw_ip))
         self.log.info("Init {}".format(self.__class__.__name__))
 
 
-    def _connect(self):
+    def _connect(self, usrname, pwd):
         self.url = 'https://' + self.swArg.sw_ip + '/admin/launch'
         self.log.info('EthSwitch login url: ' + self.url)
         ses = requests.session()
@@ -42,8 +42,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             ('action', 'login'),
         )
         data = {
-            'f_user_id': 'admin',
-            'f_password': 'admin',
+            'f_user_id': usrname,
+            'f_password': pwd,
         }
 
         response = ses.post(self.url, params=params, data=data, verify=False)
@@ -81,7 +81,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         response = self.session.post(self.url + '?script=json', json=json_data, verify=False)
 
         self.log.info('Switch response status_code (200=OK): ' + str(response.status_code))
-        self.log.info('Switch response: %s', response.text)
+        #self.log.info('Switch response: %s', response.text)
         return response
 
 
@@ -348,7 +348,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                     self.db.put(this_vlan_key_prefix + '/name/' + v, '', lease=lease)
                                 elif k == 'Ports':
                                     for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
-                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, lease=lease)
+                                        port_id = port_id.split('/')[-1]
+                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
 
 
     def _poll_port_info(self):
@@ -379,6 +380,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                         for port_id, port_info in json_obj['results'][0]['data'].items():
                             lease = self.db.lease(self.lease_ttl)
 
+                            port_id = port_id.split('/')[-1] #store <num> extracted from Eth1/<num>
                             PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports'
                             self.db.put(PORT_KEY_PREFIX + '/list/' + port_id, '', lease=lease)
 
@@ -396,6 +398,11 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
 
     def poll_to_db(self):
+        # For now (06/2020), Redfish Fabric exists only for Switch. May change in the future.
+        self.db.put('/Fabrics/list/NVME', '')
+        self.db.put('/Fabrics/NVME/type/NVME', '')
+        self.db.put('/Fabrics/NVME/list/' + self.uuid, '')
+
         self._poll_switch_attributes()
         self._poll_vlan_info()
         self._poll_port_info()
