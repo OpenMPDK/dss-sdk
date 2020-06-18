@@ -12,5 +12,18 @@ REST_BASE = '/redfish/v1'
 SYSTEM = 'System'
 SYSTEMS = 'Systems'
 ETH_INTERFACES = 'EthernetInterfaces'
+
 STORAGE = 'Storage'
 DRIVES = 'Drives'
+
+FABRIC = 'Fabric'
+FABRICS = 'Fabrics'
+
+SWITCH = 'Switch'
+SWITCHES = 'Switches'
+
+PORT = 'Port'
+PORTS = 'Ports'
+
+VLAN = 'VLAN'
+VLANS = 'VLANs'

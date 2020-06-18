@@ -9,10 +9,59 @@ import config
 from rest_api.redfish.templates.VLAN import get_vlan_instance
 from rest_api.redfish import redfish_constants
 
+from common.ufmdb.redfish.redfish_vlan_backend import RedfishVlanBackend, RedfishVlanCollectionBackend
+
 members = {}
 
 
-class VLAN(Resource):
+class VlanAPI(Resource):
+
+    def get(self, fab_id, sw_id, vlan_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishVlanBackend()
+            response = redfish_backend.get(fab_id, sw_id, vlan_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+
+
+class VlanCollectionAPI(Resource):
+
+    def get(self, fab_id, sw_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishVlanCollectionBackend()
+            response = redfish_backend.get(fab_id, sw_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+
+
+
+
+
+class VlanEmulationAPI(Resource):
     """
     VLAN
     """
@@ -34,7 +83,7 @@ class VLAN(Resource):
         return members[ident1][ident2][ident3], redfish_constants.SUCCESS
 
 
-class VLANCollection(Resource):
+class VlanCollectionEmulationAPI(Resource):
     """
     VLAN Collection
     """
@@ -72,7 +121,7 @@ class VLANCollection(Resource):
         return response
 
 
-def CreateVLAN(**kwargs):
+def CreateVlanEmulation(**kwargs):
     fab_id = kwargs['fab_id']
     switch_id = kwargs['switch_id']
     vlan_id = kwargs['vlan_id']

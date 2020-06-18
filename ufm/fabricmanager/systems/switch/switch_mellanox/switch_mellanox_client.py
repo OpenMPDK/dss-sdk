@@ -348,6 +348,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                     self.db.put(this_vlan_key_prefix + '/name/' + v, '', lease=lease)
                                 elif k == 'Ports':
                                     for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
+                                        port_id = port_id.split('/')[-1]
                                         self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
 
 
@@ -379,6 +380,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                         for port_id, port_info in json_obj['results'][0]['data'].items():
                             lease = self.db.lease(self.lease_ttl)
 
+                            port_id = port_id.split('/')[-1] #store <num> extracted from Eth1/<num>
                             PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports'
                             self.db.put(PORT_KEY_PREFIX + '/list/' + port_id, '', lease=lease)
 
@@ -396,6 +398,11 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
 
     def poll_to_db(self):
+        # For now (06/2020), Redfish Fabric exists only for Switch. May change in the future.
+        self.db.put('/Fabrics/list/NVME', '')
+        self.db.put('/Fabrics/NVME/type/NVME', '')
+        self.db.put('/Fabrics/NVME/list/' + self.uuid, '')
+
         self._poll_switch_attributes()
         self._poll_vlan_info()
         self._poll_port_info()

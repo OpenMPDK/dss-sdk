@@ -9,9 +9,53 @@ import config
 from rest_api.redfish.templates.Port import get_port_instance
 from rest_api.redfish import redfish_constants
 
+from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, RedfishPortCollectionBackend
+
 members = {}
 
-class Port(Resource):
+class PortAPI(Resource):
+
+    def get(self, fab_id, sw_id, port_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishPortBackend()
+            response = redfish_backend.get(fab_id, sw_id, port_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+class PortCollectionAPI(Resource):
+
+    def get(self, fab_id, sw_id):
+        # """
+        # HTTP GET
+        # """
+        try:
+            redfish_backend = RedfishPortCollectionBackend()
+            response = redfish_backend.get(fab_id, sw_id)
+        except Exception as e:
+            self.log.exception(e)
+            response = {"Status": redfish_Constants.SERVER_ERROR,
+                        "Message": "Internal Server Error"}
+
+        return response
+
+    def post(self):
+        raise NotImplementedError
+
+
+
+
+class PortEmulationAPI(Resource):
     """
     Port
     """
@@ -33,7 +77,7 @@ class Port(Resource):
         return members[ident1][ident2][ident3], redfish_constants.SUCCESS
 
 
-class PortCollection(Resource):
+class PortCollectionEmulationAPI(Resource):
     """
     Port Collection
     """
@@ -71,7 +115,7 @@ class PortCollection(Resource):
         return response
 
 
-def CreatePort(**kwargs):
+def CreatePortEmulation(**kwargs):
     fab_id = kwargs['fab_id']
     switch_id = kwargs['switch_id']
     port_id = kwargs['port_id']
