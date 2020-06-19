@@ -1,0 +1,15 @@
+{
+    "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0",
+    "@odata.type": "#Switch.v1_3_1.Switch",
+    "Id": "ab35df6c-1108-11ea-8000-1c34da32f0c0",
+    "Description": "Ethernet Switch information",
+    "Name": "Switch",
+    "SerialNumber": "MT1947X24003",
+    "UUID": "ab35df6c-1108-11ea-8000-1c34da32f0c0",
+    "Ports": {
+        "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports"
+    },
+    "VLANs": {
+        "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs"
+    }
+}

@@ -399,9 +399,9 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
     def poll_to_db(self):
         # For now (06/2020), Redfish Fabric exists only for Switch. May change in the future.
-        self.db.put('/Fabrics/list/NVME', '')
-        self.db.put('/Fabrics/NVME/type/NVME', '')
-        self.db.put('/Fabrics/NVME/list/' + self.uuid, '')
+        self.db.put('/Fabrics/list/Fabric.1', '')
+        self.db.put('/Fabrics/Fabric.1/type/NVME', '')
+        self.db.put('/Fabrics/Fabric.1/list/' + self.uuid, '')
 
         self._poll_switch_attributes()
         self._poll_vlan_info()
