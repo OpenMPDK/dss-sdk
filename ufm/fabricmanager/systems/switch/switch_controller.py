@@ -1,6 +1,50 @@
 
+import time
+import zmq
+import json
+import threading
+
 from ufm_thread import UfmThread
 from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
+
+
+class Rfserver(threading.Thread):
+    def __init__(self, event=None, port=None, process=None):
+        self.event = event
+        self.port = port
+        self.process = process
+        self.context = zmq.Context()
+        super(Rfserver, self).__init__()
+
+
+    def __del__(self):
+        self.event.set()
+        self.context.destroy()
+
+
+    def run(self):
+        socket = self.context.socket(zmq.REP)
+        socket.bind("tcp://*:{}".format(self.port))
+
+        self.event.clear()
+        while not self.event.is_set():
+            try:
+                jsonRequest = socket.recv_json(flags=zmq.NOBLOCK)
+
+                jsonResponse = self.process(jsonRequest)
+
+                socket.send_json(jsonResponse)
+            except KeyboardInterrupt:
+                break
+            except:
+                time.sleep(1)
+                continue
+
+        socket.close()
+
+
+    def stop(self):
+        self.event.set()
 
 
 class SwitchController(UfmThread):
@@ -10,6 +54,9 @@ class SwitchController(UfmThread):
         self._running = False
         self.client = None
         self.uuid = None
+
+        self.event = threading.Event()
+        self.rf = None
 
         super(SwitchController, self).__init__()
         self.log.info("Init {}".format(self.__class__.__name__))
@@ -24,6 +71,9 @@ class SwitchController(UfmThread):
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
 
+        self.rf = Rfserver(event=self.event, port=5501, process=self.getDataFromDB)
+        self.rf.start()
+
         if self.swArg.sw_type.lower() == 'mellanox':
             self.client = SwitchMellanoxClient(self.swArg)
             self.uuid = self.client.get_uuid()
@@ -35,12 +85,23 @@ class SwitchController(UfmThread):
 
 
     def stop(self):
+        self.rf.stop()
+        self.rf.join()
+
         super(SwitchController, self).stop()
         self._running = False
         self.log.info("Stop {}".format(self.__class__.__name__))
 
     def is_running(self):
         return self._running
+
+
+    def getDataFromDB(self, jsonMessage):
+        responce = dict()
+        responce['status'] = True
+        responce['data'] = 42
+
+        return responce
 
 
     '''

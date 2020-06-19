@@ -2,8 +2,6 @@ import os
 import threading
 
 from ufm_thread import UfmThread
-
-from systems import port_def
 from systems.ufm_message import Subscriber
 
 
@@ -14,7 +12,7 @@ class UfmPoller(UfmThread):
 
         self.event = threading.Event()
         self.msgListner = Subscriber(event=self.event,
-                                     ports=(self.ufmArg.ufmConfig['messageQueuePort'],),
+                                     ports=(self.ufmArg.ufmPorts),
                                      topics=('poller',))
 
         super(UfmPoller, self).__init__()

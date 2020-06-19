@@ -11,9 +11,7 @@ class UfmController(UfmThread):
         self.ufmArg = ufmArg
         self.event = threading.Event()
         self.msgListner = Subscriber(event=self.event,
-                                     ports=(port_def.ESSD,
-                                            5509,
-                                            self.ufmArg.ufmConfig['messageQueuePort']),
+                                     ports=(self.ufmArg.ufmPorts),
                                      topics=('ufmcontroller',),
                                      process=self.processControllerMessages)
         super(UfmController, self).__init__()

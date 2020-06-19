@@ -317,55 +317,93 @@ def readConfigDataFromFile(filename):
     return configData
 
 
+def parseUfmConfig(ufmArg, ufmMetadata):
+
+    ufmArg.ufmPorts = list()
+    try:
+        ufmArg.ufmConfig = ufmMetadata['ufm']
+        ufmArg.ufmPorts.append(ufmArg.ufmConfig['messageQueuePort'])
+    except:
+        return False
+
+    try:
+        ufmArg.nkvConfig = ufmMetadata['nkv']
+        ufmArg.ufmPorts.append(ufmArg.nkvConfig['messageQueuePort'])
+    except:
+        ufmArg.nkvConfig['enable'] = False
+
+    try:
+        ufmArg.essdConfig = ufmMetadata['essd']
+        ufmArg.ufmPorts.append(ufmArg.essdConfig['messageQueuePort'])
+    except:
+        ufmArg.essdConfig['enable'] = False
+
+    try:
+        ufmArg.ebofConfig = ufmMetadata['ebof']
+        ufmArg.ufmPorts.append(ufmArg.ebofConfig['messageQueuePort'])
+    except:
+        ufmArg.ebofConfig['enable'] = False
+
+    try:
+        ufmArg.smartConfig = ufmMetadata['smart']
+        ufmArg.ufmPorts.append(ufmArg.smartConfig['messageQueuePort'])
+    except:
+        ufmArg.smartConfig['enable'] = False
+
+    try:
+        ufmArg.switchConfig = ufmMetadata['switch']
+        # ufmArg.ufmPorts.append(ufmArg.switchConfig['messageQueuePort'])
+    except:
+        ufmArg.switchConfig['enable'] = False
+
+    return True
+
+
 def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     # Ufm is required
     subSystems.append(Ufm(ufmArg))
 
     try:
-        if ufmMetadata['nkv']['enable']:
-            ufmArg.nkvConfig = ufmMetadata['nkv']
+        if ufmArg.nkvConfig['enable']:
             subSystems.append(Nkv(hostname=ufmArg.hostname, db=ufmArg.deprecatedDb))
     except:
         pass
 
     try:
-        if ufmMetadata['essd']['enable']:
-            ufmArg.essdConfig = ufmMetadata['essd']
+        if ufmArg.essdConfig['enable']:
             subSystems.append(Essd(ufmArg))
 
             try:
                 # Urls of the essd in the config file is optional
-                if ufmMetadata['essd']['essdDrives']:
-                    insertEssdUrls(db=ufmArg.db, essdUrls=ufmMetadata['essd']['essdDrives'])
+                if ufmArg.essdConfig['essdDrives']:
+                    insertEssdUrls(db=ufmArg.db, essdUrls=ufmArg.essdConfig['essdDrives'])
             except:
                 pass
     except:
         pass
 
     try:
-        if ufmMetadata['ebof']['enable']:
-            ufmArg.ebofConfig = ufmMetadata['ebof']
+        if ufmArg.ebofConfig['enable']:
             subSystems.append(Ebof())
     except:
         pass
 
     try:
-        if ufmMetadata['smart']['enable']:
-            ufmArg.smartConfig = ufmMetadata['smart']
+        if ufmArg.smartConfig['enable']:
             subSystems.append(Smart())
     except:
         pass
 
     try:
-        for switch_arg in ufmMetadata['switch']:
+        for switch_arg in ufmArg.switchConfig:
             if switch_arg['enable']:
-                swArg = SwitchArg(sw_type = switch_arg['sw_type'],
-                                  sw_ip = switch_arg['sw_ip'],
-                                  log = ufmArg.log,
-                                  db = ufmArg.db,
-                                  usrname = switch_arg['usrname'],
-                                  pwd = switch_arg['pwd'])
+                swArg = SwitchArg(sw_type=switch_arg['sw_type'],
+                                  sw_ip=switch_arg['sw_ip'],
+                                  log=ufmArg.log,
+                                  db=ufmArg.db,
+                                  usrname=switch_arg['usrname'],
+                                  pwd=switch_arg['pwd'])
                 subSystems.append(EthSwitch(swArg))
     except:
         pass
@@ -461,12 +499,16 @@ def main():
     kwargs['port'] = args.port
 
     ufmMetadata = readConfigDataFromFile(filename="ufm.yaml")
-    try:
-        ufmConfig = ufmMetadata['ufm']
 
-        dbType = ufmConfig['dbType']
-        dbAddress = ufmConfig['dbIp']
-        ufmMessageQueuePort = ufmConfig['messageQueuePort']
+    ufmArg = UfmArg()
+    if not parseUfmConfig(ufmArg, ufmMetadata):
+        log.error("Failed to parse ufm config data.")
+        sys.exit(-1)
+
+    try:
+        dbType = ufmArg.ufmConfig['dbType']
+        dbAddress = ufmArg.ufmConfig['dbIp']
+        ufmMessageQueuePort = ufmArg.ufmConfig['messageQueuePort']
     except:
         log.error("Failed to read ufm configuration file.")
         sys.exit(-1)
@@ -489,13 +531,12 @@ def main():
     # Main UFM services are required
     hostname = socket.gethostname().lower()
 
-    ufmArg = UfmArg(db=db,
-                    hostname=hostname,
-                    log=log,
-                    uuid=uuid.getnode(),
-                    ufmMainEvent=ufmMainEvent,
-                    publisher=Publisher(ufmMessageQueuePort))
-    ufmArg.ufmConfig = ufmConfig
+    ufmArg.set(db=db,
+               hostname=hostname,
+               log=log,
+               uuid=uuid.getnode(),
+               ufmMainEvent=ufmMainEvent,
+               publisher=Publisher(ufmMessageQueuePort))
     ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
