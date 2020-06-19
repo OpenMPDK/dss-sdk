@@ -1,0 +1,21 @@
+{
+    "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports",
+    "@odata.type": "#PortCollection.PortCollection",
+    "Description": "Collection of Ports",
+    "Name": "Port Collection",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/1"
+        },
+        {
+            "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12"
+        },
+        {
+            "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/14"
+        },
+        {
+            "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3"
+        }
+    ],
+    "Members@odata.count": 4
+}

@@ -1,8 +1,0 @@
-{
-    "@odata.context": "/redfish/v1/$metadata#Port.Port",
-    "@odata.id": "/redfish/v1/Fabrics/Fabric/Fabric.1/Switches/Switch.1/Ports/Port.1",
-    "@odata.type": "#Port.v1_2_1.Port",
-    "Description": "Port information",
-    "Id": "Port.1",
-    "Name": "Port.1"
-}
