@@ -91,6 +91,20 @@ class RedfishVlanCollectionBackend():
 
                 self.cfg['Members'] = members
                 self.cfg['Members@odata.count'] = len(members)
+
+                self.cfg['Actions'] = {}
+                self.cfg['Actions']['#CreateVLAN'] = {}
+                self.cfg['Actions']['#CreateVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/CreateVLAN'
+                self.cfg['Actions']['#CreateVLAN']['Parameters'] = []
+
+                param = {}
+                param['Name'] = 'VlanId'
+                param['Required'] = True
+                param['DataType'] = 'Number'
+                param['MinimumValue'] = '1'
+                param['MaximumValue'] = '4094'
+                self.cfg['Actions']['#CreateVLAN']['Parameters'].append(param)
+
                 response = self.cfg, redfish_constants.SUCCESS
             else:
                 response = redfish_constants.NOT_FOUND
