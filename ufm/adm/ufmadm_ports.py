@@ -1,5 +1,6 @@
 
 from ufmmenu import UfmMenu
+from ufmadm_vlans import VlanMenu
 import ufmapi
 
 
@@ -7,6 +8,8 @@ class PortsMenu(UfmMenu):
     def __init__(self, fab="", sw=""):
         UfmMenu.__init__(self, name="pts", back_func=self._back_action)
 
+        self.fab = fab
+        self.sw = sw
         rsp = ufmapi.redfish_get("/Fabrics/"+fab+"/Switches/"+sw+"/Ports")
 
         if rsp is None:
@@ -28,8 +31,6 @@ class PortsMenu(UfmMenu):
 
             count = count + 1
 
-        self.fab = fab
-        self.sw = sw
         self.pt = pt
         return
 
@@ -61,28 +62,47 @@ class PortMenu(UfmMenu):
             return
 
         UfmMenu.__init__(self, name="pt", back_func=self._back_action)
+        self.fab = fab
+        self.sw = sw
+        self.pt = pt
 
         rsp = ufmapi.redfish_get("/Fabrics/"+fab+"/Switches/"+sw+"/Ports/"+pt)
 
         if rsp is None:
             return
 
-        if "Id" not in rsp:
+        if "PortId" not in rsp:
             return
 
         print()
         print("*        Fabric: ", fab)
         print("*        Switch: ", sw)
-        print("*          Port: ", pt)
-        print("             Id: ", rsp["Id"])
+        print("*        PortId: ", rsp["PortId"])
         print("           Name: ", rsp["Name"])
+        print("           Mode: ", rsp["Mode"])
+        count = 0
 
-        self.fab = fab
-        self.sw = sw
+        if "Links" in rsp and rsp["Links"]["AccessVlan"]:
+            print("*   Access vlan Collection:")
+
+            for member in rsp["Links"]["AccessVlan"]:
+                vlan = member["@odata.id"].split("/")[8]
+                print("      VLAN: ("+str(count)+")", vlan)
+
+                self.add_item(labels=[str(count)],
+                              action=self._menu_action, priv=vlan,
+                              desc="VLAN: " + vlan)
+
+                count = count + 1
 
         return
 
     def _back_action(self, menu, item):
         ports_menu = PortsMenu(fab=self.fab, sw=self.sw)
         self.set_menu(ports_menu)
+        return
+
+    def _menu_action(self, menu, item):
+        vlan_menu = VlanMenu(fab=self.fab, sw=self.sw, vlan=item.priv)
+        self.set_menu(vlan_menu)
         return
