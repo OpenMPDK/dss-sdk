@@ -83,9 +83,11 @@ class PortMenu(UfmMenu):
         count = 0
 
         if "Links" in rsp and rsp["Links"]["AccessVlan"]:
-            print("*   Access vlan Collection:")
+            access_vlan = rsp["Links"]["AccessVlan"]["@odata.id"].split("/")[8]
+            print("    AccessVlan: VLAN: " + access_vlan)
 
-            for member in rsp["Links"]["AccessVlan"]:
+        if "Links" in rsp and rsp["Links"]["AllowedVlans"]:
+            for member in rsp["Links"]["AllowedVlans"]:
                 vlan = member["@odata.id"].split("/")[8]
                 print("      VLAN: ("+str(count)+")", vlan)
 
@@ -94,6 +96,25 @@ class PortMenu(UfmMenu):
                               desc="VLAN: " + vlan)
 
                 count = count + 1
+
+        if "Actions" in rsp and rsp["Actions"]["#SetAccessPort"]:
+
+            sap = rsp["Actions"]["#SetAccessPort"]
+            print("    Action: (SetAccessPort) ")
+            self.add_item(labels=["sap", "sap"], args=["<vlan_id>"],
+                          action=self._set_access_port_action,
+                          desc=sap["description"])
+            self.sap = sap
+
+        if "Actions" in rsp and rsp["Actions"]["#SetTrunkPort"]:
+
+            stp = rsp["Actions"]["#SetTrunkPort"]
+            print("    Action: (SetTrunkPort) ")
+            self.add_item(labels=["stp", "stp"], args=["<vlan_id_start>",
+                          "<vlan_id_end>"],
+                          action=self._set_trunk_port_action,
+                          desc=stp["description"])
+            self.stp = stp
 
         return
 
@@ -105,4 +126,62 @@ class PortMenu(UfmMenu):
     def _menu_action(self, menu, item):
         vlan_menu = VlanMenu(fab=self.fab, sw=self.sw, vlan=item.priv)
         self.set_menu(vlan_menu)
+        return
+
+    def _set_access_port_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id = int(argv[1], 10)
+        if vlan_id is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["VlanId"] = vlan_id
+
+        rsp = ufmapi.redfish_post(self.sap["target"], payload)
+        '''
+            TODO: remove these two lines once the backend UFM supports the
+            Post command
+        '''
+        print(rsp)
+        return
+
+        if rsp['Status'] != 200:
+            print("Access Port Set")
+        else:
+            print("Failed to set Access Port")
+
+        return
+
+    def _set_trunk_port_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id_start = int(argv[1], 10)
+        if vlan_id_start is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        vlan_id_end = int(argv[1], 10)
+        if vlan_id_end is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["RangeFromVlanId"] = vlan_id_start
+        payload["RangeToVlanId"] = vlan_id_end
+
+        rsp = ufmapi.redfish_post(self.stp["target"], payload)
+        '''
+            TODO: remove these two lines once the backend UFM supports the
+            Post command
+        '''
+        print(rsp)
+        return
+
+        if rsp['Status'] != 200:
+            print("Trunk Ports Set")
+        else:
+            print("Failed to Set Trunk Ports")
+
         return
