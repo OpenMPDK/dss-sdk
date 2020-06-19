@@ -67,8 +67,10 @@ class SwitchMenu(UfmMenu):
         print()
         print("*        Fabric:", fab)
         print("*        Switch:", sw)
+        print("             Id:", rsp["Id"])
+        print("    Description:", rsp["Description"])
+        print("           Name:", rsp["Name"])
         print("  Serial Number:", rsp["SerialNumber"])
-        print("          Model:", rsp["Model"])
         print("           UUID:", rsp["UUID"])
 
         if len(rsp["Ports"]) > 0:

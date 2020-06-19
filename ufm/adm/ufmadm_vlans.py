@@ -28,7 +28,7 @@ class VlansMenu(UfmMenu):
 
             count = count + 1
 
-        print("      Action: (create) Create VLAN")
+        print("    Action: (create) Create VLAN")
         self.add_item(labels=["create", "cr"], args=["<vlan_id>"],
                       action=self._create_action,
                       desc="Create new vlan with id")
@@ -94,6 +94,8 @@ class VlanMenu(UfmMenu):
             print("ERROR: Null Fabric provided.")
             return
 
+        self.fab = fab
+        self.sw = sw
         UfmMenu.__init__(self, name="vlan", back_func=self._back_action)
 
         rsp = ufmapi.redfish_get(
@@ -110,15 +112,36 @@ class VlanMenu(UfmMenu):
         print("*        Switch: ", sw)
         print("*          VLAN: ", vlan)
         print("             Id: ", rsp["Id"])
+        print("    Description: ", rsp["Description"])
         print("           Name: ", rsp["Name"])
+        print("     VLANEnable: ", rsp["VLANEnable"])
         print("         VLANId: ", rsp["VLANId"])
 
-        self.fab = fab
-        self.sw = sw
+        if "Links" in rsp and rsp["Links"]["Ports"]:
+            count = 0
+            print()
+            print("*  Ports Collection:")
+
+            for member in rsp["Links"]["Ports"]:
+                pt = member["@odata.id"].split("/")[8]
+                print("      Port: ("+str(count)+")", pt)
+
+                self.add_item(labels=[str(count)],
+                              action=self._menu_action, priv=pt,
+                              desc="Port: " + pt)
+
+                count = count + 1
 
         return
 
     def _back_action(self, menu, item):
         switches_menu = VlansMenu(fab=self.fab, sw=self.sw)
         self.set_menu(switches_menu)
+        return
+
+    def _menu_action(self, menu, item):
+        from ufmadm_ports import PortMenu
+
+        port_menu = PortMenu(fab=self.fab, sw=self.sw, pt=item.priv)
+        self.set_menu(port_menu)
         return
