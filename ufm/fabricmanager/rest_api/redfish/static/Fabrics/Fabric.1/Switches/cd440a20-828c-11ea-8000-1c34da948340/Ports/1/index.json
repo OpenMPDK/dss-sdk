@@ -6,18 +6,18 @@
     "Name": "Eth1/1",
     "Mode": "access",
     "Links": {
-        "AccessVlan": {
+        "AccessVLAN": {
             "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/VLANs/1"
         },
-        "AllowedVlans": []
+        "AllowedVLANs": []
     },
     "Actions": {
-        "#SetAccessPort": {
+        "#SetAccessPortVLAN": {
             "description": "Set this port to access mode that connects to a host. Must specify a default configured VLAN.",
-            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports/1/Actions/SetPortModeAccess",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports/1/Actions/SetAccessPortVLAN",
             "Parameters": [
                 {
-                    "Name": "VlanId",
+                    "Name": "VLANId",
                     "Required": true,
                     "DataType": "Number",
                     "MinimumValue": "1",
@@ -25,19 +25,23 @@
                 }
             ]
         },
-        "#SetTrunkPort": {
+        "#UnassignAccessPortVLAN": {
+            "description": "Set this port access VLAN to default 1.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports/1/Actions/UnassignAccessPortVLAN"
+        },
+        "#SetTrunkPortVLANs": {
             "description": "Set this port to trunk mode connecting 2 switches. By default, a trunk port is automatically a member on all current and future VLANs. Unless a range of VLANs is specified.",
-            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports/1/Actions/SetTrunkPort",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports/1/Actions/SetTrunkPortVLANs",
             "Parameters": [
                 {
-                    "Name": "RangeFromVlanId",
+                    "Name": "RangeFromVLANId",
                     "Required": false,
                     "DataType": "Number",
                     "MinimumValue": "1",
                     "MaximumValue": "4094"
                 },
                 {
-                    "Name": "RangeToVlanId",
+                    "Name": "RangeToVLANId",
                     "Required": false,
                     "DataType": "Number",
                     "MinimumValue": "1",

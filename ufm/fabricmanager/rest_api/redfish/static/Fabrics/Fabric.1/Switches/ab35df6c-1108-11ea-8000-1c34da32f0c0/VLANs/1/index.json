@@ -6,6 +6,11 @@
     "Name": "VLAN",
     "VLANEnable": "True",
     "VLANId": "1",
+    "Actions": {
+        "#DeleteVLAN": {
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/1/Actions/DeleteVLAN"
+        }
+    },
     "Links": {
         "Ports": [
             {
