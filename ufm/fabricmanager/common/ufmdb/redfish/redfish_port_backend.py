@@ -29,7 +29,7 @@ class RedfishPortBackend():
             port = self.get_port(sw_id, port_id)
             self.cfg["Mode"] = self.cfg["Mode"].format(port_mode = port["mode"])
 
-            self.cfg["Links"] = {"AccessVlan": {}, "AllowedVlans": []}
+            self.cfg["Links"] = {"AccessVLAN": {}, "AllowedVLANs": []}
             if port["access_vlan"]:
                 vlan_path = "{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{VLANs}/{vlan_id}".format(
                             rest_base = redfish_constants.REST_BASE,
@@ -40,7 +40,7 @@ class RedfishPortBackend():
                             VLANs = redfish_constants.VLANS,
                             vlan_id = port["access_vlan"])
 
-                self.cfg["Links"]["AccessVlan"]["@odata.id"] = vlan_path
+                self.cfg["Links"]["AccessVLAN"]["@odata.id"] = vlan_path
 
             if port["allowed_vlans"]:
                 for vlan_id in port["allowed_vlans"]:
@@ -52,44 +52,48 @@ class RedfishPortBackend():
                                 switch_id = sw_id,
                                 VLANs = redfish_constants.VLANS,
                                 vlan_id = vlan_id)
-                    self.cfg["Links"]["AllowedVlans"].append({"@odata.id": vlan_path})
+                    self.cfg["Links"]["AllowedVLANs"].append({"@odata.id": vlan_path})
 
             self.cfg['Actions'] = {}
-            self.cfg['Actions']['#SetAccessPort'] = {}
-            self.cfg['Actions']['#SetAccessPort']['description'] = 'Set this port to access mode that connects to a host. ' \
-                                                                 + 'Must specify a default configured VLAN.'
-            self.cfg['Actions']['#SetAccessPort']['target'] = self.cfg['@odata.id'] + '/Actions/SetPortModeAccess'
-            self.cfg['Actions']['#SetAccessPort']['Parameters'] = []
+            self.cfg['Actions']['#SetAccessPortVLAN'] = {}
+            self.cfg['Actions']['#SetAccessPortVLAN']['description'] = 'Set this port to access mode that connects to a host. ' \
+                                                                     + 'Must specify a default configured VLAN.'
+            self.cfg['Actions']['#SetAccessPortVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/SetAccessPortVLAN'
+            self.cfg['Actions']['#SetAccessPortVLAN']['Parameters'] = []
 
             param = {}
-            param['Name'] = 'VlanId'
+            param['Name'] = 'VLANId'
             param['Required'] = True
             param['DataType'] = 'Number'
             param['MinimumValue'] = '1'
             param['MaximumValue'] = '4094'
-            self.cfg['Actions']['#SetAccessPort']['Parameters'].append(param)
+            self.cfg['Actions']['#SetAccessPortVLAN']['Parameters'].append(param)
 
-            self.cfg['Actions']['#SetTrunkPort'] = {}
-            self.cfg['Actions']['#SetTrunkPort']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \
+            self.cfg['Actions']['#UnassignAccessPortVLAN'] = {}
+            self.cfg['Actions']['#UnassignAccessPortVLAN']['description'] = 'Set this port access VLAN to default 1.'
+            self.cfg['Actions']['#UnassignAccessPortVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/UnassignAccessPortVLAN'
+
+            self.cfg['Actions']['#SetTrunkPortVLANs'] = {}
+            self.cfg['Actions']['#SetTrunkPortVLANs']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \
                 + 'By default, a trunk port is automatically a member on all current and future VLANs. Unless a range of VLANs is specified.'
-            self.cfg['Actions']['#SetTrunkPort']['target'] = self.cfg['@odata.id'] + '/Actions/SetTrunkPort'
-            self.cfg['Actions']['#SetTrunkPort']['Parameters'] = []
+            self.cfg['Actions']['#SetTrunkPortVLANs']['target'] = self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANs'
+            self.cfg['Actions']['#SetTrunkPortVLANs']['Parameters'] = []
 
             param = {}
-            param['Name'] = 'RangeFromVlanId'
+            param['Name'] = 'RangeFromVLANId'
             param['Required'] = False
             param['DataType'] = 'Number'
             param['MinimumValue'] = '1'
             param['MaximumValue'] = '4094'
-            self.cfg['Actions']['#SetTrunkPort']['Parameters'].append(param)
+            self.cfg['Actions']['#SetTrunkPortVLANs']['Parameters'].append(param)
 
             param = {}
-            param['Name'] = 'RangeToVlanId'
+            param['Name'] = 'RangeToVLANId'
             param['Required'] = False
             param['DataType'] = 'Number'
             param['MinimumValue'] = '1'
             param['MaximumValue'] = '4094'
-            self.cfg['Actions']['#SetTrunkPort']['Parameters'].append(param)
+            self.cfg['Actions']['#SetTrunkPortVLANs']['Parameters'].append(param)
 
             response = self.cfg, redfish_constants.SUCCESS
 
