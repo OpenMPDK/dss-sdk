@@ -28,6 +28,10 @@ class RedfishVlanBackend():
             self.cfg["VLANEnable"] = self.cfg["VLANEnable"].format(vlan_enabled = True)
             self.cfg["VLANId"] = self.cfg["VLANId"].format(vlan_id = vlan_id)
 
+            self.cfg['Actions'] = {}
+            self.cfg['Actions']['#DeleteVLAN'] = {}
+            self.cfg['Actions']['#DeleteVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/DeleteVLAN'
+
             port_links = []
             ports = self.get_ports_for_vlan(sw_id, vlan_id)
             for p in ports:
@@ -98,7 +102,7 @@ class RedfishVlanCollectionBackend():
                 self.cfg['Actions']['#CreateVLAN']['Parameters'] = []
 
                 param = {}
-                param['Name'] = 'VlanId'
+                param['Name'] = 'VLANId'
                 param['Required'] = True
                 param['DataType'] = 'Number'
                 param['MinimumValue'] = '1'
