@@ -25,7 +25,7 @@ class VlanAPI(Resource):
             redfish_backend = RedfishVlanBackend()
             response = redfish_backend.get(fab_id, sw_id, vlan_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -44,7 +44,7 @@ class VlanCollectionAPI(Resource):
             redfish_backend = RedfishVlanCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -109,8 +109,8 @@ class VlanCollectionEmulationAPI(Resource):
             self.cfg['Members'] = vlans
             self.cfg['Members@odata.count'] = len(vlans)
             response = self.cfg, redfish_constants.SUCCESS
-        except Exception:
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

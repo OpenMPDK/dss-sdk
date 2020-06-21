@@ -24,7 +24,7 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -41,7 +41,7 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -103,8 +103,8 @@ class PortCollectionEmulationAPI(Resource):
             self.cfg['Members'] = ports
             self.cfg['Members@odata.count'] = len(ports)
             response = self.cfg, redfish_constants.SUCCESS
-        except Exception:
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 
