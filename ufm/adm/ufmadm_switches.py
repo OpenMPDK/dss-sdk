@@ -53,7 +53,6 @@ class SwitchMenu(UfmMenu):
             print("ERROR: Null Fabric provided.")
             return
 
-        print("fab: " + fab + ", sw: " + sw)
         UfmMenu.__init__(self, name="sw", back_func=self._back_action)
 
         rsp = ufmapi.redfish_get("/Fabrics/" + fab + "/Switches/" + sw)
@@ -72,6 +71,7 @@ class SwitchMenu(UfmMenu):
         print("           Name:", rsp["Name"])
         print("  Serial Number:", rsp["SerialNumber"])
         print("           UUID:", rsp["UUID"])
+        print()
 
         if len(rsp["Ports"]) > 0:
             print("    Ports: Present")

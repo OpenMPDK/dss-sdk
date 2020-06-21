@@ -269,6 +269,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/ipv4/10.1.10.191
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/manufacturer/mellanox
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/model/x86onie
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/name/default
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/serial_number/MT1935J01956
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uptime/1591390118
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/uuid/f1ec15f8-c832-11e9-8000-b8599f784980
@@ -292,12 +293,14 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                             self.uuid = data['System UUID']
                             self.db.put(switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + self.uuid, '', lease=lease)
                             SWITCH_ATTR_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
-                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uptime', str(int(time.time())), lease=lease)
 
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uptime/' + str(int(time.time())), '', lease=lease)
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uuid/' + self.uuid, '', lease=lease)
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/manufacturer/' + self.swArg.sw_type.lower(), '', lease=lease)
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/ipv4/' + self.swArg.sw_ip, '', lease=lease)
 
+                            if 'Name' in data:
+                                self.db.put(SWITCH_ATTR_KEY_PREFIX + '/name/' + data['Name'], '', lease=lease)
                             if 'Product model' in data:
                                 self.db.put(SWITCH_ATTR_KEY_PREFIX + '/model/' + data['Product model'], '', lease=lease)
                             if 'System serial num' in data:
@@ -399,9 +402,9 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
     def poll_to_db(self):
         # For now (06/2020), Redfish Fabric exists only for Switch. May change in the future.
-        self.db.put('/Fabrics/list/Fabric.1', '')
-        self.db.put('/Fabrics/Fabric.1/type/NVME', '')
-        self.db.put('/Fabrics/Fabric.1/list/' + self.uuid, '')
+        self.db.put('/Fabrics/list/Fabric.1', '', lease = self.db.lease(self.lease_ttl))
+        self.db.put('/Fabrics/Fabric.1/type/NVME', '', lease = self.db.lease(self.lease_ttl))
+        self.db.put('/Fabrics/Fabric.1/list/' + self.uuid, '', lease = self.db.lease(self.lease_ttl))
 
         self._poll_switch_attributes()
         self._poll_vlan_info()

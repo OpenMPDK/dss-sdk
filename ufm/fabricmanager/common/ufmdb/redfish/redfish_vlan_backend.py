@@ -10,7 +10,7 @@ class RedfishVlanBackend():
             "@odata.type": "#VLanNetworkInterface.v1_1_5.VLanNetworkInterface",
             "Id": "{vlan_id}",
             "Description": "VLAN Network Interface",
-            "Name": "VLAN",
+            "Name": "{vlan_name}",
             "VLANEnable": "{vlan_enabled}",
             "VLANId":"{vlan_id}",
         }
@@ -24,19 +24,22 @@ class RedfishVlanBackend():
                                                                  switch_id = sw_id,
                                                                  VLANs = redfish_constants.VLANS,
                                                                  vlan_id = vlan_id)
-            self.cfg["Id"] = self.cfg["Id"].format(vlan_id = vlan_id)
-            self.cfg["VLANEnable"] = self.cfg["VLANEnable"].format(vlan_enabled = True)
-            self.cfg["VLANId"] = self.cfg["VLANId"].format(vlan_id = vlan_id)
+            self.cfg['Id'] = self.cfg['Id'].format(vlan_id = vlan_id)
+            self.cfg['VLANEnable'] = self.cfg['VLANEnable'].format(vlan_enabled = True)
+            self.cfg['VLANId'] = self.cfg['VLANId'].format(vlan_id = vlan_id)
+
+            vlan = self.get_vlan(sw_id, vlan_id)
+            self.cfg['Name'] = self.cfg['Name'].format(vlan_name = vlan['name'])
 
             self.cfg['Actions'] = {}
             self.cfg['Actions']['#DeleteVLAN'] = {}
+            self.cfg['Actions']['#DeleteVLAN']['description'] = 'Delete VLAN'
             self.cfg['Actions']['#DeleteVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/DeleteVLAN'
 
             port_links = []
-            ports = self.get_ports_for_vlan(sw_id, vlan_id)
-            for p in ports:
+            for p in vlan['ports']:
                 port_id = p.split('/')[-1]
-                port_path = "{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{Ports}/{port_id}".format(
+                port_path = '{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{Ports}/{port_id}'.format(
                     rest_base = redfish_constants.REST_BASE,
                     Fabrics = redfish_constants.FABRICS,
                     fab_id = fab_id,
@@ -47,8 +50,8 @@ class RedfishVlanBackend():
 
                 port_links.append({'@odata.id': port_path})
 
-            self.cfg["Links"] = {}
-            self.cfg["Links"]["Ports"] = port_links
+            self.cfg['Links'] = {}
+            self.cfg['Links']['Ports'] = port_links
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
@@ -59,12 +62,21 @@ class RedfishVlanBackend():
         pass
 
 
-    def get_ports_for_vlan(self, sw_id, vlan_id):
-        prefix = "/switches/" + sw_id + "/VLANs/" + vlan_id + "/network/ports"
+    def get_vlan(self, sw_id, vlan_id):
+        ret = {}
+        ret['ports'] = []
+
+        prefix = '/switches/' + sw_id + '/VLANs/' + vlan_id
         kv_dict = ufmdb_util.query_prefix(prefix)
-        ret = []
         for k in kv_dict:
-            ret.append(k.split("/")[-1])
+            key = k.split("/")[-2]
+            val = k.split("/")[-1]
+
+            if key == 'ports':
+                ret['ports'].append(val)
+            else:
+                ret[key] = val
+
         return ret
 
 
@@ -98,6 +110,7 @@ class RedfishVlanCollectionBackend():
 
                 self.cfg['Actions'] = {}
                 self.cfg['Actions']['#CreateVLAN'] = {}
+                self.cfg['Actions']['#CreateVLAN']['description'] = 'Create a VLAN with Id'
                 self.cfg['Actions']['#CreateVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/CreateVLAN'
                 self.cfg['Actions']['#CreateVLAN']['Parameters'] = []
 

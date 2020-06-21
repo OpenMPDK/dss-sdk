@@ -17,21 +17,25 @@ class VlansMenu(UfmMenu):
 
         count = 0
         print()
-        print("*  Vlans Collection:")
+        print("*  VLANs Collection:")
 
         for member in rsp["Members"]:
             vlan = member["@odata.id"].split("/")[8]
-            print("      vlan: ("+str(count)+")", vlan)
+            print("      VLAN: ("+str(count)+")", vlan)
 
             self.add_item(labels=[str(count)],
                           action=self._menu_action, priv=vlan, desc=vlan)
 
             count = count + 1
 
-        print("    Action: (create) Create VLAN")
-        self.add_item(labels=["create", "cr"], args=["<vlan_id>"],
-                      action=self._create_action,
-                      desc="Create new vlan with id")
+        if "Actions" in rsp and rsp["Actions"]["#CreateVLAN"]:
+
+            crt = rsp["Actions"]["#CreateVLAN"]
+            print("    Action: (CreateVLAN) ")
+            self.add_item(labels=["crt", "crt"], args=["<vlan_id>"],
+                          action=self._create_action,
+                          desc=crt["description"])
+            self.crt = crt
 
         self.fab = fab
         self.sw = sw
@@ -61,10 +65,7 @@ class VlansMenu(UfmMenu):
         payload = {}
         payload["id"] = vlan_id
 
-        rsp = ufmapi.redfish_post(
-            "/Fabrics/"
-            + self.fab + "/Switches/" + self.sw + "/VLANs/" + self.vlan,
-            payload)
+        rsp = ufmapi.redfish_post(self.crt["target"], payload)
         '''
             TODO: remove these two lines once the backend UFM supports the
             Post command
@@ -116,6 +117,16 @@ class VlanMenu(UfmMenu):
         print("           Name: ", rsp["Name"])
         print("     VLANEnable: ", rsp["VLANEnable"])
         print("         VLANId: ", rsp["VLANId"])
+        print()
+
+        if "Actions" in rsp and rsp["Actions"]["#DeleteVLAN"]:
+
+            dlt = rsp["Actions"]["#DeleteVLAN"]
+            print("    Action: (DeleteVLAN) ")
+            self.add_item(labels=["dlt", "dlt"],
+                          action=self._delete_vlan_action,
+                          desc=dlt["description"])
+            self.dlt = dlt
 
         if "Links" in rsp and rsp["Links"]["Ports"]:
             count = 0
@@ -124,11 +135,12 @@ class VlanMenu(UfmMenu):
 
             for member in rsp["Links"]["Ports"]:
                 pt = member["@odata.id"].split("/")[8]
-                print("      Port: ("+str(count)+")", pt)
+                pt_display = 'Eth1/' + pt
+                print("      Port: ("+str(count)+")", pt_display)
 
                 self.add_item(labels=[str(count)],
                               action=self._menu_action, priv=pt,
-                              desc="Port: " + pt)
+                              desc="Port: " + pt_display)
 
                 count = count + 1
 
@@ -145,3 +157,22 @@ class VlanMenu(UfmMenu):
         port_menu = PortMenu(fab=self.fab, sw=self.sw, pt=item.priv)
         self.set_menu(port_menu)
         return
+
+
+    def _delete_vlan_action(self, menu, item):
+        rsp = ufmapi.redfish_post(self.dlt["target"])
+        '''
+            TODO: remove these two lines once the backend UFM supports the
+            Post command
+        '''
+        print(rsp)
+        return
+
+        if rsp['Status'] != 200:
+            print("VLAN deleted")
+        else:
+            print("Failed to delete VLAN")
+
+        return
+
+

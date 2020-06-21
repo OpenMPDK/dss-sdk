@@ -77,7 +77,6 @@ class RedfishPortBackend():
             self.cfg['Actions']['#SetTrunkPortVLANsAll']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \
                 + 'By default, a trunk port is automatically a member on all current and future VLANs.'
             self.cfg['Actions']['#SetTrunkPortVLANsAll']['target'] = self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANsAll'
-            self.cfg['Actions']['#SetTrunkPortVLANsAll']['Parameters'] = []
 
             self.cfg['Actions']['#SetTrunkPortVLANsRange'] = {}
             self.cfg['Actions']['#SetTrunkPortVLANsRange']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \

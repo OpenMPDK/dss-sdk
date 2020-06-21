@@ -31,8 +31,7 @@
         },
         "#SetTrunkPortVLANsAll": {
             "description": "Set this port to trunk mode connecting 2 switches. By default, a trunk port is automatically a member on all current and future VLANs.",
-            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/14/Actions/SetTrunkPortVLANsAll",
-            "Parameters": []
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/14/Actions/SetTrunkPortVLANsAll"
         },
         "#SetTrunkPortVLANsRange": {
             "description": "Set this port to trunk mode connecting 2 switches. This trunk port is a member on the range of VLANs specified by RangeFromVLANId and RangeToVLANId.",
