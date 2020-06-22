@@ -8,10 +8,7 @@ import time
 import datetime
 
 from ufm_thread import UfmThread
-
-from systems import port_def
 from systems.ufm_message import Subscriber
-
 from systems.essd import essd_constants
 
 
@@ -50,14 +47,17 @@ class EssdMonitor(UfmThread):
         self.db = ufmArg.db
         self.monitorArgs = monitorArgs
         self.monitorCallback = monitorCallback
+
         self.running = False
         self.watch_id = None
         self.essdUrlId = None
 
+        self.ports = self.ufmArg.ufmPorts
+        self.ports.append(self.ufmArg.essdConfig['messageQueuePort'])
+
         self.event = threading.Event()
         self.msgListner = Subscriber(event=self.event,
-                                     ports=(port_def.ESSD,
-                                            port_def.UFM),
+                                     ports=self.ports,
                                      topics=('monitor',))
 
         super(EssdMonitor, self).__init__()

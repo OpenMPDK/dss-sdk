@@ -1,8 +1,6 @@
 import threading
 
 from ufm_thread import UfmThread
-
-from systems import port_def
 from systems.ufm_message import Subscriber
 
 
@@ -16,8 +14,7 @@ class UfmMonitor(UfmThread):
 
         self.event = threading.Event()
         self.msgListner = Subscriber(event=self.event,
-                                     ports=(port_def.ESSD,
-                                            self.ufmArg.ufmConfig['messageQueuePort']),
+                                     ports=(self.ufmArg.ufmPorts),
                                      topics=('monitor',))
         self._running = False
         self.watch_id = None

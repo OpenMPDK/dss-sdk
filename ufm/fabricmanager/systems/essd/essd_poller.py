@@ -9,8 +9,6 @@ import time
 import datetime
 
 from ufm_thread import UfmThread
-
-from systems import port_def
 from systems.ufm_message import Subscriber
 
 from systems.essd import essd_constants
@@ -26,17 +24,21 @@ class EssdPoller(UfmThread):
            metadata to DB
     """
     def __init__(self, ufmArg=None, essdArg=None, pollerArgs=None):
+        self.ufmArg = ufmArg
         self.essdArg = essdArg
+        self.pollerArgs = pollerArgs
+
         self._running = False
         self.hostname = ufmArg.hostname
         self.log = ufmArg.log
         self.db = ufmArg.db
-        self.pollerArgs = pollerArgs
+
+        self.ports = self.ufmArg.ufmPorts
+        self.ports.append(self.ufmArg.essdConfig['messageQueuePort'])
 
         self.event = threading.Event()
         self.msgListner = Subscriber(event=self.event,
-                                     ports=(port_def.ESSD,
-                                            port_def.UFM),
+                                     ports=self.ports,
                                      topics=('poller',))
         super(EssdPoller, self).__init__()
         self.log.info('===> Init Essd <===')
@@ -54,7 +56,12 @@ class EssdPoller(UfmThread):
 
         self._running = True
         super(EssdPoller, self).start(threadName='EssdPoller', cb=self.essdRedFishPoller, cbArgs=self.pollerArgs, repeatIntervalSecs=30.0)
-        self.essdArg.publisher.send('main', "{ essd_poller_running: True }")
+        msg = dict()
+        msg['essd'] = "essd"
+        msg['service'] = "poller"
+        msg['running'] = True
+
+        self.essdArg.publisher.send('status', msg)
 
 
     def stop(self):
@@ -64,7 +71,12 @@ class EssdPoller(UfmThread):
 
         self._running = False
         self.log.info('===> Stop Essd <===')
-        self.essdArg.publisher.send('main', "{ essd_poller_running: False }")
+        msg = dict()
+        msg['essd'] = "essd"
+        msg['service'] = "poller"
+        msg['running'] = False
+
+        self.essdArg.publisher.send('status', msg)
 
 
     def is_running(self):
