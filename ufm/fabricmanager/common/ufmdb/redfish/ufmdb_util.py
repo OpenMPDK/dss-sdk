@@ -11,10 +11,8 @@ class ufmdb_util():
         kv_dict = dict()
         query = db.get_prefix(qstring)
         if query == None:
-            self.log.error("get_prefix(\"%s\") failed.  Retrying...", qstring)
             query = db.get_prefix(qstring)
             if query == None:
-                self.log.error("get_prefix(\"%s\") retry failed. Exiting.", qstring)
                 return dict()
 
         for value, metadata in query:

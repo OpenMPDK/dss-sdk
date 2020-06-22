@@ -24,7 +24,7 @@ class SwitchAPI(Resource):
             redfish_backend = RedfishSwitchBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -41,7 +41,7 @@ class SwitchCollectionAPI(Resource):
             redfish_backend = RedfishSwitchCollectionBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
@@ -99,8 +99,8 @@ class SwitchCollectionEmulationAPI(Resource):
             self.cfg['Members'] = switches
             self.cfg['Members@odata.count'] = len(switches)
             response = self.cfg, redfish_constants.SUCCESS
-        except Exception:
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

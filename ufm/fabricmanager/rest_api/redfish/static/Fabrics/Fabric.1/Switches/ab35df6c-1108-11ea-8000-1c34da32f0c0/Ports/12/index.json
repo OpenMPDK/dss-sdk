@@ -6,18 +6,18 @@
     "Name": "Eth1/12",
     "Mode": "access",
     "Links": {
-        "AccessVlan": {
+        "AccessVLAN": {
             "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/1"
         },
-        "AllowedVlans": []
+        "AllowedVLANs": []
     },
     "Actions": {
-        "#SetAccessPort": {
+        "#SetAccessPortVLAN": {
             "description": "Set this port to access mode that connects to a host. Must specify a default configured VLAN.",
-            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/14/Actions/SetPortModeAccess",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12/Actions/SetAccessPortVLAN",
             "Parameters": [
                 {
-                    "Name": "VlanId",
+                    "Name": "VLANId",
                     "Required": true,
                     "DataType": "Number",
                     "MinimumValue": "1",
@@ -25,20 +25,28 @@
                 }
             ]
         },
-        "#SetTrunkPort": {
-            "description": "Set this port to trunk mode connecting 2 switches. By default, a trunk port is automatically a member on all current and future VLANs. Unless a range of VLANs is specified.",
-            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12/Actions/SetTrunkPort",
+        "#UnassignAccessPortVLAN": {
+            "description": "Set this port access VLAN to default 1.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12/Actions/UnassignAccessPortVLAN"
+        },
+        "#SetTrunkPortVLANsAll": {
+            "description": "Set this port to trunk mode connecting 2 switches. By default, a trunk port is automatically a member on all current and future VLANs.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12/Actions/SetTrunkPortVLANsAll"
+        },
+        "#SetTrunkPortVLANsRange": {
+            "description": "Set this port to trunk mode connecting 2 switches. This trunk port is a member on the range of VLANs specified by RangeFromVLANId and RangeToVLANId.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/12/Actions/SetTrunkPortVLANsRange",
             "Parameters": [
                 {
-                    "Name": "RangeFromVlanId",
-                    "Required": false,
+                    "Name": "RangeFromVLANId",
+                    "Required": true,
                     "DataType": "Number",
                     "MinimumValue": "1",
                     "MaximumValue": "4094"
                 },
                 {
-                    "Name": "RangeToVlanId",
-                    "Required": false,
+                    "Name": "RangeToVLANId",
+                    "Required": true,
                     "DataType": "Number",
                     "MinimumValue": "1",
                     "MaximumValue": "4094"

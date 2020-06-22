@@ -49,7 +49,7 @@ class RedfishSwitchBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

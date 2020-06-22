@@ -9,4 +9,19 @@
         }
     ],
     "Members@odata.count": 1
+    "Actions": {
+        "#CreateVLAN": {
+            "description": "Create a VLAN with Id",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/Actions/CreateVLAN",
+            "Parameters": [
+                {
+                    "Name": "VLANId",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "1",
+                    "MaximumValue": "4094"
+                }
+            ]
+        }
+    }
 }

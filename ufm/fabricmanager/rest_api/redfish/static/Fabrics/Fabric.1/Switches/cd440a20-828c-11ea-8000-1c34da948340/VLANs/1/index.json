@@ -3,9 +3,15 @@
     "@odata.type": "#VLanNetworkInterface.v1_1_5.VLanNetworkInterface",
     "Id": "1",
     "Description": "VLAN Network Interface",
-    "Name": "VLAN",
+    "Name": "default",
     "VLANEnable": "True",
     "VLANId": "1",
+    "Actions": {
+        "#DeleteVLAN": {
+            "description": "Delete VLAN",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/VLANs/1/Actions/DeleteVLAN"
+        }
+    },
     "Links": {
         "Ports": [
             {
