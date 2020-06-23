@@ -1,7 +1,6 @@
-import sys
-import redfish
 import json
 import time
+
 from redfish.rest.v1 import redfish_client
 
 from systems.essd import essd_constants
@@ -17,7 +16,10 @@ class EssdDrive:
         self.log=log
         self.essdPrefix=essd_constants.ESSD_KEY
 
-        self.root = redfish_client(base_url=(self.url), timeout=1, max_retry=1)
+        self.root = redfish_client(base_url=(self.url),
+                                   timeout=1,
+                                   max_retry=1)
+
         self.uuid = self.root.root['UUID']
         self.essd_util = EssdUtils(self.uuid, self.log)
 
@@ -192,7 +194,8 @@ class EssdDrive:
             return
 
         uuid = str(self.uuid)
-        # essdSystemKey = self.essd_util.build_key([self.essdPrefix, uuid, 'redfish/v1/Systems/System.eSSD.1'])
-        essdSystemKey = self.essd_util.build_key([self.essdPrefix, uuid,
-                                                  essd_constants.ESSD_SYSTEM_SFX])
+
+        essdSystemKey = self.essd_util.build_key(
+            [self.essdPrefix, uuid, essd_constants.ESSD_SYSTEM_SFX]
+        )
         self.essd_util.add_lookup_entry(db, essdSystemKey)

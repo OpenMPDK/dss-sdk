@@ -1,5 +1,4 @@
 import ast
-import json
 
 from systems.essd import essd_constants
 
@@ -64,7 +63,8 @@ class EssdUtils:
             self.log.error('Unable to save data without UUID')
             return False
 
-        key_with_prefix = self.build_key([self.essd_prefix, str(self.uuid), str(key)])
+        key_with_prefix = self.build_key([self.essd_prefix, str(self.uuid),
+                                          str(key)])
         if not key_with_prefix:
             self.log.error('Unable to build key to save ESSD data')
             return False
