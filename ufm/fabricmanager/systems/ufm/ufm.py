@@ -1,6 +1,4 @@
 
-
-from systems.ufmarg import UfmArg
 from systems.subsystem import SubSystem
 
 from systems.ufm.ufm_monitor import UfmMonitor
@@ -18,4 +16,3 @@ class Ufm(SubSystem):
                                            ))
 
         self.log.info("Init {}".format(self.__class__.__name__))
-

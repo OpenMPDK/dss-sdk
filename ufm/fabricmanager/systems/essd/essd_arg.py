@@ -10,5 +10,3 @@ class EssdPollerArg():
         self.essdSystems = list()
         self.essdCounter = -1
         self.updateEssdUrls = False
-
-

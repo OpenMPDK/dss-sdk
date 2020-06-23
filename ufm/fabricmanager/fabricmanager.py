@@ -15,12 +15,14 @@ from multiprocessing import Process
 import yaml
 
 # Flask Imports
-from flask import Flask, request, make_response, render_template
-from flask_restful import reqparse, Api, Resource
+from flask import Flask, make_response, render_template
+from flask_restful import Api, Resource
+# from flask_restful import reqparse
+# from flask import request
 
 # REST API Imports
 from rest_api.resource_manager import ResourceManager
-from rest_api.redfish.System_api import UfmdbSystemAPI
+# from rest_api.redfish.System_api import UfmdbSystemAPI
 
 # Internal Imports
 import config
@@ -37,21 +39,39 @@ from ufm_status import UfmHealthStatus
 # Redfish
 from rest_api.redfish import redfish_constants
 from rest_api.redfish.ServiceRoot import ServiceRoot
-from rest_api.redfish.System_api import SystemCollectionEmulationAPI, SystemEmulationAPI, SystemAPI, SystemCollectionAPI
-from rest_api.redfish.Storage import StorageCollectionEmulationAPI, StorageEmulationAPI, StorageCollectionAPI, \
+from rest_api.redfish.System_api import SystemCollectionEmulationAPI, \
+    SystemEmulationAPI, \
+    SystemAPI, \
+    SystemCollectionAPI
+from rest_api.redfish.Storage import StorageCollectionEmulationAPI, \
+    StorageEmulationAPI, \
+    StorageCollectionAPI, \
     StorageAPI
-from rest_api.redfish.Drive import DriveCollectionEmulationAPI, DriveEmulationAPI, DriveCollectionAPI, DriveAPI
-from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulationAPI, EthernetInterfaceEmulationAPI, \
-    EthernetInterfaceAPI, EthernetInterfaceCollectionAPI
-
-from rest_api.redfish.Fabric_api import FabricCollectionEmulationAPI, FabricEmulationAPI, FabricAPI, FabricCollectionAPI
-from rest_api.redfish.Switch import SwitchEmulationAPI, SwitchCollectionEmulationAPI, SwitchCollectionAPI, SwitchAPI
-from rest_api.redfish.Port import PortCollectionEmulationAPI, PortEmulationAPI, PortCollectionAPI, PortAPI
-from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, VlanEmulationAPI, VlanCollectionAPI, VlanAPI
+from rest_api.redfish.Drive import DriveCollectionEmulationAPI, \
+    DriveEmulationAPI, DriveCollectionAPI, DriveAPI
+from rest_api.redfish.EthernetInterface import \
+    EthernetInterfaceCollectionEmulationAPI, \
+    EthernetInterfaceEmulationAPI, \
+    EthernetInterfaceAPI, \
+    EthernetInterfaceCollectionAPI
+from rest_api.redfish.Fabric_api import FabricCollectionEmulationAPI, \
+    FabricEmulationAPI, \
+    FabricAPI, \
+    FabricCollectionAPI
+from rest_api.redfish.Switch import SwitchEmulationAPI, \
+    SwitchCollectionEmulationAPI, \
+    SwitchCollectionAPI, SwitchAPI
+from rest_api.redfish.Port import PortCollectionEmulationAPI, \
+    PortEmulationAPI, \
+    PortCollectionAPI, \
+    PortAPI
+from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, \
+    VlanEmulationAPI, \
+    VlanCollectionAPI, \
+    VlanAPI
 
 from backend.populate import populate
 
-from systems import port_def
 from systems.ufm_message import Publisher
 
 from systems.ufm.ufm import Ufm
@@ -69,7 +89,6 @@ from systems.essd.essd import Essd
 from systems.ebof.ebof import Ebof
 
 from systems.nkv.nkv import Nkv
-
 
 
 # If application is installed, then append the module search path
@@ -366,7 +385,12 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
 
     try:
         if ufmArg.nkvConfig['enable']:
-            subSystems.append(Nkv(hostname=ufmArg.hostname, db=ufmArg.deprecatedDb))
+            subSystems.append(
+                Nkv(
+                    hostname=ufmArg.hostname,
+                    db=ufmArg.deprecatedDb
+                )
+            )
     except:
         pass
 
@@ -482,19 +506,29 @@ def main():
 
     log.detail('main: Parsing args')
     parser = argparse.ArgumentParser(
-        description='Process Server\'s Configuration Settings.')
-    parser.add_argument("--host", help="IP Address of Server",
-                        dest="host", default="0.0.0.0")
-    parser.add_argument("--port", help="Port of Server",
-                        dest="port", default=5001)
-    parser.add_argument("--logger_config", help="fabricmanager logger config file ",
-                        dest="config_logfile", default=CONFIG_LOGFILE)
+        description='Process Server\'s Configuration Settings.'
+    )
+    parser.add_argument("--host",
+                        help="IP Address of Server",
+                        dest="host",
+                        default="0.0.0.0"
+                        )
+    parser.add_argument("--port",
+                        help="Port of Server",
+                        dest="port",
+                        default=5001)
+    parser.add_argument("--logger_config",
+                        help="fabricmanager logger config file",
+                        dest="config_logfile",
+                        default=CONFIG_LOGFILE
+                        )
 
     args = parser.parse_args()
 
     log.detail('config_logfile: %s', args.config_logfile)
 
-    # Default fabricmanager-config.json data. Override with user input data if any
+    # Default fabricmanager-config.json data.
+    #    Override with user input data if any
     kwargs['host'] = args.host
     kwargs['port'] = args.port
 
@@ -540,7 +574,11 @@ def main():
     ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
-    initializeSubSystems(subSystems=subSystems, ufmArg=ufmArg, ufmMetadata=ufmMetadata)
+    initializeSubSystems(
+        subSystems=subSystems,
+        ufmArg=ufmArg,
+        ufmMetadata=ufmMetadata
+    )
 
     # ufm_status will handle all health and leader checks
     #

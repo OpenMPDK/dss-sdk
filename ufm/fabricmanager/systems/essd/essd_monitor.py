@@ -1,11 +1,4 @@
-import os
-import os.path
-import sys
 import threading
-import json
-import signal
-import time
-import datetime
 
 from ufm_thread import UfmThread
 from systems.ufm_message import Subscriber
@@ -31,7 +24,7 @@ def essdMonitorCallback(ufmArg=None, essdArg=None, event=None):
 
     if '/essd/essdurls' in eventKeyList:
         # Signal to the poller to re-scan the essd urls
-        self.updateEssdUrls = True
+        essdArg.updateEssdUrls = True
 
 
 class EssdMonitor(UfmThread):
@@ -40,7 +33,11 @@ class EssdMonitor(UfmThread):
           This thread is monitor Essd's and add the Essd'd
           metadata to DB
     """
-    def __init__(self, ufmArg=None, essdArg=None, monitorArgs=None, monitorCallback=None):
+    def __init__(self,
+                 ufmArg=None,
+                 essdArg=None,
+                 monitorArgs=None,
+                 monitorCallback=None):
         self.ufmArg = ufmArg
         self.essdArg = essdArg
         self.log = ufmArg.log
@@ -63,12 +60,10 @@ class EssdMonitor(UfmThread):
         super(EssdMonitor, self).__init__()
         self.log.info('===> Init Monitor <===')
 
-
     def __del__(self):
         if self.running:
             self.stop()
         self.log.info('===> Delete Essd Monitor <===')
-
 
     def _watchEssdKeyCallBack(self, event):
         print("========> The monitor got an event <=======")
@@ -78,23 +73,26 @@ class EssdMonitor(UfmThread):
         if self.monitorCallback:
             self.monitorCallback(self.ufmArg, self.essdArg, event)
 
-
     def start(self):
         self.log.info('===> Start Essd Monitor <===')
         self.msgListner.start()
 
         self.running = True
-        super(EssdMonitor, self).start(threadName='EssdMonitor', cb=self._essdMonitor, cbArgs=self.monitorArgs, repeatIntervalSecs=2.0)
+        super(EssdMonitor, self).start(threadName='EssdMonitor',
+                                       cb=self._essdMonitor,
+                                       cbArgs=self.monitorArgs,
+                                       repeatIntervalSecs=2.0)
         self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
 
         try:
-            self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY, self._watchEssdKeyCallBack, previous_kv=True)
+            self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY,
+                                                   self._watchEssdKeyCallBack,
+                                                   previous_kv=True)
         except Exception as e:
-            self.log.error('Exception could not get watch id: {}'.format(str(e)))
+            self.log.error('Could not get watch id: {}'.format(str(e)))
             self.watch_id = None
 
         self.log.info("======> Done Configure DB key watch'er <=========")
-
 
     def stop(self):
         super(EssdMonitor, self).stop()
@@ -104,7 +102,7 @@ class EssdMonitor(UfmThread):
         self.running = False
         self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
 
-        self.log.error("====== Watch ID {} ========".format( self.watch_id ))
+        self.log.error("====== Watch ID {} ========".format(self.watch_id))
 
         if not self.db:
             self.log.error("DB is closed")
@@ -118,10 +116,8 @@ class EssdMonitor(UfmThread):
 
         self.log.info('===> Stop Essd <===')
 
-
     def is_running(self):
         return self.running
-
 
     def _essdMonitor(self, cbArgs):
         """
@@ -129,4 +125,3 @@ class EssdMonitor(UfmThread):
            Do some monitor work here
         """
         print("_EM", flush=True, end='')
-
