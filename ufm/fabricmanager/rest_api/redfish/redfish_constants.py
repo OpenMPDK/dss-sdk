@@ -1,3 +1,5 @@
+from os.path import join
+
 SUCCESS = 200
 SERVER_ERROR = 500
 SERVER_ERROR_STR = 'Internal Server Error'
@@ -11,6 +13,7 @@ REST_BASE = '/redfish/v1'
 # NAC constants
 SYSTEM = 'System'
 SYSTEMS = 'Systems'
+SYSTEMS_URL = join(REST_BASE, SYSTEMS)
 ETH_INTERFACES = 'EthernetInterfaces'
 
 STORAGE = 'Storage'
@@ -27,3 +30,9 @@ PORTS = 'Ports'
 
 VLAN = 'VLAN'
 VLANS = 'VLANs'
+
+ODATA_ID = '@odata.id'
+STATUS = 'Status'
+HEALTH = 'Health'
+STATE = 'State'
+STATUS_OK = 'OK'

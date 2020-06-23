@@ -5,23 +5,25 @@ import time
 from redfish.rest.v1 import redfish_client
 
 from systems.essd import essd_constants
+from systems.essd.essd_subsystem_builder import EssdSubsystemBuilder
+from systems.essd.essd_utils import EssdUtils
 
-class EssdDrive():
+
+class EssdDrive:
     def __init__(self, url, username=None, password=None, log=None):
         self.url=url
         self.username=username
         self.password=password
-        self.logger=log
+        self.log=log
         self.essdPrefix=essd_constants.ESSD_KEY
 
         self.root = redfish_client(base_url=(self.url), timeout=1, max_retry=1)
         self.uuid = self.root.root['UUID']
-
+        self.essd_util = EssdUtils(self.uuid, self.log)
 
     def __del__(self):
         if hasattr(self, 'root'):
             self.root.logout()
-
 
     def get(self, request):
         response = self.root.get(request, headers=None)
@@ -30,67 +32,6 @@ class EssdDrive():
 
         value = json.dumps(response.dict, indent=4, sort_keys=True)
         return response.status, request, json.loads(value)
-
-
-    def printAllMembers(self, key, jsonData):
-        '''
-          Prints main members in a jsom message
-        '''
-        print("-"*60)
-        print("key={}".format(key))
-        for x in jsonData:
-            print("  {}: {}".format(x, jsonData[x]))
-        print("-"*60)
-
-
-    def removeDuplicates(self, string):
-        result=[]
-        lastChar=''
-        for char in string:
-            if char == '/' and char == lastChar:
-                lastChar=char
-                continue
-
-            result.append(char)
-            lastChar=char
-
-        return ''.join(result)
-
-
-    def buildKey(self, tags):
-        if not tags:
-            return None
-
-        result = '/'.join(tags)
-        return self.removeDuplicates(result)
-
-
-    def saveKeyValue(self, db, keyWithPrefix, jsonData):
-        if not db:
-            return
-
-        try:
-            value, _ = db.get(keyWithPrefix)
-            if value and value.decode('utf-8') == jsonData:
-                self.logger.info("=========== NOT saving data ===========")
-                return
-        except Exception as e:
-            self.logger.exception(e)
-            pass
-
-        db.put(keyWithPrefix, str(jsonData))
-
-    def save(self, db, key, jsonData):
-        # If uuid doesn't exist, no data can be saved to DB
-        if not self.uuid:
-            self.logger.error('Unable to save data without UUID')
-            return
-
-        keyWithPrefix = self.buildKey([self.essdPrefix, str(self.uuid), str(key)])
-        if not keyWithPrefix:
-            self.logger.error('Unable to build key to save ESSD data')
-            return
-        self.saveKeyValue(db, keyWithPrefix, jsonData)
 
     def updateUuid(self, db):
         if db == None:
@@ -116,7 +57,6 @@ class EssdDrive():
         jsonString = json.dumps(new_uuids, indent=4, sort_keys=True)
 
         db.put(lastUpdateKey, jsonString)
-
 
     def removeUuidOlderThan(self, db, sec):
         if db == None:
@@ -153,31 +93,40 @@ class EssdDrive():
             return
 
         for u in remove_uuids:
+            # The subsystem must be removed first as it needs to look at the
+            # essd entry during removal
+            EssdSubsystemBuilder.delete_subsystem(u)
+            # Delete the ESSD
+            # TODO: Shouldn't this be db.delete_prefix()?
             db.delete(essd_constants.ESSD_KEY + "/" + u)
             # Remove the lookup entry
             db.delete(essd_constants.SYSTEMS_KEY + "/" + u)
-
 
     def readEssdSystemsData(self, db):
         status, key, jsonSystems = self.get(request="/redfish/v1/Systems")
         if status != 200:
             return
 
-        self.save(db, key, jsonSystems)
+        self.essd_util.save(db, key, jsonSystems)
         count = jsonSystems['Members@odata.count']
         for i in range(count):
+            update_subsystem = False
             member = jsonSystems['Members'][i]['@odata.id']
             status, key, jsonMembers = self.get(request=member)
             if status != 200:
                 continue
 
-            self.save(db, key, jsonMembers)
+            subsystem_builder = EssdSubsystemBuilder(self.uuid, self.log, db)
+            if self.essd_util.save(db, key, jsonMembers):
+                update_subsystem = True
             storage = jsonMembers['Storage']['@odata.id']
             status, key, jsonStorage = self.get(request=storage)
             if status != 200:
                 continue
 
-            self.save(db, key, jsonStorage)
+            subsystem_builder.add_storage_info(jsonStorage)
+            if self.essd_util.save(db, key, jsonStorage):
+                update_subsystem = True
             memberDrive = jsonStorage['Members']
             for drive in memberDrive:
                 x = drive['@odata.id']
@@ -185,7 +134,7 @@ class EssdDrive():
                 if status != 200:
                     continue
 
-                self.save(db, key, jsonStorageMember)
+                self.essd_util.save(db, key, jsonStorageMember)
                 drives = jsonStorageMember['Drives']
                 for d in drives:
                     driveId = d['@odata.id']
@@ -193,29 +142,34 @@ class EssdDrive():
                     if status != 200:
                         continue
 
-                    self.save(db, key, jsonDrives)
+                    if self.essd_util.save(db, key, jsonDrives):
+                        update_subsystem = True
+                    subsystem_builder.add_drive_info(jsonDrives)
 
             ethernetCollection = jsonMembers['EthernetInterfaces']['@odata.id']
             status, key, jsonEthernetCollection = self.get(request=ethernetCollection)
             if status != 200:
                 continue
-            self.save(db, key, jsonEthernetCollection)
+            subsystem_builder.add_eth_interface_info()
+            if self.essd_util.save(db, key, jsonEthernetCollection):
+                update_subsystem = True
+            if update_subsystem:
+                subsystem_builder.save_subsystem()
+
             interfaces = jsonEthernetCollection['Members']
             for interface in interfaces:
                 ifc_url = interface['@odata.id']
                 status, key, jsonEthernetInterface = self.get(request=ifc_url)
                 if status != 200:
                     continue
-                self.save(db, key, jsonEthernetInterface)
-
-
+                self.essd_util.save(db, key, jsonEthernetInterface)
 
     def readEssdData(self, db):
         # Reads data from essd drive and writes it to db
         key="/redfish/v1"
         jsonData = self.root.root
 
-        self.save(db, key, jsonData)
+        self.essd_util.save(db, key, jsonData)
         for root in jsonData:
             if root == "Systems":
                 self.readEssdSystemsData(db)
@@ -234,22 +188,11 @@ class EssdDrive():
 
     def checkAddLookupEntry(self, db):
         if not self.uuid:
-            self.logger.warning(f'Unable to add lookup entry for {self.url}: UUID not defined')
-
-        uuid = str(self.uuid)
-        key = self.buildKey([essd_constants.SYSTEMS_KEY, uuid])
-        essdSystemKey = self.buildKey([self.essdPrefix, uuid, 'redfish/v1/Systems/System.eSSD.1'])
-        if not key:
-            self.logger.error('Unable to build key to save ESSD data')
+            self.log.error(f'Unable to add lookup entry for {self.url}: UUID not defined')
             return
 
-        jsonData = {
-            'type': 'essd',
-            'key': essdSystemKey,
-            'type_specific_data': {
-                'suuid': uuid
-            }
-        }
-        # Save Function will check if it already exists
-        self.saveKeyValue(db, key, jsonData)
-
+        uuid = str(self.uuid)
+        # essdSystemKey = self.essd_util.build_key([self.essdPrefix, uuid, 'redfish/v1/Systems/System.eSSD.1'])
+        essdSystemKey = self.essd_util.build_key([self.essdPrefix, uuid,
+                                                  essd_constants.ESSD_SYSTEM_SFX])
+        self.essd_util.add_lookup_entry(db, essdSystemKey)
