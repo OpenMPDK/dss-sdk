@@ -97,11 +97,11 @@ class SwitchController(UfmThread):
 
 
     def getDataFromDB(self, jsonMessage):
-        responce = dict()
-        responce['status'] = True
-        responce['data'] = 42
+        response = dict()
+        response['status'] = True
+        response['data'] = 42
 
-        return responce
+        return response
 
 
     '''
