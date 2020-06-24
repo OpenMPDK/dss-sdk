@@ -95,11 +95,11 @@ class EssdPoller(UfmThread):
         # Read all the RedFish data from essds
         essd.readEssdData(cbArgs.db)
 
+    def essdRedFishPoller(self, cbArgs):
         # Remove dead uuid from DB, less often
         if cbArgs.updateEssdUrls:
             EssdDrive.removeUuidOlderThan(cbArgs.db, 1200)
 
-    def essdRedFishPoller(self, cbArgs):
         # Read essd url's from DB
         if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
             try:

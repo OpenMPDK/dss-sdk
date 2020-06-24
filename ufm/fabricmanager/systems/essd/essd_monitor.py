@@ -82,7 +82,12 @@ class EssdMonitor(UfmThread):
                                        cb=self._essdMonitor,
                                        cbArgs=self.monitorArgs,
                                        repeatIntervalSecs=2.0)
-        self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
+
+        msg = {'module': 'essd',
+               'service': 'monitor',
+               'running': True}
+
+        self.essdArg.publisher.send('status', msg)
 
         try:
             self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY,
@@ -100,7 +105,12 @@ class EssdMonitor(UfmThread):
         self.msgListner.join()
 
         self.running = False
-        self.essdArg.publisher.send('main', "{ essd_monitor_running: True }")
+
+        msg = {'module': 'essd',
+               'service': 'monitor',
+               'running': False}
+
+        self.essdArg.publisher.send('status', msg)
 
         self.log.error("====== Watch ID {} ========".format(self.watch_id))
 
