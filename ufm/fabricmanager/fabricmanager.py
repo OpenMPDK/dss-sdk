@@ -47,6 +47,7 @@ from rest_api.redfish.Storage import StorageCollectionEmulationAPI, \
     StorageEmulationAPI, \
     StorageCollectionAPI, \
     StorageAPI
+<<<<<<< HEAD
 from rest_api.redfish.Drive import DriveCollectionEmulationAPI, \
     DriveEmulationAPI, DriveCollectionAPI, DriveAPI
 from rest_api.redfish.EthernetInterface import \
