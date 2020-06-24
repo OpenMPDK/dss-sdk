@@ -32,7 +32,7 @@ class UfmPoller(UfmThread):
         self.ufmArg.log.info("Start {}".format(self.__class__.__name__))
 
         self.startTime = datetime.now()
-        self.ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, 0)
+        self.ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str(0))
 
         self.msgListner.start()
 
@@ -55,7 +55,7 @@ class UfmPoller(UfmThread):
 
     def _poller(self, ufmArg):
         # Save current uptime to DB
-        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, (datetime.now() - self.startTime).seconds)
+        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str((datetime.now() - self.startTime).seconds))
 
         # Read disk space of node and write it to db
         df_struct = os.statvfs('/')
