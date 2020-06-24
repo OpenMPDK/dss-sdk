@@ -9,4 +9,5 @@ class EssdPollerArg():
         self.log = log
         self.essdSystems = list()
         self.essdCounter = -1
-        self.updateEssdUrls = False
+        self.updateEssdUrls = True
+        self.initialScan = True

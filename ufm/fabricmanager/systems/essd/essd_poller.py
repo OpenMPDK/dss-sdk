@@ -1,5 +1,4 @@
 
-
 import threading
 import json
 
@@ -45,15 +44,18 @@ class EssdPoller(UfmThread):
         self.log.info('===> Start Essd <===')
         self.msgListner.start()
 
+        # Force the scan of Essd at startup
+        self.pollerArgs.initialScan = False
+        self.pollerArgs.publisher = self.essdArg.publisher
+
         self._running = True
         super(EssdPoller, self).start(threadName='EssdPoller',
                                       cb=self.essdRedFishPoller,
                                       cbArgs=self.pollerArgs,
                                       repeatIntervalSecs=30.0)
-        msg = dict()
-        msg['essd'] = "essd"
-        msg['service'] = "poller"
-        msg['running'] = True
+        msg = {'module': 'essd',
+               'service': 'poller',
+               'running': True}
 
         self.essdArg.publisher.send('status', msg)
 
@@ -64,32 +66,17 @@ class EssdPoller(UfmThread):
 
         self._running = False
         self.log.info('===> Stop Essd <===')
-        msg = dict()
-        msg['essd'] = "essd"
-        msg['service'] = "poller"
-        msg['running'] = False
+
+        msg = {'module': 'essd',
+               'service': 'poller',
+               'running': False}
 
         self.essdArg.publisher.send('status', msg)
 
     def is_running(self):
         return self._running
 
-    def essdRedFishPoller(self, cbArgs):
-        cbArgs.essdCounter = cbArgs.essdCounter + 1
-
-        # Read essd url's from DB
-        if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
-            try:
-                tmpString, _ = cbArgs.db.get(essd_constants.ESSDURLS_KEY)
-                cbArgs.essdSystems = json.loads(tmpString.decode('utf-8'))
-                cbArgs.updateEssdUrls = False
-            except:
-                cbArgs.log.error("Failed to read essd Urls from db {}"
-                                 .format(tmpString))
-
-        essdToScan = cbArgs.essdCounter % len(cbArgs.essdSystems)
-        essdUrl = cbArgs.essdSystems[essdToScan]
-
+    def scanOneEssd(self, essdUrl, cbArgs):
         try:
             essd = EssdDrive(url=essdUrl,
                              username=None,
@@ -108,6 +95,40 @@ class EssdPoller(UfmThread):
         # Read all the RedFish data from essds
         essd.readEssdData(cbArgs.db)
 
+    def essdRedFishPoller(self, cbArgs):
         # Remove dead uuid from DB, less often
         if cbArgs.updateEssdUrls:
-            essd.removeUuidOlderThan(cbArgs.db, 1200)
+            EssdDrive.removeUuidOlderThan(cbArgs.db, 1200)
+
+        # Read essd url's from DB
+        if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
+            try:
+                tmpString, _ = cbArgs.db.get(essd_constants.ESSDURLS_KEY)
+                cbArgs.essdSystems = json.loads(tmpString.decode('utf-8'))
+                cbArgs.updateEssdUrls = False
+            except Exception as e:
+                cbArgs.log.error("Failed to read essd Urls from db {}"
+                                 .format(tmpString))
+                cbArgs.log.exception(e)
+
+        if not cbArgs.essdSystems:
+            return
+
+        # Initial scan of all essd's
+        if not cbArgs.initialScan:
+            for essdUrl in cbArgs.essdSystems:
+                self.scanOneEssd(essdUrl=essdUrl, cbArgs=cbArgs)
+                cbArgs.initialScan = True
+
+            msg = {'module': 'essd',
+                   'service': 'poller',
+                   'scanAllEssds': True}
+
+            cbArgs.publisher.send('status', msg)
+            return
+
+        cbArgs.essdCounter = cbArgs.essdCounter + 1
+        essdToScan = cbArgs.essdCounter % len(cbArgs.essdSystems)
+        essdUrl = cbArgs.essdSystems[essdToScan]
+
+        self.scanOneEssd(essdUrl=essdUrl, cbArgs=cbArgs)

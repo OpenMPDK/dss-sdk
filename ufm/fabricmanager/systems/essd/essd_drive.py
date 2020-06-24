@@ -60,8 +60,9 @@ class EssdDrive:
 
         db.put(lastUpdateKey, jsonString)
 
+    @staticmethod
     def removeUuidOlderThan(self, db, sec):
-        if db == None:
+        if not db:
             return
 
         tmpString=''
@@ -75,7 +76,7 @@ class EssdDrive:
         if tmpString:
             uuids = json.loads(tmpString.decode('utf-8'))
 
-        allUptimes = uuid.values()
+        allUptimes = uuids.values()
         latestUptime = max(allUptimes)
 
         remove_uuids = dict()
