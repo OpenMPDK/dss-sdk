@@ -71,14 +71,14 @@ class SwitchController(UfmThread):
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
 
-        self.rf = Rfserver(event=self.event, port=5501, process=self.getDataFromDB)
+        self.rf = Rfserver(event=self.event, port=self.swArg.port, process=self.getDataFromDB)
         self.rf.start()
 
         if self.swArg.sw_type.lower() == 'mellanox':
             self.client = SwitchMellanoxClient(self.swArg)
             self.uuid = self.client.get_uuid()
         else:
-            raise Exception('Invalid switch type provided, {} is not valid'.format(swArg.sw_type))
+            raise Exception('Invalid switch type provided, {} is not valid'.format(self.swArg.sw_type))
 
         self._running = True
         super(SwitchController, self).start(threadName='SwitchController')

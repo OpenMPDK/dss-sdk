@@ -1,8 +1,9 @@
 {
     "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/1",
     "@odata.type": "#Port.v1_2_1.Port",
-    "PortId": "1",
+    "Id": "1",
     "Description": "Port Interface",
+    "PortId": "1",
     "Name": "Eth1/1",
     "Mode": "access",
     "Links": {
