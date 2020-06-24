@@ -97,7 +97,7 @@ class EssdPoller(UfmThread):
 
         # Remove dead uuid from DB, less often
         if cbArgs.updateEssdUrls:
-            essd.removeUuidOlderThan(cbArgs.db, 1200)
+            EssdDrive.removeUuidOlderThan(cbArgs.db, 1200)
 
     def essdRedFishPoller(self, cbArgs):
         # Read essd url's from DB

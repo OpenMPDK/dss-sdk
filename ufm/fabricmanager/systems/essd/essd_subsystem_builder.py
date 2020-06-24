@@ -50,7 +50,8 @@ class EssdSubsystemBuilder:
                                    self.subsystem_uuid)
 
         base = {
-            '@odata.context': '/redfish/v1/$metadata#ComputerSystem.ComputerSystem',
+            '@odata.context':
+                '/redfish/v1/$metadata#ComputerSystem.ComputerSystem',
             redfish_constants.ODATA_ID: self.subsystem_link,
             '@odata.type': '#ComputerSystem.v1_9_0.ComputerSystem',
             'Description': 'System representing the drive resources',
@@ -73,8 +74,9 @@ class EssdSubsystemBuilder:
 
     def add_storage_info(self, storage):
         if not storage:
-            self.log.debug(f'No storage info provided to add to subsystem {self.subsystem_uuid}')
+            self.log.error(f'No storage info provided to add to subsystem {self.subsystem_uuid}')
             return
+
         storage_link = join(self.subsystem_link, redfish_constants.STORAGE)
         self.subsystem[redfish_constants.STORAGE] = {
             redfish_constants.ODATA_ID: storage_link
@@ -83,20 +85,23 @@ class EssdSubsystemBuilder:
     def add_drive_info(self, drive):
         if not drive:
             return
+
         if redfish_constants.STATUS not in drive:
             self.log.debug(f"No Status found for drive {drive['Id']}")
             return
+
         # There aren't really going to be multiple drives ever but if there
         # are, show the health as bad if any of the drives is unhealthy.
         if redfish_constants.STATUS in self.subsystem:
             if redfish_constants.HEALTH in self.subsystem[redfish_constants.STATUS]:
-                if self.subsystem[redfish_constants.STATUS][redfish_constants.HEALTH] !=\
-                    redfish_constants.STATUS_OK:
+                if self.subsystem[redfish_constants.STATUS][redfish_constants.HEALTH] != redfish_constants.STATUS_OK:
                     return
+
         self.subsystem[redfish_constants.STATUS] = drive[redfish_constants.STATUS]
 
     def add_eth_interface_info(self):
-        eth_interfaces_link = join(self.subsystem_link, redfish_constants.ETH_INTERFACES)
+        eth_interfaces_link = join(self.subsystem_link,
+                                   redfish_constants.ETH_INTERFACES)
         self.subsystem[redfish_constants.ETH_INTERFACES] = {
             redfish_constants.ODATA_ID: eth_interfaces_link
         }
@@ -132,20 +137,26 @@ class EssdSubsystemBuilder:
     def delete_subsystem(system_uuid=None, log=None, db=None):
         if not log:
             return
+
         if not system_uuid:
-            log.warning('No system UUID provided for which to delete subsystem')
-            return
-        if not db:
-            log.warning(f'No db provided to delete subsystem for {system_uuid}')
+            log.error('No system UUID provided')
             return
 
-        key = join(essd_constants.ESSD_KEY, system_uuid,
-                  essd_constants.ESSD_SUBSYSTEM_KEY_STR)
+        if not db:
+            log.error(f'No db provided to delete subsystem for {system_uuid}')
+            return
+
+        key = join(essd_constants.ESSD_KEY,
+                   system_uuid,
+                   essd_constants.ESSD_SUBSYSTEM_KEY_STR)
+
         subsystem_uuid = EssdUtils.get_value_from_db(key, log, db)
         if not subsystem_uuid:
             log.warning(f'No subsystem found for system {system_uuid}')
             return
+
         log.debug(f'Deleting subsystem {subsystem_uuid}')
+
         # Delete the /essd/subsystem entry for this subsystem
         key = join(essd_constants.ESSD_KEY, subsystem_uuid)
         db.delete_prefix(key)
