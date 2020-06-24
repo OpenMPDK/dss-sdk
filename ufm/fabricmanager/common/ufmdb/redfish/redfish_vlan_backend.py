@@ -72,7 +72,7 @@ class RedfishVlanBackend():
             key = k.split("/")[-2]
             val = k.split("/")[-1]
 
-            if key == 'ports':
+            if key == 'ports' and val:
                 ret['ports'].append(val)
             else:
                 ret[key] = val

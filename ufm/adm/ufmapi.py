@@ -49,7 +49,7 @@ def redfish_post(request, parms={}):
     global g_ufm_address
 
     try:
-        response = requests.post(g_ufm_address+REDFISH+request, json=parms)
+        response = requests.post(g_ufm_address+request, json=parms)
 
         if response.status_code != 200:
             print("ERROR: Redfish response code ", response.status_code)
@@ -57,7 +57,8 @@ def redfish_post(request, parms={}):
 
         return response.json()
 
-    except:
+    except Exception as e:
+        print(e)
         print("Unable to contact UFM. (POST)")
 
     return None
@@ -197,7 +198,7 @@ def ufm_get_log_entries(id, count):
     return log_entries
 
 def ufm_clear_log():
-    rsp = redfish_post("/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog", {})
+    rsp = redfish_post(REDFISH+"/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog", {})
 
     if rsp == None:
         return 1
@@ -280,7 +281,7 @@ def ufm_set_log_mask(level, mask):
         print("set_log_masks(): Invalid argument. (level= %s)" % level)
         return None
 
-    rsp = redfish_post("/Managers/ufm/LogServices/Log/Actions/LogService.SetMask",\
+    rsp = redfish_post(REDFISH+"/Managers/ufm/LogServices/Log/Actions/LogService.SetMask",\
         payload)
 
     if rsp == None:
@@ -311,7 +312,7 @@ def ufm_set_log_mask(level, mask):
 
 def ufm_restart():
     payload = {"ResetType":"ForceRestart"}
-    rsp = redfish_post("/Managers/ufm/Actions/Ufm.Reset",\
+    rsp = redfish_post(REDFISH+"/Managers/ufm/Actions/Ufm.Reset",\
         payload)
 
     if rsp == None:
@@ -326,7 +327,7 @@ def ufm_restart():
 
 def ufm_shutdown():
     payload = {"ResetType":"ForceOff"}
-    rsp = redfish_post("/Managers/ufm/Actions/Ufm.Reset",\
+    rsp = redfish_post(REDFISH+"/Managers/ufm/Actions/Ufm.Reset",\
         payload)
 
     if rsp == None:

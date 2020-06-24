@@ -352,7 +352,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                 elif k == 'Ports':
                                     for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
                                         port_id = port_id.split('/')[-1]
-                                        self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
+                                        if port_id:
+                                            self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
 
 
     def _poll_port_info(self):

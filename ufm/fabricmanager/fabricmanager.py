@@ -47,7 +47,7 @@ from rest_api.redfish.EthernetInterface import EthernetInterfaceCollectionEmulat
 from rest_api.redfish.Fabric_api import FabricCollectionEmulationAPI, FabricEmulationAPI, FabricAPI, FabricCollectionAPI
 from rest_api.redfish.Switch import SwitchEmulationAPI, SwitchCollectionEmulationAPI, SwitchCollectionAPI, SwitchAPI
 from rest_api.redfish.Port import PortCollectionEmulationAPI, PortEmulationAPI, PortCollectionAPI, PortAPI
-from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, VlanEmulationAPI, VlanCollectionAPI, VlanAPI
+from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, VlanEmulationAPI, VlanCollectionAPI, VlanCollectionActionAPI, VlanAPI, VlanActionAPI
 
 from backend.populate import populate
 
@@ -219,7 +219,9 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(PortAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>')
     api.add_resource(PortCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports')
     api.add_resource(VlanAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>')
+    api.add_resource(VlanActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>/Actions/<string:act_str>')
     api.add_resource(VlanCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs')
+    api.add_resource(VlanCollectionActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/Actions/<string:act_str>')
 
 
 elif (MODE is not None and MODE.lower() == 'local'):
@@ -403,7 +405,8 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
                                   log=ufmArg.log,
                                   db=ufmArg.db,
                                   usrname=switch_arg['usrname'],
-                                  pwd=switch_arg['pwd'])
+                                  pwd=switch_arg['pwd'],
+                                  port=switch_arg['messageQueuePort'])
                 subSystems.append(EthSwitch(swArg))
     except:
         pass
