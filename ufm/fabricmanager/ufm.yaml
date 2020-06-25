@@ -12,12 +12,10 @@ essd:
 
     # essdDrive is optional
     essdDrives:
-        - "http://172.22.4.58:32768"
-        - "http://172.22.4.58:32790"
-        - "http://172.22.4.58:32789"
-        - "http://172.22.4.58:32791"
-        - "http://172.22.4.58:32792"
-        - "http://172.22.4.58:32782"
+        - "http://172.22.4.58:32860"
+        - "http://172.22.4.58:32852"
+        - "http://172.22.4.58:32851"
+        - "http://172.22.4.58:32826"
 
 nkv:
     enable: True
@@ -67,6 +65,7 @@ switch:
         usrname: xxxx
         pwd: xxxx
         messageQueuePort: xxxx
+
 
 
 

@@ -10,15 +10,16 @@ from systems.essd.essd_utils import EssdUtils
 
 class EssdDrive:
     def __init__(self, url, username=None, password=None, log=None):
-        self.url=url
-        self.username=username
-        self.password=password
-        self.log=log
-        self.essdPrefix=essd_constants.ESSD_KEY
-
+        self.url = url
+        self.username = username
+        self.password = password
+        self.log = log
+        self.essdPrefix = essd_constants.ESSD_KEY
         self.root = redfish_client(base_url=(self.url),
                                    timeout=1,
-                                   max_retry=1)
+                                   max_retry=3)
+        if not self.root:
+            return
 
         self.uuid = self.root.root['UUID']
         self.essd_util = EssdUtils(self.uuid, self.log)
@@ -30,16 +31,16 @@ class EssdDrive:
     def get(self, request):
         response = self.root.get(request, headers=None)
         if response.status != 200:
-           return response.status, request, {}
+            return response.status, request, {}
 
         value = json.dumps(response.dict, indent=4, sort_keys=True)
         return response.status, request, json.loads(value)
 
     def updateUuid(self, db):
-        if db == None:
+        if not db:
             return
 
-        tmpString=''
+        tmpString = ''
         lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
             tmpString, _ = db.get(lastUpdateKey)
@@ -65,7 +66,7 @@ class EssdDrive:
         if not db:
             return
 
-        tmpString=''
+        tmpString = ''
         lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
             tmpString, _ = db.get(lastUpdateKey)
@@ -82,7 +83,7 @@ class EssdDrive:
         remove_uuids = dict()
         keep_uuids = dict()
         for u in uuids:
-            uptime=uuids[u]
+            uptime = uuids[u]
             if uptime + sec < latestUptime:
                 remove_uuids[u] = uuids[u]
             else:
@@ -122,6 +123,7 @@ class EssdDrive:
             subsystem_builder = EssdSubsystemBuilder(self.uuid, self.log, db)
             if self.essd_util.save(db, key, jsonMembers):
                 update_subsystem = True
+
             storage = jsonMembers['Storage']['@odata.id']
             status, key, jsonStorage = self.get(request=storage)
             if status != 200:
@@ -150,9 +152,11 @@ class EssdDrive:
                     subsystem_builder.add_drive_info(jsonDrives)
 
             ethernetCollection = jsonMembers['EthernetInterfaces']['@odata.id']
-            status, key, jsonEthernetCollection = self.get(request=ethernetCollection)
+            status, key, jsonEthernetCollection = self.get(
+                                                request=ethernetCollection)
             if status != 200:
                 continue
+
             subsystem_builder.add_eth_interface_info()
             if self.essd_util.save(db, key, jsonEthernetCollection):
                 update_subsystem = True
@@ -169,7 +173,7 @@ class EssdDrive:
 
     def readEssdData(self, db):
         # Reads data from essd drive and writes it to db
-        key="/redfish/v1"
+        key = "/redfish/v1"
         jsonData = self.root.root
 
         self.essd_util.save(db, key, jsonData)
