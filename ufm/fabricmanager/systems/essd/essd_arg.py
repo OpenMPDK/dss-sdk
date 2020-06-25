@@ -11,3 +11,4 @@ class EssdPollerArg():
         self.essdCounter = -1
         self.updateEssdUrls = True
         self.initialScan = True
+        self.scanSuccess = True

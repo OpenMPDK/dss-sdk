@@ -52,7 +52,7 @@ class EssdPoller(UfmThread):
         super(EssdPoller, self).start(threadName='EssdPoller',
                                       cb=self.essdRedFishPoller,
                                       cbArgs=self.pollerArgs,
-                                      repeatIntervalSecs=30.0)
+                                      repeatIntervalSecs=15.0)
         msg = {'module': 'essd',
                'service': 'poller',
                'running': True}
@@ -76,29 +76,33 @@ class EssdPoller(UfmThread):
     def is_running(self):
         return self._running
 
-    def scanOneEssd(self, essdUrl, cbArgs):
+    def scanOneEssd(self, essdUrl=None, db=None, log=None):
         try:
             essd = EssdDrive(url=essdUrl,
                              username=None,
                              password=None,
-                             log=cbArgs.log)
+                             log=log)
         except Exception as e:
-            cbArgs.log.error("Failed to connect to essd {}".format(essdUrl))
-            cbArgs.log.exception(e)
-            return
+            log.error("Failed to connect to essd {}".format(essdUrl))
+            log.exception(e)
+            return False
 
         # Update uuid's latest upTime
-        essd.updateUuid(cbArgs.db)
+        essd.updateUuid(db)
         # Add lookup entry
-        essd.checkAddLookupEntry(cbArgs.db)
+        essd.checkAddLookupEntry(db)
 
         # Read all the RedFish data from essds
-        essd.readEssdData(cbArgs.db)
+        essd.readEssdData(db)
+
+        return True
 
     def essdRedFishPoller(self, cbArgs):
         # Remove dead uuid from DB, less often
         if cbArgs.updateEssdUrls:
-            EssdDrive.removeUuidOlderThan(cbArgs.db, 1200)
+            pass
+            # TODO - Add this clean up in a new ticket
+            # EssdDrive.removeUuidOlderThan(cbArgs.db, 1200)
 
         # Read essd url's from DB
         if not cbArgs.essdSystems or cbArgs.updateEssdUrls:
@@ -116,13 +120,21 @@ class EssdPoller(UfmThread):
 
         # Initial scan of all essd's
         if not cbArgs.initialScan:
+            cbArgs.scanSuccess = True
             for essdUrl in cbArgs.essdSystems:
-                self.scanOneEssd(essdUrl=essdUrl, cbArgs=cbArgs)
-                cbArgs.initialScan = True
+                rc = self.scanOneEssd(essdUrl=essdUrl,
+                                      db=cbArgs.db,
+                                      log=cbArgs.log)
+                if not rc:
+                    cbArgs.scanSuccess = False
+                    cbArgs.log.warning("Fail to scan all essd's")
+
+            cbArgs.initialScan = True
 
             msg = {'module': 'essd',
                    'service': 'poller',
-                   'scanAllEssds': True}
+                   'scanAllEssds': True,
+                   'scanSuccess': cbArgs.scanSuccess}
 
             cbArgs.publisher.send('status', msg)
             return
@@ -131,4 +143,4 @@ class EssdPoller(UfmThread):
         essdToScan = cbArgs.essdCounter % len(cbArgs.essdSystems)
         essdUrl = cbArgs.essdSystems[essdToScan]
 
-        self.scanOneEssd(essdUrl=essdUrl, cbArgs=cbArgs)
+        self.scanOneEssd(essdUrl=essdUrl, db=cbArgs.db, log=cbArgs.log)
