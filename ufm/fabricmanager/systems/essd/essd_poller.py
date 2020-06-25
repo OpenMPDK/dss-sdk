@@ -127,6 +127,7 @@ class EssdPoller(UfmThread):
                                       log=cbArgs.log)
                 if not rc:
                     cbArgs.scanSuccess = False
+                    cbArgs.log.warning("Fail to scan all essd's")
 
             cbArgs.initialScan = True
 
