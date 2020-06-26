@@ -21,6 +21,7 @@ from flask_restful import Api, Resource
 # from flask import request
 
 # REST API Imports
+from rest_api.redfish.JsonSchemas import JsonSchemas
 from rest_api.resource_manager import ResourceManager
 # from rest_api.redfish.System_api import UfmdbSystemAPI
 
@@ -221,6 +222,7 @@ def call_populate(local_path):
 if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(ServiceRoot, REST_BASE,
                      resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(JsonSchemas, REST_BASE + 'JSONSchemas')
     api.add_resource(SystemCollectionAPI, REST_BASE + 'Systems')
     api.add_resource(SystemAPI, REST_BASE + 'Systems/<string:ident>')
     api.add_resource(EthernetInterfaceCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/EthernetInterfaces')

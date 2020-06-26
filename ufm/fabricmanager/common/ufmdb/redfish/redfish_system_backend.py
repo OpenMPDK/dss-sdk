@@ -4,6 +4,11 @@ from common.ufmdb.redfish import ufmdb_redfish_resource
 from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from common.ufmlog import ufmlog
 from rest_api.redfish import redfish_constants
+from systems.essd import essd_constants
+
+# TODO:
+#  1. Replace strings like type_specific_data with constants in all backends
+#  2. Add logging
 
 
 class RedfishSystemBackend:
@@ -19,7 +24,11 @@ class RedfishSystemBackend:
     def create_instance(cls, ident):
         (resource_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(redfish_constants.SYSTEMS, ident)
         if resource_type == 'essd':
-            return RedfishEssdSystemBackend(entry)
+            if 'sub_type' in entry['type_specific_data'] and \
+                    entry['type_specific_data']['sub_type'] == 'subsystem':
+                return RedfishEssdSubsystemBackend(entry)
+            else:
+                return RedfishEssdSystemBackend(entry)
         elif resource_type == 'nkv':
             path = join(redfish_constants.REST_BASE, redfish_constants.SYSTEMS, ident)
             return RedfishNkvSystemBackend(path)
@@ -36,6 +45,22 @@ class RedfishEssdSystemBackend(RedfishSystemBackend):
         ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
         ufmdb_redfish_resource.sub_resource_values(resp, 'Id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
         ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'Chassis/1', 'Chassis/' + self.entry['type_specific_data']['suuid'])
+        return resp
+
+    def put(self, payload):
+        raise NotImplementedError
+
+
+class RedfishEssdSubsystemBackend(RedfishSystemBackend):
+    def __init__(self, entry):
+        self.entry = entry
+
+    def get(self):
+        if 'suuid' not in self.entry['type_specific_data']:
+            return {}
+        uuid = self.entry['type_specific_data']['suuid']
+        key = join(essd_constants.ESSD_KEY, uuid, essd_constants.ESSD_SYSTEMS_SFX, uuid)
+        resp = ufmdb_redfish_resource.get_resp_from_db(key)
         return resp
 
     def put(self, payload):

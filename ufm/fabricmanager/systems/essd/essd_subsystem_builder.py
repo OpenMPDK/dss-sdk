@@ -6,6 +6,8 @@ from rest_api.redfish import redfish_constants
 from systems.essd import essd_constants
 from systems.essd.essd_utils import EssdUtils
 
+TBD = 'TBD'
+
 
 class EssdSubsystemBuilder:
     def __init__(self, sys_uuid=None, log=None, db=None):
@@ -57,9 +59,9 @@ class EssdSubsystemBuilder:
             'Description': 'System representing the drive resources',
             'Id': self.subsystem_uuid,
             'Name': 'System',
-            'oem': {
-                'ServerName': 'TBD',
-                'NSID': '1',
+            redfish_constants.OEM: {
+                redfish_constants.SERVERNAME: TBD,
+                'NSID': 1,
                 'NumaAligned': False
             },
             'Links': {
@@ -99,6 +101,24 @@ class EssdSubsystemBuilder:
 
         self.subsystem[redfish_constants.STATUS] = drive[redfish_constants.STATUS]
 
+        if redfish_constants.IDENTIFIERS in drive:
+            self.subsystem[redfish_constants.IDENTIFIERS] = drive[redfish_constants.IDENTIFIERS]
+            # Already set to a specific value from a previous drive
+            if self.subsystem[redfish_constants.OEM][redfish_constants.SERVERNAME] != TBD:
+                return
+            for identifier in drive[redfish_constants.IDENTIFIERS]:
+                if redfish_constants.DURABLENAME not in identifier:
+                    continue
+                durable_name = identifier[redfish_constants.DURABLENAME]
+                if not durable_name:
+                    continue
+                # Example: nqn.2019-09.samsung:msl-ssg-tgt
+                durable_name_tokens = durable_name.split(':')
+                if len(durable_name_tokens) == 2:
+                    server_name = durable_name_tokens[1]
+                    self.subsystem[redfish_constants.OEM][redfish_constants.SERVERNAME] = server_name
+                    break
+
     def add_eth_interface_info(self):
         eth_interfaces_link = join(self.subsystem_link,
                                    redfish_constants.ETH_INTERFACES)
@@ -108,7 +128,7 @@ class EssdSubsystemBuilder:
 
     def save_subsystem(self):
         key = join(redfish_constants.SYSTEMS_URL, self.subsystem_uuid)
-        self.essd_util.save(self.db, key, self.subsystem)
+        self.essd_util.save(self.db, key, json.dumps(self.subsystem))
         if self.add_lookup_entries:
             # Add Cross reference entry in /essd/self.system_uuid/subsystems
             key = join(essd_constants.ESSD_KEY, self.system_uuid,
