@@ -36,6 +36,17 @@ def get_resource_value(key):
         return {}
 
 
+def get_resp_from_db(key):
+    db = ufmdb.client(db_type='etcd')
+    (res, meta) = db.get(key)
+    if res:
+        res = res.decode('UTF-8')
+        value = json.loads(res)
+        return value
+    else:
+        return {}
+
+
 def lookup_resource_in_db(prefix, id):
     key = join('/', prefix, id)
     value = get_resource_value(key)

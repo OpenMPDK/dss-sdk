@@ -4,7 +4,7 @@ import json
 import socket
 
 
-def addTransport(transport, address, family, speed, transport_type, port, status):
+def add_transport(transport, address, family, speed, transport_type, port, status):
     transport['subsystem_address'] = address
     transport['subsystem_addr_fam'] = family
     transport['subsystem_speed_Mbps'] = speed
@@ -19,7 +19,8 @@ def addTransport(transport, address, family, speed, transport_type, port, status
 
     transport['subsystem_interface_status'] = status_val
 
-def addCMMaps(cluster_map):
+
+def add_cm_maps(cluster_map):
     hostname = socket.gethostname()
     address = socket.gethostbyname(hostname)
     cluster_map['cm_maps'] = [
@@ -28,6 +29,27 @@ def addCMMaps(cluster_map):
             'cm_server_name': hostname
         }
     ]
+
+
+def get_transport_type(addr):
+    if 'oem' not in addr or 'SupportedProtocol' not in addr['oem']:
+        protocol = 'TCP'
+    else:
+        protocol = addr.oem.SupportedProtocol
+    if 'oem' not in addr or 'Port' not in addr['oem']:
+        port = 1024
+    else:
+        port = addr.oem.Port
+    return protocol, port
+
+
+def get_percent_available(storage):
+    if 'oem' not in storage or 'PercentAvailable' not in storage['oem']:
+        percent_available = 0
+    else:
+        percent_available = storage.oem.PercentAvailable
+    return percent_available
+
 
 '''
 Create a connection to the UFM redfish API service using the redfish-client
@@ -38,7 +60,9 @@ Client code can iterate through redfish endpoints hierarchy without making any
 rest calls, the redfish_client makes those calls internally and returns the
 data.
 '''
-def getCM(service_addr):
+
+
+def get_cm(service_addr):
     # Will throw if connection fails. No need to catch it as nothing more to do
     # in that case
     root = redfish_client.connect(service_addr, '', '')
@@ -48,7 +72,7 @@ def getCM(service_addr):
         return {}
     cluster_map = {}
     # Add CM/FM info
-    addCMMaps(cluster_map)
+    add_cm_maps(cluster_map)
     subsystems_map = []
     for system in root.Systems.Members:
         subsystem = {}
@@ -73,37 +97,40 @@ def getCM(service_addr):
                                 for ipv4addr in interface.IPv4Addresses:
                                     if ipv4addr.Address:
                                         subsystem_transport = {}
-                                        addTransport(subsystem_transport,
-                                                     ipv4addr.Address,
-                                                     socket.AF_INET,
-                                                     interface.SpeedMbps,
-                                                     ipv4addr.oem.SupportedProtocol,
-                                                     ipv4addr.oem.Port,
-                                                     interface.LinkStatus)
+                                        transport_type, port = get_transport_type(ipv4addr)
+                                        add_transport(subsystem_transport,
+                                                      ipv4addr.Address,
+                                                      socket.AF_INET,
+                                                      interface.SpeedMbps,
+                                                      transport_type,
+                                                      port,
+                                                      interface.LinkStatus)
                                         subsystem_transport_list.append(subsystem_transport)
                             if 'IPv6Addresses' in interface:
                                 for ipv6addr in interface.IPv6Addresses:
                                     if ipv6addr.Address:
                                         subsystem_transport = {}
-                                        addTransport(subsystem_transport,
-                                                     ipv6addr.Address,
-                                                     socket.AF_INET6,
-                                                     interface.SpeedMbps,
-                                                     ipv6addr.oem.SupportedProtocol,
-                                                     ipv6addr.oem.Port,
-                                                     interface.LinkStatus)
+                                        transport_type, port = get_transport_type(ipv6addr)
+                                        add_transport(subsystem_transport,
+                                                      ipv6addr.Address,
+                                                      socket.AF_INET6,
+                                                      interface.SpeedMbps,
+                                                      transport_type,
+                                                      port,
+                                                      interface.LinkStatus)
                                         subsystem_transport_list.append(subsystem_transport)
                         subsystem['subsystem_transport'] = subsystem_transport_list
                     if 'Storage' in system:
-                        subsystem['subsystem_avail_percent'] = system.Storage.oem.PercentAvailable
+                        subsystem['subsystem_avail_percent'] = get_percent_available(system.Storage)
 
                     subsystems_map.append(subsystem)
     cluster_map['subsystem_maps'] = subsystems_map
 
     return cluster_map
 
-def validateCM(service_addr, cm_file):
-    cm_read = getCM(service_addr)
+
+def validate_cm(service_addr, cm_file):
+    cm_read = get_cm(service_addr)
     cm_expected = {}
     with open(cm_file) as cm_handle:
         cm_expected = json.load(cm_handle)
@@ -111,6 +138,7 @@ def validateCM(service_addr, cm_file):
         print('Read Cluster Map and Expected Cluster Map do not match!\n')
         print('Read Cluster Map:\n', json.dumps(cm_read, indent=2))
         print('\nExpected Cluster Map:\n', {json.dumps(cm_expected, indent=2)})
+
 
 if __name__ == '__main__':
 
@@ -129,7 +157,7 @@ if __name__ == '__main__':
 
     cm = {}
     if args.clustermap:
-        cm = validateCM(service_addr, args.clustermap)
+        validate_cm(service_addr, args.clustermap)
     else:
-        cm = getCM(service_addr)
+        cm = get_cm(service_addr)
         print('Cluster Map:\n', json.dumps(cm, indent=2))
