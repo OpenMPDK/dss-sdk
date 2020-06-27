@@ -38,11 +38,11 @@ def readConfigDataFromFile(filename):
 def insertEssdUrlsToDb(db, key, essdUrls):
     listOfDrives = list()
     try:
-        tmpString = db.get(key).decode('utf-8')
+        tmpString, _ = db.get(key)
 
         if tmpString:
-            listOfDrives = json.loads(tmpString)
-    except:
+            listOfDrives = json.loads(tmpString.decode('utf-8'))
+    except Exception as ex:
         pass
 
     for d in essdUrls:
@@ -67,7 +67,6 @@ class DbTest:
         pass
         print("key={} value={}".format(key, value))
 
-
     def get_key_value(self, key):
         return None
 
@@ -77,24 +76,45 @@ class DbTest:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Utility to insert essd into etdd database.')
-    parser.add_argument("--ip_address", help="host ip-address", dest="ip_address", default="127.0.0.1")
-    parser.add_argument("--port", help="Port of Server", dest="port", default=2379)
-    parser.add_argument( "--nodes", help="Nodes with fake essds", dest="nodes", default='asimceph1.autocache.com' )
-    parser.add_argument( "--filename", help="YAML filename", dest="filename", default='nodes.yaml')
-    parser.add_argument("--fromfile", help="Read essd Urls from file", dest="fromfile", default=0)
+    parser = argparse.ArgumentParser(
+        description='Utility to insert essd into etdd database.'
+    )
+    parser.add_argument("--ip_address",
+                        help="host ip-address",
+                        dest="ip_address",
+                        default="127.0.0.1")
+    parser.add_argument("--port",
+                        help="Port of Server",
+                        dest="port",
+                        default=2379)
+    parser.add_argument("--nodes",
+                        help="Nodes with fake essds",
+                        dest="nodes",
+                        default="{},{},{},{}".format(
+                                    "asimceph1.autocache.com",
+                                    "asimceph2.autocache.com",
+                                    "asimceph3.autocache.com",
+                                    "asimceph4.autocache.com"))
+    parser.add_argument("--filename",
+                        help="YAML filename",
+                        dest="filename",
+                        default='nodes.yaml')
+    parser.add_argument("--fromfile",
+                        help="Read essd Urls from file",
+                        dest="fromfile",
+                        default=0)
 
     args = parser.parse_args()
 
     try:
         # db = lib.create_db_connection(ip_address=args.ip_address)
         # db = DbTest()
-        db = ufmdb.client(db_type = 'etcd')
-    except:
-        print("ERR: Failed to connect to DB.")
+        db = ufmdb.client(db_type='etcd')
+    except Exception as ex:
+        print("ERR: Failed to connect to DB. {}".format(ex))
         sys.exit(-1)
 
-    essdsUrls=list()
+    essdsUrls = list()
 
     # read_data_from_file(args.filename)
     if args.fromfile != 0:
@@ -102,26 +122,24 @@ def main():
         insertEssdUrlsToDb(db, essd_constants.ESSDURLS_KEY, essdsUrls)
         return
 
-    # nodes="asimceph1.autocache.com,asimceph2.autocache.com,asimceph3.autocache.com,asimceph4.autocache.com"
-    # for node in nodes.split(','):
-
     for node in args.nodes.split(','):
-        requestCommand="http://{}:11000/services".format(node)
-
-        print("{}".format(requestCommand) )
+        requestCommand = "http://{}:11000/services".format(node)
+        print("{}".format(requestCommand))
 
         try:
             listOfEssds = requests.get(requestCommand)
-        except:
+        except Exception as ex:
             continue
 
         try:
-            essds=listOfEssds.json()['services']
-        except:
+            essds = listOfEssds.json()['services']
+        except Exception as ex:
             continue
 
         for essd in essds:
-            essdsUrls.append("http://{}:{}".format(essd['ip_addr'], essd['port'] ))
+            essdsUrls.append("http://{}:{}".format(
+                                                essd['ip_addr'],
+                                                essd['port']))
 
     insertEssdUrlsToDb(db, essd_constants.ESSDURLS_KEY, essdsUrls)
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 
 import threading
 import json
@@ -41,7 +42,6 @@ class EssdPoller(UfmThread):
         self.log.info('===> Delete Essd <===')
 
     def start(self):
-        self.log.info('===> Start Essd <===')
         self.msgListner.start()
 
         # Force the scan of Essd at startup
@@ -53,6 +53,8 @@ class EssdPoller(UfmThread):
                                       cb=self.essdRedFishPoller,
                                       cbArgs=self.pollerArgs,
                                       repeatIntervalSecs=15.0)
+        self.log.info('===> Start Essd <===')
+
         msg = {'module': 'essd',
                'service': 'poller',
                'running': True}
@@ -121,6 +123,8 @@ class EssdPoller(UfmThread):
         # Initial scan of all essd's
         if not cbArgs.initialScan:
             cbArgs.scanSuccess = True
+
+            startTime = datetime.now()
             for essdUrl in cbArgs.essdSystems:
                 rc = self.scanOneEssd(essdUrl=essdUrl,
                                       db=cbArgs.db,
@@ -130,13 +134,18 @@ class EssdPoller(UfmThread):
                     cbArgs.log.warning("Fail to scan all essd's")
 
             cbArgs.initialScan = True
+            stopTime = datetime.now()
+            diffTime = int((stopTime - startTime).seconds)
+            numberOfEssds = len(cbArgs.essdSystems)
 
             msg = {'module': 'essd',
                    'service': 'poller',
                    'scanAllEssds': True,
-                   'scanSuccess': cbArgs.scanSuccess}
+                   'scanSuccess': cbArgs.scanSuccess,
+                   'totalScanTime': diffTime,
+                   'numberOfESSDs': numberOfEssds}
 
-            cbArgs.publisher.send('status', msg)
+            cbArgs.publisher.send('ufmcontroller', msg)
             return
 
         cbArgs.essdCounter = cbArgs.essdCounter + 1
