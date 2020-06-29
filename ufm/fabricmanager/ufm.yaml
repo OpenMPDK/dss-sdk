@@ -6,8 +6,8 @@ ufm:
     externalPublisher: 5509
 
 essd:
-    enable: False
-    start: False
+    enable: True
+    start: True
     messageQueuePort: 5511
 
     # essdDrive is optional
@@ -18,8 +18,8 @@ essd:
         - "http://172.22.4.58:32826"
 
 nkv:
-    enable: True
-    start: True
+    enable: False
+    start: False
     messageQueuePort: 5512
 
 ebof:
