@@ -87,7 +87,7 @@ class EssdMonitor(UfmThread):
                'service': 'monitor',
                'running': True}
 
-        self.essdArg.publisher.send('status', msg)
+        self.essdArg.publisher.send('ufmmonitor', msg)
 
         try:
             self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY,
@@ -110,7 +110,7 @@ class EssdMonitor(UfmThread):
                'service': 'monitor',
                'running': False}
 
-        self.essdArg.publisher.send('status', msg)
+        self.essdArg.publisher.send('ufmmonitor', msg)
 
         self.log.error("====== Watch ID {} ========".format(self.watch_id))
 

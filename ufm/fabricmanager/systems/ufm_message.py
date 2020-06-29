@@ -5,24 +5,21 @@ import zmq
 import json
 
 
-
 class Subscriber(threading.Thread):
     def __init__(self, event=None, ports=None, topics=None, process=None):
         self.event = event
         self.ports = ports
         self.topicfilter = topics
-        if process == None:
+        if not process:
             self.process = self.debug
         else:
             self.process = process
         super(Subscriber, self).__init__()
         self.context = zmq.Context()
 
-
     def __del__(self):
         self.event.set()
         self.context.destroy()
-
 
     def run(self):
         socket = self.context.socket(zmq.SUB)
@@ -39,7 +36,7 @@ class Subscriber(threading.Thread):
                 string = socket.recv_string(flags=zmq.NOBLOCK)
             except KeyboardInterrupt:
                 break
-            except Exception as ex:
+            except Exception:
                 time.sleep(0.5)
                 continue
 
@@ -49,10 +46,8 @@ class Subscriber(threading.Thread):
 
         socket.close()
 
-
     def stop(self):
         self.event.set()
-
 
     def debug(self, topic, message):
         print("{} {}".format(topic, message))
@@ -65,13 +60,11 @@ class Publisher():
         self.socket = self.context.socket(zmq.PUB)
         self.socket.bind("tcp://*:{}".format(self.port))
 
-
     def __del__(self):
         if self.socket:
             self.socket.close()
 
         self.context.destroy()
-
 
     def send(self, topic=None, jsonMessage=None):
         if not topic:
@@ -83,6 +76,3 @@ class Publisher():
         if type(jsonMessage) is dict:
             tmpString = json.dumps(jsonMessage)
             self.socket.send_string("{}={}".format(topic, tmpString))
-
-
-

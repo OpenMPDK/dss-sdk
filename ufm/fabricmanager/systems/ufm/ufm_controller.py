@@ -25,31 +25,35 @@ class UfmController(UfmThread):
         self.msgListner.start()
 
         self._running = True
-        super(UfmController,
-              self).start(threadName='UfmController',
-                          cb=self.controller,
-                          cbArgs=self.ufmArg,
-                          repeatIntervalSecs=3.0)
+
+        # Controller might not need a thread
+        #   Commented out for now
+        # super(UfmController, self).start(threadName='UfmController',
+        #                                  cb=self.controller,
+        #                                  cbArgs=self.ufmArg,
+        #                                  repeatIntervalSecs=3.0)
+
+    # def controller(self, ufmArg): #
+    #    pass
 
     def stop(self):
-        super(UfmController, self).stop()
+        # super(UfmController, self).stop()
+        self.ufmArg.log.info("Stop {}".format(self.__class__.__name__))
         self.msgListner.stop()
         self.msgListner.join()
 
         self._running = False
-        self.ufmArg.log.info("Stop {}".format(self.__class__.__name__))
 
     def is_running(self):
         return self._running
 
-    def controller(self, ufmArg):
-        pass
-
     def processControllerMessages(self, topic, message):
         print("\nTopic: {}\nMessage to process is: {}\n".format(topic,
                                                                 message))
-        # this will send a Aka to publisher
-        msg_ok = dict()
-        msg_ok['status'] = True
 
-        self.ufmArg.publisher.send("Aka", msg_ok)
+        # this will send a Aka to publisher
+        msg = {'module': 'ufm',
+               'service': 'controller',
+               'commandcompleted': True}
+
+        self.ufmArg.publisher.send('ufmmonitor', msg)
