@@ -7,7 +7,7 @@ ufm:
 
 essd:
     enable: False
-    start: True
+    start: False
     messageQueuePort: 5511
 
     # essdDrive is optional
