@@ -6,8 +6,6 @@ import threading
 
 from ufm_thread import UfmThread
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
-from rest_api.redfish import redfish_constants
-from systems.switch import switch_constants
 from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 class Rfserver(threading.Thread):
@@ -18,11 +16,9 @@ class Rfserver(threading.Thread):
         self.context = zmq.Context()
         super(Rfserver, self).__init__()
 
-
     def __del__(self):
         self.event.set()
         self.context.destroy()
-
 
     def run(self):
         socket = self.context.socket(zmq.REP)
@@ -43,7 +39,6 @@ class Rfserver(threading.Thread):
 
         socket.close()
 
-
     def stop(self):
         self.event.set()
 
@@ -63,12 +58,10 @@ class SwitchController(UfmThread):
         super(SwitchController, self).__init__()
         self.log.info("Init {}".format(self.__class__.__name__))
 
-
     def __del__(self):
         if self._running:
             self.stop()
         self.log.info("Del {}".format(self.__class__.__name__))
-
 
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
@@ -85,7 +78,6 @@ class SwitchController(UfmThread):
         self._running = True
         super(SwitchController, self).start(threadName='SwitchController')
 
-
     def stop(self):
         self.rf.stop()
         self.rf.join()
@@ -96,7 +88,6 @@ class SwitchController(UfmThread):
 
     def is_running(self):
         return self._running
-
 
     def action_handler(self, jsonMessage):
         payload = json.loads(jsonMessage)
@@ -150,7 +141,6 @@ class SwitchController(UfmThread):
 
         return json_obj
 
-
     def handle_delete_vlan(self, vlan_id):
         resp = self.client.delete_vlan(vlan_id)
         json_obj = resp.json()
@@ -167,15 +157,12 @@ class SwitchController(UfmThread):
                     self.client.poll_to_db()
         return json_obj
 
-
     '''
     port operations
     '''
-
     def handle_set_access_port_vlan(self, port_id, vlan_id):
         resp = self.client.set_access_port_vlan(port_id, vlan_id)
         json_obj = resp.json()
-        print(json_obj)
 
         # update db accordingly
         # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/52/mode/access
@@ -245,7 +232,6 @@ class SwitchController(UfmThread):
 
         return json_obj
 
-
     def handle_set_trunk_port_vlans_range(self, port_id, start_vlan_id, end_vlan_id):
         resp = self.client.set_trunk_port_vlans_range(port_id, start_vlan_id, end_vlan_id)
         json_obj = resp.json()
@@ -275,8 +261,6 @@ class SwitchController(UfmThread):
                     self.client.poll_to_db()
 
         return json_obj
-
-
 
     def handle_associate_ip_to_vlan(self, vlan_id, ip_address):
         resp = self.client.associate_ip_to_vlan(vlan_id, ip_address)
