@@ -84,9 +84,8 @@ class EssdPoller(UfmThread):
                              username=None,
                              password=None,
                              log=log)
-        except Exception as e:
+        except Exception:
             log.error("Failed to connect to essd {}".format(essdUrl))
-            log.exception(e)
             return False
 
         # Update uuid's latest upTime
@@ -112,10 +111,9 @@ class EssdPoller(UfmThread):
                 tmpString, _ = cbArgs.db.get(essd_constants.ESSDURLS_KEY)
                 cbArgs.essdSystems = json.loads(tmpString.decode('utf-8'))
                 cbArgs.updateEssdUrls = False
-            except Exception as e:
+            except Exception:
                 cbArgs.log.error("Failed to read essd Urls from db {}"
                                  .format(tmpString))
-                cbArgs.log.exception(e)
 
         if not cbArgs.essdSystems:
             return
@@ -131,7 +129,7 @@ class EssdPoller(UfmThread):
                                       log=cbArgs.log)
                 if not rc:
                     cbArgs.scanSuccess = False
-                    cbArgs.log.warning("Fail to scan all essd's")
+                    cbArgs.log.warning("Fail to scan essd's")
 
             cbArgs.initialScan = True
             stopTime = datetime.now()

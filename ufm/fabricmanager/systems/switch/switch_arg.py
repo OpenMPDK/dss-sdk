@@ -1,7 +1,5 @@
 
 
-
-
 class SwitchArg():
     def __init__(self, sw_type, sw_ip, log, db, usrname, pwd, port):
         self.sw_type = sw_type
@@ -11,5 +9,3 @@ class SwitchArg():
         self.usrname = usrname
         self.pwd = pwd
         self.port = port
-
-
