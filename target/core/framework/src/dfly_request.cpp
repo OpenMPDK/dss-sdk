@@ -45,6 +45,10 @@ int dfly_req_fini(struct dfly_request *req)
 		dfly_fuse_release(req);
 	}
 
+	if(g_dragonfly->enable_latency_profiling) {
+		df_update_lat_us(req);
+	}
+
 	memset(req, 0, sizeof(dfly_request_t));
 
 	req->src_core = req->tgt_core = -1;

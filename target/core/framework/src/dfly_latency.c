@@ -34,6 +34,22 @@ void df_print_tick(struct dfly_request *dreq)
 	}
 }
 
+void df_update_lat_us(struct dfly_request *dreq)
+{
+	uint64_t req_ticks;
+	uint64_t ticks_per_us = spdk_get_ticks_hz()/1000000;
+	uint64_t latency_us;
+
+	req_ticks = dreq->lat.tick_arr[DF_LAT_REQ_END] - dreq->lat.tick_arr[DF_LAT_REQ_START];
+
+	latency_us = req_ticks/ticks_per_us;
+
+	if(dreq->dqpair) {
+		dss_lat_inc_count(dreq->dqpair->lat_ctx, latency_us);
+	}
+
+}
+
 #endif
 
 

@@ -33,9 +33,21 @@
 
 struct dss_lat_ctx_s;
 
+struct dss_lat_profile_s {
+	uint8_t  pVal;
+	uint64_t pLat;
+};
+
+struct dss_lat_prof_arr {
+	uint32_t n_part;
+	struct dss_lat_profile_s prof[0];
+};
+
 struct dss_lat_ctx_s * dss_lat_new_ctx(char *name);
 void dss_lat_del_ctx(struct dss_lat_ctx_s *lctx);
 void dss_lat_reset_ctx(struct dss_lat_ctx_s *lctx);
 void dss_lat_inc_count(struct dss_lat_ctx_s *lctx, uint64_t duration);
 uint64_t dss_lat_get_nentries(struct dss_lat_ctx_s *lctx);
 uint64_t dss_lat_get_mem_used(struct dss_lat_ctx_s *lctx);
+int dss_lat_get_percentile(struct dss_lat_ctx_s *lctx, struct dss_lat_prof_arr **out);
+void dss_lat_get_percentile_multi(struct dss_lat_ctx_s **lctx, int n_ctx, struct dss_lat_prof_arr **out);

@@ -182,6 +182,7 @@ include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
+include_directories (${CMAKE_SOURCE_DIR}/include)
 
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
@@ -217,7 +218,7 @@ endif(WITH_KV_STATS)
 
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
-set(OSS_CFLAGS -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
+set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
 
 add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
 target_link_libraries (oss ${OSS_LIBS})
@@ -254,13 +255,14 @@ ADD_CUSTOM_TARGET(spdk_tcp
   COMMAND make V=2 -j16
   DEPENDS dssd
   DEPENDS oss
+  DEPENDS dss_lat
 )
 
 add_subdirectory(test)
 
 add_library(dss_lat STATIC	utils/dss_count_latency.c)
 target_link_libraries(dss_lat -ljudyL)
-target_compile_options(dss_lat PRIVATE -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+target_compile_options(dss_lat PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
 add_dependencies(dss_lat judyL)
 add_custom_command(
         TARGET dss_lat PRE_BUILD
@@ -272,7 +274,6 @@ ADD_CUSTOM_TARGET(test_latency_counter
 	COMMENT "Buiulding test latency counter"
 	WORKING_DIRECTORY test/test_latency_counter
 	COMMAND make
-	DEPENDS spdk_tcp
 	DEPENDS dss_lat
 )
 

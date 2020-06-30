@@ -382,6 +382,25 @@ void df_destroy_ctrl(uint32_t ssid, uint16_t cntlid)
 
 }
 
+dfly_ctrl_t *df_get_ctrl(uint32_t ssid, uint16_t cntlid)
+{
+	struct dfly_subsystem *df_ss = dfly_get_subsystem_no_lock(ssid);
+
+	dfly_ctrl_t *ctrl, *tmp;
+
+	ctrl = NULL;
+	pthread_mutex_lock(&df_ss->ctrl_lock);//Lock Begin
+
+	TAILQ_FOREACH_SAFE(ctrl, &df_ss->df_ctrlrs, ct_link, tmp) {
+		if(ctrl->ct_cntlid == cntlid) {
+			break;
+		}
+	}
+	pthread_mutex_unlock(&df_ss->ctrl_lock);//Release Lock
+
+	return ctrl;
+}
+
 dfly_ctrl_t *df_init_ctrl(struct dfly_qpair_s *dqpair, uint16_t cntlid, uint32_t ssid)
 {
 	struct dfly_subsystem *df_ss = dfly_get_subsystem_no_lock(ssid);
@@ -402,6 +421,8 @@ dfly_ctrl_t *df_init_ctrl(struct dfly_qpair_s *dqpair, uint16_t cntlid, uint32_t
 	DFLY_ASSERT(ctrl);
 
 	ctrl->ct_cntlid = cntlid;
+	TAILQ_INIT(&ctrl->df_qpairs);
+	pthread_mutex_init(&ctrl->ct_lock, NULL);
 
 	DFLY_ASSERT(dqpair->parent_qpair->ctrlr);
 

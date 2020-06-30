@@ -634,5 +634,108 @@ invalid:
 	free_rpc_statistics(&req);
 }
 SPDK_RPC_REGISTER("dfly_get_statistics", dragonfly_statistics, SPDK_RPC_RUNTIME)
+
 #endif // SPDK_CONFIG_SAMSUNG_COUNTERS
 
+struct dss_rpc_lat_profile_req_s {
+	char *nqn;
+	uint16_t cntlid;
+	uint16_t qid;
+};
+
+struct dss_rpc_lat_profile_resp_entry_s {
+	uint32_t percentile;
+	uint32_t latency;
+};
+
+static const struct spdk_json_object_decoder dss_rpc_lat_prof_decoders[] = {
+	{"nqn", offsetof(struct dss_rpc_lat_profile_req_s, nqn), spdk_json_decode_string},
+	{"cid", offsetof(struct dss_rpc_lat_profile_req_s, cntlid), spdk_json_decode_uint16},
+	{"qid", offsetof(struct dss_rpc_lat_profile_req_s, qid), spdk_json_decode_uint16},
+};
+
+void free_rpc_latency_profile(struct dss_rpc_lat_profile_req_s *req)
+{
+	free(req->nqn);
+}
+
+static void dss_rpc_get_latency_profile(struct spdk_jsonrpc_request *request,
+		const struct spdk_json_val *params)
+{
+	struct spdk_nvmf_subsystem *subsystem;
+	dfly_ctrl_t *ctrlr;
+	struct spdk_json_write_ctx *w;
+
+	struct dfly_qpair_s *dqpair;
+	struct dss_rpc_lat_profile_req_s req = {};
+
+	struct dss_lat_prof_arr *result_profile = NULL;
+
+	char percentile_str[8];
+	int i;
+
+	if (spdk_json_decode_object(params, dss_rpc_lat_prof_decoders,
+				    SPDK_COUNTOF(dss_rpc_lat_prof_decoders),
+				    &req)) {
+		DFLY_ERRLOG("spdk_json_decode_object failed\n");
+		goto invalid;
+	}
+
+	subsystem = spdk_nvmf_tgt_find_subsystem(g_spdk_nvmf_tgt, req.nqn);
+	if (!subsystem) {
+		DFLY_ERRLOG("Subsystem not found\n");
+		goto invalid;
+	}
+
+	ctrlr = df_get_ctrl(dfly_get_nvmf_ssid(subsystem), req.cntlid);
+	if(!ctrlr) {
+		//TODO: find aggregate for cntlid -1
+		DFLY_ERRLOG("Controller not found\n");
+		goto invalid;
+	}
+
+	dqpair = df_get_dqpair(ctrlr, req.qid);
+	if(dqpair) {
+		if(dss_lat_get_percentile(dqpair->lat_ctx, &result_profile)) {
+			DFLY_ERRLOG( "No stats available\n");
+			goto invalid;
+		}
+	} else {
+		//TODO: find aggregate for qid -1
+		DFLY_ERRLOG("qpair not found\n");
+		goto invalid;
+	}
+
+	w = spdk_jsonrpc_begin_result(request);
+	if (w == NULL) {
+		return;
+	}
+
+	spdk_json_write_object_begin(w);
+
+	spdk_json_write_name(w, spdk_nvmf_subsystem_get_nqn(subsystem));
+
+	spdk_json_write_object_begin(w);//Begin subsysresult
+	spdk_json_write_name(w, "latency profile");
+	spdk_json_write_object_begin(w);//	begin latency profile
+
+	for(i=0; i< result_profile->n_part;i++) {
+		sprintf(percentile_str, "%d", result_profile->prof[i].pVal);
+		spdk_json_write_name(w, percentile_str);
+		spdk_json_write_int32(w, result_profile->prof[i].pLat);
+	}
+
+	spdk_json_write_object_end(w);// end latency profile
+	spdk_json_write_object_end(w);//End Subsys result
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_result(request, w);
+	free_rpc_latency_profile(&req);
+	return;
+
+invalid:
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
+	free_rpc_latency_profile(&req);
+	return;
+}
+SPDK_RPC_REGISTER("dss_get_latency_profile", dss_rpc_get_latency_profile, SPDK_RPC_RUNTIME)
