@@ -1,13 +1,13 @@
 # External imports
-import traceback
+import uuid
 
 # Flask imports
-from flask_restful import reqparse, Api, Resource
+from flask_restful import request, Resource
 
 # Internal imports
-import config
 from rest_api.redfish.templates.Port import get_port_instance
 from rest_api.redfish import redfish_constants
+from rest_api.redfish import util
 
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, RedfishPortCollectionBackend
@@ -15,7 +15,6 @@ from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, Redfis
 members = {}
 
 class PortAPI(Resource):
-
     def get(self, fab_id, sw_id, port_id):
         # """
         # HTTP GET
@@ -24,11 +23,42 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
+            print('PortAPI.get() failed')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
+
+
+class PortActionAPI(Resource):
+    def get(self, fab_id, sw_id, vlan_id, act_str):
+        raise NotImplementedError
+
+    def post(self, fab_id, sw_id, port_id, act_str):
+        try:
+            data = {
+                    'cmd': act_str,
+                    'request_id': str(uuid.uuid4()),
+                    'port_id': port_id
+                   }
+            payload = request.get_json(force=True)
+            if 'VLANId' in payload:
+                data['vlan_id'] = payload['VLANId']
+
+            if 'RangeFromVLANId' in payload:
+                data['start_vlan_id'] = payload['RangeFromVLANId']
+
+            if 'RangeToVLANId' in payload:
+                data['end_vlan_id'] = payload['RangeToVLANId']
+
+            resp = util.post_to_switch(sw_id, data)
+
+        except Exception as e:
+            print('PortActionAPI.post() failed')
+            resp = RedfishErrorResponse.get_server_error_response(e)
+
+        return resp
 
 
 class PortCollectionAPI(Resource):
@@ -41,6 +71,7 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
+            print('PortCollectionAPI.get() failed')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

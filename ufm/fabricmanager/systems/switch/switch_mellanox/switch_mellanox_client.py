@@ -30,7 +30,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
         self.log.info("SwitchMellanoxClient ip = {}".format(self.swArg.sw_ip))
         self.log.info("Init {}".format(self.__class__.__name__))
-
+        self.log.log_detail_on()
 
     def _connect(self, usrname, pwd):
         self.url = 'https://' + self.swArg.sw_ip + '/admin/launch'
@@ -81,7 +81,18 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         response = self.session.post(self.url + '?script=json', json=json_data, verify=False)
 
         self.log.info('Switch response status_code (200=OK): ' + str(response.status_code))
+        #if response.status_code != 200:
         #self.log.info('Switch response: %s', response.text)
+
+        # A requests.models.Response can be returned as a tuple which provides extra info.
+        # Such tuples have to be in the form (response, status, headers) where at least one
+        # item has to be in the tuple. The status value will override the status code and
+        # headers can be a list or dict of additional header values.
+        #
+        # return resp.text, resp.status_code, resp.headers.items()
+        # return resp.content, resp.status_code, resp.headers.items()
+        # return resp.raw.read(), resp.status_code, resp.headers.items()
+
         return response
 
 
@@ -314,14 +325,14 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/1/name/default
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/name/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/Eth1/53
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/Eth1/55
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/53
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/100/network/ports/55
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/name/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/49
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/50
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/Eth1/54
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/49
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/50
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/101/network/ports/54
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/name/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/network/ports/Eth1/1
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/6/network/ports/1
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/list/1
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/list/100
         /switches/f1ec15f8-c832-11e9-8000-b8599f784980/VLANs/list/101
@@ -360,15 +371,18 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         '''
         Poll from the switch and add to db:
 
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/mode/access
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/access_vlan/1
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/52/network/allowed_vlans/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/mode/trunk
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/access_vlan/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/53/network/allowed_vlans/100
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/mode/trunk
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/access_vlan/
-        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/Eth1/54/network/allowed_vlans/101
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/list/52
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/list/53
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/list/54
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/52/mode/access
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/52/network/access_vlan/1
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/52/network/allowed_vlans/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/53/mode/trunk
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/53/network/access_vlan/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/53/network/allowed_vlans/100
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/54/mode/trunk
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/54/network/access_vlan/
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/54/network/allowed_vlans/101
         '''
         resp = self.show_port()
         json_obj = resp.json()
@@ -384,7 +398,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                         for port_id, port_info in json_obj['results'][0]['data'].items():
                             lease = self.db.lease(self.lease_ttl)
 
-                            port_id = port_id.split('/')[-1] #store <num> extracted from Eth1/<num>
+                            port_id = port_id.split('/')[-1]
                             PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports'
                             self.db.put(PORT_KEY_PREFIX + '/list/' + port_id, '', lease=lease)
 
@@ -393,8 +407,9 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                 if k == 'Mode':
                                     self.db.put(this_port_key_prefix + '/mode/' + v, '', lease=lease)
                                 elif k == 'Access vlan':
-                                    #Note: some port's Access vlan is N/A, different from empty?
-                                    self.db.put(this_port_key_prefix + '/network/access_vlan/' + v, '', lease=lease)
+                                    if v != 'N/A':
+                                        #Note: some port's Access vlan is N/A, different from empty?
+                                        self.db.put(this_port_key_prefix + '/network/access_vlan/' + v, '', lease=lease)
                                 elif k == 'Allowed vlans':
                                     for allowed_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
                                         self.db.put(this_port_key_prefix + '/network/allowed_vlans/' + v, '', lease=lease)
@@ -411,6 +426,12 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         self._poll_vlan_info()
         self._poll_port_info()
 
+        try:
+            # Write in the mq_port for UfmRedfish service to fetch
+            self.db.put('/switches/' + self.uuid + '/switch_attributes/mq_port/' + str(self.swArg.port), '',
+                        lease = self.db.lease(self.lease_ttl))
+        except Exception as e:
+            print(e)
 
 
     def delete_vlan(self, vlan_id):
@@ -428,11 +449,67 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "vlan " + str(vlan_id)
+                "vlan " + str(vlan_id),
+                "exit"
             ]
         }
         resp = self.send_cmd(json_cmd)
         return resp
+
+
+    def set_access_port_vlan(self, port_id, vlan_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id),
+                "switchport mode access",
+                "switchport access vlan " + str(vlan_id),
+                "exit"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def unassign_access_port_vlan(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id),
+                "no switchport access vlan",
+                "exit"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def set_trunk_port_vlans_all(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id),
+                "switchport mode trunk",
+                "switchport trunk allowed-vlan all",
+                "exit"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
+    def set_trunk_port_vlans_range(self, port_id, start_vlan_id, end_vlan_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id),
+                "switchport mode trunk",
+                "switchport trunk allowed-vlan " + str(start_vlan_id) + '-' + str(end_vlan_id),
+                "exit"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
 
     def associate_ip_to_vlan(self, vlan_id, ip_address):
         json_cmd = {
@@ -452,33 +529,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             [
                 "interface vlan " + str(vlan_id),
                 "no ip address " + ip_address,
-                "exit"
-            ]
-        }
-        resp = self.send_cmd(self, json_cmd)
-        return resp
-
-
-
-    def assign_port_to_vlan(self, port, vlan_id):
-        json_cmd = {
-            "commands":
-            [
-                "interface ethernet "+ port,
-                "switchport access vlan " + str(vlan_id),
-                "exit"
-            ]
-        }
-        resp = self.send_cmd(self, json_cmd)
-        return resp
-
-    def add_mode_port_to_vlan(self, port, mode, vlan_id):
-        json_cmd = {
-            "commands":
-            [
-                "interface ethernet " + port,
-                "switchport mode " + mode,
-                "switchport " + mode + " allowed-vlan add " + str(vlan_id),
                 "exit"
             ]
         }

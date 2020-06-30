@@ -1,24 +1,22 @@
 # External imports
 import uuid
-import zmq
-import json
 
 # Flask imports
 from flask_restful import request, Resource
 
 # Internal imports
-import config
 from rest_api.redfish.templates.VLAN import get_vlan_instance
 from rest_api.redfish import redfish_constants
+from rest_api.redfish import util
 
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_vlan_backend import RedfishVlanBackend, RedfishVlanCollectionBackend
+from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 members = {}
 
 
 class VlanAPI(Resource):
-
     def get(self, fab_id, sw_id, vlan_id):
         # """
         # HTTP GET
@@ -27,6 +25,7 @@ class VlanAPI(Resource):
             redfish_backend = RedfishVlanBackend()
             response = redfish_backend.get(fab_id, sw_id, vlan_id)
         except Exception as e:
+            print('VlanAPI.get() failed')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -35,41 +34,24 @@ class VlanAPI(Resource):
 
 
 class VlanActionAPI(Resource):
-
     def get(self, fab_id, sw_id, vlan_id, act_str):
         raise NotImplementedError
 
     def post(self, fab_id, sw_id, vlan_id, act_str):
-        print('LUFAN: VlanActionAPI post received:' + act_str)
-        ctx = zmq.Context()
-        skt = ctx.socket(zmq.REQ)
-        skt.connect("tcp://localhost:5515")
-
-        data = dict()
-        data['cmd'] = act_str
-        data['request_id'] = str(uuid.uuid4())
-
-        json_request = json.dumps(data, indent=4, sort_keys=True)
-        json_response = None
         try:
-            skt.send_json(json_request)
-            print("request {}".format(json_request))
+            data = {
+                    'cmd': act_str,
+                    'request_id': str(uuid.uuid4()),
+                    'vlan_id': vlan_id
+                   }
 
-            # block until response is received
-            json_response = skt.recv_json()
-        except KeyboardInterrupt:
-            pass
-
-        print("Received: {}".format(json_response) )
-
-        skt.close()
-        ctx.destroy()
-
-        return json_response
-
+            resp = util.post_to_switch(sw_id, data)
+        except Exception as e:
+            print('VlanActionAPI.post() failed')
+            resp = RedfishErrorResponse.get_server_error_response(e)
+        return resp
 
 class VlanCollectionAPI(Resource):
-
     def get(self, fab_id, sw_id):
         # """
         # HTTP GET
@@ -78,6 +60,7 @@ class VlanCollectionAPI(Resource):
             redfish_backend = RedfishVlanCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
+            print('VlanCollectionAPI.get() failed')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -86,21 +69,24 @@ class VlanCollectionAPI(Resource):
 
 
 class VlanCollectionActionAPI(Resource):
-
     def get(self, fab_id, sw_id, act_str):
         raise NotImplementedError
 
     def post(self, fab_id, sw_id, act_str):
-        print('VlanCollectionActionAPI: post ' + act_str)
         try:
             payload = request.get_json(force=True)
+            data = {
+                    'cmd': act_str,
+                    'request_id': str(uuid.uuid4()),
+                    'vlan_id': payload['VLANId']
+                   }
+
+            resp = util.post_to_switch(sw_id, data)
         except Exception as e:
-            print(e)
+            print('VlanCollectionActionAPI.post() failed')
+            resp = RedfishErrorResponse.get_server_error_response(e)
+        return resp
 
-        print('Printing payload ......')
-        print(payload)
-
-        return {}
 
 
 

@@ -60,7 +60,23 @@ class ufmdb_util():
             return False
 
 
+    @classmethod
+    def get_mq_port(self, sw_uuid):
+        pre = '/switches/' + sw_uuid + '/switch_attributes/mq_port/'
+        kv_dict = self.query_prefix(pre)
 
+        mq_port = None
+        for k in kv_dict:
+            mq_port = k.split('/')[-1]
+
+        return mq_port
+
+
+    @classmethod
+    def convert_ranges_to_list(self, ranges_str):
+        ranges = [(lambda l: range(l[0], l[-1]+1))(list(map(int, r.split('-')))) for r in ranges_str.split(',')]
+        ret_list = [y for x in ranges for y in x]
+        return ret_list
 
 
 
