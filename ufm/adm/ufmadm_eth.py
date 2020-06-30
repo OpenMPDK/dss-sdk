@@ -75,8 +75,11 @@ class MacMenu(UfmMenu):
             print("          Subnet:",address["SubnetMask"])
             print("          Origin:",address["AddressOrigin"])
             print("         Gateway:",address["Gateway"])
-            print("            Port:",address["oem"]['Port'])
-            print("        Protocol:",address["oem"]['SupportedProtocol'])
+            try:
+                print("            Port:",address["oem"]['Port'])
+                print("        Protocol:",address["oem"]['SupportedProtocol'])
+            except KeyError as ke:
+                pass
 
         print("IPv6 Gateway: ",rsp["IPv6DefaultGateway"])
         for address in rsp["IPv6Addresses"]:
@@ -84,8 +87,11 @@ class MacMenu(UfmMenu):
             print("    PrefixLength:",address["PrefixLength"])
             print("          Origin:",address["AddressOrigin"])
             print("           State:",address["AddressState"])
-            print("            Port:", address["oem"]['Port'])
-            print("        Protocol:", address["oem"]['SupportedProtocol'])
+            try:
+                print("            Port:", address["oem"]['Port'])
+                print("        Protocol:", address["oem"]['SupportedProtocol'])
+            except KeyError as ke:
+                pass
 
         self.sys = sys
         self.mac = mac

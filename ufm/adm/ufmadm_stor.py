@@ -13,16 +13,17 @@ class StorMenu(UfmMenu):
         if rsp == None:
             return
 
-        if "oem" not in rsp:
-            return
+        # if "oem" not in rsp:
+        #     return
 
         count = 0
 
         print()
         print("*  Subsystem:",sys)
         #print("---------------------------------------------")
-        print("    Capacity:",int(rsp["oem"]["CapacityBytes"]/(1024*1024)),"(Mbytes)")
-        print("   Available:",rsp["oem"]["PercentAvailable"], "%")
+        if "oem" in rsp:
+            print("    Capacity:",int(rsp["oem"]["CapacityBytes"]/(1024*1024)),"(Mbytes)")
+            print("   Available:",rsp["oem"]["PercentAvailable"], "%")
 
         for member in rsp["Members"]:
             sn = member['@odata.id'].split("/")[6]
@@ -58,8 +59,8 @@ class SnMenu(UfmMenu):
         if rsp == None:
             return
 
-        if "oem" not in rsp:
-            return
+        # if "oem" not in rsp:
+        #     return
 
         count = 0
 
@@ -67,8 +68,9 @@ class SnMenu(UfmMenu):
         print("*  Subsystem:",sys)
         print("*    Storage:",sn)
         #print("---------------------------------------------")
-        print("    Capacity:",int(rsp["oem"]["CapacityBytes"]/(1024*1024)),"(Mbytes)")
-        print("   Available:",rsp["oem"]["PercentAvailable"], "%")
+        if "oem" in rsp:
+            print("    Capacity:",int(rsp["oem"]["CapacityBytes"]/(1024*1024)),"(Mbytes)")
+            print("   Available:",rsp["oem"]["PercentAvailable"], "%")
 
         for drive in rsp["Drives"]:
             drv = drive['@odata.id'].split("/")[8]
@@ -110,7 +112,10 @@ class DrvMenu(UfmMenu):
         #print("---------------------------------------------")
         print("   BlockSize:",rsp["BlockSizeBytes"], "(Bytes)")
         print("    Capacity:",int(rsp["CapacityBytes"]/(1024*1024)),"(Mbytes)")
-        print("   Available:",rsp["oem"]["PercentAvailable"], "%")
+        try:
+            print("   Available:",rsp["oem"]["PercentAvailable"], "%")
+        except KeyError as ke:
+            pass
         print("Manufacturer:",rsp["Manufacturer"])
         print("   MediaType:",rsp["MediaType"])
         print("       Model:",rsp["Model"])
