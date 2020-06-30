@@ -165,12 +165,11 @@ def nvme_discover_connect(disc_proto, disc_ip, disc_port, qpair):
             print("Command Failed: %s, %s, %s" %(cmd, out, err))
             continue
 
-
-def install_kernel_driver(align):
+def build_driver():
     '''
     Get kernel version to build appropriate driver
     '''
-    print("----- Installing kernel drivers -----")
+    print("----- Building kernel drivers -----")
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
@@ -178,21 +177,46 @@ def install_kernel_driver(align):
         os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
     elif "3.10.0" in out:
         os.chdir("../openmpdk_driver/kernel_v3.10.0-693-centos-7_4")
-        shutil.copyfile("linux_nvme.h", "/usr/src/kernels/5.1.0/include/linux/nvme.h")
-        shutil.copyfile("linux_nvme_ioctl.h", "/usr/src/kernels/5.1.0/include/uapi/linux/nvme_ioctl.h")
     else:
         print("Drivers not found. Exiting")
         sys.exit(1)
 
+    shutil.copyfile("linux_nvme.h", "/usr/src/kernels/5.1.0/include/linux/nvme.h")
+    shutil.copyfile("linux_nvme_ioctl.h", "/usr/src/kernels/5.1.0/include/uapi/linux/nvme_ioctl.h")
     build = "make all"
+    exec_cmd(build)
+    if ret != 0:
+        print("Build Failed: %s, %s" %(bo, err))
+    os.chdir(cwd)
+
+def install_kernel_driver(align):
+    '''
+    Get kernel version to insert appropriate driver
+    '''
+    print("----- Installing kernel drivers -----")
+    cmd = "uname -r"
+    ret, out, err = exec_cmd(cmd)
+    cwd = os.getcwd()
+
+    if "5.1.0" in out:
+        os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
+    elif "3.10.0" in out:
+        os.chdir("../openmpdk_driver/kernel_v3.10.0-693-centos-7_4")
+    else:
+        print("Drivers not found. Exiting")
+        sys.exit(1)
+
+    # Check if the kernel modules were built
+    kernel_modules = ["nvme-core.ko", "nvme-fabrics.ko", "nvme-tcp.ko", "nvme-rdma.ko"]
+    for module in kernel_modules:
+        if not os.path.exists(module):
+                os.chdir(cwd)
+                raise IOError("File not found: " + os.path.join(os.getcwd(), module) + ", did you forget to run config_driver?")
+
     disconnect_cmd = "nvme disconnect-all"
     rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
     insmod = "insmod ./nvme-core.ko mem_align=%d; insmod ./nvme-fabrics.ko; \
-            insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" %(align)
-
-    ret, bo, err = exec_cmd(build)
-    if ret != 0:
-        print("Build Failed: %s, %s" %(bo, err))
+            insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
 
     ret, do, err = exec_cmd(disconnect_cmd)
     if ret != 0:
@@ -283,13 +307,16 @@ def run_nkv_test_cli():
             f.write(out)
         print("nkv_test_cli run output written to nkv.out")
             
-def config_host(disc_ip, disc_port, disc_proto, disc_qpair, driver_memalign):
+def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
 
-
+    for addr in disc_addrs:
+        if addr.count(":") != 1:
+            raise ValueError("Error: malformed address " + addr + " expected ip:port.")
+        disc_ip, disc_port = addr.split(":")
+        nvme_discover_connect(disc_proto, disc_ip, int(disc_port), disc_qpair)
     # Connect to all discovered NQNs and their IPs.
-    nvme_discover_connect(disc_proto, disc_ip, disc_port, disc_qpair)
 
     # Create nkv_config.json file
     create_config_file()
@@ -375,22 +402,19 @@ The most commonly used dss target commands are:
     def config_host(self):
         parser = argparse.ArgumentParser(
             description='Discovers/connects device(s), and creates config file for DSS API layer')
-        parser.add_argument("-a", "--ipaddr", type=str, required=True, help="IP for nvme discovery (required)")
+        parser.add_argument("-a", "--addrs", type=str, required=True, nargs='+', help="Space-delimited list of ip:port for nvme discovery (required)")
         parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
             default="rdma")
-        parser.add_argument("-s", "--port", type=int, help="Port for nvme discoveryi (default: 1023)", \
-            default=1023)
         parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
         parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
             default=512)
         args = parser.parse_args(sys.argv[2:])
 
-        disc_port = args.port
         disc_proto = args.proto
         driver_memalign = args.memalign
         disc_qpair = args.qpair
-        disc_ip = args.ipaddr
-        config_host(disc_ip, disc_port, disc_proto, disc_qpair, driver_memalign)
+        disc_addrs = args.addrs
+        config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign)
 
     def config_minio(self):
         parser = argparse.ArgumentParser(
@@ -406,6 +430,9 @@ The most commonly used dss target commands are:
         if args.stand_alone:
             g_minio_stand_alone = args.stand_alone 
         config_minio(args.dist, args.stand_alone, args.ec)
+
+    def config_driver(self):
+        build_driver()
 
     def remove(self):
         parser = argparse.ArgumentParser(
