@@ -6,7 +6,7 @@ ufm:
     externalPublisher: 5509
 
 essd:
-    enable: True #LUFAN
+    enable: False
     start: False
     messageQueuePort: 5511
 
@@ -18,7 +18,7 @@ essd:
         - "http://172.22.4.58:32826"
 
 nkv:
-    enable: False #LUFAN
+    enable: True
     start: True
     messageQueuePort: 5512
 
@@ -36,7 +36,7 @@ switch:
 
     -   sw_type: mellanox
         sw_ip: 172.22.0.109
-        enable: True #LUFAN
+        enable: False
         start: False
         usrname: ssgroot
         pwd: proximal
@@ -44,7 +44,7 @@ switch:
 
     -   sw_type: mellanox
         sw_ip: 172.22.0.110
-        enable: False #LUFAN
+        enable: False
         start: False
         usrname: ssgroot
         pwd: proximal

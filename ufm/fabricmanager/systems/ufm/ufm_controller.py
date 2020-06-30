@@ -54,7 +54,7 @@ class UfmController(UfmThread):
         # this will send a Aka to publisher
         msg = {'module': 'ufm',
                'service': 'controller',
-               'cpmmandcompleted': True}
+               'commandcompleted': True}
 
 
         self.ufmArg.publisher.send('ufmmonitor', msg)
