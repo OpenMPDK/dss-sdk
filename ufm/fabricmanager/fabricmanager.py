@@ -261,7 +261,6 @@ elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(EthernetInterfaceEmulationAPI, REST_BASE + 'Systems/<string:ident1>/EthernetInterfaces/<string:ident2>',
                      resource_class_kwargs={'rest_base': REST_BASE})
 
-
     api.add_resource(FabricCollectionEmulationAPI, REST_BASE + 'Fabrics')
     api.add_resource(FabricEmulationAPI, REST_BASE + 'Fabrics/<string:ident>')
     api.add_resource(SwitchCollectionEmulationAPI, REST_BASE + 'Fabrics/<string:ident>/Switches',
@@ -277,14 +276,13 @@ elif (MODE is not None and MODE.lower() == 'local'):
     api.add_resource(VlanEmulationAPI, REST_BASE + 'Fabrics/<string:ident1>/Switches/<string:ident2>/VLANs/<string:ident3>',
                      resource_class_kwargs={'rest_base': REST_BASE})
 
-
     call_populate(local_path)
 else:
     api.add_resource(RedfishAPI, REST_BASE,
                      REST_BASE + '<path:path>')
     try:
         resource_manager = ResourceManager(REST_BASE, MODE)
-    except:
+    except Exception:
         log.error('Failed to Initialize Resource Manager')
 
 
@@ -309,14 +307,20 @@ def insertEssdUrls(db, essdUrls):
 
         if tmpString:
             listOfDrives = json.loads(tmpString.decode('utf-8'))
-    except:
+    except Exception:
         pass
 
     for d in essdUrls:
-        if d not in listOfDrives:
-            listOfDrives.append(d)
+        listOfDrives.append(d)
 
-    jsonString = json.dumps(listOfDrives, indent=4, sort_keys=True)
+    # remove duplicates from list
+    res = []
+    for i in listOfDrives:
+        if i not in res:
+            res.append(i)
+    res.sort()
+
+    jsonString = json.dumps(res, indent=4, sort_keys=True)
     db.put(essd_constants.ESSDURLS_KEY, jsonString)
 
 
@@ -338,62 +342,58 @@ def readConfigDataFromFile(filename):
     return configData
 
 
-def parseUfmConfig(ufmArg, ufmMetadata):
-
+def parseUfmConfig(ufmArg=None, ufmMetadata=None):
     ufmArg.ufmPorts = list()
     try:
         ufmArg.ufmConfig = ufmMetadata['ufm']
         ufmArg.ufmPorts.append(ufmArg.ufmConfig['messageQueuePort'])
-    except:
+    except Exception:
         return False
 
     try:
         ufmArg.nkvConfig = ufmMetadata['nkv']
         ufmArg.ufmPorts.append(ufmArg.nkvConfig['messageQueuePort'])
-    except:
+    except Exception:
         ufmArg.nkvConfig['enable'] = False
 
     try:
         ufmArg.essdConfig = ufmMetadata['essd']
         ufmArg.ufmPorts.append(ufmArg.essdConfig['messageQueuePort'])
-    except:
+    except Exception:
         ufmArg.essdConfig['enable'] = False
 
     try:
         ufmArg.ebofConfig = ufmMetadata['ebof']
         ufmArg.ufmPorts.append(ufmArg.ebofConfig['messageQueuePort'])
-    except:
+    except Exception:
         ufmArg.ebofConfig['enable'] = False
 
     try:
         ufmArg.smartConfig = ufmMetadata['smart']
         ufmArg.ufmPorts.append(ufmArg.smartConfig['messageQueuePort'])
-    except:
+    except Exception:
         ufmArg.smartConfig['enable'] = False
 
     try:
         ufmArg.switchConfig = ufmMetadata['switch']
         # ufmArg.ufmPorts.append(ufmArg.switchConfig['messageQueuePort'])
-    except:
+    except Exception:
         ufmArg.switchConfig['enable'] = False
 
     return True
 
 
-def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
-
+def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
     # Ufm is required
     subSystems.append(Ufm(ufmArg))
 
     try:
         if ufmArg.nkvConfig['enable']:
             subSystems.append(
-                Nkv(
-                    hostname=ufmArg.hostname,
-                    db=ufmArg.deprecatedDb
-                )
+                Nkv(hostname=ufmArg.hostname,
+                    db=ufmArg.deprecatedDb)
             )
-    except:
+    except Exception:
         pass
 
     try:
@@ -403,22 +403,23 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
             try:
                 # Urls of the essd in the config file is optional
                 if ufmArg.essdConfig['essdDrives']:
-                    insertEssdUrls(db=ufmArg.db, essdUrls=ufmArg.essdConfig['essdDrives'])
-            except:
+                    insertEssdUrls(db=ufmArg.db,
+                                   essdUrls=ufmArg.essdConfig['essdDrives'])
+            except Exception:
                 pass
-    except:
+    except Exception:
         pass
 
     try:
         if ufmArg.ebofConfig['enable']:
             subSystems.append(Ebof())
-    except:
+    except Exception:
         pass
 
     try:
         if ufmArg.smartConfig['enable']:
             subSystems.append(Smart())
-    except:
+    except Exception:
         pass
 
     try:
@@ -431,7 +432,7 @@ def initializeSubSystems(subSystems, ufmArg, ufmMetadata):
                                   usrname=switch_arg['usrname'],
                                   pwd=switch_arg['pwd'])
                 subSystems.append(EthSwitch(swArg))
-    except:
+    except Exception:
         pass
 
 
@@ -458,14 +459,14 @@ def setMasterInDb(ufmArg):
 
 def serverStateChange(startup, cbArgs):
     if startup is True and cbArgs.isRunning is not True:
-        cbArgs.log.info(f'serverStateChange: Starting up UFM')
+        cbArgs.log.info('serverStateChange: Starting up UFM')
         setMasterInDb(ufmArg=cbArgs.ufmArg)
         cbArgs.server = Process(target=cbArgs.target, kwargs=cbArgs.kwargs)
         cbArgs.server.start()
         startSubSystems(cbArgs.subsystems)
         cbArgs.isRunning = True
     elif startup is not True and cbArgs.isRunning is True:
-        cbArgs.log.info(f'serverStateChange: Shutting down UFM')
+        cbArgs.log.info('serverStateChange: Shutting down UFM')
         cbArgs.server.terminate()
         cbArgs.server.join()
         stopSubSystems(cbArgs.subsystems)
@@ -545,20 +546,20 @@ def main():
         dbType = ufmArg.ufmConfig['dbType']
         dbAddress = ufmArg.ufmConfig['dbIp']
         ufmMessageQueuePort = ufmArg.ufmConfig['messageQueuePort']
-    except:
+    except Exception:
         log.error("Failed to read ufm configuration file.")
         sys.exit(-1)
 
     try:
         db = ufmdb.client(db_type=dbType)
-    except:
+    except Exception:
         log.error("Failed to connect to database.")
         sys.exit(-1)
 
     # Connect to db with deprecated library.
     try:
         deprecatedDb = lib.create_db_connection(ip_address=dbAddress, log=log)
-    except:
+    except Exception:
         log.error("Failed to connect to deprecated DB.")
         sys.exit(-1)
 
@@ -609,4 +610,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
