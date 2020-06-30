@@ -13,9 +13,6 @@ class StorMenu(UfmMenu):
         if rsp == None:
             return
 
-        # if "oem" not in rsp:
-        #     return
-
         count = 0
 
         print()
@@ -58,9 +55,6 @@ class SnMenu(UfmMenu):
 
         if rsp == None:
             return
-
-        # if "oem" not in rsp:
-        #     return
 
         count = 0
 
@@ -114,7 +108,7 @@ class DrvMenu(UfmMenu):
         print("    Capacity:",int(rsp["CapacityBytes"]/(1024*1024)),"(Mbytes)")
         try:
             print("   Available:",rsp["oem"]["PercentAvailable"], "%")
-        except KeyError as ke:
+        except KeyError:
             pass
         print("Manufacturer:",rsp["Manufacturer"])
         print("   MediaType:",rsp["MediaType"])

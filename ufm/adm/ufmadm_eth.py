@@ -78,7 +78,7 @@ class MacMenu(UfmMenu):
             try:
                 print("            Port:",address["oem"]['Port'])
                 print("        Protocol:",address["oem"]['SupportedProtocol'])
-            except KeyError as ke:
+            except KeyError:
                 pass
 
         print("IPv6 Gateway: ",rsp["IPv6DefaultGateway"])
@@ -90,7 +90,7 @@ class MacMenu(UfmMenu):
             try:
                 print("            Port:", address["oem"]['Port'])
                 print("        Protocol:", address["oem"]['SupportedProtocol'])
-            except KeyError as ke:
+            except KeyError:
                 pass
 
         self.sys = sys
