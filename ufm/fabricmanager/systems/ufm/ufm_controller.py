@@ -48,8 +48,8 @@ class UfmController(UfmThread):
         return self._running
 
     def processControllerMessages(self, topic, message):
-        print("\nTopic: {}\nMessage to process is: {}\n".format(topic,
-                                                                message))
+        print("Topic: {}  Message to process is: {}\n".format(topic,
+                                                              message))
 
         # this will send a Aka to publisher
         msg = {'module': 'ufm',

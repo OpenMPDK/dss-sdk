@@ -64,7 +64,6 @@ class EssdMonitor(UfmThread):
         self.log.info('===> Delete Essd Monitor <===')
 
     def _watchEssdKeyCallBack(self, event):
-        print("========> The monitor got an event <=======")
         if not isinstance(event.events, list):
             return
 
@@ -72,7 +71,6 @@ class EssdMonitor(UfmThread):
             self.monitorCallback(self.ufmArg, self.essdArg, event)
 
     def start(self):
-        self.log.info('===> Start Essd Monitor <===')
         self.msgListner.start()
 
         self.running = True
@@ -132,4 +130,4 @@ class EssdMonitor(UfmThread):
            This function run in a thread
            Do some monitor work here
         """
-        print("_EM", flush=True, end='')
+        pass

@@ -29,16 +29,14 @@ class UfmMonitor(UfmThread):
         if not isinstance(event.events, list):
             return
 
-        print("_UCB", flush=True, end='')
         # There has been changed in the db
+        pass
 
     def _ufmMonitor(self, cbArgs):
         """
            This function run in a thread
            Do some monitor work here
         """
-        print("_UM", flush=True, end='')
-
         msg = {'module': 'ufm',
                'service': 'monitor',
                'status': True}
@@ -85,8 +83,8 @@ class UfmMonitor(UfmThread):
         return self._running
 
     def processMonitorrMessages(self, topic, message):
-        print("\nTopic: {}\nMessage to process is: {}\n".format(topic,
-                                                                message))
+        print("Topic: {}  Message to process is: {}\n".format(topic,
+                                                              message))
         # this will send a Aka to publisher
         msg_ok = dict()
         msg_ok['status'] = True

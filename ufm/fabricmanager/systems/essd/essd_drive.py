@@ -44,7 +44,7 @@ class EssdDrive:
         lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
             tmpString, _ = db.get(lastUpdateKey)
-        except:
+        except Exception:
             pass
 
         uuids = dict()
@@ -70,7 +70,7 @@ class EssdDrive:
         lastUpdateKey = essd_constants.ESSD_UPTIME_KEY
         try:
             tmpString, _ = db.get(lastUpdateKey)
-        except:
+        except Exception:
             return
 
         uuids = dict()
@@ -195,7 +195,8 @@ class EssdDrive:
 
     def checkAddLookupEntry(self, db):
         if not self.uuid:
-            self.log.error(f'Unable to add lookup entry for {self.url}: UUID not defined')
+            self.log.error('UUID not defined')
+            self.log.error(f'Unable to add lookup entry for {self.url}')
             return
 
         uuid = str(self.uuid)
