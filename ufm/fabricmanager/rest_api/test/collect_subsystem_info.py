@@ -3,6 +3,8 @@ import argparse
 import json
 import socket
 
+from rest_api.test.clustermap_utils import get_transport_type, get_percent_available
+
 '''
 Create a connection to the UFM redfish API service using the redfish-client
 package.
@@ -45,13 +47,13 @@ def getSystemInfo(service_addr):
                         # Add the transport fields for each NIC
                         ethernet_list = []
                         ethernet_str = ','.join(tuple(('{:^20}'.format("Mac Addr"),
-                                                       '{:^14}'.format("IP Addr"),
+                                                       '{:^40}'.format("IP Addr"),
                                                        '{:^6}'.format("Port"),
                                                        '{:^12}'.format("Trans type"),
                                                        '{:^10}'.format("Status"))))
                         ethernet_list.append(ethernet_str)
                         ethernet_str = ','.join(tuple(('{:^20}'.format(''.rjust(20,'-')),
-                                                       '{:^14}'.format(''.rjust(14,'-')),
+                                                       '{:^40}'.format(''.rjust(14,'-')),
                                                        '{:^6}'.format(''.rjust(6,'-')),
                                                        '{:^12}'.format(''.rjust(12,'-')),
                                                        '{:^10}'.format(''.rjust(10,'-')))))
@@ -60,21 +62,23 @@ def getSystemInfo(service_addr):
                             if 'IPv4Addresses' in interface:
                                 for ipv4addr in interface.IPv4Addresses:
                                     if ipv4addr.Address:
+                                        transport_type, port = get_transport_type(ipv4addr)
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
-                                            '{:^14}'.format(str(ipv4addr.Address)),
-                                            '{:^6}'.format(str(ipv4addr.oem.Port)),
-                                            '{:^12}'.format(str(ipv4addr.oem.SupportedProtocol)),
+                                            '{:^40}'.format(str(ipv4addr.Address)),
+                                            '{:^6}'.format(str(port)),
+                                            '{:^12}'.format(str(transport_type)),
                                             '{:^10}'.format(str(interface.LinkStatus)))))
                                         ethernet_list.append(ethernet_str)
                             if 'IPv6Addresses' in interface:
                                 for ipv6addr in interface.IPv6Addresses:
                                     if ipv6addr.Address:
+                                        transport_type, port = get_transport_type(ipv4addr)
                                         ethernet_str = ','.join(tuple((
                                             '{:^20}'.format(str(interface.MACAddress)),
-                                            '{:^14}'.format(str(ipv6addr.Address)),
-                                            '{:^6}'.format(str(ipv4addr.oem.Port)),
-                                            '{:^12}'.format(str(ipv4addr.oem.SupportedProtocol)),
+                                            '{:^40}'.format(str(ipv6addr.Address)),
+                                            '{:^6}'.format(str(port)),
+                                            '{:^12}'.format(str(transport_type)),
                                             '{:^10}'.format(str(interface.LinkStatus)))))
                                         ethernet_list.append(ethernet_str)
 

@@ -2,6 +2,9 @@ import redfish_client
 import argparse
 import json
 import socket
+from datetime import datetime
+
+from rest_api.test.clustermap_utils import get_transport_type, get_percent_available
 
 
 def add_transport(transport, address, family, speed, transport_type, port, status):
@@ -31,26 +34,6 @@ def add_cm_maps(cluster_map):
     ]
 
 
-def get_transport_type(addr):
-    if 'oem' not in addr or 'SupportedProtocol' not in addr['oem']:
-        protocol = 'TCP'
-    else:
-        protocol = addr.oem.SupportedProtocol
-    if 'oem' not in addr or 'Port' not in addr['oem']:
-        port = 1024
-    else:
-        port = addr.oem.Port
-    return protocol, port
-
-
-def get_percent_available(storage):
-    if 'oem' not in storage or 'PercentAvailable' not in storage['oem']:
-        percent_available = 0
-    else:
-        percent_available = storage.oem.PercentAvailable
-    return percent_available
-
-
 '''
 Create a connection to the UFM redfish API service using the redfish-client
 package.
@@ -63,6 +46,7 @@ data.
 
 
 def get_cm(service_addr):
+    s_time = datetime.now()
     # Will throw if connection fails. No need to catch it as nothing more to do
     # in that case
     root = redfish_client.connect(service_addr, '', '')
@@ -126,6 +110,7 @@ def get_cm(service_addr):
                     subsystems_map.append(subsystem)
     cluster_map['subsystem_maps'] = subsystems_map
 
+    print(f"Building the clustermap took {(datetime.now() - s_time).seconds} seconds")
     return cluster_map
 
 
