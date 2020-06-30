@@ -55,6 +55,7 @@ class RedfishVlanBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
+            print('RedfishVlanBackend.get() failed')
             response = RedfishErrorResponse.get_server_error_response()
         return response
 
@@ -66,13 +67,13 @@ class RedfishVlanBackend():
         ret = {}
         ret['ports'] = []
 
-        prefix = '/switches/' + sw_id + '/VLANs/' + vlan_id
+        prefix = '/switches/' + sw_id + '/VLANs/' + vlan_id + '/'
         kv_dict = ufmdb_util.query_prefix(prefix)
         for k in kv_dict:
             key = k.split("/")[-2]
             val = k.split("/")[-1]
 
-            if key == 'ports':
+            if key == 'ports' and val:
                 ret['ports'].append(val)
             else:
                 ret[key] = val
@@ -126,6 +127,7 @@ class RedfishVlanCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception:
+            print('RedfishVlanCollectionBackend.get() failed')
             response = RedfishErrorResponse.get_server_error_response()
         return response
 
@@ -134,7 +136,7 @@ class RedfishVlanCollectionBackend():
         pass
 
     def get_vlans_for_switch(self,sw_id):
-        prefix = '/switches/' + sw_id + '/VLANs/list'
+        prefix = '/switches/' + sw_id + '/VLANs/list/'
         kv_dict = ufmdb_util.query_prefix(prefix)
 
         ret = []

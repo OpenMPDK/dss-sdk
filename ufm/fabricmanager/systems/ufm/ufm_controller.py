@@ -56,4 +56,5 @@ class UfmController(UfmThread):
                'service': 'controller',
                'commandcompleted': True}
 
+
         self.ufmArg.publisher.send('ufmmonitor', msg)
