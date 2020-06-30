@@ -1,9 +1,9 @@
 """
 Template class for switch clients
 """
+# from systems.switch import switch_constants
+# from systems.switch.switch_arg import SwitchArg
 
-from systems.switch import switch_constants
-from systems.switch.switch_arg import SwitchArg
 
 class SwitchClientTemplate(object):
     def __init__(self, swArg):
@@ -12,7 +12,6 @@ class SwitchClientTemplate(object):
 
         self.log.info("SwitchClientTemplate ip = {}".format(self.swArg.sw_ip))
         self.log.info("Init {}".format(self.__class__.__name__))
-
 
     def show_version(self):
         print('ERROR: SwitchClientTemplate.show_version must be implemented!')
@@ -54,4 +53,3 @@ class SwitchClientTemplate(object):
     def poll_to_db(self):
         print('ERROR: SwitchClientTemplate.poll_to_db must be implemented!')
         pass
-

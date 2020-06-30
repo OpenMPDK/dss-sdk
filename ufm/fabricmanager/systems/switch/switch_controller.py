@@ -6,7 +6,9 @@ import threading
 
 from ufm_thread import UfmThread
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
-from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
+from systems.switch.switch_mellanox.switch_mellanox_client import \
+                                                        SwitchMellanoxClient
+
 
 class Rfserver(threading.Thread):
     def __init__(self, event=None, port=None, process=None):
@@ -33,7 +35,7 @@ class Rfserver(threading.Thread):
                 socket.send_json(jsonResponse)
             except KeyboardInterrupt:
                 break
-            except:
+            except Exception:
                 time.sleep(1)
                 continue
 
@@ -66,14 +68,17 @@ class SwitchController(UfmThread):
     def start(self):
         self.log.info("Start {}".format(self.__class__.__name__))
 
-        self.rf = Rfserver(event=self.event, port=self.swArg.port, process=self.action_handler)
+        self.rf = Rfserver(event=self.event,
+                           port=5501,
+                           process=self.getDataFromDB)
         self.rf.start()
 
         if self.swArg.sw_type.lower() == 'mellanox':
             self.client = SwitchMellanoxClient(self.swArg)
             self.uuid = self.client.get_uuid()
         else:
-            raise Exception('Invalid switch type provided, {} is not valid'.format(self.swArg.sw_type))
+            raise Exception('Invalid switch type, {} is not valid'.format(
+                                                        self.swArg.sw_type))
 
         self._running = True
         super(SwitchController, self).start(threadName='SwitchController')
@@ -264,10 +269,10 @@ class SwitchController(UfmThread):
 
     def handle_associate_ip_to_vlan(self, vlan_id, ip_address):
         resp = self.client.associate_ip_to_vlan(vlan_id, ip_address)
-        #todo: adjust db entries
+        # todo: adjust db entries
 
     def handle_remove_ip_from_vlan(self, vlan_id, ip_address):
         resp = self.client.remove_ip_from_vlan(vlan_id, ip_address)
-        #todo: adjust db entries
+        # todo: adjust db entries
 
 
