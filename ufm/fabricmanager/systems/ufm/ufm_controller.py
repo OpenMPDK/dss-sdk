@@ -52,9 +52,9 @@ class UfmController(UfmThread):
                                                                 message))
 
         # this will send a Aka to publisher
-        msg_ok = dict()
-        msg_ok['status'] = True
+        msg = {'module': 'ufm',
+               'service': 'controller',
+               'cpmmandcompleted': True}
 
-        self.ufmArg.publisher.send("Aka", msg_ok)
 
         self.ufmArg.publisher.send('ufmmonitor', msg)
