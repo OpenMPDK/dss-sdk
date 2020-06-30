@@ -18,11 +18,9 @@ def essdMonitorCallback(ufmArg=None, essdArg=None, event=None):
     """
        This function is call for every update in dB
     """
-    print("_EMCB", flush=True, end='')
-
     eventKeyList = event.key.decode().split('/')
 
-    if '/essd/essdurls' in eventKeyList:
+    if essd_constants.ESSDURLS_KEY in eventKeyList:
         # Signal to the poller to re-scan the essd urls
         essdArg.updateEssdUrls = True
 
