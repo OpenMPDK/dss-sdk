@@ -21,10 +21,11 @@ class VlansMenu(UfmMenu):
 
         for member in rsp["Members"]:
             vlan = member["@odata.id"].split("/")[8]
-            print("      VLAN: ("+str(count)+")", vlan)
+            vlan_display = "VLAN " + vlan
+            print("      VLAN: ("+str(count)+")", vlan_display)
 
             self.add_item(labels=[str(count)],
-                          action=self._menu_action, priv=vlan, desc=vlan)
+                          action=self._menu_action, priv=vlan, desc=vlan_display)
 
             count = count + 1
 
@@ -63,7 +64,7 @@ class VlansMenu(UfmMenu):
             return
 
         payload = {}
-        payload["id"] = vlan_id
+        payload["VLANId"] = vlan_id
 
         rsp = ufmapi.redfish_post(self.crt["target"], payload)
         '''
@@ -114,7 +115,12 @@ class VlanMenu(UfmMenu):
         print("*          VLAN: ", vlan)
         print("             Id: ", rsp["Id"])
         print("    Description: ", rsp["Description"])
-        print("           Name: ", rsp["Name"])
+
+        if rsp["Name"]:
+            print("           Name: ", rsp["Name"])
+        else:
+            print("           Name: (empty)")
+
         print("     VLANEnable: ", rsp["VLANEnable"])
         print("         VLANId: ", rsp["VLANId"])
         print()
@@ -129,20 +135,21 @@ class VlanMenu(UfmMenu):
             self.dlt = dlt
 
         if "Links" in rsp and rsp["Links"]["Ports"]:
-            count = 0
-            print()
-            print("*  Ports Collection:")
+            if len(rsp["Links"]["Ports"]) > 0:
+                count = 0
+                print()
+                print("*  Ports Collection:")
 
-            for member in rsp["Links"]["Ports"]:
-                pt = member["@odata.id"].split("/")[8]
-                pt_display = 'Eth1/' + pt
-                print("      Port: ("+str(count)+")", pt_display)
+                for member in rsp["Links"]["Ports"]:
+                    pt = member["@odata.id"].split("/")[8]
+                    pt_display = 'Eth1/' + pt
+                    print("      Port: ("+str(count)+")", pt_display)
 
-                self.add_item(labels=[str(count)],
-                              action=self._menu_action, priv=pt,
-                              desc="Port: " + pt_display)
+                    self.add_item(labels=[str(count)],
+                                  action=self._menu_action, priv=pt,
+                                  desc="Port: " + pt_display)
 
-                count = count + 1
+                    count = count + 1
 
         return
 

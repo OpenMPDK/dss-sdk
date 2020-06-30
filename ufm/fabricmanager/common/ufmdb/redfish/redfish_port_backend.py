@@ -8,8 +8,9 @@ class RedfishPortBackend():
         self.cfg = {
             "@odata.id": "{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{Ports}/{port_id}",
             "@odata.type": "#Port.v1_2_1.Port",
-            "PortId": "{port_id}",
+            "Id": "{id}",
             "Description": "Port Interface",
+            "PortId": "{port_id}",
             "Name": "Eth1/{port_id}",
             "Mode": "{port_mode}"
         }
@@ -24,6 +25,7 @@ class RedfishPortBackend():
                                                                  Ports = redfish_constants.PORTS,
                                                                  port_id = port_id)
 
+            self.cfg["Id"] = self.cfg["Id"].format(id = port_id)
             self.cfg["PortId"] = self.cfg["PortId"].format(port_id = port_id)
             self.cfg["Name"] = self.cfg["Name"].format(port_id = port_id)
             port = self.get_port(sw_id, port_id)

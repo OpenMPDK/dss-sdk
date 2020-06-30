@@ -1,8 +1,10 @@
 # External imports
-import traceback
+import uuid
+import zmq
+import json
 
 # Flask imports
-from flask_restful import reqparse, Api, Resource
+from flask_restful import request, Resource
 
 # Internal imports
 import config
@@ -32,6 +34,38 @@ class VlanAPI(Resource):
         raise NotImplementedError
 
 
+class VlanActionAPI(Resource):
+
+    def get(self, fab_id, sw_id, vlan_id, act_str):
+        raise NotImplementedError
+
+    def post(self, fab_id, sw_id, vlan_id, act_str):
+        print('LUFAN: VlanActionAPI post received:' + act_str)
+        ctx = zmq.Context()
+        skt = ctx.socket(zmq.REQ)
+        skt.connect("tcp://localhost:5515")
+
+        data = dict()
+        data['cmd'] = act_str
+        data['request_id'] = str(uuid.uuid4())
+
+        json_request = json.dumps(data, indent=4, sort_keys=True)
+        json_response = None
+        try:
+            skt.send_json(json_request)
+            print("request {}".format(json_request))
+
+            # block until response is received
+            json_response = skt.recv_json()
+        except KeyboardInterrupt:
+            pass
+
+        print("Received: {}".format(json_response) )
+
+        skt.close()
+        ctx.destroy()
+
+        return json_response
 
 
 class VlanCollectionAPI(Resource):
@@ -47,9 +81,26 @@ class VlanCollectionAPI(Resource):
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
-    def post(self):
+    def post(self, payload):
         raise NotImplementedError
 
+
+class VlanCollectionActionAPI(Resource):
+
+    def get(self, fab_id, sw_id, act_str):
+        raise NotImplementedError
+
+    def post(self, fab_id, sw_id, act_str):
+        print('VlanCollectionActionAPI: post ' + act_str)
+        try:
+            payload = request.get_json(force=True)
+        except Exception as e:
+            print(e)
+
+        print('Printing payload ......')
+        print(payload)
+
+        return {}
 
 
 
