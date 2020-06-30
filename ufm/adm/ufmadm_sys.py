@@ -53,10 +53,9 @@ class SysMenu(UfmMenu):
         if rsp is None:
             return
 
-        if "Identifiers" not in rsp:
-            return
-
-        format = rsp["Identifiers"][0]["DurableNameFormat"]
+        format = None
+        if "Identifiers" in rsp:
+            format = rsp["Identifiers"][0]["DurableNameFormat"]
 
         if format == "NQN":
             self.name = "subsys"
@@ -101,6 +100,12 @@ class SysMenu(UfmMenu):
                 print("    PrefixLength:", address["PrefixLength"])
                 print("          Origin:", address["AddressOrigin"])
                 print("           State:", address["AddressState"])
+
+        elif 'Id' in rsp:
+            self.name = "system"
+            print()
+            print("*     System:", sys)
+            print("        UUID:", rsp["Id"])
 
         else:
             self.name = "unknown"
