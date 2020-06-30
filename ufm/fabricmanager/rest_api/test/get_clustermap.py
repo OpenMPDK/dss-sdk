@@ -3,6 +3,8 @@ import argparse
 import json
 import socket
 
+from rest_api.test.clustermap_utils import get_transport_type, get_percent_available
+
 
 def add_transport(transport, address, family, speed, transport_type, port, status):
     transport['subsystem_address'] = address
@@ -29,26 +31,6 @@ def add_cm_maps(cluster_map):
             'cm_server_name': hostname
         }
     ]
-
-
-def get_transport_type(addr):
-    if 'oem' not in addr or 'SupportedProtocol' not in addr['oem']:
-        protocol = 'TCP'
-    else:
-        protocol = addr.oem.SupportedProtocol
-    if 'oem' not in addr or 'Port' not in addr['oem']:
-        port = 1024
-    else:
-        port = addr.oem.Port
-    return protocol, port
-
-
-def get_percent_available(storage):
-    if 'oem' not in storage or 'PercentAvailable' not in storage['oem']:
-        percent_available = 0
-    else:
-        percent_available = storage.oem.PercentAvailable
-    return percent_available
 
 
 '''
