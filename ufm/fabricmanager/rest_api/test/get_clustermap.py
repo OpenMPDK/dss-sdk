@@ -2,7 +2,6 @@ import redfish_client
 import argparse
 import json
 import socket
-from datetime import datetime
 
 from rest_api.test.clustermap_utils import get_transport_type, get_percent_available
 
@@ -46,7 +45,6 @@ data.
 
 
 def get_cm(service_addr):
-    s_time = datetime.now()
     # Will throw if connection fails. No need to catch it as nothing more to do
     # in that case
     root = redfish_client.connect(service_addr, '', '')
@@ -110,7 +108,6 @@ def get_cm(service_addr):
                     subsystems_map.append(subsystem)
     cluster_map['subsystem_maps'] = subsystems_map
 
-    print(f"Building the clustermap took {(datetime.now() - s_time).seconds} seconds")
     return cluster_map
 
 

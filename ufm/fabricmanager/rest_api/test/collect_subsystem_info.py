@@ -1,7 +1,6 @@
 import redfish_client
 import argparse
 import json
-import socket
 
 from rest_api.test.clustermap_utils import get_transport_type, get_percent_available
 
