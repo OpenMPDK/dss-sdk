@@ -1,8 +1,7 @@
 
 from ufm_thread import UfmThread
 from systems.switch import switch_constants
-from systems.switch.switch_mellanox.switch_mellanox_client import \
-                                                        SwitchMellanoxClient
+from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 
 class SwitchPoller(UfmThread):
@@ -28,9 +27,7 @@ class SwitchPoller(UfmThread):
         if self.swArg.sw_type.lower() == 'mellanox':
             self.client = SwitchMellanoxClient(self.swArg)
         else:
-            raise \
-                Exception('Invalid switch type, {} is not valid'.format(
-                                                        self.swArg.sw_type))
+            raise Exception('Invalid switch type, {} is not valid'.format(self.swArg.sw_type))
 
         self._running = True
         super(SwitchPoller, self).start(

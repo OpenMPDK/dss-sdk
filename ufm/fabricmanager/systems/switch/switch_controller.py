@@ -6,8 +6,7 @@ import threading
 
 from ufm_thread import UfmThread
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
-from systems.switch.switch_mellanox.switch_mellanox_client import \
-                                                        SwitchMellanoxClient
+from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
 
 class Rfserver(threading.Thread):
@@ -274,5 +273,3 @@ class SwitchController(UfmThread):
     def handle_remove_ip_from_vlan(self, vlan_id, ip_address):
         resp = self.client.remove_ip_from_vlan(vlan_id, ip_address)
         # todo: adjust db entries
-
-
