@@ -1,13 +1,20 @@
 from ufmmenu import UfmMenu
 import ufmapi
+import ufmadm_util
 
 
 class VlansMenu(UfmMenu):
     def __init__(self, fab="", sw=""):
         UfmMenu.__init__(self, name="vlans", back_func=self._back_action)
 
+        self.fab = fab
+        self.sw = sw
+        self._refresh()
+        return
+
+    def _refresh(self):
         rsp = ufmapi.redfish_get(
-            "/Fabrics/" + fab + "/Switches/" + sw + "/VLANs")
+            "/Fabrics/" + self.fab + "/Switches/" + self.sw + "/VLANs")
 
         if rsp is None:
             return
@@ -38,9 +45,6 @@ class VlansMenu(UfmMenu):
                           desc=crt["description"])
             self.crt = crt
 
-        self.fab = fab
-        self.sw = sw
-        self.vlan = vlan
         return
 
     def _back_action(self, menu, item):
@@ -67,18 +71,13 @@ class VlansMenu(UfmMenu):
         payload["VLANId"] = vlan_id
 
         rsp = ufmapi.redfish_post(self.crt["target"], payload)
-        '''
-            TODO: remove these two lines once the backend UFM supports the
-            Post command
-        '''
-        print(rsp)
-        return
 
-        if rsp['Status'] != 200:
-            print("VLAN Create request failed.")
-        else:
-            print("VLAN Created.")
+        ufmadm_util.print_switch_result(rsp,
+                                        'vlan ' + str(vlan_id),
+                                        'VLAN created',
+                                        'Failed to create VLAN')
 
+        self._refresh()
         return
 
 
@@ -98,6 +97,7 @@ class VlanMenu(UfmMenu):
 
         self.fab = fab
         self.sw = sw
+        self.vlan = vlan
         UfmMenu.__init__(self, name="vlan", back_func=self._back_action)
 
         rsp = ufmapi.redfish_get(
@@ -112,7 +112,6 @@ class VlanMenu(UfmMenu):
         print()
         print("*        Fabric: ", fab)
         print("*        Switch: ", sw)
-        print("*          VLAN: ", vlan)
         print("             Id: ", rsp["Id"])
         print("    Description: ", rsp["Description"])
 
@@ -168,17 +167,13 @@ class VlanMenu(UfmMenu):
 
     def _delete_vlan_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.dlt["target"])
-        '''
-            TODO: remove these two lines once the backend UFM supports the
-            Post command
-        '''
-        print(rsp)
-        return
 
-        if rsp['Status'] != 200:
-            print("VLAN deleted")
-        else:
-            print("Failed to delete VLAN")
+        succeeded = ufmadm_util.print_switch_result(rsp,
+                                                    'no vlan ' + str(self.vlan),
+                                                    'VLAN deleted',
+                                                    'Failed to delete VLAN')
+        if succeeded:
+            self._back_action(menu, item)
 
         return
 

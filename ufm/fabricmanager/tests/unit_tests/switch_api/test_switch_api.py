@@ -38,7 +38,8 @@ def sw():
                       log = log,
                       db = db,
                       usrname = USRNAME,
-                      pwd = PWD)
+                      pwd = PWD,
+                      port = 5515)
 
     sw = SwitchMellanoxClient(swArg)
     yield sw
@@ -147,5 +148,22 @@ def test_poll_to_db(sw):
         verify_db()
 
 
+
+
+def test_delete_vlan(sw):
+    data = {
+        "commands":
+        [
+            "vlan 7",
+            "exit",
+            "no vlan 7"
+        ]
+    }
+    resp = sw.send_cmd(data)
+    json_obj = resp.json()
+    assert(json_obj["results"][0]["executed_command"] == "vlan 7")
+    assert(json_obj["results"][0]["status"] == "OK")
+    assert(json_obj["results"][2]["executed_command"] == "no vlan 7")
+    assert(json_obj["results"][2]["status"] == "OK")
 
 

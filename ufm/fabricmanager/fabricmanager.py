@@ -65,7 +65,8 @@ from rest_api.redfish.Switch import SwitchEmulationAPI, \
 from rest_api.redfish.Port import PortCollectionEmulationAPI, \
     PortEmulationAPI, \
     PortCollectionAPI, \
-    PortAPI
+    PortAPI, \
+    PortActionAPI
 from rest_api.redfish.VLAN import VlanCollectionEmulationAPI, \
     VlanEmulationAPI, \
     VlanCollectionAPI, \
@@ -116,6 +117,9 @@ REST_BASE = redfish_constants.REST_BASE + '/'
 
 # Create Flask server
 app = Flask(__name__)
+
+# Disable strict trailing slash for all urls
+app.url_map.strict_slashes = False
 
 # Create RESTful API
 api = Api(app)
@@ -240,6 +244,7 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(SwitchAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>')
     api.add_resource(SwitchCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches')
     api.add_resource(PortAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>')
+    api.add_resource(PortActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>/Actions/<string:act_str>')
     api.add_resource(PortCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports')
     api.add_resource(VlanAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>')
     api.add_resource(VlanActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/VLANs/<string:vlan_id>/Actions/<string:act_str>')

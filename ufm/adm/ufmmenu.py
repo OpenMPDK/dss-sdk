@@ -75,6 +75,9 @@ class UfmMenu(object):
         self.items.append(item)
         return
 
+    def clear_items(self):
+        self.items.clear()
+
     def rem_item(self, label=""):
         if label != "":
             for item in self.items:

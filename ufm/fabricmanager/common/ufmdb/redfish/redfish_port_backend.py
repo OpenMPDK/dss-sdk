@@ -28,6 +28,7 @@ class RedfishPortBackend():
             self.cfg["Id"] = self.cfg["Id"].format(id = port_id)
             self.cfg["PortId"] = self.cfg["PortId"].format(port_id = port_id)
             self.cfg["Name"] = self.cfg["Name"].format(port_id = port_id)
+
             port = self.get_port(sw_id, port_id)
             self.cfg["Mode"] = self.cfg["Mode"].format(port_mode = port["mode"])
 
@@ -105,6 +106,7 @@ class RedfishPortBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
+            print('RedfishPortBackend.get() failed')
             response = RedfishErrorResponse.get_server_error_response()
         return response
 
@@ -116,22 +118,28 @@ class RedfishPortBackend():
         ret = {"mode": "", "access_vlan": "", "allowed_vlans": []}
         pre = "/switches/" + sw_id + "/ports/" + str(port_id)
 
-        prefix = pre + "/mode"
+        prefix = pre + "/mode/"
         kv_dict = ufmdb_util.query_prefix(prefix)
         for k in kv_dict:
             ret["mode"] = k.split('/')[-1]
 
-        prefix = pre + "/network/access_vlan"
+        prefix = pre + "/network/access_vlan/"
         kv_dict = ufmdb_util.query_prefix(prefix)
         for k in kv_dict:
             ret["access_vlan"] = k.split("/")[-1]
 
-        prefix = pre + "/network/allowed_vlans"
+        prefix = pre + "/network/allowed_vlans/"
         kv_dict = ufmdb_util.query_prefix(prefix)
+        print(kv_dict)
         for k in kv_dict:
             kk = k.split("/")[-1]
-            if kk: #non-empty string
-                ret["allowed_vlans"].append(kk)
+            if kk:
+                '''
+                allowed_vlans: 1-8,10,14-20
+                need to convert numeric string ranges to a list
+                '''
+                temp = ufmdb_util.convert_ranges_to_list(kk)
+                ret["allowed_vlans"] = temp
 
         return ret
 
@@ -168,6 +176,7 @@ class RedfishPortCollectionBackend():
                 response = redfish_constants.NOT_FOUND
 
         except Exception:
+            print('RedfishPortCollectionBackend.get() failed')
             response = RedfishErrorResponse.get_server_error_response()
         return response
 
@@ -178,7 +187,7 @@ class RedfishPortCollectionBackend():
 
     # return a list of switch ids that belong to this fabric
     def get_ports_for_switch(self,sw_id):
-        prefix = '/switches/' + sw_id + '/ports/list'
+        prefix = '/switches/' + sw_id + '/ports/list/'
         kv_dict = ufmdb_util.query_prefix(prefix)
 
         ret = []
