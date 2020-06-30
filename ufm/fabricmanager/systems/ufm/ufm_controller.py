@@ -48,12 +48,15 @@ class UfmController(UfmThread):
         return self._running
 
     def processControllerMessages(self, topic, message):
-        print("\nTopic: {}\nMessage to process is: {}\n".format(topic,
-                                                                message))
+        #print("\nTopic: {}\nMessage to process is: {}\n".format(topic, message) )
+
+        #print("Recv msg: OK")
 
         # this will send a Aka to publisher
-        msg = {'module': 'ufm',
-               'service': 'controller',
-               'commandcompleted': True}
+        msg_ok = dict()
+        msg_ok['status'] = True
+
+        self.ufmArg.publisher.send("Aka", msg_ok)
+        #print("Send OK")
 
         self.ufmArg.publisher.send('ufmmonitor', msg)
