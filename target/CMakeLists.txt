@@ -254,15 +254,18 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS oss
 )
 
+execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
         TARGET spdk_tcp POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}\oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk/
-	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/include/spdk/
+	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/DragonFly/bin/        
+        COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
+	COMMAND tar cvzf nkv-dragonfly-bin-${DATE}.tgz DragonFly
 )
