@@ -17,11 +17,6 @@ g_conf_global_text = """[Global]
 [Nvmf]
   AcceptorPollRate 10000
 
-[Transport1]
-  Type TCP
-  MaxIOSize 2097152
-  IOUnitSize 2097152
-  MaxQueuesPerSession 64
 
 [DFLY]
   KV_PoolEnabled Yes
@@ -47,7 +42,15 @@ g_dfly_wal_log_dev_name = """  wal_log_dev_name \"walbdev-%(num)sn1\"
 g_dfly_wal_cache_dev_nqn_name = """  wal_cache_dev_nqn_name \"%(nqn)s\"
 """
 
-g_transport = """
+g_tcp_transport = """
+[Transport1]
+  Type TCP
+  MaxIOSize 2097152
+  IOUnitSize 2097152
+  MaxQueuesPerSession 64
+"""
+
+g_rdma_transport = """
 [Transport2]
   Type RDMA
   MaxIOSize 2097152
@@ -91,6 +94,7 @@ g_tgt_build = 0
 g_tgt_launch = 0
 g_core_mask = 0
 g_tgt_checkout = 0
+g_tcp = 1
 g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
@@ -249,7 +253,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subtext += g_nvme_global_text
 
-    global g_conf_global_text, g_wal, g_rdma
+    global g_conf_global_text, g_wal, g_rdma, g_tcp
 
     drive_count = 0
     kv_drive_count = 0
@@ -330,8 +334,12 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     g_conf_global_text += g_dfly_wal_cache_dev_nqn_name % {
         "nqn": nqn_text + "-kv_data" + str(ss_number)
     }
+
+    if g_tcp:
+        g_conf_global_text += g_tcp_transport
+
     if g_rdma:
-        g_conf_global_text += g_transport
+        g_conf_global_text += g_rdma_transport
 
     kv_ss_drive_count = kv_drive_count / g_kv_ssc
     if kv_ss_drive_count == 0:
@@ -347,11 +355,12 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 "serial_number": random_with_N_digits(10),
             }
             for ip in ip_addrs:
-                subsystem_text += g_subsystem_listen_text % {
-                    "transport": "TCP",
-                    "ip_addr": str(ip),
-                    "port": 1023,
-                }
+                if g_tcp:
+                    subsystem_text += g_subsystem_listen_text % {
+                        "transport": "TCP",
+                        "ip_addr": str(ip),
+                        "port": 1023,
+                    }
                 if g_rdma:
                     subsystem_text += g_subsystem_listen_text % {
                         "transport": "RDMA",
@@ -381,11 +390,12 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         }
         ss_number = ss_number + 1
         for ip in ip_addrs:
-            subsystem_text += g_subsystem_listen_text % {
-                "transport": "TCP",
-                "ip_addr": str(ip),
-                "port": 1023,
-            }
+            if g_tcp:
+                subsystem_text += g_subsystem_listen_text % {
+                    "transport": "TCP",
+                    "ip_addr": str(ip),
+                    "port": 1023,
+                }
             if g_rdma:
                 subsystem_text += g_subsystem_listen_text % {
                     "transport": "RDMA",
@@ -586,6 +596,9 @@ The most commonly used dss target commands are:
             help="number of block devices to handle write burst",
         )
         parser.add_argument(
+            "-tcp", "--tcp", type=int, required=False, help="enable TCP support"
+        )
+        parser.add_argument(
             "-rdma", "--rdma", type=int, required=False, help="enable RDMA support"
         )
         parser.add_argument(
@@ -598,7 +611,7 @@ The most commonly used dss target commands are:
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_rdma, g_kv_ssc
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -609,6 +622,8 @@ The most commonly used dss target commands are:
             g_ip_addrs = args.ip_addresses
         if args.wal:
             g_wal = args.wal
+        if args.tcp:
+            g_tcp = args.tcp
         if args.rdma:
             g_rdma = args.rdma
         if args.kv_ssc:
@@ -623,6 +638,8 @@ The most commonly used dss target commands are:
             g_wal
         ) + " rdma=" + str(
             g_rdma
+        ) + " tcp=" + str(
+            g_tcp
         )
         global g_config
         g_config = 1
