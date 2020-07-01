@@ -143,27 +143,17 @@ def nvme_discover(proto, ip, port):
     nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
     return nqn_info
-
-
-def nvme_discover_connect(disc_proto, disc_ip, disc_port, qpair):
-    '''
-    Do nvme connect using the array info we got
-    '''
-    # Get all discovered NQN info in one place.
-    nqn_info = nvme_discover(disc_proto, disc_ip, disc_port)
-    if not nqn_info:
-        print("Nothing discovered. Exiting")
-        sys.exit(1)
-    print("----- Doing nvme connect -----")
-    for i in range(len(nqn_info)):
-       #print("nvme connect -t %s -a %s -s %s -n %s -i %s " \
-       #        %(nqn_info[i][0], nqn_info[i][3], nqn_info[i][1], nqn_info[i][2], qpair))
+    
+def nvme_connect(nqn_info_sorted, qpair):
+    for nqn_info in nqn_info_sorted:
         cmd = "nvme connect -t %s -a %s -s %s -n %s -i %d " \
-                %(nqn_info[i][0], nqn_info[i][3], nqn_info[i][1], nqn_info[i][2], qpair)
+                %(nqn_info[0], nqn_info[3], nqn_info[1], nqn_info[2], qpair)
         ret, out, err = exec_cmd(cmd)
         if ret != 0:
             print("Command Failed: %s, %s, %s" %(cmd, out, err))
             continue
+    print("Waiting for connect to happen 2 sec..")
+    time.sleep(2) 
 
 def build_driver():
     '''
@@ -265,6 +255,7 @@ def create_config_file():
     print("----- Creating nkv_config.json -----")
     # Get list of drives connected to NVMf Target
     drives_list = get_nvme_drives()
+    print("drive list: %s" % drives_list)
     if drives_list:
         drives_list = drives_list.split(',')
     else:
@@ -282,7 +273,7 @@ def create_config_file():
     with open(nkv_config_file, 'r') as f:
         data = json.load(f)
         temp = data['nkv_local_mounts'] 
-    
+         
         for drive in drives_list:
             #print("{ mount_point: %s },")
             y = { "mount_point": drive }
@@ -310,19 +301,21 @@ def run_nkv_test_cli():
 def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
+    nqn_infos = []
 
     for addr in disc_addrs:
         if addr.count(":") != 1:
             raise ValueError("Error: malformed address " + addr + " expected ip:port.")
         disc_ip, disc_port = addr.split(":")
-        nvme_discover_connect(disc_proto, disc_ip, int(disc_port), disc_qpair)
+        nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
+    # Sort NQN infos
+    nqn_infos.sort(key=lambda x : x[3].split(":")[0])
     # Connect to all discovered NQNs and their IPs.
+    nvme_connect(nqn_infos, disc_qpair)
 
     # Create nkv_config.json file
     create_config_file()
 
-    # Run sample nkv_test_cli with "-o 3" option.
-    run_nkv_test_cli()
 
 def config_minio_sa(node, ec):
     print("node details ec %d %s" %(ec, node))
@@ -337,7 +330,7 @@ def config_minio_sa(node, ec):
         f.write(minio_settings)
     print("Successfully created MINIO startup script %s" %(minio_startup))
     
-def config_minio_dist(node_details, ec):
+def config_minio_dist(node_details, ec, instances):
     print("node details ec %d %s" %(ec, node_details))
     node_count = 0
     node_index = 0
@@ -355,7 +348,7 @@ def config_minio_dist(node_details, ec):
         i += 4
         node_index += 1
         minio_startup = "minio_startup_" + ip + ".sh"
-        minio_settings = gl_minio_start_sh % {"EC": ec, "IC":node_count, "DIST":1, "IP":ip, "PORT":port}
+        minio_settings = gl_minio_start_sh % {"EC": ec, "IC":instances, "DIST":1, "IP":ip, "PORT":port}
         minio_settings += minio_dist_node 
         with open(minio_startup, 'w') as f:
             f.write(minio_settings)
@@ -365,11 +358,11 @@ def config_minio_dist(node_details, ec):
         f.write(etc_hosts_map)
     print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
 
-def config_minio(dist, sa, ec):
+def config_minio(dist, sa, ec, instances):
     if(sa):
         config_minio_sa(sa, ec)
     elif(dist):
-        config_minio_dist(dist, ec)
+        config_minio_dist(dist, ec, instances)
 
 
 class dss_host_args(object):
@@ -422,6 +415,7 @@ The most commonly used dss target commands are:
         parser.add_argument("-dist", "--dist", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
+        parser.add_argument("-instances", "--instances", type=int, required=False, help="Number of MINIO instances per Node", default=2)
         args = parser.parse_args(sys.argv[2:])
        
         global g_minio_dist, g_minio_stand_alone
@@ -429,10 +423,13 @@ The most commonly used dss target commands are:
             g_minio_dist = args.dist 
         if args.stand_alone:
             g_minio_stand_alone = args.stand_alone 
-        config_minio(args.dist, args.stand_alone, args.ec)
+        config_minio(args.dist, args.stand_alone, args.ec, args.instances)
 
     def config_driver(self):
         build_driver()
+
+    def verify_nkv_cli(self):
+        run_nkv_test_cli()
 
     def remove(self):
         parser = argparse.ArgumentParser(
