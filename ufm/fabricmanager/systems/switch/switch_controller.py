@@ -68,16 +68,15 @@ class SwitchController(UfmThread):
         self.log.info("Start {}".format(self.__class__.__name__))
 
         self.rf = Rfserver(event=self.event,
-                           port=5501,
-                           process=self.getDataFromDB)
+                           port=self.swArg.port,
+                           process=self.action_handler)
         self.rf.start()
 
         if self.swArg.sw_type.lower() == 'mellanox':
             self.client = SwitchMellanoxClient(self.swArg)
             self.uuid = self.client.get_uuid()
         else:
-            raise Exception('Invalid switch type, {} is not valid'.format(
-                                                        self.swArg.sw_type))
+            raise Exception('Invalid switch type, {} is not valid'.format(self.swArg.sw_type))
 
         self._running = True
         super(SwitchController, self).start(threadName='SwitchController')
@@ -251,12 +250,14 @@ class SwitchController(UfmThread):
                     kv_dict = ufmdb_util.query_prefix(pre + str(port_id) + '/network/access_vlan/')
                     for k in kv_dict:
                         vlan = k.split('/')[-1]
-                        self.db.delete('/switches/' + self.uuid + '/VLANs/' + str(vlan) + '/network/ports/' + str(port_id))
+                        self.db.delete('/switches/' + self.uuid + '/VLANs/' + str(vlan) +
+                                       '/network/ports/' + str(port_id))
 
                     kv_dict = ufmdb_util.query_prefix(pre + str(port_id) + '/network/allowed_vlans')
                     for k in kv_dict:
                         vlan = k.split('/')[-1]
-                        self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan) + '/network/ports/' + str(port_id))
+                        self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan) + '/network/ports/' +
+                                              str(port_id))
 
                     self.db.delete_prefix(pre + str(port_id) + '/mode')
                     self.db.delete_prefix(pre + str(port_id) + '/network/access_vlan')
