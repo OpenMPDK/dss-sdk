@@ -11,6 +11,57 @@ index 17724e1..51246e5 100644
  
  SPDK_LIB_LIST = $(ALL_MODULES_LIST)
  SPDK_LIB_LIST += event_bdev event_copy event_nvmf event_net
+diff --git a/configure b/configure
+index c8867b6..e554d86 100755
+--- a/configure
++++ b/configure
+@@ -351,25 +351,27 @@ if [ "${CONFIG[RDMA]}" = "y" ]; then
+ 		ibv_ver_str="$(basename $ibv_lib_file)"
+ 		ibv_maj_ver=`echo $ibv_ver_str | cut -d. -f3`
+ 		ibv_min_ver=`echo $ibv_ver_str | cut -d. -f4`
+-		if [[ "$ibv_maj_var" -gt 1 || ("$ibv_maj_ver" -eq 1 && "$ibv_min_ver" -ge 1) ]]; then
+-			CONFIG[RDMA_SEND_WITH_INVAL]="y"
+-		else
+-			CONFIG[RDMA_SEND_WITH_INVAL]="n"
+-			echo "
+-*******************************************************************************
+-WARNING: The Infiniband Verbs opcode Send With Invalidate is either not
+-supported or is not functional with the current version of libibverbs installed
+-on this system. Please upgrade to at least version 1.1.
+-
+-Beginning with Linux kernel 4.14, the kernel NVMe-oF initiator leverages Send
+-With Invalidate RDMA operations to improve performance. Failing to use the
+-Send With Invalidate operation on the NVMe-oF target side results in full
+-functionality, but greatly reduced performance. The SPDK NVMe-oF target will
+-be unable to leverage that operation using the currently installed version
+-of libibverbs, so Linux kernel NVMe-oF initiators based on kernels greater
+-than or equal to 4.14 will see significantly reduced performance.
+-*******************************************************************************"
+-		fi
++		#Compile without RDMA_SEND_WITH_INVAL - there is a known bug when using this with large key
++		CONFIG[RDMA_SEND_WITH_INVAL]="n"
++#		if [[ "$ibv_maj_var" -gt 1 || ("$ibv_maj_ver" -eq 1 && "$ibv_min_ver" -ge 1) ]]; then
++#			CONFIG[RDMA_SEND_WITH_INVAL]="y"
++#		else
++#			CONFIG[RDMA_SEND_WITH_INVAL]="n"
++#			echo "
++#*******************************************************************************
++#WARNING: The Infiniband Verbs opcode Send With Invalidate is either not
++#supported or is not functional with the current version of libibverbs installed
++#on this system. Please upgrade to at least version 1.1.
++#
++#Beginning with Linux kernel 4.14, the kernel NVMe-oF initiator leverages Send
++#With Invalidate RDMA operations to improve performance. Failing to use the
++#Send With Invalidate operation on the NVMe-oF target side results in full
++#functionality, but greatly reduced performance. The SPDK NVMe-oF target will
++#be unable to leverage that operation using the currently installed version
++#of libibverbs, so Linux kernel NVMe-oF initiators based on kernels greater
++#than or equal to 4.14 will see significantly reduced performance.
++#*******************************************************************************"
++#		fi
+ 	fi
+ fi
+ 
 diff --git a/include/spdk/bdev.h b/include/spdk/bdev.h
 index ec45314..4631ed9 100644
 --- a/include/spdk/bdev.h
