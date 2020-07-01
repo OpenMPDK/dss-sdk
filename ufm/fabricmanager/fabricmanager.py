@@ -86,13 +86,7 @@ from systems.ufmarg import UfmArg
 from systems.switch.switch import EthSwitch
 from systems.switch.switch_arg import SwitchArg
 
-from systems.smart.smart import Smart
-
 from systems.essd import essd_constants
-
-from systems.essd.essd import Essd
-
-from systems.ebof.ebof import Ebof
 
 from systems.nkv.nkv import Nkv
 
@@ -369,24 +363,6 @@ def parseUfmConfig(ufmArg=None, ufmMetadata=None):
         ufmArg.nkvConfig['enable'] = False
 
     try:
-        ufmArg.essdConfig = ufmMetadata['essd']
-        ufmArg.ufmPorts.append(ufmArg.essdConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.essdConfig['enable'] = False
-
-    try:
-        ufmArg.ebofConfig = ufmMetadata['ebof']
-        ufmArg.ufmPorts.append(ufmArg.ebofConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.ebofConfig['enable'] = False
-
-    try:
-        ufmArg.smartConfig = ufmMetadata['smart']
-        ufmArg.ufmPorts.append(ufmArg.smartConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.smartConfig['enable'] = False
-
-    try:
         ufmArg.switchConfig = ufmMetadata['switch']
         # ufmArg.ufmPorts.append(ufmArg.switchConfig['messageQueuePort'])
     except Exception:
@@ -406,35 +382,6 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
                     hostname=ufmArg.hostname,
                     db=ufmArg.deprecatedDb)
             )
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.essdConfig['enable']:
-            subSystems.append(Essd(ufmArg))
-
-            try:
-                # Urls of the essd in the config file is optional
-                if ufmArg.essdConfig['essdDrives']:
-                    insertEssdUrls(db=ufmArg.db,
-                                   essdUrls=ufmArg.essdConfig['essdDrives'])
-            except Exception:
-                pass
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.ebofConfig['enable']:
-            subSystems.append(Ebof())
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.smartConfig['enable']:
-            subSystems.append(Smart())
     except Exception as e:
         log.exception(e)
         pass
