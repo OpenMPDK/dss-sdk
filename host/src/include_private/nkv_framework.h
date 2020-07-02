@@ -50,6 +50,8 @@
 #include "auto_discovery.h"
 #include <condition_variable>
 #include <pthread.h>
+#include <mutex>
+
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
   #define NKV_RETRIEVE_OP   1
@@ -98,6 +100,9 @@
   extern int32_t nkv_in_memory_exec;
   extern std::atomic<uint32_t> nic_load_balance;
   extern std::atomic<uint32_t> nic_load_balance_policy;
+
+  // Global lock used for boost read_json and cv_global
+  extern std::mutex mtx_global;
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;

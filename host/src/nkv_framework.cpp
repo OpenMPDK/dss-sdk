@@ -74,6 +74,8 @@ uint32_t nkv_max_key_length = 0;
 uint32_t nkv_max_value_length = 0;
 int32_t nkv_in_memory_exec = 0;
 
+std::mutex mtx_global;
+
 std::atomic<uint32_t> nic_load_balance (0);
 std::atomic<uint32_t> nic_load_balance_policy (0);
 #define iter_buff (32*1024)
@@ -1434,7 +1436,7 @@ nkv_result NKVTargetPath::perform_remote_listing(const char* key_prefix_iter, co
         return map_kvs_err_code_to_nkv_err_code(ret);
       }
 
-      uint32_t *value_buffer = (uint32_t *)((void*)kvsvalue.value + kvsvalue.offset);
+      uint32_t *value_buffer = (uint32_t *)((uint8_t *)kvsvalue.value + kvsvalue.offset);
       lnr_keys = *value_buffer;
       value_buffer += 1; /* number of keys field consumed already*/
       max_keys_listed += lnr_keys;
