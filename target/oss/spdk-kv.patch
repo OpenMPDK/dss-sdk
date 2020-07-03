@@ -2702,7 +2702,7 @@ index 2812e20..365a2e3 100644
 +COMMON_CFLAGS += -I$(SPDK_ROOT_DIR)/include/oss
 +COMMON_CFLAGS += -I$(SPDK_ROOT_DIR)/include/dssd/include
 +COMMON_CFLAGS += -I$(SPDK_ROOT_DIR)/include/dssd/lib/libustat
-+SYS_LIBS += -lm -ltbb -ldl -L$(SPDK_ROOT_DIR)/../../DragonFly/lib -loss -ldssd -lstdc++
++SYS_LIBS += -lm -ltbb -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -loss -ldssd -lstdc++
 +
  ifeq ($(CONFIG_RDMA),y)
  SYS_LIBS += -libverbs -lrdmacm
