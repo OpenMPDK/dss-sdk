@@ -81457,7 +81457,7 @@ index 0000000..f0716f6
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 new file mode 100644
-index 0000000..13e3ab2
+index 0000000..38928bc
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 @@ -0,0 +1,627 @@
@@ -81481,7 +81481,7 @@ index 0000000..13e3ab2
 +#include <linux/fault-inject.h>
 +#include <linux/rcupdate.h>
 +
-+#define DRV_VERSION     "20200508 <beta>"
++#define DRV_VERSION     "20200514 <beta>"
 +
 +#define is_kv_append_cmd(opcode)	((opcode) == nvme_cmd_kv_append)
 +#define is_kv_store_cmd(opcode)	   	((opcode) == nvme_cmd_kv_store)
@@ -85251,10 +85251,10 @@ index 0000000..3559fba
 +module_exit(nvme_exit);
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
 new file mode 100644
-index 0000000..6395085
+index 0000000..8d2190d
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
-@@ -0,0 +1,2472 @@
+@@ -0,0 +1,2473 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NVMe over Fabrics RDMA host code.
@@ -87050,6 +87050,7 @@ index 0000000..6395085
 +				req->mr->rkey);
 +			nvme_rdma_error_recovery(queue->ctrl);
 +		}
++                refcount_set(&req->ref, 1);
 +	} else {
 +		if (req->key_mr) {
 +			int ret;
