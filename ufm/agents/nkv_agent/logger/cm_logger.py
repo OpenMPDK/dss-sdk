@@ -137,9 +137,9 @@ class CMLogger(object):
                     'datefmt': '%Y-%m-%d %H:%M:%S'
                 },
                 'syslog': {
-                    #'format': '[%(levelname)s]  %(name)s -%(filename)s[%(
+                    # 'format': '[%(levelname)s]  %(name)s -%(filename)s[%(
                     # lineno)d] %(message)s',
-                    #'datefmt': '%Y-%m-%d %H:%M:%S'
+                    # 'datefmt': '%Y-%m-%d %H:%M:%S'
                     # %(name) is the tag for syslog and it should be in the
                     # second field as well. Otherwise the message wont be
                     # detected by the rsyslog to do special processing
@@ -195,7 +195,7 @@ class CMLogger(object):
             }
         }
         handlers = ['file']
-        if 'console'in log_cfg and log_cfg['console'] == 'enabled':
+        if 'console' in log_cfg and log_cfg['console'] == 'enabled':
             handlers.append('console')
         if 'time_rotation' in log_cfg and log_cfg['time_rotation'] == 'enabled':
             handlers.append('time_rotation_handler')
@@ -250,12 +250,12 @@ file_cnt=5
     with open(conf_file, 'w') as f:
         f.write(sample_config)
 
-    l = CMLogger("Test", conf_file)
-    x = l.get_log_config_options()
-    logger = l.create_logger()
+    ll = CMLogger("Test", conf_file)
+    x = ll.get_log_config_options()
+    logger = ll.create_logger()
     for i in range(10):
         logger.info("Testing the code validation - %s" % i)
         time.sleep(2)
-    l.change_log_level('WARN')
+    ll.change_log_level('WARN')
     logger.info('INFO message should not show up')
     logger.warn('Shows warning message')

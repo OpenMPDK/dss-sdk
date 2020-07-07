@@ -14,7 +14,7 @@ from os.path import basename, dirname, realpath
 
 import netifaces
 
-from device_ioctl import *
+from device_ioctl import ioctl_nvme_admin_command
 from utils.log_setup import agent_logger
 from utils.jsonrpc import SPDKJSONRPC
 from utils.utils import read_linux_file
@@ -156,7 +156,7 @@ class OSMServerNetwork:
         try:
             with open(file_name) as f:
                 pci_ids = str(f.read().rstrip())
-        except:
+        except Exception:
             print("Missing " + file_name)
         return pci_ids
 
@@ -251,7 +251,7 @@ class OSMServerNetwork:
                 with open('/sys/class/net/' + interface +
                           '/operstate') as f:
                     nic_status = f.readline().strip()
-            except:
+            except Exception:
                 nic_status = 'down'
             '''
             nic_status = 'down'
@@ -377,10 +377,8 @@ class OSMServerStorage:
         disk_capacity, disk_utilization = struct.unpack_from('QQ', data,
                                                              offset=8)
         d["DiskCapacityInBytes"] = disk_capacity * block_size
-        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization)/100)
-        d["DiskUtilizationInBytes"] = int(
-            (float(d["DiskUtilizationPercentage"])/100) *
-            int(d["DiskCapacityInBytes"]))
+        d["DiskUtilizationInBytes"] = disk_utilization_block * block_size
+        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization_block * 100.0)/disk_capacity)
 
     @staticmethod
     def unpack_smart_details(data, d):
@@ -428,7 +426,7 @@ class OSMServerStorage:
         if spdk_flag:
             payload = SPDKJSONRPC.build_payload('dfly_nvme_passthru',
                                                 {'opcode': 0x06, 'nsid': 0,
-                                                 'data_len': 5120,'cdw10': 1,
+                                                 'data_len': 5120, 'cdw10': 1,
                                                  'device_name': device_path, })
             results_identify_ctrlr = SPDKJSONRPC.call(payload, self.recv_sz,
                                                       self.socket_path)
@@ -438,7 +436,7 @@ class OSMServerStorage:
                 data = self.decode_base64(identify_ctrlr_data)
         else:
             data = ioctl_nvme_admin_command(device_path, 0x06, 0, 4096, 1)
-        
+
         if data is not None:
             self.unpack_identify_ctrlr_details(data, d)
 
@@ -449,15 +447,14 @@ class OSMServerStorage:
                                                 {'opcode': 0x06, 'nsid': 1,
                                                  'data_len': 5120, 'cdw10': 0,
                                                  'device_name': device_path, })
-            results_identify_ns = SPDKJSONRPC.call(payload, self.recv_sz,
-                                                   self.socket_path)
+            results_identify_ns = SPDKJSONRPC.call(payload, self.recv_sz, self.socket_path)
             if "result" in results_identify_ns:
                 identify_ns = results_identify_ns["result"][0]
                 identify_ns_data = identify_ns["payload"]
                 data = self.decode_base64(identify_ns_data)
         else:
             data = ioctl_nvme_admin_command(device_path, 0x06, 1, 4096, 0)
-        
+
         if data is not None:
             self.unpack_identify_ns_details(data, d)
 
@@ -479,10 +476,10 @@ class OSMServerStorage:
         else:
             data = ioctl_nvme_admin_command(device_path, 0x02,
                                             0xffffffff, 512, 0x007f0002)
-        
+
         if data is not None:
             self.unpack_smart_details(data, d)
-    
+
     def get_storage_devices(self, dev_type):
         physical_drives = {}
 
@@ -535,7 +532,7 @@ class OSMServerStorage:
                 try:
                     self.get_identify_ns_details("/dev/%s" % drive_name, drive_info)
                     self.get_smart_details("/dev/%s" % drive_name, drive_info)
-                except:
+                except Exception:
                     pass
                 physical_drives[serial] = drive_info
                 physical_drives[serial]["CRC"] = zlib.crc32(json.dumps(drive_info, sort_keys=True).encode())
@@ -544,7 +541,7 @@ class OSMServerStorage:
         payload = SPDKJSONRPC.build_payload('get_bdevs')
         try:
             results = SPDKJSONRPC.call(payload, self.recv_sz, self.socket_path)
-        except:
+        except Exception:
             pass
         if 'result' in results:
             devices = results['result']
@@ -565,27 +562,28 @@ class OSMServerStorage:
                     try:
                         self.get_identify_ns_details("%sn1" % serial, drive_info, 1)
                         self.get_smart_details("%sn1" % serial, drive_info, 1)
-                    except:
+                    except Exception:
                         pass
                     physical_drives[serial] = drive_info
                     physical_drives[serial]["CRC"] = zlib.crc32(json.dumps(drive_info, sort_keys=True).encode())
         return physical_drives
 
     def get_storage_db_dict(self):
-        ctrlr = "nvme"
-        storage_dict = {}
-        storage_dict[ctrlr] = {}
-        storage_dict[ctrlr]["devices"] = self.get_storage_devices(self.NVME)
-        storage_dict[ctrlr]["Capacity"] = 0
-        storage_dict[ctrlr]["Count"] = len(storage_dict[ctrlr]["devices"])
-        for dev in storage_dict[ctrlr]["devices"]:
-            storage_dict[ctrlr]["Capacity"] = str(
-                int(storage_dict[ctrlr]["Capacity"]) + int(storage_dict[ctrlr]["devices"][dev]["SizeInBytes"]))
-        storage_dict["Capacity"] = 0
-        storage_dict["Count"] = 0
-        storage_dict["Capacity"] = str(int(storage_dict["Capacity"]) + int(storage_dict[ctrlr]["Capacity"]))
-        storage_dict["Count"] = str(int(storage_dict["Count"]) + int(storage_dict[ctrlr]["Count"]))
-        return storage_dict
+        devices = self.get_storage_devices(self.NVME)
+
+        capacity = 0
+        for dev in devices:
+            capacity += int(devices[dev]["SizeInBytes"])
+
+        return {
+                "nvme": {
+                    "devices": devices,
+                    "Count": len(devices),
+                    "Capacity": capacity
+                },
+                "Capacity": capacity,
+                "Count": len(devices)
+        }
 
 
 class OSMServerIdentity:

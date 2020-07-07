@@ -27,7 +27,7 @@ import sys
 import time
 import threading
 import uuid
-import json
+# import json
 
 import pexpect
 import psutil
@@ -52,9 +52,12 @@ import utils.usr_signal as usr_signal
 from device_driver_setup.driver_setup import DriverSetup
 from spdk_config_file.spdk_config import SPDKConfig
 from utils.jsonrpc import SPDKJSONRPC
-from utils.utils import find_process_pid, pidfile_is_running, check_spdk_running, _eval
-from utils.target_events_processing  import TargetEvents
-from events.events import get_events_from_etcd_db, save_events_to_etcd_db
+from utils.utils import find_process_pid
+from utils.utils import pidfile_is_running
+from utils.utils import check_spdk_running
+# from utils.utils import _eval
+from utils.target_events_processing import TargetEvents
+# from events.events import get_events_from_etcd_db, save_events_to_etcd_db
 
 # All the input args given to daemon
 g_input_args = {}
@@ -237,6 +240,7 @@ class OSMDaemon:
             logger.error('Exception in synchronizing device metadata',
                          exc_info=True)
             raise e
+
         # Statsd/Graphite server address
         try:
             if 'stats' in self.etcd_server_attributes and 'address' in \
@@ -248,7 +252,7 @@ class OSMDaemon:
                 self.stats_port = int(stats_port)
                 logger.info("Overriding Stats server address in configuration"
                             " file for etcd stats address")
-        except:
+        except Exception:
             logger.exception("Error in parsing stats server")
 
         if self.stats_mode == "graphite":
@@ -338,8 +342,9 @@ class OSMDaemon:
                 self.client.delete_prefix(full_prefix)
                 del (etcd_devices[dev])
                 self.synchronize_device_metadata(_type)
-            except Exception as e:
+            except Exception:
                 logger.exception('Exception in DB operation')
+
         # Compare CRC with each interface
         for dev in local_devices:
             entry = self.create_metadata_entries(_type)  # type: dict
@@ -356,14 +361,14 @@ class OSMDaemon:
                     logger.info("Mismatched CRC for '%s'" % dev)
                     try:
                         self.backend.write_dict_to_etcd(entry, self.SERVER_ATTR_KEY_PREFIX)
-                    except:
+                    except Exception:
                         logger.exception('Update device info to DB failed')
-            except:
+            except Exception:
                 # Add new device
                 logger.info("Adding new entry '%s' to etcd" % dev)
                 try:
                     self.backend.write_dict_to_etcd(entry, self.SERVER_ATTR_KEY_PREFIX)
-                except:
+                except Exception:
                     logger.exception('Adding new device info to DB failed')
             etcd_devices[dev] = local_devices[dev]
 
@@ -456,7 +461,7 @@ class OSMDaemon:
             else:
                 self.client.put(self.SERVER_ATTR_KEY_PREFIX +
                                 "spdk_status", "down", lease_obj)
-        except:
+        except Exception:
             logger.exception('Exception in updating the spdk_status to DB')
 
         if self.etcd_server_attributes == {}:
@@ -464,7 +469,7 @@ class OSMDaemon:
             try:
                 self.backend.write_dict_to_etcd(self.local_server_attributes,
                                                 self.SERVER_ATTR_KEY_PREFIX)
-            except:
+            except Exception:
                 logger.exception('Exception in writing the server attributes to DB')
             self.etcd_server_attributes = self.local_server_attributes
         else:
@@ -478,13 +483,13 @@ class OSMDaemon:
         heartbeat = str(int(time.time()))
         try:
             self.client.put(self.SERVER_LIST, heartbeat)
-        except:
+        except Exception:
             logger.exception('Exception in writing heartbeat time to DB')
         uptime_hr = str(int(time.time() - psutil.boot_time()) // 3600)
         if self.uptime_hr != uptime_hr:
             try:
                 self.client.put(self.SERVER_ATTR_KEY_PREFIX + "uptime", uptime_hr)
-            except:
+            except Exception:
                 logger.exception('Exception in writing uptime to DB')
             self.uptime_hr = uptime_hr
             logger.info("Server Uptime:      %s hrs" % uptime_hr)
@@ -566,7 +571,7 @@ class OSMDaemon:
                         else:
                             logger.exception('Exception in getting the network'
                                              ' interfaces stats')
-        except:
+        except Exception:
             logger.exception('Exception in getting the network interfaces '
                              'from etcd')
         return mlnx_perf_metrics
@@ -580,19 +585,32 @@ class OSMDaemon:
                     serial = subsystem["namespaces"][ns]["Serial"]
                     try:
                         device = self.etcd_server_attributes["storage"]["nvme"]["devices"][serial]
-                    except:
+                    except Exception:
                         continue
+
                     if 'DiskUtilizationPercentage' not in device:
                         logger.error('DiskUtilizationPercentage not found for device %s', device['Serial'])
                         continue
-                    value = str(1 - float(device["DiskUtilizationPercentage"]))
-                    timestamp = time.time()
-                    if 'NQN' in subsystem and subsystem["NQN"] in self.nqn_uuid_map:
-                        subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
-                    else:
+
+                    diskUsage = float(device["DiskUtilizationPercentage"])
+                    if diskUsage < 0.0 or diskUsage > 1.0:
+                        logger.error('Invalid disk usage range (%s) for device (%s)', diskUsage, serial)
+                        # tmpStr = json.dumps(device, indent=4, sort_keys=True)
+                        # logger.error("Device = {}\n".format(tmpStr))
+
+                    if 'NQN' not in subsystem:
                         continue
+
+                    if subsystem["NQN"] not in self.nqn_uuid_map:
+                        continue
+
+                    subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
+
                     metric_path = "disk.freespacepercent.cluster_id_%s.target_id_%s.target_nqn_id_%s.disk_id_%s" % \
                                   (self.CLUSTER_ID, self.SERVER_UUID, subsystem_uuid, serial)
+
+                    timestamp = time.time()
+                    value = str(1.0 - diskUsage)
                     tuples.append((metric_path, (timestamp, value)))
             nw_tuples = self.get_mlnx_perf_metrics()
             tuples += nw_tuples
@@ -616,7 +634,7 @@ class OSMDaemon:
             logger.info("Daemon start catch-up with etcd")
             try:
                 all_config = self.backend.get_json_prefix(self.SERVER_CONFIG_KEY_PREFIX)
-            except:
+            except Exception:
                 logger.exception('Exception in getting the data from DB for %s', self.SERVER_CONFIG_KEY_PREFIX)
                 all_config = {}
             for dev in all_config.values():
@@ -664,7 +682,7 @@ class OSMDaemon:
                         assert 0
                     if config_dict:
                         self.q.append((subsystem_lock, config_dict))
-        except:
+        except Exception:
             logger.exception('Exception in subsystem_config_watcher_cb fn')
 
     def subsystem_config_watcher(self):
@@ -683,9 +701,9 @@ class OSMDaemon:
                     server_config_key_prefix,
                     self.subsystem_config_watcher_callback,
                     range_end=increment_last_byte(to_bytes(server_config_key_prefix)))
-                self.etcd_watcher_ids['subsystem_config_watcher'] =  watch_id
+                self.etcd_watcher_ids['subsystem_config_watcher'] = watch_id
                 logger.info("Daemon is watching server config key %s", server_config_key_prefix)
-            except:
+            except Exception:
                 logger.error('subsystem_config_watcher failed', exc_info=True)
         else:
             logger.info("Daemon is already watching server config key %s",
@@ -715,7 +733,7 @@ class OSMDaemon:
             self.client.put(status_key, status_msg)
             logger.info('Updated the device config[%s] to %s',
                         status_key, status_msg)
-        except:
+        except Exception:
             logger.exception('Exception in setting device config status %s to %s',
                              status_key, status_msg)
 
@@ -734,7 +752,7 @@ class OSMDaemon:
             try:
                 self.client.delete_prefix(full_prefix)
                 logger.info("Removed key prefixed with %s" % full_prefix)
-            except:
+            except Exception:
                 logger.exception("Exception in removing key prefixed with %s" % full_prefix)
         else:
             logger.info("Requires server prefix to be locked to delete NQN config")
@@ -832,7 +850,7 @@ class OSMDaemon:
                         if driver != "uio_pci_generic":
                             try:
                                 self.driver_setup.setup("uio_pci_generic", pci_addr)
-                            except:
+                            except Exception:
                                 logger.exception('Failed to initialize the '
                                                  'device %s to '
                                                  'uio_pci_generic', pci_addr)
@@ -845,7 +863,7 @@ class OSMDaemon:
                             ret = os.system('systemctl restart nvmf_tgt@internal_flag.service')
                             logger.info('Restart Target with return code %s',
                                         ret)
-                        except:
+                        except Exception:
                             logger.exception('Failed to restart nvmf_tgt service')
                         time.sleep(60)
 
@@ -895,7 +913,7 @@ class OSMDaemon:
                             if pci_addr == spdk_pci_addr:
                                 found = 1
                                 break
-                        except:
+                        except Exception:
                             continue
                     if found:
                         continue
@@ -989,7 +1007,7 @@ class OSMDaemon:
         while not stopper_event.is_set():
             try:
                 results = SPDKJSONRPC.call(rpc_req, self.jsonrpc_recv_size, self.default_spdk_rpc)
-            except:
+            except Exception:
                 results = None
 
             while self.removed_nqn_q:
@@ -1016,7 +1034,7 @@ class OSMDaemon:
                             status, metadata = self.client.get(key)
                             if metadata:
                                 subsystems_table[nqn] = self.client.lease(lease_time, metadata.lease_id)
-                        except:
+                        except Exception:
                             logger.warning("Failed to read etcd lease for '%s'" % key)
                             pass
 
@@ -1026,10 +1044,10 @@ class OSMDaemon:
                     else:
                         # Create new lease and write key to etcd
                         subsystems_table[nqn] = self.client.lease(lease_time)
-                        #g_target_op_lock = self.client.lock(key, ttl=self.default_etcd_ttl)
-                        #if g_target_op_lock.acquire(None):
-                            #self.client.put(key, "up", subsystems_table[nqn])
-                            #g_target_op_lock.release()
+                        # g_target_op_lock = self.client.lock(key, ttl=self.default_etcd_ttl)
+                        # if g_target_op_lock.acquire(None):
+                        #    self.client.put(key, "up", subsystems_table[nqn])
+                        #    g_target_op_lock.release()
                     self.backend.set_lock(self.SERVER_UUID)
                     self.backend.acquire_lock()
                     self.client.put(key, "up", subsystems_table[nqn])
@@ -1054,14 +1072,14 @@ class OSMDaemon:
                     target_lease_obj.refresh()
                 else:
                     target_lease_obj = self.client.lease(lease_time)
-                #if g_target_op_lock and g_target_op_lock.acquire(None):
-                    #self.client.put(key, target_status, target_lease_obj)
-                    #g_target_op_lock.release()
+                # if g_target_op_lock and g_target_op_lock.acquire(None):
+                #    self.client.put(key, target_status, target_lease_obj)
+                #     g_target_op_lock.release()
                 self.backend.set_lock(self.SERVER_UUID)
                 self.backend.acquire_lock()
                 self.client.put(key, target_status, target_lease_obj)
                 self.backend.release_lock()
-            except:
+            except Exception:
                 logger.exception('Exception in updating the target '
                                  'status to %s', target_status)
             stopper_event.wait(sec)
@@ -1088,16 +1106,20 @@ class OSMDaemon:
                 output[counter] = 0
             output[counter] += counter_value
 
-    def subsystem_statistics_to_message(self, subsystem, timestamp,
-                                        prev_counters, message_tuples):
-        if not 'id' in subsystem or not 'nqn' in subsystem['id']:
+    def subsystem_statistics_to_message(self,
+                                        subsystem,
+                                        timestamp,
+                                        prev_counters,
+                                        message_tuples):
+        if 'id' not in subsystem or 'nqn' not in subsystem['id']:
             return
 
         subsystem_nqn = subsystem["id"]["nqn"]
         if subsystem_nqn in self.nqn_uuid_map:
             subsystem_uuid = self.nqn_uuid_map[subsystem_nqn]
         else:
-            logger.error("Subsystem NQN -{} is not preent in NQN UUID mapping - {} ".format(subsystem_nqn, self.nqn_uuid_map))
+            logger.error("Subsystem NQN -{} is not preent in NQN UUID mapping - {} ".format(subsystem_nqn,
+                                                                                            self.nqn_uuid_map))
             return
 
         for drive in subsystem:
@@ -1109,7 +1131,7 @@ class OSMDaemon:
                     # TODO For now, just strip the last two characters which is
                     # TODO more of the form <dev_serial> + "n1" to just serial
                     serial = subsystem[drive]["id"]["serial"][:-2]
-                except:
+                except Exception:
                     logger.exception('ID or Serial not found for drive %s',
                                      drive)
                     continue
@@ -1122,7 +1144,7 @@ class OSMDaemon:
                                            prev_counters[serial], counters, 0)
                     for counter in counters:
                         metric_path = "cluster_id_%s.target_id_%s.%s.disk.%s" % \
-                                      ( self.CLUSTER_ID, self.SERVER_UUID,
+                                      (self.CLUSTER_ID, self.SERVER_UUID,
                                        "target_nqn_id_%s.disk_id_%s" % (subsystem_uuid, serial), counter)
                         value = str(counters[counter])
                         message_tuples.append((metric_path, (timestamp, value)))
@@ -1133,23 +1155,26 @@ class OSMDaemon:
 
                 counters = {}
                 self.statistics_helper(subsystem[drive].iteritems(),
-                                           prev_counters[subsystem_uuid], counters, 0)
-                for bw_element in ['getBandwidth','putBandwidth']:
+                                       prev_counters[subsystem_uuid],
+                                       counters,
+                                       0)
+                for bw_element in ['getBandwidth', 'putBandwidth']:
                     metric_path = "cluster_id_%s.target_id_%s.%s.subsystem.%s" % \
-                                      ( self.CLUSTER_ID, self.SERVER_UUID,
+                                      (self.CLUSTER_ID,
+                                       self.SERVER_UUID,
                                        "subsystem_id_%s" % (subsystem_uuid), bw_element)
                     value = str(counters.get(bw_element, 0))
                     message_tuples.append((metric_path, (timestamp, value)))
 
-
-
-    def session_statistics_to_message(self, timestamp,
+    def session_statistics_to_message(self,
+                                      timestamp,
                                       session_aggregate_counters,
                                       message_tuples):
         for session_ip in session_aggregate_counters:
             for counter in session_aggregate_counters[session_ip]:
                 metric_path = "cluster_id_%s.target_id_%s.%s.client_%s" % \
-                              ( self.CLUSTER_ID, self.SERVER_UUID,
+                              (self.CLUSTER_ID,
+                               self.SERVER_UUID,
                                "client_id=%s" % session_ip, counter)
                 value = str(session_aggregate_counters[session_ip][counter])
                 message_tuples.append((metric_path, (timestamp, value)))
@@ -1190,7 +1215,7 @@ class OSMDaemon:
             # each dump as a delimiter across multiple runs
             cmd = self.ustat_path + ' -p ' + self.nvmf_pid + ' ' + str(sec)
             proc = pexpect.spawn(cmd, timeout=sec+1)
-        except:
+        except Exception:
             logger.exception('Caught exception while running USTAT')
             return
 
@@ -1211,7 +1236,7 @@ class OSMDaemon:
                         stats_output = {}
                     '''
                     stats_output[k] = v
-                except:
+                except Exception:
                     logger.exception('Failed to handle line %s', line)
             else:
                 # Emtpy line encountered for ustat output
@@ -1265,8 +1290,9 @@ class OSMDaemon:
                                 for k in session:
                                     if k.startswith('ctrl') and (k[-1] != '0' or k[-2].isdigit()):
                                         metric_path = "cluster_id_%s.target_id_%s.%s.client_%s.qd_reqs" % \
-                                                       (self.CLUSTER_ID,self.SERVER_UUID,
-                                                        "client_id_%s" %session_ip, k)
+                                                       (self.CLUSTER_ID,
+                                                        self.SERVER_UUID,
+                                                        "client_id_%s" % session_ip, k)
                                         for k_req in session[k]:
                                             if k_req == 'reqs':
                                                 value = str(session[k][k_req])
@@ -1290,7 +1316,7 @@ class OSMDaemon:
                 logger.info('ustat thread terminated successfully')
             else:
                 logger.error('ustat thread termination failed')
-        except:
+        except Exception:
             logger.info('ustat process termination exception ', exc_info=True)
         logger.info('Poll statistics thread exited')
 
@@ -1300,7 +1326,7 @@ class OSMDaemon:
             logger.info('Cancelling the watcher %s', watch_name)
             try:
                 self.client.cancel_watch(watch_id)
-            except:
+            except Exception:
                 logger.exception('Exception in cancel watcher %s', watch_name)
 
     def stats_config_watcher_callback(self, event):
@@ -1321,7 +1347,7 @@ class OSMDaemon:
                                 'address - %s', event.value)
                     self.stats_server, self.stats_port = \
                         self.stats_obj.set_address(ip, port)
-        except:
+        except Exception:
             logger.exception('Exception in stats_config_watcher_callback fn')
 
     def stats_config_watcher(self):
@@ -1337,7 +1363,7 @@ class OSMDaemon:
                 self.etcd_watcher_ids['carbon_watcher'] = watch_id
                 logger.info("Daemon is watching stats server configuration on "
                             "key %s", carbon_key)
-            except:
+            except Exception:
                 logger.exception('stats_config_watcher failed with '
                                  'exception %s')
         else:
@@ -1395,12 +1421,11 @@ class ConfigWatcher(object):
             if event.key.endswith(TARGET_COMMAND_KEY_SUFFIX) and event.value:
                 logger.info('Received target command %s', event.value)
                 if event.key.endswith('mode'):
-                    if not event.value or (event.value !=
-                                               NODE_MODE_MAINTENANCE_STRING):
+                    if not event.value or (event.value != NODE_MODE_MAINTENANCE_STRING):
                         g_mode_event.set()
                     else:
                         g_mode_event.clear()
-        except:
+        except Exception:
             logger.exception('Exception in config_key_watcher_cb fn')
 
     def config_watcher(self, suffix):
@@ -1421,7 +1446,7 @@ class ConfigWatcher(object):
                 self.watcher_id = watch_id
                 logger.info("Daemon is watching target config key %s",
                             target_config_key)
-            except:
+            except Exception:
                 logger.error('target_config_watcher failed', exc_info=True)
         else:
             logger.info("Daemon is already watching target config key %s",
@@ -1435,7 +1460,7 @@ class ConfigWatcher(object):
             logger.info('Cancelling the target watcher')
             try:
                 self.backend.client.cancel_watch(self.watcher_id)
-            except:
+            except Exception:
                 logger.exception('Exception in cancelling target watcher')
 
 
@@ -1484,7 +1509,6 @@ def thread_monitor(threads):
     return None
 
 
-
 def get_disk_info_from_backend():
     devices = {}
     try:
@@ -1495,7 +1519,7 @@ def get_disk_info_from_backend():
                 devices[key] = {}
             devices[key]['PCIAddress'] = key_dict[key]['PCIAddress']
             devices[key]['Serial'] = key_dict[key]['Serial']
-    except:
+    except Exception:
         logger.exception('Exception in getting the disk list from the backend')
         pass
 
@@ -1519,7 +1543,7 @@ def start_target_only(internal_flag=False):
         while not lock.acquire():
             logger.info('Trying to acquire target operation lock')
             time.sleep(5)
-    except:
+    except Exception:
         logger.exception('Exception in creating target operation lock')
         return False
 
@@ -1587,7 +1611,7 @@ def start_target_only(internal_flag=False):
             try:
                 proc = psutil.Process(pid)
                 proc.send_signal(signal.SIGUSR1)
-            except:
+            except Exception:
                 logger.exception('Error in getting the process info for %s',
                                  pid)
                 lock.release()
@@ -1669,7 +1693,7 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         constants.JSONRPC_RECV_PACKET_SIZE,
         constants.DEFAULT_SPDK_SOCKET_PATH)
     fn_ptrs = {
-        'identity':ServerAttr.OSMServerIdentity().server_identity_helper,
+        'identity': ServerAttr.OSMServerIdentity().server_identity_helper,
         'cpu': ServerAttr.OSMServerCPU().cpu_helper,
         'network': ServerAttr.OSMServerNetwork().network_helper,
         'storage': storage_aggregator_obj.get_storage_db_dict,
@@ -1792,10 +1816,9 @@ def stop_target_only(internal_flag=False):
         while not lock.acquire():
             logger.info('Trying to acquire target operation lock')
             time.sleep(5)
-    except:
+    except Exception:
         logger.exception('Exception in creating target operation lock')
         return False
-
 
     nvmf_pid, status = check_spdk_running()
     if not status:
@@ -1812,7 +1835,7 @@ def stop_target_only(internal_flag=False):
                 proc = psutil.Process(pid)
                 proc.send_signal(signal.SIGUSR2)
                 time.sleep(5)
-            except:
+            except Exception:
                 logger.exception('Error in sending SIGUSR2 to agent pid %s', pid)
 
     try:
@@ -1821,7 +1844,7 @@ def stop_target_only(internal_flag=False):
         logger.error('No nvmf_tgt process with the pid %s', nvmf_pid)
         lock.release()
         return True
-    except:
+    except Exception:
         logger.exception('Error in getting the process info for %s', nvmf_pid)
         lock.release()
         return False
@@ -1831,7 +1854,7 @@ def stop_target_only(internal_flag=False):
     try:
         proc.send_signal(signal.SIGINT)
         proc.wait(timeout=120)
-    except:
+    except Exception:
         logger.exception('Received exception when sending signal to NVMF tgt')
     try:
         p_status = proc.status()
@@ -1849,7 +1872,7 @@ def stop_target_only(internal_flag=False):
         try:
             proc.send_signal(signal.SIGKILL)
             proc.wait(timeout=120)
-        except:
+        except Exception:
             logger.exception('Received exception when sending signal to '
                              'NVMF tgt')
         try:
@@ -1923,7 +1946,7 @@ def agent_lease_refresh(lease):
         g_agent_lease_timer = threading.Timer(5.0, agent_lease_refresh,
                                               args=[lease])
         g_agent_lease_timer.start()
-    except:
+    except Exception:
         logger.exception('Exception in refreshing the agent status lease')
 
 
@@ -1946,14 +1969,15 @@ def wait_for_etcd_initialization():
                 logger.info('Cluster %s DB is accessible', cluster_name[0])
                 g_cluster_name = cluster_name[0]
                 init_done = True
-        except:
+        except Exception:
             logger.info('ETCD DB is not accessible. Retrying...')
             time.sleep(5)
 
 
 def wait_for_agent_initialization():
     agent_init = False
-    max_loops = 24 # Two minutes worth of loop
+    # Two minutes worth of loop
+    max_loops = 24
     loop_count = 0
 
     while not agent_init and loop_count < max_loops:
@@ -1965,7 +1989,7 @@ def wait_for_agent_initialization():
             if status and (status[0] == 'initialized' or status[0] == 'up'):
                 logger.info('Agent is initialized')
                 agent_init = True
-        except:
+        except Exception:
             logger.exception('Error in connecting to DB. Exiting')
 
         time.sleep(5)
@@ -1977,7 +2001,7 @@ def wait_for_agent_initialization():
 
 def wait_for_hostname_populated():
     name_populated = False
-    max_loops = 24 # Two minutes worth of loop
+    max_loops = 24  # Two minutes worth of loop
     loop_count = 0
 
     while not name_populated and loop_count < max_loops:
@@ -1990,7 +2014,7 @@ def wait_for_hostname_populated():
                 logger.info('Hostname is populated: %s', name)
                 name_populated = True
 
-        except:
+        except Exception:
             logger.exception('Error in connecting to DB. Exiting')
 
         time.sleep(5)
@@ -2028,7 +2052,7 @@ def daemon(endpoint="localhost", port=23790):
         s_uuid = ServerAttr.OSMServerIdentity().server_identity_helper()['UUID']
         backend = backend_layer.BackendLayer(endpoint, port)
         agent_status_key = backend.ETCD_SRV_BASE + s_uuid + '/agent/status'
-    except:
+    except Exception:
         logger.exception('Error in connecting to DB. Exiting')
         sys.exit(-1)
 
@@ -2044,7 +2068,7 @@ def daemon(endpoint="localhost", port=23790):
     try:
         server_mode_watcher = ConfigWatcher()
         server_mode_watcher.config_watcher('mode')
-    except:
+    except Exception:
         logger.exception('Exception in adding server mode watcher')
         sys.exit(-1)
 
@@ -2055,7 +2079,7 @@ def daemon(endpoint="localhost", port=23790):
             logger.info('Node is in maintenance state. Waiting ...')
             try:
                 backend.client.put(agent_status_key, 'maintenance')
-            except:
+            except Exception:
                 logger.exception(
                     'Exception in updating the agent status to MAINTENANCE')
             while not g_mode_event.is_set():
@@ -2064,14 +2088,14 @@ def daemon(endpoint="localhost", port=23790):
             if udev_monitor.exit == 1:
                 logger.info('Stopping the Agent')
                 sys.exit(0)
-    except:
+    except Exception:
         logger.exception('Exception in getting the value for target mode')
         sys.exit(-1)
 
     # Update the target status
     try:
         backend.client.put(agent_status_key, 'starting')
-    except:
+    except Exception:
         logger.exception('Exception in updating the agent status to STARTING')
 
     daemon_pidfile = "kv_daemon.pid"
@@ -2091,7 +2115,7 @@ def daemon(endpoint="localhost", port=23790):
     # help to kick off poll_attributes
     try:
         backend.client.put(agent_status_key, 'initialized')
-    except:
+    except Exception:
         logger.exception('Exception in updating the agent status to INITIALIZED')
 
     logger.info('Agent initialized successfully')
@@ -2106,7 +2130,7 @@ def daemon(endpoint="localhost", port=23790):
         g_agent_lease_timer = threading.Timer(5.0, agent_lease_refresh,
                                               args=[agent_status_lease])
         g_agent_lease_timer.start()
-    except:
+    except Exception:
         logger.exception('Exception in updating the agent status to up')
 
     logger.info('Agent started successfully')
@@ -2143,7 +2167,7 @@ def daemon(endpoint="localhost", port=23790):
 
     try:
         backend.client.put(agent_status_key, 'down')
-    except:
+    except Exception:
         logger.exception('Exception in updating the agent status to DOWN')
 
     logger.info('Agent stopped succesfully')
@@ -2219,4 +2243,3 @@ def main(meta, args):
             g_input_args['endpoint'] = args['<endpoint>']
             g_input_args['port'] = args['<port>']
             daemon(args["<endpoint>"], args["<port>"])
-
