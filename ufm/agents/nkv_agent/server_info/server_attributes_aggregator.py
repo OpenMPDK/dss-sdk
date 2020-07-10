@@ -374,7 +374,7 @@ class OSMServerStorage:
             return
 
         block_size = int(d["LogicalBlockSize"])
-        disk_capacity, disk_utilization = struct.unpack_from('QQ', data,
+        disk_capacity, disk_utilization_block = struct.unpack_from('QQ', data,
                                                              offset=8)
         d["DiskCapacityInBytes"] = disk_capacity * block_size
         d["DiskUtilizationInBytes"] = disk_utilization_block * block_size
