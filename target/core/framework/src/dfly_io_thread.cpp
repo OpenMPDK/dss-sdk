@@ -83,6 +83,7 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 	DFLY_ASSERT(nvmf_req != NULL);
 	DFLY_ASSERT(dfly_req->flags & DFLY_REQF_NVMF);
 	struct spdk_nvme_cmd *cmd = &nvmf_req->cmd->nvme_cmd;
+	struct spdk_nvme_status *rsp_status = &nvmf_req->rsp->nvme_cpl.status;
 
 	if (g_wal_conf.wal_cache_enabled) {
 		io_dev = (struct dfly_io_device_s *)dfly_kd_get_device(dfly_req);
@@ -95,7 +96,9 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 		dfly_counters_bandwidth_cal(io_dev->stat_io, nvmf_req, cmd->opc);
 	}
 
-	if(df_qpair_susbsys_enabled(nvmf_req->qpair, nvmf_req)) {
+	if(df_qpair_susbsys_enabled(nvmf_req->qpair, nvmf_req) &&
+			rsp_status->sct == SPDK_NVME_SCT_GENERIC &&
+			rsp_status->sc == SPDK_NVME_SC_SUCCESS) {
 		dfly_qos_update_nops(dfly_req, \
 					dfly_req->dqpair->df_poller, \
 					dfly_req->dqpair->df_ctrlr);

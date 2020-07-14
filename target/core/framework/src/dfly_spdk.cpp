@@ -143,8 +143,8 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 	desc = io_device->ns->desc;
 	ch   = thrd_inst->io_chann_parr[io_device->index];
 
+	dfly_counters_increment_io_count(io_device->stat_io, cmd->opc);
 	if (cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE) {
-		dfly_counters_increment_io_count(io_device->stat_io, cmd->opc);
 		dfly_counters_size_count(io_device->stat_io, req, cmd->opc);
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
