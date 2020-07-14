@@ -247,16 +247,14 @@ class RedfishUfmdb(object):
                             drv.utilization = int(dev_info[device_info_key])
                             continue
 
-                    # Sanity check the drive data. There is a known issue with this
-                    if drv.utilization > drv.capacity:
-                        drv.utilization = 0
-
-                    drv.percent_avail = int((1.0 - (drv.utilization/drv.capacity)) * 100)
+                        if device_info_key.find("DiskUtilizationPercentage") != -1:
+                            drv.percent_avail = dev_info[device_info_key]
+                            continue
 
                     stor.capacity = stor.capacity + drv.capacity
                     stor.utilization = stor.utilization + drv.utilization
 
-            stor.percent_avail = int((1.0 - (stor.utilization/stor.capacity)) * 100)
+            stor.percent_avail = float((1.0 - (stor.utilization/stor.capacity)) * 100.0)
 
             # Find the subsystem to attach this storage
             for subsys in sys.subsystems:
