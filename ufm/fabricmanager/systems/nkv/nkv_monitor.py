@@ -5,13 +5,6 @@ import threading
 import time
 from netifaces import interfaces, ifaddresses, AF_INET
 
-# import json
-# import socket
-# import zlib
-# import requests
-# from subprocess import PIPE, Popen, STDOUT
-# from common.clusterlib import lib, lib_constants
-
 from common.events.events import save_events_to_etcd_db, ETCD_EVENT_KEY_PREFIX
 from common.events.events import ETCD_EVENT_TO_PROCESS_KEY_PREFIX
 from common.events.event_notification import EventNotification
@@ -150,15 +143,15 @@ class NkvMonitor(Monitor):
         try:
             self.db.save_key_value('/cluster/' + self.hostname + '/total_capacity_in_kb', str(capacity_in_kb))
         except Exception as ex:
-            self.logger.exception('Exception in saving total_capacity_in_kb {}'.format(ex))
+            self.logger.exception('Failed to save total_capacity_in_kb to db ({})'.format(ex))
 
     def get_host_ip(self):
         try:
             cluster_out = self.db.get_key_with_prefix('/cluster/')
             if cluster_out:
                 return cluster_out['cluster'][self.hostname]['ip_address']
-        except Exception:
-            pass
+        except Exception as ex:
+            self.logger.error("Failed to read IP address from db ({})".format(ex))
 
         return None
 
