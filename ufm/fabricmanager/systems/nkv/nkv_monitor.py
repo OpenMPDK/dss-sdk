@@ -114,7 +114,11 @@ class NkvMonitor(Monitor):
         self.en = None
         self.g_event_notifier_fn = None
 
-        self.useBrokerIfFromDb = self.ufmArg.ufmConfig['brokerIpFromDb']
+        try:
+            self.useBrokerIpFromDb = self.ufmArg.ufmConfig['brokerIpFromDb']
+        except Exception:
+            self.useBrokerIpFromDb = False
+
         try:
             self.brokerPort = self.ufmArg.ufmConfig['brokerPort']
         except Exception:
@@ -183,7 +187,7 @@ class NkvMonitor(Monitor):
             return
 
         vip_address = None
-        if self.useBrokerIfFromDb:
+        if self.useBrokerIpFromDb:
             vip_address = self.db.get_key_value('/cluster/ip_address')
             vip_address = vip_address.decode('utf-8')
         else:
