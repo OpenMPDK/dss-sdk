@@ -1,18 +1,9 @@
 
-import json
 import os
 import sys
 import threading
 import time
-import socket
-
-from subprocess import PIPE, Popen, STDOUT
-import zlib
-
-import requests
 from netifaces import interfaces, ifaddresses, AF_INET
-
-from common.clusterlib import lib, lib_constants
 
 from common.events.events import save_events_to_etcd_db, ETCD_EVENT_KEY_PREFIX
 from common.events.events import ETCD_EVENT_TO_PROCESS_KEY_PREFIX
@@ -20,12 +11,14 @@ from common.events.event_notification import EventNotification
 
 from common.system.monitor import Monitor
 
-from systems.nkv.node_info       import Node_Info
+from systems.nkv.node_info import Node_Info
 from systems.nkv.node_disk_space import Node_Disk_Space
-from systems.nkv.node_health     import Node_Health
+from systems.nkv.node_health import Node_Health
 from systems.nkv.node_event_processor import Event_Processor
 
-from systems.nkv.node_util import *
+from systems.nkv.node_util import format_event
+from systems.nkv.node_util import get_clustername
+from systems.nkv.node_util import start_stop_service
 
 
 POLL_DISK_SPACE_INTERVAL = 120
@@ -72,7 +65,7 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
             return
 
     clustername = get_clustername(db)
-    if clustername == None:
+    if not clustername:
         logger.error('Could not find cluster name in DB')
         return
 
@@ -83,7 +76,7 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
                           servers_out=servers_out,
                           key=event.key,
                           val=event.value)
-    if status == False:
+    if not status:
         logger.error('Unhandled event')
         return
 
@@ -122,10 +115,8 @@ class NkvMonitor(Monitor):
 
         self.g_event_notifier_fn = None
 
-
     def __del__(self):
         self.thread_event.clear()
-
 
     def read_node_capacity_in_kb(self):
         df = os.statvfs('/')
@@ -134,38 +125,33 @@ class NkvMonitor(Monitor):
 
         return 0
 
-
     def get_ip_of_nic(self):
         '''
          Return the first valid nic ip
          else return (127.0.0.1)
         '''
-        localhost = None
         for ifaceName in interfaces():
-            addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr':'No IP addr'}])]
+            addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}])]
             if ifaceName != 'lo':
                 # print('{}: {}'.format(ifaceName, ', '.join(addresses)) )
                 return addresses[0]
 
         return "127.0.0.1"
 
-
     # Note: This function can only be called after the start function
     def save_node_capacity(self, capacity_in_kb):
         try:
             self.db.save_key_value('/cluster/' + self.hostname + '/total_capacity_in_kb', str(capacity_in_kb))
-        except:
-            self.logger.exception('Exception in saving total_capacity_in_kb')
-
+        except Exception as ex:
+            self.logger.exception('Failed to save total_capacity_in_kb to db ({})'.format(ex))
 
     def get_host_ip(self):
         try:
             cluster_out = self.db.get_key_with_prefix('/cluster/')
             if cluster_out:
                 return cluster_out['cluster'][self.hostname]['ip_address']
-
-        except:
-            pass
+        except Exception as ex:
+            self.logger.error("Failed to read IP address from db ({})".format(ex))
 
         return None
 
@@ -209,7 +195,7 @@ class NkvMonitor(Monitor):
             try:
                 self.en = EventNotification(vip_address, ZMQ_BROKER_PORT, logger=self.logger)
                 self.g_event_notifier_fn = self.en.process_events
-            except:
+            except Exception:
                 self.logger.error('EventNotification instance not created')
 
         node_ip = self.get_host_ip()
@@ -248,7 +234,6 @@ class NkvMonitor(Monitor):
                                                logger=self.logger)
         self.event_processer.start()
 
-
         # The watch callback must be set after the event processor is initialize
         self.logger.info("======> Configure DB key watcher <=========")
         try:
@@ -263,7 +248,6 @@ class NkvMonitor(Monitor):
 
         self.running = True
         self.logger.info("======> NkvMonitor has started <=========")
-
 
     def stop(self):
         if not self.db:
@@ -295,8 +279,5 @@ class NkvMonitor(Monitor):
         self.running = False
         self.logger.info("======> NkvMonitor Stopped <=========")
 
-
     def is_running(self):
         return self.running
-
-
