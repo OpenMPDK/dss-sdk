@@ -94,8 +94,9 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
 
 
 class NkvMonitor(Monitor):
-    def __init__(self, hostname=None, logger=None, db=None):
+    def __init__(self, ufmArg=None, hostname=None, logger=None, db=None):
         Monitor.__init__(self)
+        self.ufmArg = ufmArg
         self.hostname = hostname
         self.logger = logger
         self.db = db
@@ -110,10 +111,14 @@ class NkvMonitor(Monitor):
         self.thread_event.clear()
 
         self.running = False
-        self.external_msg_broker = False
         self.en = None
-
         self.g_event_notifier_fn = None
+
+        self.useBrokerIfFromDb = self.ufmArg.ufmConfig['brokerIpFromDb']
+        try:
+            self.brokerPort = self.ufmArg.ufmConfig['brokerPort']
+        except Exception:
+            self.brokerPort = ZMQ_BROKER_PORT
 
     def __del__(self):
         self.thread_event.clear()
@@ -135,7 +140,6 @@ class NkvMonitor(Monitor):
             if ifaceName != 'lo':
                 # print('{}: {}'.format(ifaceName, ', '.join(addresses)) )
                 return addresses[0]
-
         return "127.0.0.1"
 
     # Note: This function can only be called after the start function
@@ -179,7 +183,7 @@ class NkvMonitor(Monitor):
             return
 
         vip_address = None
-        if self.external_msg_broker:
+        if self.useBrokerIfFromDb:
             vip_address = self.db.get_key_value('/cluster/ip_address')
             vip_address = vip_address.decode('utf-8')
         else:
@@ -190,10 +194,11 @@ class NkvMonitor(Monitor):
             sys.exit(-1)
 
         self.logger.debug("vip address: [%s]", vip_address)
+
         if not self.g_event_notifier_fn:
             self.logger.debug('IP for the broker {}'.format(vip_address))
             try:
-                self.en = EventNotification(vip_address, ZMQ_BROKER_PORT, logger=self.logger)
+                self.en = EventNotification(vip_address, self.brokerPort, logger=self.logger)
                 self.g_event_notifier_fn = self.en.process_events
             except Exception:
                 self.logger.error('EventNotification instance not created')

@@ -1,5 +1,4 @@
 
-
 class UfmArg():
     def __init__(self):
         self.db = None
