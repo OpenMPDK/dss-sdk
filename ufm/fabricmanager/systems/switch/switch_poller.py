@@ -45,5 +45,5 @@ class SwitchPoller(UfmThread):
         return self._running
 
     def _poller(self, ufmArg):
-        # print("_SP_", flush=True, end='')
+        print("_SP_", flush=True, end='')
         self.client.poll_to_db()

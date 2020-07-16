@@ -61,7 +61,9 @@ from rest_api.redfish.Fabric_api import FabricCollectionEmulationAPI, \
     FabricCollectionAPI
 from rest_api.redfish.Switch import SwitchEmulationAPI, \
     SwitchCollectionEmulationAPI, \
-    SwitchCollectionAPI, SwitchAPI
+    SwitchCollectionAPI, \
+    SwitchAPI, \
+    SwitchActionAPI
 from rest_api.redfish.Port import PortCollectionEmulationAPI, \
     PortEmulationAPI, \
     PortCollectionAPI, \
@@ -242,6 +244,7 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(FabricAPI, REST_BASE + 'Fabrics/<string:fab_id>')
     api.add_resource(FabricCollectionAPI, REST_BASE + 'Fabrics')
     api.add_resource(SwitchAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>')
+    api.add_resource(SwitchActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Actions/<string:act_str>')
     api.add_resource(SwitchCollectionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches')
     api.add_resource(PortAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>')
     api.add_resource(PortActionAPI, REST_BASE + 'Fabrics/<string:fab_id>/Switches/<string:sw_id>/Ports/<string:port_id>/Actions/<string:act_str>')
@@ -442,7 +445,9 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
                                   pwd=switch_arg['pwd'],
                                   port=switch_arg['messageQueuePort'])
                 subSystems.append(EthSwitch(swArg))
-    except Exception:
+    except Exception as e:
+        print("Exception when creating EthSwitch: ")
+        print(e)
         pass
 
 

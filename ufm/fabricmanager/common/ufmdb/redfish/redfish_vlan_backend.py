@@ -31,10 +31,23 @@ class RedfishVlanBackend():
             vlan = self.get_vlan(sw_id, vlan_id)
             self.cfg['Name'] = self.cfg['Name'].format(vlan_name = vlan['name'])
 
+            ##############################
             self.cfg['Actions'] = {}
             self.cfg['Actions']['#DeleteVLAN'] = {}
             self.cfg['Actions']['#DeleteVLAN']['description'] = 'Delete VLAN'
             self.cfg['Actions']['#DeleteVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/DeleteVLAN'
+
+            ##############################
+            self.cfg['Actions']['#NameVLAN'] = {}
+            self.cfg['Actions']['#NameVLAN']['description'] = 'Name the VLAN'
+            self.cfg['Actions']['#NameVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/NameVLAN'
+            self.cfg['Actions']['#NameVLAN']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'Name'
+            param['Required'] = True
+            param['DataType'] = 'String'
+            self.cfg['Actions']['#NameVLAN']['Parameters'].append(param)
 
             port_links = []
             for p in vlan['ports']:
@@ -110,6 +123,8 @@ class RedfishVlanCollectionBackend():
                 self.cfg['Members@odata.count'] = len(members)
 
                 self.cfg['Actions'] = {}
+
+                ###############################
                 self.cfg['Actions']['#CreateVLAN'] = {}
                 self.cfg['Actions']['#CreateVLAN']['description'] = 'Create a VLAN with Id'
                 self.cfg['Actions']['#CreateVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/CreateVLAN'
@@ -123,6 +138,7 @@ class RedfishVlanCollectionBackend():
                 param['MaximumValue'] = '4094'
                 self.cfg['Actions']['#CreateVLAN']['Parameters'].append(param)
 
+                ###############################
                 response = self.cfg, redfish_constants.SUCCESS
             else:
                 response = redfish_constants.NOT_FOUND

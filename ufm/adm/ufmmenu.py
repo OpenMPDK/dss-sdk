@@ -292,3 +292,11 @@ class UfmMenu(object):
             new_menu.cli = self.cli
         self.next_menu = new_menu
         return
+
+    # Special case to get all cmd line args without
+    # parsing args' definition. See AnyCmd in Switch.
+    def get_all_args(self):
+        return self.argv
+    def clear_all_args(self):
+        self.argv = []
+

@@ -1,6 +1,5 @@
 from ufmmenu import UfmMenu
 import ufmapi
-import ufmadm_util
 
 
 class VlansMenu(UfmMenu):
@@ -72,12 +71,13 @@ class VlansMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.crt["target"], payload)
 
-        ufmadm_util.print_switch_result(rsp,
-                                        'vlan ' + str(vlan_id),
-                                        'VLAN created',
-                                        'Failed to create VLAN')
+        succeeded = ufmapi.print_switch_result(rsp,
+                                              'vlan ' + str(vlan_id),
+                                              'VLAN created',
+                                              'Failed to create VLAN')
+        if succeeded:
+            self._refresh()
 
-        self._refresh()
         return
 
 
@@ -95,13 +95,18 @@ class VlanMenu(UfmMenu):
             print("ERROR: Null Fabric provided.")
             return
 
+        UfmMenu.__init__(self, name="vlan", back_func=self._back_action)
+
         self.fab = fab
         self.sw = sw
         self.vlan = vlan
-        UfmMenu.__init__(self, name="vlan", back_func=self._back_action)
 
+        self._refresh()
+        return
+
+    def _refresh(self):
         rsp = ufmapi.redfish_get(
-                "/Fabrics/" + fab + "/Switches/" + sw + "/VLANs/" + vlan)
+                "/Fabrics/" + self.fab + "/Switches/" + self.sw + "/VLANs/" + self.vlan)
 
         if rsp is None:
             return
@@ -110,8 +115,8 @@ class VlanMenu(UfmMenu):
             return
 
         print()
-        print("*        Fabric: ", fab)
-        print("*        Switch: ", sw)
+        print("*        Fabric: ", self.fab)
+        print("*        Switch: ", self.sw)
         print("             Id: ", rsp["Id"])
         print("    Description: ", rsp["Description"])
 
@@ -132,6 +137,15 @@ class VlanMenu(UfmMenu):
                           action=self._delete_vlan_action,
                           desc=dlt["description"])
             self.dlt = dlt
+
+        if "Actions" in rsp and rsp["Actions"]["#NameVLAN"]:
+
+            nam = rsp["Actions"]["#NameVLAN"]
+            print("    Action: (NameVLAN) ")
+            self.add_item(labels=["nam", "nam"], args=["<vlan_name>"],
+                          action=self._name_vlan_action,
+                          desc=nam["description"])
+            self.nam = nam
 
         if "Links" in rsp and rsp["Links"]["Ports"]:
             if len(rsp["Links"]["Ports"]) > 0:
@@ -168,13 +182,33 @@ class VlanMenu(UfmMenu):
     def _delete_vlan_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.dlt["target"])
 
-        succeeded = ufmadm_util.print_switch_result(rsp,
-                                                    'no vlan ' + str(self.vlan),
-                                                    'VLAN deleted',
-                                                    'Failed to delete VLAN')
+        succeeded = ufmapi.print_switch_result(rsp,
+                                              'no vlan ' + str(self.vlan),
+                                              'VLAN deleted',
+                                              'Failed to delete VLAN')
         if succeeded:
             self._back_action(menu, item)
 
         return
 
+    def _name_vlan_action(self, menu, item):
+        argv = item.argv
 
+        vlan_name = argv[1]
+        if vlan_name is None:
+            print("VLAN name Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["Name"] = vlan_name
+        payload["VLANId"] = self.vlan
+
+        rsp = ufmapi.redfish_post(self.nam["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+                                              'vlan ' + str(self.vlan) + ' name ' + vlan_name,
+                                              'Successfully named VLAN',
+                                              'Failed to name VLAN')
+        if succeeded:
+            self._refresh()
+        return

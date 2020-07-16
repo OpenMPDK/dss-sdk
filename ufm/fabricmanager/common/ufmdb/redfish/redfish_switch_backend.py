@@ -12,7 +12,12 @@ class RedfishSwitchBackend():
             "Description": "Ethernet Switch information",
             "Name": "Switch",
             "SerialNumber": "{serial_number}",
-            "UUID":"{uuid}",
+            "UUID": "{uuid}",
+            "Oem": {
+                "PFC": "{pfc_status}",
+                "PriorityEnabledList": [],
+                "PriorityDisabledList": []
+            }
         }
 
     def get(self, fab_id, sw_id):
@@ -28,6 +33,64 @@ class RedfishSwitchBackend():
             sw = self.get_switch(fab_id, sw_id)
             self.cfg["SerialNumber"] = self.cfg["SerialNumber"].format(serial_number = sw["serial_number"])
             self.cfg["UUID"] = self.cfg["UUID"].format(uuid = sw["uuid"])
+            self.cfg["Oem"]["PFC"] = self.cfg["Oem"]["PFC"].format(pfc_status = sw["pfc_status"])
+            self.cfg["Oem"]["PriorityEnabledList"] = sw["prio_enabled_list"]
+            self.cfg["Oem"]["PriorityDisabledList"] = sw["prio_disabled_list"]
+
+            ###############################
+            self.cfg['Actions'] = {}
+            self.cfg['Actions']['#EnablePfcGlobally'] = {}
+            self.cfg['Actions']['#EnablePfcGlobally']['description'] = \
+                'Enables priority flow control globally on the switch.'
+            self.cfg['Actions']['#EnablePfcGlobally']['target'] = self.cfg['@odata.id'] + '/Actions/EnablePfcGlobally'
+
+            ###############################
+            self.cfg['Actions']['#DisablePfcGlobally'] = {}
+            self.cfg['Actions']['#DisablePfcGlobally']['description'] = \
+                'Disables priority flow control globally on the switch.'
+            self.cfg['Actions']['#DisablePfcGlobally']['target'] = self.cfg['@odata.id'] + '/Actions/DisablePfcGlobally'
+
+            ###############################
+            self.cfg['Actions']['#EnablePfcPerPriority'] = {}
+            self.cfg['Actions']['#EnablePfcPerPriority']['description'] = \
+                'Enables PFC per priority on the switch.'
+            self.cfg['Actions']['#EnablePfcPerPriority']['target'] = self.cfg['@odata.id'] + '/Actions/EnablePfcPerPriority'
+            self.cfg['Actions']['#EnablePfcPerPriority']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'Priority'
+            param['Required'] = True
+            param['DataType'] = 'Number'
+            param['MinimumValue'] = '0'
+            param['MaximumValue'] = '7'
+            self.cfg['Actions']['#EnablePfcPerPriority']['Parameters'].append(param)
+
+            ###############################
+            self.cfg['Actions']['#DisablePfcPerPriority'] = {}
+            self.cfg['Actions']['#DisablePfcPerPriority']['description'] = \
+                'Disables PFC per priority on the switch.'
+            self.cfg['Actions']['#DisablePfcPerPriority']['target'] = self.cfg['@odata.id'] + '/Actions/DisablePfcPerPriority'
+            self.cfg['Actions']['#DisablePfcPerPriority']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'Priority'
+            param['Required'] = True
+            param['DataType'] = 'Number'
+            param['MinimumValue'] = '0'
+            param['MaximumValue'] = '7'
+            self.cfg['Actions']['#DisablePfcPerPriority']['Parameters'].append(param)
+
+            ###############################
+            self.cfg['Actions']['#AnyCmd'] = {}
+            self.cfg['Actions']['#AnyCmd']['description'] = \
+                'Send any cmd directly to the switch.'
+            self.cfg['Actions']['#AnyCmd']['target'] = self.cfg['@odata.id'] + '/Actions/AnyCmd'
+            self.cfg['Actions']['#AnyCmd']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'AnyCmdStr'
+            param['Required'] = True
+            self.cfg['Actions']['#AnyCmd']['Parameters'].append(param)
 
             if sw["ports"]:
                 self.cfg["Ports"] = { "@odata.id": "{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{Ports}" }
@@ -49,6 +112,8 @@ class RedfishSwitchBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
+            print(e)
+            print('RedfishSwitchBackend.get() failed')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -59,13 +124,22 @@ class RedfishSwitchBackend():
 
     # return the attributes for a given switch
     def get_switch(self, fab_id, sw_id):
-        prefix = "/switches/" + sw_id + "/switch_attributes"
-        kv_dict = ufmdb_util.query_prefix(prefix)
         ret = {}
+
+        prefix = "/switches/" + sw_id + "/switch_attributes/"
+        kv_dict = ufmdb_util.query_prefix(prefix)
+        ret["prio_enabled_list"] = []
+        ret["prio_disabled_list"] = []
         for k in kv_dict:
             key = k.split("/")[-2]
             val = k.split("/")[-1]
-            ret[key] = val
+
+            if key == "priority_enabled_list":
+                ret["prio_enabled_list"].append(val)
+            elif key == "priority_disabled_list":
+                ret["prio_disabled_list"].append(val)
+            else:
+                ret[key] = val
 
         prefix = "/switches/" + sw_id + "/ports/list"
         kv_dict = ufmdb_util.query_prefix(prefix)
@@ -80,6 +154,7 @@ class RedfishSwitchBackend():
         for k in kv_dict:
             vlan_id = k.split("/")[-1]
             ret["vlans"].append(vlan_id)
+
         return ret
 
 

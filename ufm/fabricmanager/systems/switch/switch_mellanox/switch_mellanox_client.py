@@ -15,6 +15,7 @@ import requests
 from systems.switch import switch_constants
 from systems.switch.switch_arg import SwitchArg
 from systems.switch.switch_client import SwitchClientTemplate
+from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 class SwitchMellanoxClient(SwitchClientTemplate):
     def __init__(self, swArg):
@@ -273,6 +274,233 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         resp = self.send_cmd(json_cmd)
         return resp
 
+    def show_pfc_status(self):
+        '''
+        {
+            'results': [
+                {
+                    'status': 'OK',
+                    'executed_command': 'show dcb priority-flow-control',
+                    'status_message': '',
+                    'data': [
+                        {
+                        'PFC': 'enabled',
+                        'Priority Enabled List': '3 4',
+                        'Priority Disabled List': '0 1 2 5 6 7'
+                        },
+                        {
+                        'Eth1/11': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/10': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/13': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/12': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/15': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/14': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/16': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Enabled'}
+                            ],
+                        'Eth1/5': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/4': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/7': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/6': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/1': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/3': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/2': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/9': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ],
+                        'Eth1/8': [
+                            {
+                            'PFC admin': 'Auto',
+                            'PFC oper': 'Disabled'}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        '''
+        json_cmd = {
+            "commands":
+            [
+                "show dcb priority-flow-control"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def show_qos(self):
+        '''
+        {'results': [
+            {
+            'status': 'OK',
+            'executed_command': 'show qos',
+            'status_message': '',
+            'data': [
+                 {
+                 'Eth1/1': [
+                     {
+                     'PCP,DEI rewrite': 'disabled',
+                     'Default switch-priority': '0',
+                     'IP PCP;DEI rewrite': 'enable',
+                     'Default DEI': '0',
+                     'Default PCP': '0',
+                     'Trust mode': 'L2',
+                     'DSCP rewrite': 'disabled'
+                     },
+                     ......
+                    ]
+                },
+                {
+                'Eth1/2': [
+        '''
+        json_cmd = {
+            "commands":
+            [
+                #"show qos interface ethernet 1/" + str(port_id)
+                "show qos"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def _poll_qos(self):
+        '''
+        Poll from the switch and add to db:
+
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/8/pfc/trust_mode/L2
+        '''
+        resp = self.show_qos()
+        json_obj = resp.json()
+
+        '''
+        Parsing the response from show_qos cmd
+        '''
+        if 'results' in json_obj:
+            if len(json_obj['results']) > 0:
+                if 'executed_command' in json_obj['results'][0] and 'data' in json_obj['results'][0]:
+                    if json_obj['results'][0]['executed_command'] == 'show qos':
+                        SWITCH_PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports/'
+                        lease = self.db.lease(self.lease_ttl)
+
+                        data = json_obj['results'][0]['data'] # a list of dictionaries
+                        for d in data:
+                            for k in d:
+                                if 'Eth1/' in k:
+                                    pt = k.split('/')[-1]
+                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) +'/pfc/trust_mode/' +d[k][0]['Trust mode'],
+                                                '', lease=lease)
+
+    def _poll_pfc_status(self):
+        '''
+        Poll from the switch and add to db:
+
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/pfc_status/enabled
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_enabled_list/3
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_enabled_list/4
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/0
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/1
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/2
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/5
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/6
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/7
+
+        /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/8/pfc/pfc_status/disabled
+        '''
+        resp = self.show_pfc_status()
+        json_obj = resp.json()
+
+        '''
+        Parsing the response from show_pfc_status cmd
+        '''
+        if 'results' in json_obj:
+            if len(json_obj['results']) > 0:
+                if 'executed_command' in json_obj['results'][0] and 'data' in json_obj['results'][0]:
+                    if json_obj['results'][0]['executed_command'] == 'show dcb priority-flow-control':
+                        SWITCH_ATTR_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
+                        SWITCH_PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports/'
+                        lease = self.db.lease(self.lease_ttl)
+
+                        data = json_obj['results'][0]['data'] # a list of dictionaries
+                        for d in data:
+                            for k in d:
+                                if k == 'PFC':
+                                    self.db.put(SWITCH_ATTR_KEY_PREFIX + '/pfc/pfc_status/' + d['PFC'], '', lease=lease)
+
+                                elif k == 'Priority Enabled List':
+                                    if d['Priority Enabled List']:
+                                        lst = d['Priority Enabled List'].split(' ')
+                                        for i in lst:
+                                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/pfc/priority_enabled_list/' + str(i),
+                                                        '', lease=lease)
+
+                                elif k == 'Priority Disabled List':
+                                    if d['Priority Disabled List']:
+                                        lst = d['Priority Disabled List'].split(' ')
+                                        for i in lst:
+                                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/pfc/priority_disabled_list/' + str(i),
+                                                        '', lease=lease)
+
+                                elif 'Eth1/' in k:
+                                    pt = k.split('/')[-1]
+                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) + '/pfc/pfc_status/' +d[k][0]['PFC oper'],
+                                                '', lease=lease)
+
     def _poll_switch_attributes(self):
         '''
         Poll from the switch and add to db:
@@ -425,6 +653,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         self._poll_switch_attributes()
         self._poll_vlan_info()
         self._poll_port_info()
+        self._poll_pfc_status()
+        self._poll_qos()
 
         try:
             # Write in the mq_port for UfmRedfish service to fetch
@@ -457,14 +687,23 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         return resp
 
 
+    def name_vlan(self, vlan_id, name):
+        json_cmd = {
+            "commands":
+            [
+                "vlan " + str(vlan_id) + " name " + name
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
     def set_access_port_vlan(self, port_id, vlan_id):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id),
-                "switchport mode access",
-                "switchport access vlan " + str(vlan_id),
-                "exit"
+                "interface ethernet 1/" + str(port_id) + " switchport mode access",
+                "interface ethernet 1/" + str(port_id) + " switchport access vlan " + str(vlan_id),
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -474,9 +713,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id),
-                "no switchport access vlan",
-                "exit"
+                "interface ethernet 1/" + str(port_id) + " no switchport access vlan"
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -486,10 +723,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id),
-                "switchport mode trunk",
-                "switchport trunk allowed-vlan all",
-                "exit"
+                "interface ethernet 1/" + str(port_id) + " switchport mode trunk",
+                "interface ethernet 1/" + str(port_id) + " switchport trunk allowed-vlan all"
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -500,10 +735,46 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id),
-                "switchport mode trunk",
-                "switchport trunk allowed-vlan " + str(start_vlan_id) + '-' + str(end_vlan_id),
-                "exit"
+                "interface ethernet 1/" + str(port_id) + " switchport mode trunk",
+                "interface ethernet 1/" + str(port_id) + \
+                " switchport trunk allowed-vlan " + str(start_vlan_id) + "-" + str(end_vlan_id)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
+    def set_hybrid_port_access_vlan(self, port_id, access_vlan_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " switchport mode hybrid",
+                "interface ethernet 1/" + str(port_id) + " switchport access vlan " + str(access_vlan_id)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
+    def set_hybrid_port_allowed_vlan(self, port_id, allowed_vlan_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " switchport mode hybrid",
+                "interface ethernet 1/" + str(port_id) + \
+                " switchport hybrid allowed-vlan add " + str(allowed_vlan_id)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
+    def remove_hybrid_port_allowed_vlan(self, port_id, vlan_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + \
+                " switchport hybrid allowed-vlan remove " + str(vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -520,7 +791,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                 "exit"
             ]
         }
-        resp = self.send_cmd(self, json_cmd)
+        resp = self.send_cmd(json_cmd)
         return resp
 
     def remove_ip_from_vlan(self, vlan_id, ip_address):
@@ -532,8 +803,124 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                 "exit"
             ]
         }
-        resp = self.send_cmd(self, json_cmd)
+        resp = self.send_cmd(json_cmd)
         return resp
 
+
+    '''
+    PFC config (proiroty flow control)
+    '''
+    def enable_pfc_globally(self):
+        json_cmd = {
+            "commands":
+            [
+                "dcb priority-flow-control enable force"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def disable_pfc_globally(self):
+        json_cmd = {
+            "commands":
+            [
+                "no dcb priority-flow-control enable force",
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def enable_pfc_per_priority(self, prio):
+        json_cmd = {
+            "commands":
+            [
+                "dcb priority-flow-control priority " + str(prio) + " enable",
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def disable_pfc_per_priority(self, prio):
+        json_cmd = {
+            "commands":
+            [
+                "no dcb priority-flow-control priority " + str(prio) + " enable"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def enable_port_pfc(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " dcb priority-flow-control mode on force"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def disable_port_pfc(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " no dcb priority-flow-control mode force"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def show_port_pfc_counters(self, port_id, prio):
+        json_cmd = {
+            "commands":
+            [
+                "show interfaces ethernet 1/" + str(port_id) + " counters pfc prio " + str(prio)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def enable_ecn_marking_for_traffic_class_queue(self, port_id, tc, min_absolute, max_absolute):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " traffic-class " + str(tc) + \
+                " congestion-control ecn minimum-absolute " + str(min_absolute) \
+                                 + " maximum-absolute " + str(max_absolute)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+
+    def disable_ecn_marking_for_traffic_class_queue(self, port_id, tc):
+        json_cmd = {
+            "commands":
+            [
+                "interface ethernet 1/" + str(port_id) + " no traffic-class " + str(tc) + " congestion-control"
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def show_port_congestion_control(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                'show interface ethernet 1/' + str(port_id) + ' congestion-control'
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def any_cmd(self, any_cmd_str):
+        json_cmd = {
+            "commands":
+            [
+                any_cmd_str
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
 
 
