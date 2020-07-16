@@ -43,14 +43,7 @@ class PortActionAPI(Resource):
                     'port_id': port_id
                    }
             payload = request.get_json(force=True)
-            if 'VLANId' in payload:
-                data['vlan_id'] = payload['VLANId']
-
-            if 'RangeFromVLANId' in payload:
-                data['start_vlan_id'] = payload['RangeFromVLANId']
-
-            if 'RangeToVLANId' in payload:
-                data['end_vlan_id'] = payload['RangeToVLANId']
+            data.update(payload)
 
             resp = util.post_to_switch(sw_id, data)
 

@@ -42,8 +42,10 @@ class VlanActionAPI(Resource):
             data = {
                     'cmd': act_str,
                     'request_id': str(uuid.uuid4()),
-                    'vlan_id': vlan_id
+                    'VLANId': vlan_id
                    }
+            payload = request.get_json(force=True)
+            data.update(payload)
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:
@@ -78,7 +80,7 @@ class VlanCollectionActionAPI(Resource):
             data = {
                     'cmd': act_str,
                     'request_id': str(uuid.uuid4()),
-                    'vlan_id': payload['VLANId']
+                    'VLANId': payload['VLANId']
                    }
 
             resp = util.post_to_switch(sw_id, data)

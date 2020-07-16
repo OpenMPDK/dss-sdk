@@ -1,7 +1,6 @@
-
-from ufmmenu import UfmMenu
+import json
 import ufmapi
-import ufmadm_util
+from ufmmenu import UfmMenu
 
 
 class PortsMenu(UfmMenu):
@@ -32,7 +31,6 @@ class PortsMenu(UfmMenu):
 
             count = count + 1
 
-        self.pt = pt
         return
 
     def _back_action(self, menu, item):
@@ -86,6 +84,8 @@ class PortMenu(UfmMenu):
         print("*          Port: ", rsp["PortId"])
         print("*            Id: ", rsp["Id"])
         print("           Name: ", rsp["Name"])
+        print("            PFC: ", rsp["Oem"]["PFC"])
+        print("      TrustMode: ", rsp["Oem"]["TrustMode"])
         print("           Mode: ", rsp["Mode"])
         count = 0
 
@@ -151,6 +151,89 @@ class PortMenu(UfmMenu):
                           desc=tpr["description"])
             self.tpr = tpr
 
+        if "Actions" in rsp and rsp["Actions"]["#SetHybridPortAccessVLAN"]:
+
+            hpa = rsp["Actions"]["#SetHybridPortAccessVLAN"]
+            print("    Action: (SetHybridPortAccessVLAN) ")
+            self.add_item(labels=["hpa", "hpa"], args=["<vlan_id>"],
+                          action=self._set_hybrid_port_access_vlan_action,
+                          desc=hpa["description"])
+            self.hpa = hpa
+
+        if "Actions" in rsp and rsp["Actions"]["#SetHybridPortAllowedVLAN"]:
+
+            hpl = rsp["Actions"]["#SetHybridPortAllowedVLAN"]
+            print("    Action: (SetHybridPortAllowedVLAN) ")
+            self.add_item(labels=["hpl", "hpl"], args=["<vlan_id>"],
+                          action=self._set_hybrid_port_allowed_vlan_action,
+                          desc=hpl["description"])
+            self.hpl = hpl
+
+        if "Actions" in rsp and rsp["Actions"]["#RemoveHybridPortAllowedVLAN"]:
+
+            rhl = rsp["Actions"]["#RemoveHybridPortAllowedVLAN"]
+            print("    Action: (RemoveHybridPortAllowedVLAN) ")
+            self.add_item(labels=["rhl", "rhl"], args=["<vlan_id>"],
+                          action=self._remove_hybrid_port_allowed_vlan_action,
+                          desc=rhl["description"])
+            self.rhl = rhl
+
+        if "Actions" in rsp and rsp["Actions"]["#EnablePortPfc"]:
+
+            epp = rsp["Actions"]["#EnablePortPfc"]
+            print("    Action: (EnablePortPfc) ")
+            self.add_item(labels=["epp", "epp"],
+                          action=self._enable_port_pfc_action,
+                          desc=epp["description"])
+            self.epp = epp
+
+        if "Actions" in rsp and rsp["Actions"]["#DisablePortPfc"]:
+
+            dpp = rsp["Actions"]["#DisablePortPfc"]
+            print("    Action: (DisablePortPfc) ")
+            self.add_item(labels=["dpp", "dpp"],
+                          action=self._disable_port_pfc_action,
+                          desc=dpp["description"])
+            self.dpp = dpp
+
+        if "Actions" in rsp and rsp["Actions"]["#EnableEcnMarking"]:
+
+            eem = rsp["Actions"]["#EnableEcnMarking"]
+            print("    Action: (EnableEcnMarking) ")
+            self.add_item(labels=["eem", "eem"],
+                          args=["<traffic_cls>","<min>","<max>"],
+                          action=self._enable_ecn_marking_action,
+                          desc=eem["description"])
+            self.eem = eem
+
+        if "Actions" in rsp and rsp["Actions"]["#DisableEcnMarking"]:
+
+            dem = rsp["Actions"]["#DisableEcnMarking"]
+            print("    Action: (DisableEcnMarking) ")
+            self.add_item(labels=["dem", "dem"],
+                          args=["<traffic_cls>"],
+                          action=self._disable_ecn_marking_action,
+                          desc=dem["description"])
+            self.dem = dem
+
+        if "Actions" in rsp and rsp["Actions"]["#ShowPfcCounters"]:
+
+            spc = rsp["Actions"]["#ShowPfcCounters"]
+            print("    Action: (ShowPfcCounters) ")
+            self.add_item(labels=["spc", "spc"], args=["<prio_val>"],
+                          action=self._show_pfc_counters_action,
+                          desc=spc["description"])
+            self.spc = spc
+
+        if "Actions" in rsp and rsp["Actions"]["#ShowCongestionControl"]:
+
+            scc = rsp["Actions"]["#ShowCongestionControl"]
+            print("    Action: (ShowCongestionControl) ")
+            self.add_item(labels=["scc", "scc"],
+                          action=self._show_congestion_control_action,
+                          desc=scc["description"])
+            self.scc = scc
+
         return
 
     def _back_action(self, menu, item):
@@ -178,12 +261,13 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.sap["target"], payload)
 
-        ufmadm_util.print_switch_result(rsp,
-            'switchport access vlan ' + str(vlan_id),
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport access vlan ' + str(vlan_id),
             'Successfully set Access Port VLAN',
             'Failed to set Access Port VLAN')
 
-        self._refresh()
+        if succeeded:
+            self._refresh()
         return
 
 
@@ -193,12 +277,13 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.uap["target"], payload)
 
-        ufmadm_util.print_switch_result(rsp,
-            'no switchport access vlan',
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' no switchport access vlan',
             'Successfully unassign VLAN from Access Port',
             'Failed to Unassign VLAN from Access Port')
 
-        self._refresh()
+        if succeeded:
+            self._refresh()
         return
 
 
@@ -208,12 +293,13 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.tpa["target"], payload)
 
-        ufmadm_util.print_switch_result(rsp,
-                                        'switchport trunk allowed-vlan all',
-                                        'Successfully set port to trunk mode and allow vlan all',
-                                        'Failed to set port to trunk mode and allow vlan all')
+        succeeded = ufmapi.print_switch_result(rsp,
+                          'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan all',
+                          'Successfully set port to trunk mode and allow vlan all',
+                          'Failed to set port to trunk mode and allow vlan all')
 
-        self._refresh()
+        if succeeded:
+            self._refresh()
         return
 
 
@@ -236,10 +322,206 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.tpr["target"], payload)
 
-        ufmadm_util.print_switch_result(rsp,
-            'switchport trunk allowed-vlan ' + str(start_vlan_id) + '-' + str(end_vlan_id),
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan ' + \
+                                      str(start_vlan_id) + '-' + str(end_vlan_id),
             'Successfully set port to trunk mode and allow vlan range',
             'Failed to set port to trunk mode and allow vlan range')
 
-        self._refresh()
+        if succeeded:
+            self._refresh()
         return
+
+    def _set_hybrid_port_access_vlan_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id = int(argv[1], 10)
+        if vlan_id is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["VLANId"] = vlan_id
+
+        rsp = ufmapi.redfish_post(self.hpa["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport access vlan ' + str(vlan_id),
+            'Successfully set Hybrid Port Access VLAN',
+            'Failed to set Hybrid Port Access VLAN')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _set_hybrid_port_allowed_vlan_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id = int(argv[1], 10)
+        if vlan_id is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["VLANId"] = vlan_id
+
+        rsp = ufmapi.redfish_post(self.hpl["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport hybrid allowed-vlan add ' + str(vlan_id),
+            'Successfully add Hybrid Port Allowed VLAN',
+                                        'Failed to add Hybrid Port Allowed VLAN')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _remove_hybrid_port_allowed_vlan_action(self, menu, item):
+        argv = item.argv
+
+        vlan_id = int(argv[1], 10)
+        if vlan_id is None:
+            print("VLAN ID Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["VLANId"] = vlan_id
+
+        rsp = ufmapi.redfish_post(self.rhl["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport hybrid allowed-vlan remove ' + str(vlan_id),
+            'Successfully Remove  Hybrid Port Allowed VLAN',
+            'Failed to Remove Hybrid Port Allowed VLAN')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _enable_port_pfc_action(self, menu, item):
+        payload = {}
+        payload["port_id"] = self.pt
+
+        rsp = ufmapi.redfish_post(self.epp["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' dcb priority-flow-control mode on force',
+            'Successfully Enable Port PFC',
+            'Failed to Enable Port PFC')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _disable_port_pfc_action(self, menu, item):
+        payload = {}
+        payload["port_id"] = self.pt
+
+
+        rsp = ufmapi.redfish_post(self.dpp["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' no dcb priority-flow-control mode force',
+            'Successfully Disable Port PFC',
+            'Failed to Disable Port PFC')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _show_pfc_counters_action(self, menu, item):
+        argv = item.argv
+
+        prio = int(argv[1], 10)
+        if prio is None:
+            print("Priority Val Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["port_id"] = self.pt
+        payload["Priority"] = prio
+
+        rsp = ufmapi.redfish_post(self.spc["target"], payload)
+
+        ufmapi.print_switch_result(rsp,
+            'show interfaces ethernet 1/' + str(self.pt) + ' counters pfc prio ' + str(prio),
+            'Successfully Show Port PFC Counters',
+            'Failed to Show Port PFC Counters')
+
+        print(json.dumps(rsp, indent=4))
+        return
+
+    def _show_congestion_control_action(self, menu, item):
+        payload = {}
+        payload["port_id"] = self.pt
+
+        rsp = ufmapi.redfish_post(self.scc["target"], payload)
+
+        ufmapi.print_switch_result(rsp,
+            'show interfaces ethernet 1/' + str(self.pt) + ' congestion-control',
+            'Successfully Show port congestion control info',
+            'Failed to Show port congestion control info')
+
+        print(json.dumps(rsp, indent=4))
+        return
+
+    def _enable_ecn_marking_action(self, menu, item):
+        argv = item.argv
+
+        tc = int(argv[1], 10)
+        if tc is None:
+            print("Traffic Class Undefined, invalid or missing")
+            return
+
+        min_ab = int(argv[2], 10)
+        if min_ab is None:
+            print("Minimum Absolute Val Undefined, invalid or missing")
+            return
+
+        max_ab = int(argv[3], 10)
+        if min_ab is None:
+            print("Maxmum Absolute Val Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["port_id"] = self.pt
+        payload["TrafficClass"] = tc
+        payload["MinAbsoluteInKBs"] = min_ab
+        payload["MaxAbsoluteInKBs"] = max_ab
+
+        rsp = ufmapi.redfish_post(self.eem["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' traffic-class ' + str(tc) + \
+            ' congestion-control ecn minimum-absolute ' + str(min_ab) \
+            + ' maximum-absolute ' + str(max_ab),
+            'Successfully Enabled ECN Marking',
+            'Failed to Enable ECN Marking')
+
+        if succeeded:
+            self._refresh()
+        return
+
+    def _disable_ecn_marking_action(self, menu, item):
+        argv = item.argv
+
+        tc = int(argv[1], 10)
+        if tc is None:
+            print("Traffic Class Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["port_id"] = self.pt
+        payload["TrafficClass"] = tc
+
+        rsp = ufmapi.redfish_post(self.dem["target"], payload)
+
+        succeeded = ufmapi.print_switch_result(rsp,
+            'interface ethernet 1/' + str(self.pt) + ' no traffic-class ' + str(tc) + ' congestion-control',
+            'Successfully Disabled ECN Marking',
+            'Failed to Disable ECN Marking')
+
+        if succeeded:
+            self._refresh()
+        return
+
