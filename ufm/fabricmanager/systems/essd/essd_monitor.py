@@ -86,14 +86,12 @@ class EssdMonitor(UfmThread):
         self.essdArg.publisher.send('ufmmonitor', msg)
 
         try:
-            self.watch_id = self.db.watch_callback(essd_constants.ESSD_KEY,
-                                                   self._watchEssdKeyCallBack,
-                                                   previous_kv=True)
+            self.watch_id = self.db.add_watch_callback(essd_constants.ESSD_KEY, self._watchEssdKeyCallBack)
         except Exception as e:
-            self.log.error('Could not get watch id: {}'.format(str(e)))
+            self.log.error('ESSD: Could not configure callback (key{}): {}'.format(essd_constants.ESSD_KEY, str(e)))
             self.watch_id = None
 
-        self.log.info("======> Done Configure DB key watch'er <=========")
+        self.log.info("====> ESSD: Done Configure DB key watch'er <====")
 
     def stop(self):
         super(EssdMonitor, self).stop()
@@ -114,11 +112,9 @@ class EssdMonitor(UfmThread):
             self.log.error("DB is closed")
         else:
             if not self.watch_id:
-                self.log.error("Invalid watch ID")
+                self.log.error("ESSD: Invalid watch ID")
             else:
-                pass
-                # Find out why cancel doesn't work
-                # self.db.cancel_watch(self.watch_id)
+                self.db.cancel_watch(self.watch_id)
 
         self.log.info('===> Stop Essd <===')
 

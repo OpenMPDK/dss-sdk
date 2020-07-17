@@ -60,9 +60,7 @@ class UfmPoller(UfmThread):
         if df_struct.f_blocks > 0:
             df_out = df_struct.f_bfree * 100 / df_struct.f_blocks
             if df_out:
-                ufmArg.db.put(ufmArg.prefix +
-                              ufm_constants.UFM_LOCAL_DISKSPACE,
-                              str(df_out))
+                ufmArg.db.put(ufm_constants.UFM_LOCAL_DISKSPACE, str(df_out))
 
             if df_out > 95.0:
                 diskSpaceMsg = dict()
@@ -70,5 +68,4 @@ class UfmPoller(UfmThread):
                 diskSpaceMsg['service'] = "UfmPoller"
                 diskSpaceMsg['local_disk_space'] = int(df_out)
 
-                self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE,
-                                           diskSpaceMsg)
+                self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE, diskSpaceMsg)

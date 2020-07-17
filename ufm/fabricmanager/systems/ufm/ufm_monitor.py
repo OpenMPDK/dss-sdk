@@ -1,6 +1,7 @@
 import threading
 
 from ufm_thread import UfmThread
+from systems.ufm import ufm_constants
 from systems.ufm_message import Subscriber
 
 
@@ -11,7 +12,6 @@ class UfmMonitor(UfmThread):
 
         self.log = self.ufmArg.log
         self.db = self.ufmArg.db
-        self.prefix = self.ufmArg.prefix
 
         self.msgListner = Subscriber(event=self.event,
                                      ports=(self.ufmArg.ufmPorts),
@@ -29,7 +29,7 @@ class UfmMonitor(UfmThread):
         if not isinstance(event.events, list):
             return
 
-        # There has been changed in the db
+        # There has been a changed in the /ufm section of the db
         pass
 
     def _ufmMonitor(self, cbArgs):
@@ -54,14 +54,13 @@ class UfmMonitor(UfmThread):
                                       repeatIntervalSecs=7.0)
 
         try:
-            self.watch_id = self.db.watch_callback(self.prefix,
-                                                   self._ufmMonitorCallback,
-                                                   previous_kv=True)
+            self.watch_id = self.db.add_watch_callback(ufm_constants.UFM_PREFIX, self._ufmMonitorCallback)
         except Exception as e:
-            self.log.error('Exception could not get watch id: {}'.format(
-                str(e))
-            )
+            self.log.error('UFM: Could not set callback (key={}) (id={})'.format(ufm_constants.UFM_PREFIX,
+                                                                                 str(e)))
             self.watch_id = None
+
+        self.log.info("====> UFM: Done Configure DB key watch'er <====")
 
     def stop(self):
         super(UfmMonitor, self).stop()
@@ -75,7 +74,7 @@ class UfmMonitor(UfmThread):
             self.log.error("DB is closed")
         else:
             if not self.watch_id:
-                self.log.error("Invalid watch ID")
+                self.log.error("UFM module: invalid watch ID")
             else:
                 self.db.cancel_watch(self.watch_id)
 
@@ -83,8 +82,8 @@ class UfmMonitor(UfmThread):
         return self._running
 
     def processMonitorrMessages(self, topic, message):
-        print("Topic: {}  Message to process is: {}\n".format(topic,
-                                                              message))
+        print("Topic: {}  Message to process is: {}\n".format(topic, message))
+
         # this will send a Aka to publisher
         msg_ok = dict()
         msg_ok['status'] = True
