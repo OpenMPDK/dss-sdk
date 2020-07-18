@@ -405,7 +405,8 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
                 Nkv(hostname=ufmArg.hostname,
                     db=ufmArg.deprecatedDb)
             )
-    except Exception:
+    except Exception as e:
+        log.exception(e)
         pass
 
     try:
@@ -419,19 +420,22 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
                                    essdUrls=ufmArg.essdConfig['essdDrives'])
             except Exception:
                 pass
-    except Exception:
+    except Exception as e:
+        log.exception(e)
         pass
 
     try:
         if ufmArg.ebofConfig['enable']:
             subSystems.append(Ebof())
-    except Exception:
+    except Exception as e:
+        log.exception(e)
         pass
 
     try:
         if ufmArg.smartConfig['enable']:
             subSystems.append(Smart())
-    except Exception:
+    except Exception as e:
+        log.exception(e)
         pass
 
     try:
@@ -446,8 +450,7 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
                                   port=switch_arg['messageQueuePort'])
                 subSystems.append(EthSwitch(swArg))
     except Exception as e:
-        print("Exception when creating EthSwitch: ")
-        print(e)
+        log.exception(e)
         pass
 
 

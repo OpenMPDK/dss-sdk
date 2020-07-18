@@ -112,8 +112,7 @@ class RedfishSwitchBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            print(e)
-            print('RedfishSwitchBackend.get() failed')
+            #print('Caught exc {e} in RedfishSwitchBackend.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -187,8 +186,9 @@ class RedfishSwitchCollectionBackend():
 
             else:
                 response = redfish_constants.NOT_FOUND
-        except Exception:
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            #print('Caught exc {e} in RedfishSwitchCollectionBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

@@ -38,7 +38,8 @@ class RedfishFabricBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception as e:
-            response = RedfishErrorResponse.get_server_error_response()
+            #print('Caught exc {e} in RedfishFabricBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def put(self, payload):
@@ -91,8 +92,9 @@ class RedfishFabricCollectionBackend():
             self.cfg['Members@odata.count'] = len(members)
             response = self.cfg, redfish_constants.SUCCESS
 
-        except Exception:
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            #print('Caught exc {e} in RedfishFabricCollectionBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

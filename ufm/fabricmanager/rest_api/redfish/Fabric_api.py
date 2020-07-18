@@ -30,6 +30,7 @@ class FabricAPI(Resource):
             redfish_backend = RedfishFabricBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
+            #print('Caught exc {e} in FabricAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -47,6 +48,7 @@ class FabricCollectionAPI(Resource):
             redfish_backend = RedfishFabricCollectionBackend()
             response = redfish_backend.get()
         except Exception as e:
+            #print('Caught exc {e} in FabricCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

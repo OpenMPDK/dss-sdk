@@ -3,6 +3,7 @@ import json
 import threading
 from ufm_thread import UfmThread
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
+from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from systems.switch.redfish_server import Rfserver
 from systems.switch.switch_mellanox.switch_mellanox_client import SwitchMellanoxClient
 
@@ -96,8 +97,8 @@ class SwitchController(UfmThread):
 
             print(resp)
         except Exception as e:
-            print(e)
-            resp = {"Status": "failed"}
+            #print('Caught exc {e} in SwitchController.action_handler()')
+            resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
 

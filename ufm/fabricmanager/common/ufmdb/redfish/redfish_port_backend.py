@@ -235,9 +235,8 @@ class RedfishPortBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            print('RedfishPortBackend.get() failed')
-            print(e)
-            response = RedfishErrorResponse.get_server_error_response()
+            #print('Caught exc {e} in RedfishPortBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def put(self, payload):
@@ -322,9 +321,9 @@ class RedfishPortCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
 
-        except Exception:
-            print('RedfishPortCollectionBackend.get() failed')
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            #print('Caught exc {e} in RedfishPortCollectionBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 

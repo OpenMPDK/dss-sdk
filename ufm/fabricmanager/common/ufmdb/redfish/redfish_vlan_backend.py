@@ -68,8 +68,8 @@ class RedfishVlanBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            print('RedfishVlanBackend.get() failed')
-            response = RedfishErrorResponse.get_server_error_response()
+            #print('Caught exc {e} in RedfishVlanBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def put(self, payload):
@@ -142,9 +142,9 @@ class RedfishVlanCollectionBackend():
                 response = self.cfg, redfish_constants.SUCCESS
             else:
                 response = redfish_constants.NOT_FOUND
-        except Exception:
-            print('RedfishVlanCollectionBackend.get() failed')
-            response = RedfishErrorResponse.get_server_error_response()
+        except Exception as e:
+            #print('Caught exc {e} in RedfishVlanCollectionBackend.get()')
+            response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
 
