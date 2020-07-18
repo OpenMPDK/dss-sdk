@@ -1,14 +1,9 @@
 
 # External imports
 import copy
-import sys
-import traceback
 
 # Flask imports
-from flask import Flask, request, make_response, render_template
-from flask_restful import reqparse, Api, Resource
-from common.ufmlog import ufmlog
-from uuid import uuid4
+from flask_restful import Resource
 
 # Internal imports
 from rest_api.redfish.templates.Fabric import get_Fabric_instance
@@ -20,6 +15,7 @@ from common.ufmdb.redfish.redfish_fabric_backend import RedfishFabricBackend, Re
 
 members = {}
 
+
 class FabricAPI(Resource):
 
     def get(self, fab_id):
@@ -30,7 +26,7 @@ class FabricAPI(Resource):
             redfish_backend = RedfishFabricBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
-            #print('Caught exc {e} in FabricAPI.get()')
+            # print('Caught exc {e} in FabricAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -48,14 +44,12 @@ class FabricCollectionAPI(Resource):
             redfish_backend = RedfishFabricCollectionBackend()
             response = redfish_backend.get()
         except Exception as e:
-            #print('Caught exc {e} in FabricCollectionAPI.get()')
+            # print('Caught exc {e} in FabricCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
-
-
 
 
 class FabricEmulationAPI(Resource):

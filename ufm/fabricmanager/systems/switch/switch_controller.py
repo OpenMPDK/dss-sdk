@@ -97,7 +97,7 @@ class SwitchController(UfmThread):
 
             print(resp)
         except Exception as e:
-            #print('Caught exc {e} in SwitchController.action_handler()')
+            # print('Caught exc {e} in SwitchController.action_handler()')
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -285,7 +285,7 @@ class SwitchController(UfmThread):
         for item in json_obj['results']:
             if item['executed_command'] == 'dcb priority-flow-control enable force':
                 if item['status'] == 'OK':
-                    #self.remove_entry_for_pfc_change()
+                    # self.remove_entry_for_pfc_change()
                     self.remove_all_per_switch()
                     self.client.poll_to_db()
 
@@ -454,12 +454,10 @@ class SwitchController(UfmThread):
         # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/8/pfc/disabled
 
         if port_id:
-            kv_dict = self.db.delete_prefix('/switches/' + self.uuid + '/ports/' + str(port_id) + '/pfc')
+            self.db.delete_prefix('/switches/' + self.uuid + '/ports/' + str(port_id) + '/pfc')
         else:
-            kv_dict = self.db.delete_prefix('/switches/' + self.uuid + '/switch_attributes/pfc')
+            self.db.delete_prefix('/switches/' + self.uuid + '/switch_attributes/pfc')
 
     def remove_all_per_switch(self):
         # remove everything starting with '/switches/' for this switch
-        kv_dict = self.db.delete_prefix('/switches/' + self.uuid)
-
-
+        self.db.delete_prefix('/switches/' + self.uuid)

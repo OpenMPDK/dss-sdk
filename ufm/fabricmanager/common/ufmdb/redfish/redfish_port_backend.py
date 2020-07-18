@@ -3,6 +3,7 @@ from rest_api.redfish import redfish_constants
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
+
 class RedfishPortBackend():
     def __init__(self):
         self.cfg = {
@@ -83,19 +84,24 @@ class RedfishPortBackend():
             ###############################
             self.cfg['Actions']['#UnassignAccessPortVLAN'] = {}
             self.cfg['Actions']['#UnassignAccessPortVLAN']['description'] = 'Set this port access VLAN to default 1.'
-            self.cfg['Actions']['#UnassignAccessPortVLAN']['target'] = self.cfg['@odata.id'] + '/Actions/UnassignAccessPortVLAN'
+            self.cfg['Actions']['#UnassignAccessPortVLAN']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/UnassignAccessPortVLAN'
 
             ###############################
             self.cfg['Actions']['#SetTrunkPortVLANsAll'] = {}
-            self.cfg['Actions']['#SetTrunkPortVLANsAll']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \
-                + 'By default, a trunk port is automatically a member on all current and future VLANs.'
-            self.cfg['Actions']['#SetTrunkPortVLANsAll']['target'] = self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANsAll'
+            self.cfg['Actions']['#SetTrunkPortVLANsAll']['description'] = \
+                'Set this port to trunk mode connecting 2 switches. ' + \
+                'By default, a trunk port is automatically a member on all current and future VLANs.'
+            self.cfg['Actions']['#SetTrunkPortVLANsAll']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANsAll'
 
             ###############################
             self.cfg['Actions']['#SetTrunkPortVLANsRange'] = {}
-            self.cfg['Actions']['#SetTrunkPortVLANsRange']['description'] = 'Set this port to trunk mode connecting 2 switches. ' \
-                + 'This trunk port is a member on the range of VLANs specified by RangeFromVLANId and RangeToVLANId.'
-            self.cfg['Actions']['#SetTrunkPortVLANsRange']['target'] = self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANsRange'
+            self.cfg['Actions']['#SetTrunkPortVLANsRange']['description'] = \
+                'Set this port to trunk mode connecting 2 switches. ' + \
+                'This trunk port is a member on the range of VLANs specified by RangeFromVLANId and RangeToVLANId.'
+            self.cfg['Actions']['#SetTrunkPortVLANsRange']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/SetTrunkPortVLANsRange'
             self.cfg['Actions']['#SetTrunkPortVLANsRange']['Parameters'] = []
 
             param = {}
@@ -235,13 +241,12 @@ class RedfishPortBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            #print('Caught exc {e} in RedfishPortBackend.get()')
+            # print('Caught exc {e} in RedfishPortBackend.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def put(self, payload):
         pass
-
 
     def get_port(self, sw_id, port_id):
         ret = {
@@ -289,7 +294,6 @@ class RedfishPortBackend():
         return ret
 
 
-
 class RedfishPortCollectionBackend():
     def __init__(self):
         self.cfg = {
@@ -299,16 +303,15 @@ class RedfishPortCollectionBackend():
             'Name': 'Port Collection'
             }
 
-
     def get(self, fab_id, sw_id):
         try:
             if ufmdb_util.is_valid_fabric(fab_id) and ufmdb_util.is_valid_switch(sw_id):
-                self.cfg['@odata.id'] = self.cfg['@odata.id'].format(rest_base = redfish_constants.REST_BASE,
-                                                                     Fabrics = redfish_constants.FABRICS,
-                                                                     fab_id = fab_id,
-                                                                     Switches = redfish_constants.SWITCHES,
-                                                                     switch_id = sw_id,
-                                                                     Ports = redfish_constants.PORTS)
+                self.cfg['@odata.id'] = self.cfg['@odata.id'].format(rest_base=redfish_constants.REST_BASE,
+                                                                     Fabrics=redfish_constants.FABRICS,
+                                                                     fab_id=fab_id,
+                                                                     Switches=redfish_constants.SWITCHES,
+                                                                     switch_id=sw_id,
+                                                                     Ports=redfish_constants.PORTS)
                 members = []
                 ports = self.get_ports_for_switch(sw_id)
                 for p in ports:
@@ -322,17 +325,15 @@ class RedfishPortCollectionBackend():
                 response = redfish_constants.NOT_FOUND
 
         except Exception as e:
-            #print('Caught exc {e} in RedfishPortCollectionBackend.get()')
+            # print('Caught exc {e} in RedfishPortCollectionBackend.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
-
 
     def put(self, payload):
         pass
 
-
     # return a list of switch ids that belong to this fabric
-    def get_ports_for_switch(self,sw_id):
+    def get_ports_for_switch(self, sw_id):
         prefix = '/switches/' + sw_id + '/ports/list/'
         kv_dict = ufmdb_util.query_prefix(prefix)
 
@@ -341,9 +342,3 @@ class RedfishPortCollectionBackend():
             ret.append(k.split('/')[-1])
 
         return ret
-
-
-
-
-
-

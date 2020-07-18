@@ -1,6 +1,8 @@
+
 import json
 import ufmapi
 from ufmmenu import UfmMenu
+
 
 class SwitchesMenu(UfmMenu):
     def __init__(self, fab=""):
@@ -164,9 +166,9 @@ class SwitchMenu(UfmMenu):
     def _enable_pfc_globally_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.epg["target"])
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'dcb priority-flow-control enable force',
-                                              'Successfully Enabled PFC Globally',
-                                              'Failed to Enable PFC Globally')
+                                               'dcb priority-flow-control enable force',
+                                               'Successfully Enabled PFC Globally',
+                                               'Failed to Enable PFC Globally')
         if succeeded:
             self._refresh()
         return
@@ -175,11 +177,11 @@ class SwitchMenu(UfmMenu):
         rsp = ufmapi.redfish_post(self.dpg["target"])
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'no dcb priority-flow-control enable force',
-                                              'Successfully Disabled PFC Globally',
-                                              'Failed to Disable PFC Globally')
+                                               'no dcb priority-flow-control enable force',
+                                               'Successfully Disabled PFC Globally',
+                                               'Failed to Disable PFC Globally')
         if succeeded:
-              self._refresh()
+            self._refresh()
         return
 
     def _enable_pfc_per_priority_action(self, menu, item):
@@ -195,9 +197,9 @@ class SwitchMenu(UfmMenu):
         rsp = ufmapi.redfish_post(self.epp["target"], payload)
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'dcb priority-flow-control priority ' + str(prio) + ' enable',
-                                              'Successfully Enabled PFC Per Priority',
-                                              'Failed to Enable PFC Per Priority')
+                                               'dcb priority-flow-control priority ' + str(prio) + ' enable',
+                                               'Successfully Enabled PFC Per Priority',
+                                               'Failed to Enable PFC Per Priority')
         if succeeded:
             self._refresh()
         return
@@ -215,9 +217,9 @@ class SwitchMenu(UfmMenu):
         rsp = ufmapi.redfish_post(self.dpp["target"], payload)
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'no dcb priority-flow-control priority ' + str(prio) + ' enable',
-                                              'Successfully Disabled PFC Per Priority',
-                                              'Failed to Disable PFC Per Priority')
+                                               'no dcb priority-flow-control priority ' + str(prio) + ' enable',
+                                               'Successfully Disabled PFC Per Priority',
+                                               'Failed to Disable PFC Per Priority')
         if succeeded:
             self._refresh()
         return
@@ -236,11 +238,10 @@ class SwitchMenu(UfmMenu):
 
         succeeded = ufmapi.print_switch_result(rsp,
                                                any_cmd_str,
-                                              'Successfully Executed',
-                                              'Failed to execute')
+                                               'Successfully Executed',
+                                               'Failed to execute')
         print(json.dumps(rsp, indent=4))
         self.clear_all_args()
         if succeeded:
             self._refresh()
         return
-

@@ -1,3 +1,4 @@
+
 from ufmmenu import UfmMenu
 import ufmapi
 
@@ -72,9 +73,9 @@ class VlansMenu(UfmMenu):
         rsp = ufmapi.redfish_post(self.crt["target"], payload)
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'vlan ' + str(vlan_id),
-                                              'VLAN created',
-                                              'Failed to create VLAN')
+                                               'vlan ' + str(vlan_id),
+                                               'VLAN created',
+                                               'Failed to create VLAN')
         if succeeded:
             self._refresh()
 
@@ -178,14 +179,13 @@ class VlanMenu(UfmMenu):
         self.set_menu(port_menu)
         return
 
-
     def _delete_vlan_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.dlt["target"])
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'no vlan ' + str(self.vlan),
-                                              'VLAN deleted',
-                                              'Failed to delete VLAN')
+                                               'no vlan ' + str(self.vlan),
+                                               'VLAN deleted',
+                                               'Failed to delete VLAN')
         if succeeded:
             self._back_action(menu, item)
 
@@ -206,9 +206,9 @@ class VlanMenu(UfmMenu):
         rsp = ufmapi.redfish_post(self.nam["target"], payload)
 
         succeeded = ufmapi.print_switch_result(rsp,
-                                              'vlan ' + str(self.vlan) + ' name ' + vlan_name,
-                                              'Successfully named VLAN',
-                                              'Failed to name VLAN')
+                                               'vlan ' + str(self.vlan) + ' name ' + vlan_name,
+                                               'Successfully named VLAN',
+                                               'Failed to name VLAN')
         if succeeded:
             self._refresh()
         return

@@ -1,3 +1,4 @@
+
 # External imports
 import uuid
 
@@ -11,7 +12,6 @@ from rest_api.redfish import util
 
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_vlan_backend import RedfishVlanBackend, RedfishVlanCollectionBackend
-from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 members = {}
 
@@ -25,7 +25,7 @@ class VlanAPI(Resource):
             redfish_backend = RedfishVlanBackend()
             response = redfish_backend.get(fab_id, sw_id, vlan_id)
         except Exception as e:
-            #print('Caught exc {e} in VlanAPI.get()')
+            # print('Caught exc {e} in VlanAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -49,9 +49,10 @@ class VlanActionAPI(Resource):
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:
-            #print('Caught exc {e} in VlanActionAPI.post()')
+            # print('Caught exc {e} in VlanActionAPI.post()')
             resp = RedfishErrorResponse.get_server_error_response(e)
         return resp
+
 
 class VlanCollectionAPI(Resource):
     def get(self, fab_id, sw_id):
@@ -62,7 +63,7 @@ class VlanCollectionAPI(Resource):
             redfish_backend = RedfishVlanCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            #print('Caught exc {e} in VlanCollectionAPI.get()')
+            # print('Caught exc {e} in VlanCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -85,14 +86,9 @@ class VlanCollectionActionAPI(Resource):
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:
-            #print('Caught exc {e} in VlanCollectionActionAPI.post()')
+            # print('Caught exc {e} in VlanCollectionActionAPI.post()')
             resp = RedfishErrorResponse.get_server_error_response(e)
         return resp
-
-
-
-
-
 
 
 class VlanEmulationAPI(Resource):

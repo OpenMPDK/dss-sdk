@@ -1,3 +1,4 @@
+
 # External imports
 import uuid
 
@@ -14,6 +15,7 @@ from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, Redfis
 
 members = {}
 
+
 class PortAPI(Resource):
     def get(self, fab_id, sw_id, port_id):
         # """
@@ -23,7 +25,7 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
-            #print('Caught exc {e} in PortAPI.get()')
+            # print('Caught exc {e} in PortAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -48,7 +50,7 @@ class PortActionAPI(Resource):
             resp = util.post_to_switch(sw_id, data)
 
         except Exception as e:
-            #print('Caught exc {e} in PortActionAPI.post()')
+            # print('Caught exc {e} in PortActionAPI.post()')
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -64,14 +66,12 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            #print('Caught exc {e} in PortCollectionAPI.get()')
+            # print('Caught exc {e} in PortCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
-
-
 
 
 class PortEmulationAPI(Resource):

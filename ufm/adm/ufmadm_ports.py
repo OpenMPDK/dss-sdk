@@ -1,3 +1,4 @@
+
 import json
 import ufmapi
 from ufmmenu import UfmMenu
@@ -121,7 +122,6 @@ class PortMenu(UfmMenu):
                           desc=sap["description"])
             self.sap = sap
 
-
         if "Actions" in rsp and rsp["Actions"]["#UnassignAccessPortVLAN"]:
 
             uap = rsp["Actions"]["#UnassignAccessPortVLAN"]
@@ -130,7 +130,6 @@ class PortMenu(UfmMenu):
                           action=self._unassign_access_port_action,
                           desc=uap["description"])
             self.uap = uap
-
 
         if "Actions" in rsp and rsp["Actions"]["#SetTrunkPortVLANsAll"]:
 
@@ -201,7 +200,7 @@ class PortMenu(UfmMenu):
             eem = rsp["Actions"]["#EnableEcnMarking"]
             print("    Action: (EnableEcnMarking) ")
             self.add_item(labels=["eem", "eem"],
-                          args=["<traffic_cls>","<min>","<max>"],
+                          args=["<traffic_cls>", "<min>", "<max>"],
                           action=self._enable_ecn_marking_action,
                           desc=eem["description"])
             self.eem = eem
@@ -261,7 +260,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.sap["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' switchport access vlan ' + str(vlan_id),
             'Successfully set Access Port VLAN',
             'Failed to set Access Port VLAN')
@@ -270,14 +270,14 @@ class PortMenu(UfmMenu):
             self._refresh()
         return
 
-
     def _unassign_access_port_action(self, menu, item):
         payload = {}
         payload["port_id"] = self.pt
 
         rsp = ufmapi.redfish_post(self.uap["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' no switchport access vlan',
             'Successfully unassign VLAN from Access Port',
             'Failed to Unassign VLAN from Access Port')
@@ -286,22 +286,21 @@ class PortMenu(UfmMenu):
             self._refresh()
         return
 
-
     def _set_trunk_port_all_action(self, menu, item):
         payload = {}
         payload["port_id"] = self.pt
 
         rsp = ufmapi.redfish_post(self.tpa["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
-                          'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan all',
-                          'Successfully set port to trunk mode and allow vlan all',
-                          'Failed to set port to trunk mode and allow vlan all')
+        succeeded = ufmapi.print_switch_result(
+            rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan all',
+            'Successfully set port to trunk mode and allow vlan all',
+            'Failed to set port to trunk mode and allow vlan all')
 
         if succeeded:
             self._refresh()
         return
-
 
     def _set_trunk_port_range_action(self, menu, item):
         argv = item.argv
@@ -322,9 +321,10 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.tpr["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
-            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan ' + \
-                                      str(start_vlan_id) + '-' + str(end_vlan_id),
+        succeeded = ufmapi.print_switch_result(
+            rsp,
+            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan ' +
+            str(start_vlan_id) + '-' + str(end_vlan_id),
             'Successfully set port to trunk mode and allow vlan range',
             'Failed to set port to trunk mode and allow vlan range')
 
@@ -345,7 +345,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.hpa["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' switchport access vlan ' + str(vlan_id),
             'Successfully set Hybrid Port Access VLAN',
             'Failed to set Hybrid Port Access VLAN')
@@ -367,10 +368,11 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.hpl["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' switchport hybrid allowed-vlan add ' + str(vlan_id),
             'Successfully add Hybrid Port Allowed VLAN',
-                                        'Failed to add Hybrid Port Allowed VLAN')
+            'Failed to add Hybrid Port Allowed VLAN')
 
         if succeeded:
             self._refresh()
@@ -389,7 +391,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.rhl["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' switchport hybrid allowed-vlan remove ' + str(vlan_id),
             'Successfully Remove  Hybrid Port Allowed VLAN',
             'Failed to Remove Hybrid Port Allowed VLAN')
@@ -404,7 +407,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.epp["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' dcb priority-flow-control mode on force',
             'Successfully Enable Port PFC',
             'Failed to Enable Port PFC')
@@ -417,10 +421,10 @@ class PortMenu(UfmMenu):
         payload = {}
         payload["port_id"] = self.pt
 
-
         rsp = ufmapi.redfish_post(self.dpp["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' no dcb priority-flow-control mode force',
             'Successfully Disable Port PFC',
             'Failed to Disable Port PFC')
@@ -443,7 +447,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.spc["target"], payload)
 
-        ufmapi.print_switch_result(rsp,
+        ufmapi.print_switch_result(
+            rsp,
             'show interfaces ethernet 1/' + str(self.pt) + ' counters pfc prio ' + str(prio),
             'Successfully Show Port PFC Counters',
             'Failed to Show Port PFC Counters')
@@ -457,7 +462,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.scc["target"], payload)
 
-        ufmapi.print_switch_result(rsp,
+        ufmapi.print_switch_result(
+            rsp,
             'show interfaces ethernet 1/' + str(self.pt) + ' congestion-control',
             'Successfully Show port congestion control info',
             'Failed to Show port congestion control info')
@@ -491,9 +497,10 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.eem["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
-            'interface ethernet 1/' + str(self.pt) + ' traffic-class ' + str(tc) + \
-            ' congestion-control ecn minimum-absolute ' + str(min_ab) \
+        succeeded = ufmapi.print_switch_result(
+            rsp,
+            'interface ethernet 1/' + str(self.pt) + ' traffic-class ' + str(tc) +
+            ' congestion-control ecn minimum-absolute ' + str(min_ab)
             + ' maximum-absolute ' + str(max_ab),
             'Successfully Enabled ECN Marking',
             'Failed to Enable ECN Marking')
@@ -516,7 +523,8 @@ class PortMenu(UfmMenu):
 
         rsp = ufmapi.redfish_post(self.dem["target"], payload)
 
-        succeeded = ufmapi.print_switch_result(rsp,
+        succeeded = ufmapi.print_switch_result(
+            rsp,
             'interface ethernet 1/' + str(self.pt) + ' no traffic-class ' + str(tc) + ' congestion-control',
             'Successfully Disabled ECN Marking',
             'Failed to Disable ECN Marking')
@@ -524,4 +532,3 @@ class PortMenu(UfmMenu):
         if succeeded:
             self._refresh()
         return
-

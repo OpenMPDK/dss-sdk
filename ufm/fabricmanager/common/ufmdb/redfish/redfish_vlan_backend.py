@@ -3,6 +3,7 @@ from rest_api.redfish import redfish_constants
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
+
 class RedfishVlanBackend():
     def __init__(self):
         self.cfg = {
@@ -12,24 +13,24 @@ class RedfishVlanBackend():
             "Description": "VLAN Network Interface",
             "Name": "{vlan_name}",
             "VLANEnable": "{vlan_enabled}",
-            "VLANId":"{vlan_id}",
+            "VLANId": "{vlan_id}",
         }
 
     def get(self, fab_id, sw_id, vlan_id):
         try:
-            self.cfg["@odata.id"] = self.cfg["@odata.id"].format(rest_base = redfish_constants.REST_BASE,
-                                                                 Fabrics = redfish_constants.FABRICS,
-                                                                 fab_id = fab_id,
-                                                                 Switches = redfish_constants.SWITCHES,
-                                                                 switch_id = sw_id,
-                                                                 VLANs = redfish_constants.VLANS,
-                                                                 vlan_id = vlan_id)
-            self.cfg['Id'] = self.cfg['Id'].format(vlan_id = vlan_id)
-            self.cfg['VLANEnable'] = self.cfg['VLANEnable'].format(vlan_enabled = True)
-            self.cfg['VLANId'] = self.cfg['VLANId'].format(vlan_id = vlan_id)
+            self.cfg["@odata.id"] = self.cfg["@odata.id"].format(rest_base=redfish_constants.REST_BASE,
+                                                                 Fabrics=redfish_constants.FABRICS,
+                                                                 fab_id=fab_id,
+                                                                 Switches=redfish_constants.SWITCHES,
+                                                                 switch_id=sw_id,
+                                                                 VLANs=redfish_constants.VLANS,
+                                                                 vlan_id=vlan_id)
+            self.cfg['Id'] = self.cfg['Id'].format(vlan_id=vlan_id)
+            self.cfg['VLANEnable'] = self.cfg['VLANEnable'].format(vlan_enabled=True)
+            self.cfg['VLANId'] = self.cfg['VLANId'].format(vlan_id=vlan_id)
 
             vlan = self.get_vlan(sw_id, vlan_id)
-            self.cfg['Name'] = self.cfg['Name'].format(vlan_name = vlan['name'])
+            self.cfg['Name'] = self.cfg['Name'].format(vlan_name=vlan['name'])
 
             ##############################
             self.cfg['Actions'] = {}
@@ -53,13 +54,13 @@ class RedfishVlanBackend():
             for p in vlan['ports']:
                 port_id = p.split('/')[-1]
                 port_path = '{rest_base}/{Fabrics}/{fab_id}/{Switches}/{switch_id}/{Ports}/{port_id}'.format(
-                    rest_base = redfish_constants.REST_BASE,
-                    Fabrics = redfish_constants.FABRICS,
-                    fab_id = fab_id,
-                    Switches = redfish_constants.SWITCHES,
-                    switch_id = sw_id,
-                    Ports = redfish_constants.PORTS,
-                    port_id = port_id)
+                    rest_base=redfish_constants.REST_BASE,
+                    Fabrics=redfish_constants.FABRICS,
+                    fab_id=fab_id,
+                    Switches=redfish_constants.SWITCHES,
+                    switch_id=sw_id,
+                    Ports=redfish_constants.PORTS,
+                    port_id=port_id)
 
                 port_links.append({'@odata.id': port_path})
 
@@ -68,13 +69,12 @@ class RedfishVlanBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            #print('Caught exc {e} in RedfishVlanBackend.get()')
+            # print('Caught exc {e} in RedfishVlanBackend.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def put(self, payload):
         pass
-
 
     def get_vlan(self, sw_id, vlan_id):
         ret = {}
@@ -94,7 +94,6 @@ class RedfishVlanBackend():
         return ret
 
 
-
 class RedfishVlanCollectionBackend():
     def __init__(self):
         self.cfg = {
@@ -104,16 +103,15 @@ class RedfishVlanCollectionBackend():
             'Name': 'VLANs Collection'
             }
 
-
     def get(self, fab_id, sw_id):
         try:
             if ufmdb_util.is_valid_fabric(fab_id) and ufmdb_util.is_valid_switch(sw_id):
-                self.cfg['@odata.id'] = self.cfg['@odata.id'].format(rest_base = redfish_constants.REST_BASE,
-                                                                     Fabrics = redfish_constants.FABRICS,
-                                                                     fab_id = fab_id,
-                                                                     Switches = redfish_constants.SWITCHES,
-                                                                     switch_id = sw_id,
-                                                                     VLANs = redfish_constants.VLANS)
+                self.cfg['@odata.id'] = self.cfg['@odata.id'].format(rest_base=redfish_constants.REST_BASE,
+                                                                     Fabrics=redfish_constants.FABRICS,
+                                                                     fab_id=fab_id,
+                                                                     Switches=redfish_constants.SWITCHES,
+                                                                     switch_id=sw_id,
+                                                                     VLANs=redfish_constants.VLANS)
                 members = []
                 vlans = self.get_vlans_for_switch(sw_id)
                 for vlan_id in vlans:
@@ -143,15 +141,14 @@ class RedfishVlanCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception as e:
-            #print('Caught exc {e} in RedfishVlanCollectionBackend.get()')
+            # print('Caught exc {e} in RedfishVlanCollectionBackend.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
-
 
     def put(self, payload):
         pass
 
-    def get_vlans_for_switch(self,sw_id):
+    def get_vlans_for_switch(self, sw_id):
         prefix = '/switches/' + sw_id + '/VLANs/list/'
         kv_dict = ufmdb_util.query_prefix(prefix)
 
@@ -160,10 +157,3 @@ class RedfishVlanCollectionBackend():
             ret.append(k.split('/')[-1])
 
         return ret
-
-
-
-
-
-
-

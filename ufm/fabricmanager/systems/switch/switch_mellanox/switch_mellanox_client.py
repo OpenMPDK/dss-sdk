@@ -1,21 +1,18 @@
 
-
+import time
+import json
+import requests
+from systems.switch import switch_constants
+from systems.switch.switch_client import SwitchClientTemplate
 
 '''
 ignore warnings from this statement:
 session.post( , , verify=False)
 '''
 import warnings
-#warnings.filterwarnings("ignore", message="InsecureRequestWarning: Unverified HTTPS request is being made to host")
+# warnings.filterwarnings("ignore", message="InsecureRequestWarning: Unverified HTTPS request is being made to host")
 warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made to host")
 
-import time
-import json
-import requests
-from systems.switch import switch_constants
-from systems.switch.switch_arg import SwitchArg
-from systems.switch.switch_client import SwitchClientTemplate
-from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
 class SwitchMellanoxClient(SwitchClientTemplate):
     def __init__(self, swArg):
@@ -49,7 +46,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
         response = ses.post(self.url, params=params, data=data, verify=False)
         self.log.info('Switch connection status_code (200=OK): ' + str(response.status_code))
-        #self.log.info('Switch response: %s', response.text)
+        # self.log.info('Switch response: %s', response.text)
 
         return ses
 
@@ -82,8 +79,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         response = self.session.post(self.url + '?script=json', json=json_data, verify=False)
 
         self.log.info('Switch response status_code (200=OK): ' + str(response.status_code))
-        #if response.status_code != 200:
-        #self.log.info('Switch response: %s', response.text)
+        # if response.status_code != 200:
+        # self.log.info('Switch response: %s', response.text)
 
         # A requests.models.Response can be returned as a tuple which provides extra info.
         # Such tuples have to be in the form (response, status, headers) where at least one
@@ -96,7 +93,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
         return response
 
-
     def enable_cmd(self):
         json_cmd = {
             "commands":
@@ -106,7 +102,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     def show_version(self):
         '''
@@ -161,7 +156,12 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                     "1": [
                         {
                             "Name": "default",
-                            "Ports": "Eth1/2, Eth1/3, Eth1/4, Eth1/5, Eth1/6,Eth1/7, Eth1/8, Eth1/9, Eth1/10, Eth1/11,Eth1/12, Eth1/13, Eth1/14, Eth1/15, Eth1/16,Eth1/17, Eth1/18, Eth1/19, Eth1/20, Eth1/21,Eth1/22, Eth1/23, Eth1/24, Eth1/25, Eth1/26,Eth1/27, Eth1/28, Eth1/29, Eth1/30, Eth1/31,Eth1/32, Eth1/33, Eth1/34, Eth1/35, Eth1/36,Eth1/37, Eth1/38, Eth1/39, Eth1/40, Eth1/41,Eth1/42, Eth1/43, Eth1/44, Eth1/45, Eth1/46,Eth1/47, Eth1/48, Eth1/51, Eth1/52, Eth1/56"
+                            "Ports": "Eth1/2, Eth1/3, Eth1/4, Eth1/5, Eth1/6,Eth1/7, Eth1/8, Eth1/9, Eth1/10, \
+                                     Eth1/11,Eth1/12, Eth1/13, Eth1/14, Eth1/15, Eth1/16,Eth1/17, Eth1/18, \
+                                     Eth1/19, Eth1/20, Eth1/21,Eth1/22, Eth1/23, Eth1/24, Eth1/25, Eth1/26, \
+                                     Eth1/27, Eth1/28, Eth1/29, Eth1/30, Eth1/31,Eth1/32, Eth1/33, Eth1/34, \
+                                     Eth1/35, Eth1/36,Eth1/37, Eth1/38, Eth1/39, Eth1/40, Eth1/41,Eth1/42, \
+                                     Eth1/43, Eth1/44, Eth1/45, Eth1/46,Eth1/47, Eth1/48, Eth1/51, Eth1/52, Eth1/56"
                         }
                         ],
                         "100": [
@@ -412,7 +412,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                #"show qos interface ethernet 1/" + str(port_id)
+                # "show qos interface ethernet 1/" + str(port_id)
                 "show qos"
             ]
         }
@@ -438,13 +438,13 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                         SWITCH_PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports/'
                         lease = self.db.lease(self.lease_ttl)
 
-                        data = json_obj['results'][0]['data'] # a list of dictionaries
+                        data = json_obj['results'][0]['data']  # a list of dictionaries
                         for d in data:
                             for k in d:
                                 if 'Eth1/' in k:
                                     pt = k.split('/')[-1]
-                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) +'/pfc/trust_mode/' +d[k][0]['Trust mode'],
-                                                '', lease=lease)
+                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) + '/pfc/trust_mode/'
+                                                + d[k][0]['Trust mode'], '', lease=lease)
 
     def _poll_pfc_status(self):
         '''
@@ -476,7 +476,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                         SWITCH_PORT_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/ports/'
                         lease = self.db.lease(self.lease_ttl)
 
-                        data = json_obj['results'][0]['data'] # a list of dictionaries
+                        data = json_obj['results'][0]['data']  # a list of dictionaries
                         for d in data:
                             for k in d:
                                 if k == 'PFC':
@@ -493,13 +493,13 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                     if d['Priority Disabled List']:
                                         lst = d['Priority Disabled List'].split(' ')
                                         for i in lst:
-                                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/pfc/priority_disabled_list/' + str(i),
-                                                        '', lease=lease)
+                                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/pfc/priority_disabled_list/'
+                                                        + str(i), '', lease=lease)
 
                                 elif 'Eth1/' in k:
                                     pt = k.split('/')[-1]
-                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) + '/pfc/pfc_status/' +d[k][0]['PFC oper'],
-                                                '', lease=lease)
+                                    self.db.put(SWITCH_PORT_KEY_PREFIX + str(pt) + '/pfc/pfc_status/'
+                                                + d[k][0]['PFC oper'], '', lease=lease)
 
     def _poll_switch_attributes(self):
         '''
@@ -531,11 +531,13 @@ class SwitchMellanoxClient(SwitchClientTemplate):
 
                             self.uuid = data['System UUID']
                             self.db.put(switch_constants.SWITCH_LIST_KEY_PREFIX + '/' + self.uuid, '', lease=lease)
-                            SWITCH_ATTR_KEY_PREFIX = switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
+                            SWITCH_ATTR_KEY_PREFIX = \
+                                switch_constants.SWITCH_BASE + '/' + self.uuid + '/switch_attributes'
 
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uptime/' + str(int(time.time())), '', lease=lease)
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/uuid/' + self.uuid, '', lease=lease)
-                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/manufacturer/' + self.swArg.sw_type.lower(), '', lease=lease)
+                            self.db.put(SWITCH_ATTR_KEY_PREFIX + '/manufacturer/' + self.swArg.sw_type.lower(),
+                                        '', lease=lease)
                             self.db.put(SWITCH_ATTR_KEY_PREFIX + '/ipv4/' + self.swArg.sw_ip, '', lease=lease)
 
                             if 'Name' in data:
@@ -543,9 +545,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                             if 'Product model' in data:
                                 self.db.put(SWITCH_ATTR_KEY_PREFIX + '/model/' + data['Product model'], '', lease=lease)
                             if 'System serial num' in data:
-                                self.db.put(SWITCH_ATTR_KEY_PREFIX + '/serial_number/' + data['System serial num'], '', lease=lease)
-
-
+                                self.db.put(SWITCH_ATTR_KEY_PREFIX + '/serial_number/' + data['System serial num'],
+                                            '', lease=lease)
 
     def _poll_vlan_info(self):
         '''
@@ -589,11 +590,11 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                 if k == 'Name':
                                     self.db.put(this_vlan_key_prefix + '/name/' + v, '', lease=lease)
                                 elif k == 'Ports':
-                                    for port_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
+                                    for port_id in [x.strip() for x in v.split(',')]:  # split and strip whitespace
                                         port_id = port_id.split('/')[-1]
                                         if port_id:
-                                            self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id, '', lease=lease)
-
+                                            self.db.put(this_vlan_key_prefix + '/network/ports/' + port_id,
+                                                        '', lease=lease)
 
     def _poll_port_info(self):
         '''
@@ -636,19 +637,18 @@ class SwitchMellanoxClient(SwitchClientTemplate):
                                     self.db.put(this_port_key_prefix + '/mode/' + v, '', lease=lease)
                                 elif k == 'Access vlan':
                                     if v != 'N/A':
-                                        #Note: some port's Access vlan is N/A, different from empty?
+                                        # Note: some port's Access vlan is N/A, different from empty?
                                         self.db.put(this_port_key_prefix + '/network/access_vlan/' + v, '', lease=lease)
                                 elif k == 'Allowed vlans':
-                                    for allowed_id in [x.strip() for x in v.split(',')]:#split and strip whitespace
-                                        self.db.put(this_port_key_prefix + '/network/allowed_vlans/' + v, '', lease=lease)
-
-
+                                    for allowed_id in [x.strip() for x in v.split(',')]:  # split and strip whitespace
+                                        self.db.put(this_port_key_prefix + '/network/allowed_vlans/' + v,
+                                                    '', lease=lease)
 
     def poll_to_db(self):
         # For now (06/2020), Redfish Fabric exists only for Switch. May change in the future.
-        self.db.put('/Fabrics/list/Fabric.1', '', lease = self.db.lease(self.lease_ttl))
-        self.db.put('/Fabrics/Fabric.1/type/NVME', '', lease = self.db.lease(self.lease_ttl))
-        self.db.put('/Fabrics/Fabric.1/list/' + self.uuid, '', lease = self.db.lease(self.lease_ttl))
+        self.db.put('/Fabrics/list/Fabric.1', '', lease=self.db.lease(self.lease_ttl))
+        self.db.put('/Fabrics/Fabric.1/type/NVME', '', lease=self.db.lease(self.lease_ttl))
+        self.db.put('/Fabrics/Fabric.1/list/' + self.uuid, '', lease=self.db.lease(self.lease_ttl))
 
         self._poll_switch_attributes()
         self._poll_vlan_info()
@@ -659,10 +659,9 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         try:
             # Write in the mq_port for UfmRedfish service to fetch
             self.db.put('/switches/' + self.uuid + '/switch_attributes/mq_port/' + str(self.swArg.port), '',
-                        lease = self.db.lease(self.lease_ttl))
+                        lease=self.db.lease(self.lease_ttl))
         except Exception as e:
             print(e)
-
 
     def delete_vlan(self, vlan_id):
         json_cmd = {
@@ -673,7 +672,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     def create_vlan(self, vlan_id):
         json_cmd = {
@@ -686,7 +684,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         resp = self.send_cmd(json_cmd)
         return resp
 
-
     def name_vlan(self, vlan_id, name):
         json_cmd = {
             "commands":
@@ -696,7 +693,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     def set_access_port_vlan(self, port_id, vlan_id):
         json_cmd = {
@@ -730,19 +726,17 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         resp = self.send_cmd(json_cmd)
         return resp
 
-
     def set_trunk_port_vlans_range(self, port_id, start_vlan_id, end_vlan_id):
         json_cmd = {
             "commands":
             [
                 "interface ethernet 1/" + str(port_id) + " switchport mode trunk",
-                "interface ethernet 1/" + str(port_id) + \
+                "interface ethernet 1/" + str(port_id) +
                 " switchport trunk allowed-vlan " + str(start_vlan_id) + "-" + str(end_vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     def set_hybrid_port_access_vlan(self, port_id, access_vlan_id):
         json_cmd = {
@@ -755,32 +749,28 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         resp = self.send_cmd(json_cmd)
         return resp
 
-
     def set_hybrid_port_allowed_vlan(self, port_id, allowed_vlan_id):
         json_cmd = {
             "commands":
             [
                 "interface ethernet 1/" + str(port_id) + " switchport mode hybrid",
-                "interface ethernet 1/" + str(port_id) + \
+                "interface ethernet 1/" + str(port_id) +
                 " switchport hybrid allowed-vlan add " + str(allowed_vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
         return resp
 
-
     def remove_hybrid_port_allowed_vlan(self, port_id, vlan_id):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id) + \
+                "interface ethernet 1/" + str(port_id) +
                 " switchport hybrid allowed-vlan remove " + str(vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
-
 
     def associate_ip_to_vlan(self, vlan_id, ip_address):
         json_cmd = {
@@ -805,7 +795,6 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     '''
     PFC config (proiroty flow control)
@@ -884,14 +873,13 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id) + " traffic-class " + str(tc) + \
-                " congestion-control ecn minimum-absolute " + str(min_absolute) \
-                                 + " maximum-absolute " + str(max_absolute)
+                "interface ethernet 1/" + str(port_id) + " traffic-class " + str(tc) +
+                " congestion-control ecn minimum-absolute " + str(min_absolute) +
+                " maximum-absolute " + str(max_absolute)
             ]
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
 
     def disable_ecn_marking_for_traffic_class_queue(self, port_id, tc):
         json_cmd = {
@@ -922,5 +910,3 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         }
         resp = self.send_cmd(json_cmd)
         return resp
-
-
