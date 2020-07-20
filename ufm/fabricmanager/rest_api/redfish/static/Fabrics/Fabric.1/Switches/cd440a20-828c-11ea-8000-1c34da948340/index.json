@@ -6,6 +6,67 @@
     "Name": "Switch",
     "SerialNumber": "MT2013T06288",
     "UUID": "cd440a20-828c-11ea-8000-1c34da948340",
+    "Oem": {
+        "PFC": "disabled",
+        "PriorityEnabledList": [
+            "3"
+        ],
+        "PriorityDisabledList": [
+            "0",
+            "1",
+            "2",
+            "4",
+            "5",
+            "6",
+            "7"
+        ]
+    },
+    "Actions": {
+        "#EnablePfcGlobally": {
+            "description": "Enables priority flow control globally on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/EnablePfcGlobally"
+        },
+        "#DisablePfcGlobally": {
+            "description": "Disables priority flow control globally on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/DisablePfcGlobally"
+        },
+        "#EnablePfcPerPriority": {
+            "description": "Enables PFC per priority on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/EnablePfcPerPriority",
+            "Parameters": [
+                {
+                    "Name": "Priority",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "0",
+                    "MaximumValue": "7"
+                }
+            ]
+        },
+        "#DisablePfcPerPriority": {
+            "description": "Disables PFC per priority on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/DisablePfcPerPriority",
+            "Parameters": [
+                {
+                    "Name": "Priority",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "0",
+                    "MaximumValue": "7"
+                }
+            ]
+        },
+        "#AnyCmd": {
+            "description": "Send any cmd directly to the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/AnyCmd",
+            "Parameters": [
+                {
+                    "Name": "AnyCmdStr",
+                    "Required": true
+                }
+            ]
+        }
+    },
     "Ports": {
         "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Ports"
     },

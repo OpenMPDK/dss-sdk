@@ -10,6 +10,17 @@
         "#DeleteVLAN": {
             "description": "Delete VLAN",
             "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/1/Actions/DeleteVLAN"
+        },
+        "#NameVLAN": {
+            "description": "Name the VLAN",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/1/Actions/NameVLAN",
+            "Parameters": [
+                {
+                    "Name": "Name",
+                    "Required": true,
+                    "DataType": "String"
+                }
+            ]
         }
     },
     "Links": {
@@ -29,4 +40,3 @@
         ]
     }
 }
-

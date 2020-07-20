@@ -6,6 +6,10 @@
     "PortId": "3",
     "Name": "Eth1/3",
     "Mode": "access",
+    "Oem": {
+        "PFC": "Disabled",
+        "TrustMode": "L2"
+    },
     "Links": {
         "AccessVLAN": {
             "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/VLANs/1"
@@ -53,6 +57,97 @@
                     "MaximumValue": "4094"
                 }
             ]
+        },
+        "#SetHybridPortAccessVLAN": {
+            "description": "Set this port to hybrid mode and specify the access VLAN. ",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/SetHybridPortAccessVLAN",
+            "Parameters": [
+                {
+                    "Name": "VLANId",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "1",
+                    "MaximumValue": "4094"
+                }
+            ]
+        },
+        "#SetHybridPortAllowedVLAN": {
+            "description": "Set this port to hybrid mode and add the allowed VLAN. ",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/SetHybridPortAllowedVLAN",
+            "Parameters": [
+                {
+                    "Name": "VLANId",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "1",
+                    "MaximumValue": "4094"
+                }
+            ]
+        },
+        "#RemoveHybridPortAllowedVLAN": {
+            "description": "Remove the specified VLAN from the hybrid port. ",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/RemoveHybridPortAllowedVLAN",
+            "Parameters": [
+                {
+                    "Name": "VLANId",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "1",
+                    "MaximumValue": "4094"
+                }
+            ]
+        },
+        "#EnablePortPfc": {
+            "description": "Enables PFC mode on port.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/EnablePortPfc"
+        },
+        "#DisablePortPfc": {
+            "description": "Disables PFC mode on port.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/DisablePortPfc"
+        },
+        "#EnableEcnMarking": {
+            "description": "Enables explicit congestion notification for traffic class queue.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/EnableEcnMarking",
+            "Parameters": [
+                {
+                    "Name": "TrafficClass",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "0",
+                    "MaximumValue": "7"
+                },
+                {
+                    "Name": "MinAbsoluteInKBs",
+                    "Required": true,
+                    "DataType": "Number"
+                },
+                {
+                    "Name": "MaxAbsoluteInKBs",
+                    "Required": true,
+                    "DataType": "Number"
+                }
+            ]
+        },
+        "#DisableEcnMarking": {
+            "description": "Disables ECN marking for traffic class queue.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/DisableEcnMarking"
+        },
+        "#ShowPfcCounters": {
+            "description": "Display priority flow control counters for the specified interface and priority.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/ShowPfcCounters",
+            "Parameters": [
+                {
+                    "Priority": "VLANId",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "0",
+                    "MaximumValue": "7"
+                }
+            ]
+        },
+        "#ShowCongestionControl": {
+            "description": "Displays specific interface congestion control information.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/3/Actions/ShowCongestionControl"
         }
     }
 }

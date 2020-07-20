@@ -1,3 +1,4 @@
+
 # External imports
 import uuid
 
@@ -14,6 +15,7 @@ from common.ufmdb.redfish.redfish_port_backend import RedfishPortBackend, Redfis
 
 members = {}
 
+
 class PortAPI(Resource):
     def get(self, fab_id, sw_id, port_id):
         # """
@@ -23,7 +25,7 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
-            print('PortAPI.get() failed')
+            # print('Caught exc {e} in PortAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -43,19 +45,12 @@ class PortActionAPI(Resource):
                     'port_id': port_id
                    }
             payload = request.get_json(force=True)
-            if 'VLANId' in payload:
-                data['vlan_id'] = payload['VLANId']
-
-            if 'RangeFromVLANId' in payload:
-                data['start_vlan_id'] = payload['RangeFromVLANId']
-
-            if 'RangeToVLANId' in payload:
-                data['end_vlan_id'] = payload['RangeToVLANId']
+            data.update(payload)
 
             resp = util.post_to_switch(sw_id, data)
 
         except Exception as e:
-            print('PortActionAPI.post() failed')
+            # print('Caught exc {e} in PortActionAPI.post()')
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -71,14 +66,12 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            print('PortCollectionAPI.get() failed')
+            # print('Caught exc {e} in PortCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
-
-
 
 
 class PortEmulationAPI(Resource):

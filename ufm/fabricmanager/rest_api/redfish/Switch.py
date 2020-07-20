@@ -1,18 +1,20 @@
+
 # External imports
-import traceback
+import uuid
 
 # Flask imports
-from flask_restful import reqparse, Api, Resource
+from flask_restful import request, Resource
 
 # Internal imports
-import config
 from rest_api.redfish.templates.Switch import get_switch_instance
 from rest_api.redfish import redfish_constants
+from rest_api.redfish import util
 
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
 from common.ufmdb.redfish.redfish_switch_backend import RedfishSwitchBackend, RedfishSwitchCollectionBackend
 
 members = {}
+
 
 class SwitchAPI(Resource):
 
@@ -24,11 +26,35 @@ class SwitchAPI(Resource):
             redfish_backend = RedfishSwitchBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
+            # print('Caught exc {e} in SwitchAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
+
+
+class SwitchActionAPI(Resource):
+    def get(self):
+        raise NotImplementedError
+
+    def post(self, fab_id, sw_id, act_str):
+        try:
+            data = {
+                    'cmd': act_str,
+                    'request_id': str(uuid.uuid4()),
+                    'sw_id': sw_id
+                   }
+            payload = request.get_json(force=True)
+            data.update(payload)
+
+            resp = util.post_to_switch(sw_id, data)
+
+        except Exception as e:
+            # print('Caught exc {e} in SwitchActionAPI.post()')
+            resp = RedfishErrorResponse.get_server_error_response(e)
+
+        return resp
 
 
 class SwitchCollectionAPI(Resource):
@@ -41,13 +67,12 @@ class SwitchCollectionAPI(Resource):
             redfish_backend = RedfishSwitchCollectionBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
+            # print('Caught exc {e} in SwitchCollectionAPI.get()')
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
     def post(self):
         raise NotImplementedError
-
-
 
 
 class SwitchEmulationAPI(Resource):
