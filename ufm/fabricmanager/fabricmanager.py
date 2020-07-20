@@ -402,7 +402,8 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
     try:
         if ufmArg.nkvConfig['enable']:
             subSystems.append(
-                Nkv(hostname=ufmArg.hostname,
+                Nkv(ufmArg=ufmArg,
+                    hostname=ufmArg.hostname,
                     db=ufmArg.deprecatedDb)
             )
     except Exception as e:

@@ -4,6 +4,8 @@ ufm:
     dbIp: "127.0.0.1"
     messageQueuePort: 5510
     externalPublisher: 5509
+    brokerPort: 6000
+    brokerIpFromDb: False
 
 essd:
     enable: False

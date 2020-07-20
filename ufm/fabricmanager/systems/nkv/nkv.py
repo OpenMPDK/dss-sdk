@@ -10,7 +10,8 @@ from common.ufmlog import ufmlog
 
 
 class Nkv():
-    def __init__(self, hostname=None, db=None):
+    def __init__(self, ufmArg=None, hostname=None, db=None):
+        self.ufmArg = ufmArg
         self.hostname = hostname
         self.log = ufmlog.log(module=__name__, mask=ufmlog.UFM_NKV)
         self.log.log_detail_on()
@@ -20,7 +21,7 @@ class Nkv():
         self.services = (
             Collector(),
             Poller(),
-            NkvMonitor(hostname=hostname, logger=self.log, db=db),
+            NkvMonitor(ufmArg=ufmArg, hostname=hostname, logger=self.log, db=db),
             Controller()
         )
         self.log.info('===> Init Nkv\'s sub system <===')
