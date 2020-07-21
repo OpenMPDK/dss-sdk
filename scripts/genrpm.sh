@@ -12,15 +12,15 @@ cat > "$rpm_spec_file" <<LAB_SPEC
 
 %global etcd_system_name etcd
 ####### NKV Package ###########
-Name:		NKV
+Name:		nkv-target
 Version:        $Target_ver
 Release:        1%{?dist}
 Summary:        OSS Target Release
 License:        GPLv3+
 Vendor:         MSL-SSD
 
-#%define dflypath  /usr/dragonfly
-Prefix: /usr/dragonfly
+#%define dflypath  /usr/dss/nkv-target
+Prefix: /usr/dss/nkv-target
 
 %description
 An OSS Target binary providing all features related NVMeoF Target and more.
@@ -34,15 +34,19 @@ exit 0
 # File section for NKV-Target
 %files
 %defattr(-,root,root,-)
-%dir /usr/dragonfly
-/usr/dragonfly/nvmf_tgt
-/usr/dragonfly/scripts/setup.sh
-/usr/dragonfly/scripts/common.sh
-/usr/dragonfly/ustat
-/usr/dragonfly/scripts/nkv_tgt_conf.py
+%dir /usr/dss/nkv-target
+/usr/dss/nkv-target/bin/nvmf_tgt
+/usr/dss/nkv-target/bin/dss_target.py
+/usr/dss/nkv-target/bin/ustat
+/usr/dss/nkv-target/scripts/setup.sh
+/usr/dss/nkv-target/scripts/common.sh
+/usr/dss/nkv-target/include/spdk/pci_ids.h
+/usr/dss/nkv-target/lib/libdssd.a
+/usr/dss/nkv-target/lib/liboss.a
+
 %post
-chmod +x /usr/dragonfly/scripts/setup.sh
-chmod +x /usr/dragonfly/scripts/common.sh
+chmod +x /usr/dss/nkv-target/scripts/setup.sh
+chmod +x /usr/dss/nkv-target/scripts/common.sh
 
 ############ Agent Package ############
 %package -n FM-Agent
@@ -50,7 +54,7 @@ Version:        $FM_Agent_ver
 Release:        1%{?dist}
 Summary:        Fabric Manager Agent
 
-#%define dflypath  /usr/dragonfly
+#%define dflypath  /usr/dss/nkv-target
 
 %description -n FM-Agent
 This contains the Fabric Manager Agent component. The agent module will update
@@ -95,7 +99,7 @@ function check_service(){
 }
 
 cat > /etc/ld.so.conf.d/kvlibs.conf << EOF
-/usr/dragonfly/
+/usr/dss/nkv-target/
 EOF
 
 /usr/sbin/ldconfig
