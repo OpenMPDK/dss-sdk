@@ -24,7 +24,7 @@ dfly_temp_dir: /tmp/dragonfly
 
 include_vars:
   file: config.yml
-product_dir: /usr/dragonfly # Binaries will still point to /usr/dragonfly
+product_dir: /usr/dss/nkv-target # Binaries will still point to /usr/dragonfly
 config_file_dir: /etc/dragonfly
 logfile_dir: /var/log/dragonfly # Might not be needed
 nkv_agent_dir: /usr/nkv_agent
