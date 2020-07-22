@@ -16,13 +16,6 @@
   when: ansible_os_family == 'Debian'
   ignore_errors: true
 
-- name: Install FM RHEL dependencies
-  package:
-    name: "{{ item }}"
-    state: present
-  with_items: "{{ fm_rhel_package_dependencies }}"
-  when: ansible_os_family == 'RedHat' and inventory_hostname in groups['fm_hosts']
-
 - name: Install Target RHEL dependencies
   package:
     name: "{{ item }}"
