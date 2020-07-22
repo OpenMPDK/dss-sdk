@@ -205,6 +205,7 @@ dfly_config_read(struct spdk_conf_section *sp)
 {
 	char *str = NULL;
 	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", false);
+	g_dragonfly->test_nic_bw  = spdk_conf_section_get_boolval(sp, "test_nic_bw", false);
 
 	g_wal_conf.wal_cache_enabled = spdk_conf_section_get_boolval(sp, "wal_cache_enabled", false);
 	g_wal_conf.wal_log_enabled = spdk_conf_section_get_boolval(sp, "wal_log_enabled", false);
@@ -297,6 +298,8 @@ dfly_config_read(struct spdk_conf_section *sp)
 				       SPDK_LOG_INFO);
 	g_list_conf.list_timeout_ms = dfly_spdk_conf_section_get_intval_default(sp, "list_timeout_ms", 0);
 
+	g_dragonfly->req_lat_to = dfly_spdk_conf_section_get_intval_default(sp, "latency_threshold_s", 0);
+	g_dragonfly->enable_latency_profiling = spdk_conf_section_get_boolval(sp, "enable_latency_profiling", false);
 	g_dragonfly->df_qos_enable = spdk_conf_section_get_boolval(sp, "QoS", false);
 
 	if (g_dragonfly->df_qos_enable) {

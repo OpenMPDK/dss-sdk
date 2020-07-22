@@ -61,6 +61,16 @@ hop_2_next:
 		break;
 	case DFLY_REQ_INITIALIZED:
 		cmd_opc = dfly_req_get_command(dfly_req);
+		if(g_dragonfly->test_nic_bw &&
+			(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE ||
+			 cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE)) {
+			if(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
+				  dfly_resp_set_cdw0(dfly_req, dfly_req->req_value.length);
+			}
+			dfly_set_status_code(dfly_req, SPDK_NVME_SCT_GENERIC, SPDK_NVME_SC_SUCCESS);
+			dfly_nvmf_complete(dfly_req);
+			break;
+		}
 		if (cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_LOCK
 		    || cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_UNLOCK) {
 			if (ss->mlist.lock_service) { //Lock service supported

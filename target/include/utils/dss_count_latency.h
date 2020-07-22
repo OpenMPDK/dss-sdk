@@ -31,61 +31,23 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+struct dss_lat_ctx_s;
 
-#ifndef DF_CTRL_H
-#define DF_CTRL_H
+struct dss_lat_profile_s {
+	uint8_t  pVal;
+	uint64_t pLat;
+};
 
-#include <ustat.h>
-#include <df_stats.h>
-#include "spdk/queue.h"
+struct dss_lat_prof_arr {
+	uint32_t n_part;
+	struct dss_lat_profile_s prof[0];
+};
 
-#define  MAX_DFLY_HOST_NAME     SPDK_NVMF_NQN_MAX_LEN
-#define  DFLY_PROF_DEF_NAME     "default_host"
-
-typedef struct stat_ses {
-	ustat_named_t name;
-	ustat_named_t addr;
-} stat_ses_t;
-
-typedef struct dfly_prof {
-	char                            *dfp_nqn;
-	uint32_t                        dfp_credits[DFLY_QOS_ATTRS];
-
-	TAILQ_ENTRY(dfly_prof)          dfp_link;
-} dfly_prof_t;
-
-typedef struct dfly_ses_id {
-	uint16_t			dfsi_num;
-	char				*dfsi_name;
-	char				*dfsi_addr;
-} dfly_ses_id_t;
-
-typedef struct dfly_session {
-	dfly_ses_id_t			dfs_id;
-	dfly_prof_t                     *dfs_host_prof;
-	stat_kvio_t			*dfs_stats_io;
-	stat_ses_t			*dfs_stats_ses;
-	uint64_t                        dfs_curr_tags[DFLY_QOS_ATTRS];
-
-	uint32_t                        dfs_ctrlc;
-	TAILQ_ENTRY(dfly_session)       dfs_link;
-} dfly_session_t;
-
-typedef struct dfly_ctrl {
-	pthread_mutex_t 				ct_lock;
-	dfly_session_t                  *ct_session;
-	uint32_t                         ct_cntlid;
-	TAILQ_ENTRY(dfly_ctrl)           ct_link; // Subsystem
-	void                            *ct_base[0];
-	TAILQ_HEAD(, dfly_qpair_s)         df_qpairs;
-} dfly_ctrl_t;
-
-struct spdk_nvmf_qpair;
-typedef struct dfly_qos_client_ops {/*ctrlr ops - abstraction */
-	void *(*create)(char *name, struct spdk_nvmf_qpair *p/*dummy*/, size_t bsize);
-	void (*destroy)(void *base);
-} dfly_qos_client_ops_t;
-
-extern dfly_qos_client_ops_t qos_client_ops;
-
-#endif
+struct dss_lat_ctx_s * dss_lat_new_ctx(char *name);
+void dss_lat_del_ctx(struct dss_lat_ctx_s *lctx);
+void dss_lat_reset_ctx(struct dss_lat_ctx_s *lctx);
+void dss_lat_inc_count(struct dss_lat_ctx_s *lctx, uint64_t duration);
+uint64_t dss_lat_get_nentries(struct dss_lat_ctx_s *lctx);
+uint64_t dss_lat_get_mem_used(struct dss_lat_ctx_s *lctx);
+int dss_lat_get_percentile(struct dss_lat_ctx_s *lctx, struct dss_lat_prof_arr **out);
+void dss_lat_get_percentile_multi(struct dss_lat_ctx_s **lctx, int n_ctx, struct dss_lat_prof_arr **out);
