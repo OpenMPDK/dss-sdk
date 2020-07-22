@@ -20,4 +20,4 @@
     - "{{ ufmbroker_rpm.files[0].path }}"
   loop_control:
     label: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"
-  failed_when: "'scriptlet failed' in ufm_rpm_status.results"
+  failed_when: "'scriptlet failure' in ufm_rpm_status.msg"
