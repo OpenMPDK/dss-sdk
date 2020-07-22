@@ -62,6 +62,17 @@
     - gunicorn
   become: yes
 
+- name: Check that UFM services are running
+  service:
+    name: "{{ item }}"
+  register: service_status
+  failed_when: service_status.status.ActiveState != "active"
+  loop:
+    - ufm_etcd
+    - ufm
+    - ufm_msg_broker.service
+    - gunicorn
+
 - name: Delete RPM/DEB files from Fabric Mananger Hosts
   file:
     path: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"

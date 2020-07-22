@@ -13,9 +13,11 @@
 - name: Install UFM RPMs
   yum:
     name: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"
+  register: ufm_rpm_status
   become: yes
   loop:
     - "{{ ufm_rpm.files[0].path }}"
     - "{{ ufmbroker_rpm.files[0].path }}"
   loop_control:
     label: "{{ ufm_devtest_staging_dir }}/{{ item | basename }}"
+  failed_when: "'scriptlet failed' in ufm_rpm_status.results"
