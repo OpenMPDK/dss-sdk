@@ -23,11 +23,11 @@ rm -rf "${build_dir}"
 mkdir -p "${build_dir}"/SRPMS
 mkdir -p "${build_dir}"/SPECS
 mkdir -p "${build_dir}"/RPMS/x86_64
-mkdir -p "${build_dir}"/BUILD/NKV
+mkdir -p "${build_dir}"/BUILD/nkv-target
 mkdir -p "${build_dir}"/BUILDROOT
 
 # Populate the files to the build path
-nkv_dir=${build_dir}/BUILD/NKV
+nkv_dir=${build_dir}/BUILD/nkv-target
 mkdir -p "${nkv_dir}"/usr/bin
 
 # copy ufm/nkv_agent folder over to usr
@@ -43,12 +43,8 @@ then -/var/log/dragonfly/dfly.log
 &  stop
 EOF
 
-mkdir -p "${nkv_dir}"/usr/dragonfly/scripts
-cp "${top_dir}"/target/oss/spdk_tcp/scripts/common.sh "${nkv_dir}"/usr/dragonfly/scripts/
-cp "${top_dir}"/target/oss/spdk_tcp/scripts/setup.sh "${nkv_dir}"/usr/dragonfly/scripts/
-cp "${top_dir}"/target/scripts/nkv_tgt_conf.py "${nkv_dir}"/usr/dragonfly/scripts/
-cp "${top_dir}"/df_out/oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt "${nkv_dir}"/usr/dragonfly
-cp "${top_dir}"/df_out/dssd/cmd/ustat/ustat "${nkv_dir}"/usr/dragonfly
+mkdir -p "${nkv_dir}"/usr/dss/nkv-target
+cp -rf "${top_dir}"/df_out/nkv-target "${nkv_dir}"/usr/dss/
 
 mkdir -p "${nkv_dir}"/var/lib/etcd
 
@@ -68,3 +64,4 @@ popd
 
 # Copy NKV-Release.tar to Ansible release dir
 cp "${build_dir}"/NKV-Release.tar "${top_dir}"/ansible/release/
+

@@ -1,0 +1,13 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#SwitchCollection.SwitchCollection",
+    "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches",
+    "@odata.type": "#SwitchCollection.SwitchCollection",
+    "Description": "Collection of Switches",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches/Switch.1"
+        }
+    ],
+    "@Members@odata.count": 1,
+    "Name": "Switches Collection"
+}

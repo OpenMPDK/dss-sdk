@@ -3,20 +3,51 @@
 #
 echo "Now running pre-installer!"
 
+die()
+{
+  echo "$*"
+  exit 1
+}
+
+ubuntu_pip_install()
+{
+  which pip
+  [[ $? -ne 0 ]] && die "ERR: Fail to install pip "
+
+  which pip3
+  [[ $? -ne 0 ]] && die "ERR: Fail to install pip3 "
+
+  [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-dev is not installed"
+}
+
+centos_pip_install()
+{
+   # yum -y install python3-devel
+
+   [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-devel is not installed"
+   python3 -m pip install --upgrade pip
+}
+
+
+
+#################### main #######################
 SERVICE="ufm"
 SERVICE_PATH="/usr/share/${SERVICE}/systemd"
 
+OS_TYPE=0
+grep ^NAME /etc/os-release | grep -i ubuntu
+[[ $? -eq 0 ]] && OS_TYPE=1
 
-if [[ ! -x /usr/bin/python3 ]]
-then
-    echo "ERR: Python3 is not installed"
-    exit 1
-fi
+grep ^NAME /etc/os-release | grep -i CentOS
+[[ $? -eq 0 ]] && OS_TYPE=2
 
-if [[ "$1" == "configure" ]]
-then
-  [[ -e ${SERVICE_PATH}/${SERVICE}.service ]] && systemctl stop ${SERVICE}
-fi
+[[ $OS_TYPE -eq 0 ]] && die "ERR: Unknown OS"
+[[ $OS_TYPE -eq 1 ]] && ubuntu_pip_install
+[[ $OS_TYPE -eq 2 ]] && centos_pip_install
 
+[[ -e /etc/systemd/system/ufm.service ]] && systemctl stop ufm
+[[ -e /etc/systemd/system/gunicorn.service ]] && systemctl stop gunicorn
+
+# The exit is to ignore any error code from systemctl
 exit 0
 

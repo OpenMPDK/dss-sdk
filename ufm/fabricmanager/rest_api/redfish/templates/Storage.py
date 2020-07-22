@@ -33,4 +33,8 @@ def get_storage_instance(wildcards):
             **wildcards) + wildcards['serial_numbers'][i]
         drives.append(drive)
     config['Drives'] = drives
+    config['oem'] = {"CapacityBytes": 107541167505408,
+                     "UtilizationBytes": 1075411675054,
+                     "PercentAvailable": 99
+                    }
     return config

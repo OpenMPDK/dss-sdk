@@ -7,15 +7,12 @@ from flask_restful import reqparse, Api, Resource
 # Internal imports
 import config
 from .templates.Drive import get_drive_instance
+from rest_api.redfish import redfish_constants
 
 members = {}
 
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
 
-
-class Drive(Resource):
+class DriveEmulationAPI(Resource):
     """
     Drive
     """
@@ -28,16 +25,16 @@ class Drive(Resource):
         HTTP GET
         """
         if ident1 not in members:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident2 not in members[ident1]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident3 not in members[ident1][ident2]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
 
-        return members[ident1][ident2][ident3], SUCCESS
+        return members[ident1][ident2][ident3], redfish_constants.SUCCESS
 
 
-class DriveCollection(Resource):
+class DriveCollectionEmulationAPI(Resource):
     """
     Drive Collection
     """
@@ -57,9 +54,9 @@ class DriveCollection(Resource):
         """
         try:
             if ident1 not in members:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             if ident2 not in members[ident1]:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             drives = []
             for drive in members[ident1].get(ident2, {}).values():
                 drives.append({'@odata.id': drive['@odata.id']})
@@ -67,15 +64,15 @@ class DriveCollection(Resource):
                 '/' + ident1 + '/Storage/' + ident2 + '/Drives'
             self.cfg['Members'] = drives
             self.cfg['Members@odata.count'] = len(drives)
-            response = self.cfg, SUCCESS
+            response = self.cfg, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
 
-def CreateDrive(**kwargs):
+def CreateDriveEmulation(**kwargs):
     sys_id = kwargs['sys_id']
     storage_id = kwargs['storage_id']
     drive_id = kwargs['drive_id']

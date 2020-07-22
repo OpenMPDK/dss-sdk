@@ -56,6 +56,7 @@ def save_events_to_etcd_db(db_handle, event_list):
     try:
         ret = db_handle.save_multiple_key_values(kv_dict)
     except Exception as e:
+        db_handle.logger.exception('Exception in save_events_to_etcd_db : %s', str(e))
         raise e
     return ret
 

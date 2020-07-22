@@ -1,0 +1,10 @@
+{
+    "@odata.context": "/redfish/v1/$metadata#Fabric.Fabric",
+    "@odata.id": "/redfish/v1/Fabrics/NVMEoF",
+    "@odata.type": "#Fabric.v1_1_1.Fabric",
+    "Description": "Fabric 1",
+    "Id": "Fabric.1",
+    "Switches": {
+        "@odata.id": "/redfish/v1/Fabrics/Fabric.1/Switches"
+    }
+}

@@ -1,463 +1,43 @@
 # redfish_ufmdb.py
 
-import json
 import pprint
 import copy
 import time
+import uuid
 
 from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
+from common.ufmdb.redfish.redfish_responses import redfish_responses
+from common.ufmdb.redfish.redfish_resource import *
+from common.ufmdb.redfish.redfish_action import *
+from common.utils.ufm_decorators import singleton
 
 
-redfish_responses = {
-    '1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",
-        "@odata.type": "#ServiceRoot.v1_0_0.ServiceRoot",
-        "@odata.id": "",
-        "Id": "RootService",
-        "Name": "Root Service",
-        "ProtocolFeaturesSupported": {
-            "ExpandQuery": {
-                "ExpandAll": False
-            },
-            "SelectQuery": False
-        },
-        "RedfishVersion": "1.8.0",
-        "UUID": "None",
-        "Vendor": "Samsung",
-        "JSONSchemas": {
-            "@odata.id": "/redfish/v1/JSONSchemas"
-        },
-        "Systems": dict(),
-    },
-
-    '1.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#ComputerSystemCollection.ComputerSystemCollection",
-        "@odata.type": "#ComputerSystemCollection.ComputerSystemCollection",
-        "@odata.id": "",
-        "Description": "Collection of Computer Systems",
-        "Members": list(),
-        "Members@odata.count": 0,
-        "Name": "System Collection"
-    },
-
-    '1.2':
-    {
-        "@odata.id": "",
-        "id": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
-        "type": "object",
-        "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
-        "title": "Redfish Schema Extension",
-        "description": "The properties defined in this schema shall adhere to the requirements of the Redfish Specification and the semantics of the descriptions in this file.",
-        "allOf": [
-            {
-                "$ref": "http://json-schema.org/draft-04/schema"
-            }
-        ],
-        "definitions": {
-            "readonly": {
-                "type": "boolean",
-                "description": "This property shall designate a property to be readonly when set to true."
-            },
-            "requiredOnCreate": {
-                "type": "array",
-                "items": {
-                    "type": "boolean"
-                },
-                "description": "This property is required to be specified in the body of a POST request to create the resource."
-            },
-            "longDescription": {
-                "type": "string",
-                "description": "This attribute shall contain normative language relating to the Redfish Specification and documentation."
-            },
-            "copyright": {
-                "type": "string",
-                "description": "This attribute shall contain the copyright notice for the schema."
-            },
-            "deprecated": {
-                "type": "string",
-                "description": "The term shall be applied to a property in order to specify that the property is deprecated.  The value of the string should explain the deprecation, including new property or properties to be used. The property can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated properties are likely to be removed in a future major version of the schema."
-            },
-            "enumDescriptions": {
-                "type": "object",
-                "description": "This attribute shall contain informative language related to the enumeration values of the property."
-            },
-            "enumLongDescriptions": {
-                "type": "object",
-                "description": "This attribute shall contain normative language relating to the enumeration values of the property."
-            },
-            "enumDeprecated": {
-                "type": "object",
-                "description": "The term shall be applied to a value in order to specify that the value is deprecated.  The value of the string should explain the deprecation, including new value to be used.  The value can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated values are likely to be removed in a future major version of the schema."
-            },
-            "units": {
-                "type": "string",
-                "description": "This attribute shall contain the units of measure used by the value of the property."
-            }
-        },
-        "properties": {
-            "readonly": {
-                "$ref": "#/definitions/readonly"
-            },
-            "longDescription": {
-                "$ref": "#/definitions/longDescription"
-            },
-            "copyright": {
-                "$ref": "#/definitions/copyright"
-            },
-            "enumDescriptions": {
-                "$ref": "#/definitions/enumDescriptions"
-            },
-            "enumLongDescriptions": {
-                "$ref": "#/definitions/enumLongDescriptions"
-            },
-            "units": {
-                "$ref": "#/definitions/units"
-            }
-        }
-    },
-
-    '1.1.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
-        "@odata.id": "",
-        "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
-        "Description": "System containing subsystem(s)",
-        "Id": "",
-        "Identifiers": [
-            {
-                "DurableName": "",
-                "DurableNameFormat": "UUID"
-            }
-        ],
-        "IPv4Addresses": [
-            {
-                "Address": "",
-                "SubnetMask": "",
-                "AddressOrigin": "",
-                "Gateway": ""
-            }
-        ],
-        "IPv6DefaultGateway": "",
-        "IPv6Addresses": [
-            {
-                "Address": "",
-                "PrefixLength": 0,
-                "AddressOrigin": "",
-                "AddressState": ""
-            }
-        ],
-        "Links": {
-            "SupplyingComputerSystems": list()
-        }
-    },
-
-    '1.1.2':
-    {
-        "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
-        "@odata.id": "",
-        "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
-        "Description": "System representing the drive resources",
-        "Id": "",
-        "Identifiers": [
-            {
-                "DurableName": "",
-                "DurableNameFormat": "NQN"
-            }
-        ],
-        "Status": {
-            "State": "Enabled",
-            "Health": "OK"
-        },
-        "Storage": dict(),
-        "EthernetInterfaces": dict(),
-
-        "Name": "System",
-        "oem": dict(),
-        "Links": {"ConsumingComputerSystems": list()}
-    },
-
-    '1.1.2.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#StorageCollection.StorageCollection",
-        "@odata.id": "",
-        "@odata.type": "#StorageCollection.StorageCollection",
-        "Description": "Collection of Storage information",
-        "Members": list(),
-        "Members@odata.count": 0,
-        "Name": "Storage Collection",
-        "oem": dict(),
-    },
-
-    '1.1.2.1.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#Storage.Storage",
-        "@odata.id": "",
-        "@odata.type": "Storage.v1_8_0.Storage",
-        "Id": "",
-        "Description": "Storage information",
-        "Drives": list(),
-        "Name": "Storage",
-        "oem": dict()
-    },
-
-    '1.1.2.1.1.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#DriveCollection.DriveCollection",
-        "@odata.id": "",
-        "@odata.type": "#DriveCollection.DriveCollection",
-        "Description": "Collection of drives",
-        "Members": list(),
-        "Members@odata.count": 0,
-        "Name": "Drive Collection"
-    },
-
-    '1.1.2.1.1.1.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#Drive.Drive",
-        "@odata.id": "",
-        "@odata.type": "Drive.v1_8_0.Drive",
-        "Description": "Drive Information",
-        "Name": "Storage Drive Information",
-        "BlockSizeBytes": 512,
-        "CapacityBytes": 0,
-        "Id": "",
-        "Manufacturer": "",
-        "MediaType": "",
-        "Model": "",
-        "Protocol": "",
-        "Revision":"",
-        "SerialNumber": "",
-        "oem": dict()
-    },
-
-    '1.1.2.2':
-    {
-        "@odata.context": "/redfish/v1/$metadata#EthernetInterfaceCollection.EthernetInterfaceCollection",
-        "@odata.id": "",
-        "@odata.type": "#EthernetInterfaceCollection.EthernetInterfaceCollection",
-        "Description": "Collection of Ethernet Interfaces",
-        "Members": list(),
-        "Members@odata.count": 0,
-        "Name": "Ethernet interfaces Collection"
-    },
-
-    '1.1.2.2.1':
-    {
-        "@odata.context": "/redfish/v1/$metadata#EthernetInterface.EthernetInterface",
-        "@odata.id": "",
-        "@odata.type": "#EthernetInterface.v1_5_1.EthernetInterface",
-        "Name": "Ethernet Interface",
-        "Description": "Ethernet Interface information",
-        "Id": "",
-        "LinkStatus": "",
-        "MACAddress": "",
-        "SpeedMbps": 0,
-        "IPv4Addresses": [
-            {
-                "Address": "",
-                "SubnetMask": "",
-                "AddressOrigin": "",
-                "Gateway": "",
-                "oem": dict({'Port':0,'SupportedProtocol':""})
-            }
-        ],
-        "IPv6DefaultGateway": "",
-        "IPv6Addresses": [
-            {
-                "Address": "",
-                "PrefixLength": 0,
-                "AddressOrigin": "",
-                "AddressState": "",
-                "oem": dict({'Port':0,'SupportedProtocol':""})
-            }
-        ]
-    }
-}
-
-
-
-
-class system(object):
-    def __init__(self, uuid=""):
-        #print("system init. uuid=", uuid)
-        self.uuid = uuid
-        self.subsystems = list()    #class subsystem
-        #self.ipv4 = list()
-        #self.ipv6 = list()
-        #self.ipv6gateway = ""
-
-    def pprint(self):
-        print("System:")
-        print("  uuid=", self.uuid)
-        for subsys in self.subsystems:
-            subsys.pprint()
-
-class subsystem(object):
-    def __init__(self, uuid=""):
-        self.name = ""
-        self.uuid = uuid
-        self.nqn = ""
-        self.numa_aligned = False
-        self.state = "Enabled"
-        self.capacity = 0
-        self.utilization = 0
-        self.percent_avail = 0
-        self.storage = list()       #class storage
-        self.interfaces = list()    #class interface
-        self.servername = ""
-        self.nsid = 0
-
-    def pprint(self):
-        print("  Subsystem:")
-        print("    name=", self.name)
-        print("    uuid=", self.uuid)
-        print("    nqn=", self.nqn)
-        print("    numa_aligned=", self.numa_aligned)
-        print("    state=", self.state)
-        print("    capacity=", self.capacity)
-        print("    utilization=", self.utilization)
-        print("    servername=", self.servername)
-        print("    nsid=", self.nsid)
-        for intf in self.interfaces:
-            intf.pprint()
-        for stor in self.storage:
-            stor.pprint()
-
-class interface(object):
-    def __init__(self):
-        self.mac = ""
-        self.name = ""
-        self.port = 0
-        self.speed = 0
-        self.type = ""
-        self.status = ""
-        self.ip4_intf = list()   #class ipv4
-        self.ip6_intf = list()   #class ipv6
-
-    def pprint(self):
-        print("    Interface:")
-        print("      mac=", self.mac)
-        print("      name=", self.name)
-        print("      port=", self.port)
-        print("      speed=", self.speed)
-        print("      type=", self.type)
-        print("      status=", self.status)
-        for ip4 in self.ip4_intf:
-            ip4.pprint()
-        for ip6 in self.ip6_intf:
-            ip6.pprint()
-        return
-
-
-class ipv4(object):
-    def __init__(self):
-        self.addr = ""
-        self.mask = ""
-        self.origin = ""
-        self.gateway = ""
-
-    def pprint(self):
-        print("      IPv4:")
-        print("        addr=", self.addr)
-        print("        mask=", self.mask)
-        print("        origin=", self.origin)
-        print("        gateway=", self.gateway)
-        return
-
-
-class ipv6(object):
-    def __init__(self):
-        self.addr = ""
-        self.plength = 0
-        self.origin = ""
-        self.state = "Disabled"
-        self.gateway = ""
-
-    def pprint(self):
-        print("      IPv6:")
-        print("        addr=", self.addr)
-        print("        plength=", self.plength)
-        print("        origin=", self.origin)
-        print("        state=", self.state)
-        print("        gateway=", self.gateway)
-        return
-
-
-class storage(object):
-    def __init__(self):
-        self.uuid = ""
-        self.capacity = 0          # total size of all drives
-        self.utilization = 0       # total utilization of all drives
-        self.percent_avail = 0
-        self.drives = list()    #class drive
-
-    def pprint(self):
-        print("    Storage:")
-        print("      uuid=", self.uuid)
-        print("      capacity=", self.capacity)
-        print("      utilization=", self.utilization)
-        print("      percent_avail=", self.percent_avail)
-        for drive in self.drives:
-            drive.pprint()
-        return
-
-
-class drive(object):
-    def __init__(self):
-        self.uuid = ""
-        self.block_size = 512
-        self.capacity = 0
-        self.utilization = 0
-        self.percent_avail = 0
-        self.manufacturer = ""
-        self.type = ""
-        self.model = ""
-        self.protocol = ""
-        self.revision = ""
-        self.sn = ""
-
-    def pprint(self):
-        print("      Drive:")
-        print("        uuid=", self.uuid)
-        print("        bsize=", self.block_size)
-        print("        capacity=", self.capacity)
-        print("        utilization=", self.utilization)
-        print("        percent_avail=", self.percent_avail)
-        print("        manufacturer=", self.manufacturer)
-        print("        type=", self.type)
-        print("        model=", self.model)
-        print("        protocol=", self.protocol)
-        print("        revision=", self.revision)
-        print("        sn=", self.sn)
-        return
-
-
-
-
-class redfish_ufmdb(object):
+@singleton
+class RedfishUfmdb(object):
+    root_uuid = str(uuid.uuid4())
 
     def __init__(self,root_uuid=None, auto_update=True, expire=5):
         """
         Create connection to database.
         """
-        self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
-        self.log.log_detail_on()
+        global g_ufmlog
 
+        self.log = ufmlog.log(module="RFDB", mask=ufmlog.UFM_REDFISH_DB)
+        g_ufmlog = self.log
+        self.log.log_detail_on()
         #self.pp = pprint.PrettyPrinter(indent=4, sort_dicts=False)
 
         self.auto_update = auto_update
 
         self.ufmdb = client(db_type = 'etcd')
-        self.root_uuid = root_uuid
         self.redfish = dict()
         self.systems = list()
+        self.action = dict()
+        self.fabrics = list()
+
         self.data_expiration = 0.0
         self.expiration = float(expire)
-
-        #self.auto_update = False
 
         if self.auto_update == False:
             self.update()
@@ -485,33 +65,57 @@ class redfish_ufmdb(object):
         return(kv_dict)
 
     def update(self):
+        # Update action URL database
+        self.log.detail('Update actions: requested.  Updating now ...')
+        del(self.action)
+        self.action = {}
+        self._build_redfish_actions()
+
+        # Update get URL database
         current_time = time.time()
+        attempts = 2
+        while True:
+            try:
+                if (current_time > self.data_expiration):
+                    self.log.detail('Update data: requested.  Updating now ...')
+                    self.data_expiration = current_time + self.expiration
 
-        if (current_time > self.data_expiration):
-            self.log.detail('Update: requested.  Updating now ...')
-            self.data_expiration = current_time + self.expiration
+                    del(self.redfish)
+                    del(self.systems)
 
-            del(self.redfish)
-            del(self.systems)
+                    self.redfish = {}
+                    self.systems = []
+                    self.fabrics = []
 
-            self.redfish = {}
-            self.systems = []
+                    self._process_database_for_systems()
+                    self._process_database_for_fabrics()
+                    self._build_redfish_root()
+                    self._build_redfish_systems()
+                    self._build_redfish_fabrics()
 
-            self._process_database()
-            self._build_redfish_root()
-            self._build_redfish_systems()
+                else:
+                    self.log.detail('Update data: requested.  Data expires in %d second(s).', 1 + int(self.data_expiration - current_time))
+                break
 
-        else:
-            self.log.detail('Update: requested.  Data expires in %d second(s).', 1 + int(self.data_expiration - current_time))
+            except Exception as e:
+                attempts -= 1
+                if attempts == 0:
+                    break
 
-    def _process_database(self):
+                self.log.exception(e)
+                self.data_expiration = 0.0
+                self.log.error("Unable to update data.  Retrying...")
 
-        self.log.detail('_process_database: requested.')
+        return
+
+    def _process_database_for_systems(self):
+
+        self.log.detail('_process_database_for_systems: requested.')
 
         systems = self._query_prefix("/object_storage/servers/list")
 
         if len(systems) == 0:
-            self.log.detail('_process_database: done.')
+            self.log.detail('_process_database_for_systems: done.')
             return
 
         for key in systems:
@@ -656,7 +260,9 @@ class redfish_ufmdb(object):
 
             # Find the subsystem to attach this storage
             for subsys in sys.subsystems:
-                if subsys.nqn.find(stor.uuid) != -1:
+                nqn = subsys.nqn.lower()
+                uuid = stor.uuid.lower()
+                if nqn.find(uuid) != -1:
                     subsys.storage.append(stor)
                     subsys.capacity = subsys.capacity + stor.capacity
                     subsys.utilization = subsys.utilization + stor.utilization
@@ -671,6 +277,86 @@ class redfish_ufmdb(object):
 
         return
 
+    def _process_database_for_fabrics(self):
+
+        '''
+        Imagine Switch, Port, VLAN representation in DB
+        /switches/list/{uuid_1}
+        /switches/list/{uuid_2}
+        /switches/{uuid_x}/switch_attributes/Manufacturer
+        /switches/{uuid_x}/switch_attributes/Model
+        /switches/{uuid_x}/switch_attributes/SerialNumber
+        /switches/{uuid_x}/switch_attributes/UUID
+        /switches/{uuid_x}/switch_attributes/IPv4
+        /switches/{uuid_x}/switch_attributes/uptime
+        /switches/{uuid_x}/ports/list/{port_id_1}
+        /switches/{uuid_x}/ports/list/{port_id_2}
+        /switches/{uuid_x}/ports/list/{port_id_3}
+        /switches/{uuid_x}/ports/{port_id_y}/type
+        /switches/{uuid_x}/ports/{port_id_y}/status
+        /switches/{uuid_x}/ports/{port_id_y}/network/VLANs/{VLAN_id_a}
+        /switches/{uuid_x}/ports/{port_id_y}/network/VLANs/{VLAN_id_b}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_1}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_2}
+        /switches/{uuid_x}/VLANs/list/{VLAN_id_3}
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/status
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/network/ports/{port_id_c}
+        /switches/{uuid_x}/VLANs/{VLAN_id_z}/network/ports/{port_id_d}
+        '''
+
+        self.log.detail('_process_database_for_fabrics: requested.')
+
+        switches = self._query_prefix("/switches/list")
+
+        if len(switches) == 0:
+            self.log.detail('_process_database_for_fabrics: done.')
+            return
+
+        self.fabrics.append(fabrics())
+
+        for fabric in self.fabrics:
+            for key in switches:
+                sw_list = key.split("/")
+                sw_uuid = sw_list[3] #/switches/list/{uuid}
+                sw = switch(uuid=sw_uuid)
+                fabric.switches.append(sw)
+
+                ports = "/switches/"+sw_uuid+"/ports/list"
+                for port_key in ports:
+                    port_list = port_key.split("/")
+                    port_id = port_list[5] #/switches/{uuid}/ports/list/{port_id}
+                    port = port(port_id=port_id)
+                    sw.ports.append(port)
+
+                    port_attr = self._query_prefix("/switches/"+sw_uuid+"/ports/"+port_id+"/status")
+                    for attr_key in port_attr:
+                        if attr_key.find("status") != -1:
+                            port.status = port_attr[attr_key]
+
+                vlans = "/switches/"+sw_uuid+"/VLANs/list"
+                for vlan_key in vlans:
+                    vlan_list = vlan_key.split("/")
+                    vlan_id = vlan_list[5] #/switches/{uuid}/VLANs/list/{vlan_id}
+                    vlan = vlan(vlan_id=vlan_id)
+                    sw.vlans.append(vlan)
+
+        self.log.detail('_process_database_for_fabrics: done.')
+
+        return
+
+
+    def _build_redfish_actions(self):
+        self.log.detail('_build_redfish_actions: requested.')
+
+        self.action['/redfish/v1/Managers/ufm/Actions/Ufm.Reset'] = ufm_reset_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog'] = ufm_clearlog_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries'] = ufm_entries_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetMask'] = ufm_getmask_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.SetMask'] = ufm_setmask_action
+        self.action['/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetRegistry'] = ufm_getregistry_action
+
+        self.log.detail('_build_redfish_actions: done.  entries=%d',len(self.action))
+        return
 
     def _build_redfish_root(self):
 
@@ -678,19 +364,14 @@ class redfish_ufmdb(object):
 
         # 1
         response_1 = copy.deepcopy(redfish_responses['1'])
-        response_1['@odata.id'] = '/redfish/v1'
-
         response_1['UUID'] = self.root_uuid
-
-        if  len(self.systems) != 0:
-            response_1['Systems'].update({"@odata.id": "/redfish/v1/Systems"})
-
         self.redfish[response_1['@odata.id']] = response_1   # 1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if  len(self.systems) == 0:
             self.log.detail('_build_redfish_root: done.  entries=%d',len(self.redfish))
             return
 
+        self.log.detail('_build_redfish_root: done.  entries=%d',len(self.redfish))
         return
 
     def _build_redfish_systems(self):
@@ -717,8 +398,39 @@ class redfish_ufmdb(object):
 
         # 1.2
         response_1_2 = copy.deepcopy(redfish_responses['1.2'])
-        response_1_2['@odata.id'] = '/redfish/v1/JSONSchemas'
         self.redfish[response_1_2['@odata.id']] = response_1_2  # 1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3
+        response_1_3 = copy.deepcopy(redfish_responses['1.3'])
+        self.redfish[response_1_3['@odata.id']] = response_1_3  # 1.3   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1
+        response_1_3_1 = copy.deepcopy(redfish_responses['1.3.1'])
+        response_1_3_1['UUID'] = sys.uuid
+        self.redfish[response_1_3_1['@odata.id']] = response_1_3_1  # 1.3.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1
+        response_1_3_1_1 = copy.deepcopy(redfish_responses['1.3.1.1'])
+        self.redfish[response_1_3_1_1['@odata.id']] = response_1_3_1_1  # 1.3.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1.1
+        response_1_3_1_1_1 = copy.deepcopy(redfish_responses['1.3.1.1.1'])
+        response_1_3_1_1_1['MaxNumberOfRecords'] = g_ufmlog.ufmlog.max_entries
+        self.redfish[response_1_3_1_1_1['@odata.id']] = response_1_3_1_1_1  # 1.3.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        '''
+        # 1.3.1.1.1.1
+        response_1_3_1_1_1_1 = copy.deepcopy(redfish_responses['1.3.1.1.1.1'])
+        self.redfish[response_1_3_1_1_1_1['@odata.id']] = response_1_3_1_1_1_1  # 1.3.1.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        '''
+
+        # 1.3.1.1.1.2
+        response_1_3_1_1_1_2 = copy.deepcopy(redfish_responses['1.3.1.1.1.2'])
+        self.redfish[response_1_3_1_1_1_2['@odata.id']] = response_1_3_1_1_1_2  # 1.3.1.1.1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 1.3.1.1.1.3
+        response_1_3_1_1_1_3 = copy.deepcopy(redfish_responses['1.3.1.1.1.3'])
+        self.redfish[response_1_3_1_1_1_3['@odata.id']] = response_1_3_1_1_1_3  # 1.3.1.1.1.3   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         # 1.1.1
         for sys in self.systems:
@@ -776,7 +488,7 @@ class redfish_ufmdb(object):
                         response_1_1_2_1['Members'].append({"@odata.id": "/redfish/v1/Systems/"+subsys.uuid+"/Storage/"+stor.uuid})
 
                     response_1_1_2_1['Members@odata.count'] = len(response_1_1_2_1['Members'])
-                    response_1_1_2_1['oem'] = { "CapacityBytes":subsys.capacity, "PercentAvailable":subsys.percent_avail}
+                    response_1_1_2_1['oem'] = { "CapacityBytes":subsys.capacity, "UtilizationBytes":subsys.utilization,"PercentAvailable":subsys.percent_avail}
 
                     self.redfish[response_1_1_2_1['@odata.id']] = response_1_1_2_1  # 1.1.2.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -788,7 +500,7 @@ class redfish_ufmdb(object):
                     for drive in stor.drives:
                         response_1_1_2_1_1['Drives'].append({"@odata.id": "/redfish/v1/Systems/"+subsys.uuid+"/Storage/"+stor.uuid+"/Drives/"+drive.uuid})
 
-                    response_1_1_2_1_1['oem'] = { "CapacityBytes":stor.capacity, "PercentAvailable":stor.percent_avail}
+                    response_1_1_2_1_1['oem'] = { "CapacityBytes":stor.capacity, "UtilizationBytes":stor.utilization, "PercentAvailable":stor.percent_avail}
 
                     self.redfish[response_1_1_2_1_1['@odata.id']] = response_1_1_2_1_1  # 1.1.2.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -816,7 +528,7 @@ class redfish_ufmdb(object):
                         response_1_1_2_1_1_1_1['Protocol'] = drive.protocol
                         response_1_1_2_1_1_1_1['Revision'] = drive.revision
                         response_1_1_2_1_1_1_1['SerialNumber'] = drive.sn
-                        response_1_1_2_1_1_1_1['oem'] = {"PercentAvailable":drive.percent_avail}
+                        response_1_1_2_1_1_1_1['oem'] = {"UtilizationBytes":drive.utilization, "PercentAvailable":drive.percent_avail}
 
                         self.redfish[response_1_1_2_1_1_1_1['@odata.id']] = response_1_1_2_1_1_1_1  # 1.1.2.1.1.1.1  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -855,32 +567,150 @@ class redfish_ufmdb(object):
 
                         self.redfish["/redfish/v1/Systems/"+subsys.uuid+"/EthernetInterfaces/"+intf.mac] = response_1_1_2_2_1  # 1.1.2.2.1  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-        self.log.detail('_build_redfish: done.  entries=%d',len(self.redfish))
+        self.log.detail('_build_redfish_systems: done.  entries=%d',len(self.redfish))
+        return
+
+
+
+    def _build_redfish_fabrics(self):
+
+        self.log.detail('_build_redfish_fabrics: requested.')
+
+        if  len(self.fabrics) == 0:
+            self.log.detail('_build_redfish_fabrics: done.  entries=%d',len(self.redfish))
+            return
+
+        # 1.4
+        response_1_4 = copy.deepcopy(redfish_responses['1.4'])
+        self.redfish[response_1_4['@odata.id']] = response_1_4  # 1.4   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        for fabric in self.fabrics:
+            response_1_4['Members'].append({'@odata.id': '/redfish/v1/Fabrics/' + fabric.id})
+
+        response_1_4['Members@odata.count'] = len(response_1_4['Members'])
+
+        for fabric in self.fabrics:
+            # 1.4.1
+            response_1_4_1 = copy.deepcopy(redfish_responses['1.4.1'])
+            response_1_4_1['id'] = fabric.id
+            response_1_4_1['@odata.id'] = response_1_4['@odata.id']+'/'+fabric.id
+            self.redfish[response_1_4_1['@odata.id']] = response_1_4_1  # 1.4.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            if len(fabric.switches) == 0:
+                continue
+
+            response_1_4_1['Switches'] = ({'@odata.id': response_1_4_1['@odata.id'] + '/Switches'})
+
+            # 1.4.1.1
+            response_1_4_1_1 = copy.deepcopy(redfish_responses['1.4.1.1'])
+            response_1_4_1_1['@odata.id'] = response_1_4_1['@odata.id'] + '/Switches'
+            self.redfish[response_1_4_1_1['@odata.id']] = response_1_4_1_1  # 1.4.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+            for sw in fabric.switches:
+                # 1.4.1.1.1
+                response_1_4_1_1_1 = copy.deepcopy(redfish_responses['1.4.1.1.1'])
+                response_1_4_1_1_1['id'] = sw.id
+                response_1_4_1_1_1['@odata.id'] = response_1_4_1_1['@odata.id'] + '/' + sw.id
+                self.redfish[response_1_4_1_1_1['@odata.id']] = response_1_4_1_1_1  # 1.4.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                if len(sw.ports) > 0:
+                    response_1_4_1_1_1['Ports'] = ({"@odata.id": response_1_4_1_1_1['@odata.id'] + "/Ports"})
+
+                    # 1.4.1.1.1.1
+                    response_1_4_1_1_1_1 = copy.deepcopy(redfish_responses['1.4.1.1.1.1'])
+                    response_1_4_1_1_1_1['@odata.id'] = response_1_4_1_1_1['@odata.id'] + "/Ports"
+                    self.redfish[response_1_4_1_1_1_1['@odata.id']] = response_1_4_1_1_1_1 # 1.4.1.1.1.1   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                    for port in sw.ports:
+                        response_1_4_1_1_1_1['Members'].append({'@odata.id': response_1_4_1_1_1_1['@odata.id'] + '/' + port.id})
+
+                    response_1_4_1_1_1_1['Members@odata.count'] = len(response_1_4_1_1_1_1['Members'])
+
+                    for port in sw.ports:
+                        response_1_4_1_1_1_1_1['@odata.id'] = response_1_4_1_1_1_1['@odata.id'] + '/' + port.id
+                        response_1_4_1_1_1_1_1['id'] = port.id
+                        self.redfish[response_1_4_1_1_1_1_1['@odata.id']] = response_1_4_1_1_1_1_1
+
+                if len(sw.vlans) > 0:
+                    response_1_4_1_1_1['VLANs'] = ({"@odata.id": response_1_4_1_1_1['@odata.id'] + "/VLANs"})
+
+                    # 1.4.1.1.1.2
+                    response_1_4_1_1_1_2 = copy.deepcopy(redfish_responses['1.4.1.1.1.2'])
+                    response_1_4_1_1_1_2['@odata.id'] = response_1_4_1_1_1['@odata.id'] + "/VLANs"
+                    self.redfish[response_1_4_1_1_1_2['@odata.id']] = response_1_4_1_1_1_2 # 1.4.1.1.1.2   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+                    for vlan in sw.vlans:
+                        response_1_4_1_1_1_2['Members'].append({'@odata.id': response_1_4_1_1_1_2['@odata.id'] + '/' + vlan.id})
+
+                    response_1_4_1_1_1_2['Members@odata.count'] = len(response_1_4_1_1_1_2['Members'])
+
+                    for vlan in sw.vlans:
+                        response_1_4_1_1_1_2_1['@odata.id'] = response_1_4_1_1_1_2['@odata.id'] + '/' + vlan.id
+                        response_1_4_1_1_1_2_1['id'] = vlan.id
+                        self.redfish[response_1_4_1_1_1_2_1['@odata.id']] = response_1_4_1_1_1_2_1
 
         return
 
 
-    def get(self, request=None):
+
+    def get(self, request=None, payload={}):
         '''
         Translates a redfish request string request to a json file response
         '''
         self.log.detail('GET: %s', request)
 
-        if self.auto_update == True:
-            self.update()
-
         try:
-            response = self.redfish[request]
+            if self.auto_update == True:
+                self.update()
+
+            if request in self.action:
+                func = self.action[request]
+                response = func(payload)
+
+            elif request in self.redfish:
+                response = self.redfish[request]
+
+            else:
+                if request != "/favicon.ico":
+                    self.log.error('GET: Invalid Request. %s', request)
+                response = { "Status": 404, "Message": "Not Found" }
+
             return response
-        except:
-            self.log.error('GET: Invalid Request. %s', request)
+        except Exception as e:
+            self.log.exception(e)
+
+            if request != "/favicon.ico":
+                self.log.error('GET: Invalid Request. %s', request)
+
             response = { "Status": 404, "Message": "Not Found" }
             return response
 
+    def post(self, request=None, payload={}):
+        '''
+        Translates a redfish request string request to an action function
+        '''
+        self.log.detail('POST: %s', request)
 
+        try:
+            if self.auto_update == True:
+                self.update()
 
+            if request in self.action:
+                func = self.action[request]
+                response = func(payload)
 
+            else:
+                if request != "/favicon.ico":
+                    self.log.error('GET: Invalid Request. %s', request)
+                response = { "Status": 404, "Message": "Not Found" }
 
+            return response
+        except:
+            if request != "/favicon.ico":
+                self.log.error('GET: Invalid Request. %s', request)
+
+            response = { "Status": 404, "Message": "Not Found" }
+            return response
 
 
 

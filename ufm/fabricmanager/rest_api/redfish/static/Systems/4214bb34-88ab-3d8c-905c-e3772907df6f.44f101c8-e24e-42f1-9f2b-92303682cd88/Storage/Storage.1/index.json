@@ -12,5 +12,10 @@
             "@odata.id": "/redfish/v1/Systems/4214bb34-88ab-3d8c-905c-e3772907df6f.44f101c8-e24e-42f1-9f2b-92303682cd88/Storage/Storage.1/Drives/S3VJNA0M835132"
         }
     ],
-    "Name": "Storage"
+    "Name": "Storage",
+    "oem": {
+        "CapacityBytes": 15363023929344,
+        "UtilizationBytes": 0,
+        "PercentAvailable": 100
+    }
 }

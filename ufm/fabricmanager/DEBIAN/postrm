@@ -5,8 +5,8 @@ echo "Now running post un-installer!"
 
 die()
 {
-    echo "$*"
-    exit 1
+  echo "$*"
+  exit 1
 }
 
 SERVICE="ufm"
@@ -19,26 +19,21 @@ SERVICE_PATH="/usr/share/${SERVICE}/systemd"
 
 if [[ -e /etc/systemd/system/${SERVICE}.service ]]
 then
-    systemctl disable ${SERVICE}
-    systemctl stop ${SERVICE}
-    rm /etc/systemd/system/${SERVICE}.service
+  systemctl disable ${SERVICE}
+  systemctl stop ${SERVICE}
+  systemctl daemon-reload
+  # rm /etc/systemd/system/${SERVICE}.service
 fi
 
-if [[ -e ${APP_PATH} ]]
-then
-    rm -rf ${APP_PATH}
-fi
-
-if [[ -e /var/log/${SERVICE} ]]
-then
-    rm -rf /var/log/${SERVICE}
-fi
+[[ -e ${APP_PATH} ]] && rm -rf ${APP_PATH}
+[[ -e /var/log/${SERVICE} ]] && rm -rf /var/log/${SERVICE}
 
 if [[ -e /etc/systemd/system/gunicorn.service ]]
 then
-    systemctl disable gunicorn
-    systemctl stop gunicorn
-    rm /etc/systemd/system/gunicorn.service
+  systemctl disable gunicorn
+  systemctl stop gunicorn
+  # rm /etc/systemd/system/gunicorn.service
+  systemctl daemon-reload
 fi
 
 exit 0

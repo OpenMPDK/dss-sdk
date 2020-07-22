@@ -17,7 +17,8 @@ _TEMPLATE = \
         "Model": "MZQLB3T8HALS-000AZ",
         "Protocol": "NVMeOverFabrics",
         "Revision": "ETA51KB3",
-        "SerialNumber": "{drive_id}"
+        "SerialNumber": "{drive_id}",
+        "oem": {"UtilizationBytes": 38407559820, "PercentAvailable": 99}
     }
 
 

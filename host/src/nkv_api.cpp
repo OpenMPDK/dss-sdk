@@ -60,7 +60,6 @@ int32_t nkv_dummy_path_stat;
 int32_t nkv_event_handler = 0;
 int32_t nkv_check_alignment = 0;
 std::condition_variable cv_global;
-std::mutex mtx_global;
 std::mutex mtx_stat;
 std::string config_path;
 std::queue<std::string> event_queue;
@@ -124,6 +123,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
     smg_alert(logger, "### NKV Library version in use = %s ###", NKV_VERSION_INFO);
     boost::property_tree::ptree pt;
     try {
+      std::unique_lock<std::mutex> lck(mtx_global);
       boost::property_tree::read_json(config_path, pt);
     }
     catch (std::exception& e) {
@@ -319,7 +319,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       event_subscribe_channel = pt.get<std::string>("event_subscribe_channel");
       mq_address = pt.get<std::string>("mq_address");
       nkv_event_polling_interval_in_sec = pt.get<int32_t>("nkv_event_polling_interval_in_sec", 60);
-      nvme_connect_delay_in_mili_sec =  pt.get<uint32_t>("nvme_connect_delay_in_mili_sec", 20);
+      nvme_connect_delay_in_mili_sec =  pt.get<uint32_t>("nvme_connect_delay_in_mili_sec", 2000);
     }
 
     if (!nkv_is_on_local_kv) {

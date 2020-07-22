@@ -34,6 +34,8 @@ class ResourceManager(object):
                 print('Loading static resources for Redfish API')
                 self.Systems = get_static_data(
                     self.resource_dictionary, rest_base, "Redfish")
+                self.Fabrics = get_static_data(
+                    self.resource_dictionary, rest_base, "Redfish")
 
     @property
     def configuration(self):
@@ -60,8 +62,10 @@ class ResourceManager(object):
             },
             'Systems': {
                 '@odata.id': self.rest_base + 'Systems'
+            },
+            'Fabrics': {
+                '@odata.id': self.rest_base + 'Fabrics'
             }
-
         }
 
         return config

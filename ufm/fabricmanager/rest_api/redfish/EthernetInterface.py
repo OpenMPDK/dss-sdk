@@ -7,15 +7,12 @@ from flask_restful import reqparse, Api, Resource
 # Internal imports
 import config
 from .templates.EthernetInterface import get_ethernet_interface_instance
+from rest_api.redfish import redfish_constants
 
 members = {}
 
-SERVER_ERROR = 500
-NOT_FOUND = 404
-SUCCESS = 200
 
-
-class EthernetInterface(Resource):
+class EthernetInterfaceEmulationAPI(Resource):
     """
     EthernetInterface
     """
@@ -28,14 +25,14 @@ class EthernetInterface(Resource):
         # HTTP GET
         # """
         if ident1 not in members:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
         if ident2 not in members[ident1]:
-            return 'Client Error: Not Found', NOT_FOUND
+            return 'Client Error: Not Found', redfish_constants.NOT_FOUND
 
-        return members[ident1][ident2], SUCCESS
+        return members[ident1][ident2], redfish_constants.SUCCESS
 
 
-class EthernetInterfaceCollection(Resource):
+class EthernetInterfaceCollectionEmulationAPI(Resource):
     """
     EthernetInterface Collection
     """
@@ -55,7 +52,7 @@ class EthernetInterfaceCollection(Resource):
         """
         try:
             if ident not in members:
-                return NOT_FOUND
+                return redfish_constants.NOT_FOUND
             ethernet_interface = []
             for nic in members.get(ident, {}).values():
                 ethernet_interface.append({'@odata.id': nic['@odata.id']})
@@ -63,15 +60,15 @@ class EthernetInterfaceCollection(Resource):
                 '/' + ident + '/EthernetInterfaces'
             self.cfg['Members'] = ethernet_interface
             self.cfg['Members@odata.count'] = len(ethernet_interface)
-            response = self.cfg, SUCCESS
+            response = self.cfg, redfish_constants.SUCCESS
         except Exception:
             traceback.print_exc()
-            response = SERVER_ERROR
+            response = redfish_constants.SERVER_ERROR
 
         return response
 
 
-def CreateEthernetInterface(**kwargs):
+def CreateEthernetInterfaceEmulation(**kwargs):
     sys_id = kwargs['sys_id']
     nic_id = kwargs['nic_id']
     if sys_id not in members:

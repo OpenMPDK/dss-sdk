@@ -43,7 +43,7 @@ if [ $2 == "-p" ]; then
     echo "Generating openmpdk patch from ${openmpdk_url}" 
     git remote add gitlab_one ${openmpdk_url}
     git fetch gitlab_one
-    commit_id=`git rev-list --tags --max-count=1`
+    commit_id=`git reflog | head -1 | cut -d ' ' -f 1`
     git branch openmpdk_patch ${commit_id}
     git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
     git remote remove gitlab_one
