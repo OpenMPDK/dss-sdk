@@ -1,7 +1,0 @@
----
-# Ansible Playbook for Phoenix FabricManager Build Environment
-
-- name: Configure FabricManager build environment
-  hosts: fabricmanager
-  roles:
-    - fabricmanager
