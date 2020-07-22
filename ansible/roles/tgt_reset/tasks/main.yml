@@ -99,6 +99,7 @@
     - "{{ product_dir }}"
     - "{{ config_file_dir }}"
     - "{{ nkv_agent_config_file_dir }}"
+    - "{{ nkv_agent_logfile_dir }}"
     - "{{ logfile_dir }}"
     - "{{ dfly_temp_dir }}"
     - /tmp/install_packages.py
