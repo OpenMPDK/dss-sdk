@@ -16,6 +16,7 @@ if (in_source)
 endif ()
 
 add_subdirectory(mk/filelists)
+add_subdirectory(oss)
 #add_subdirectory(common)
 
 set(CMAKE_C_FLAGS_DEBUG "-DDEBUG -O0 -fno-omit-frame-pointer")
@@ -139,6 +140,7 @@ ADD_CUSTOM_TARGET(dssd
 #
 SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.c
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_spdk.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_subsystem.cpp
@@ -180,6 +182,7 @@ include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
+include_directories (${CMAKE_SOURCE_DIR}/include)
 
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
@@ -215,7 +218,7 @@ endif(WITH_KV_STATS)
 
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
-set(OSS_CFLAGS -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
+set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
 
 add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
 target_link_libraries (oss ${OSS_LIBS})
@@ -252,6 +255,26 @@ ADD_CUSTOM_TARGET(spdk_tcp
   COMMAND make V=2 -j16
   DEPENDS dssd
   DEPENDS oss
+  DEPENDS dss_lat
+)
+
+add_subdirectory(test)
+
+add_library(dss_lat STATIC	utils/dss_count_latency.c)
+target_link_libraries(dss_lat -ljudyL)
+target_compile_options(dss_lat PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+add_dependencies(dss_lat judyL)
+add_custom_command(
+        TARGET dss_lat PRE_BUILD
+		COMMENT ${CMAKE_SOURCE_DIR}
+        COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
+)
+
+ADD_CUSTOM_TARGET(test_latency_counter
+	COMMENT "Buiulding test latency counter"
+	WORKING_DIRECTORY test/test_latency_counter
+	COMMAND make
+	DEPENDS dss_lat
 )
 
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -271,3 +294,4 @@ add_custom_command(
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
 	COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
 )
+

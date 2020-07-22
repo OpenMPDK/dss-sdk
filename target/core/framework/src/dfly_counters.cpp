@@ -62,20 +62,39 @@ int dfly_counters_size_count(stat_kvio_t *stats, struct spdk_nvmf_request *req, 
 		if (value_size > actualGetLength) {
 			value_size = actualGetLength;
 		}
-	}
 
-	if (value_size >= 2 * MBYTE) {
-		dfly_ustat_atomic_inc_u64(stats, &stats->large_2MB);
-	} else if (value_size >= 1 * MBYTE) {
-		dfly_ustat_atomic_inc_u64(stats, &stats->_1MB_2MB);
-	} else if (value_size >= 16 * KBYTE) {
-		dfly_ustat_atomic_inc_u64(stats, &stats->_16KB_1MB);
-	} else if (value_size >= 4 * KBYTE) {
-		dfly_ustat_atomic_inc_u64(stats, &stats->_4KB_16KB);
-	} else {
-		dfly_ustat_atomic_inc_u64(stats, &stats->less_4KB);
+		if (value_size >= 2 * MBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_large_2MB);
+		} else if (value_size >= 1 * MBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_1MB_2MB);
+		} else if (value_size >= 256 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_256KB_1MB);
+		} else if (value_size >= 64 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_64KB_256KB);
+		} else if (value_size >= 16 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_16KB_64KB);
+		} else if (value_size >= 4 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_4KB_16KB);
+		} else {
+			dfly_ustat_atomic_inc_u64(stats, &stats->get_less_4KB);
+		}
+	} else if (opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE) {
+		if (value_size >= 2 * MBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_large_2MB);
+		} else if (value_size >= 1 * MBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_1MB_2MB);
+		} else if (value_size >= 256 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_256KB_1MB);
+		} else if (value_size >= 64 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_64KB_256KB);
+		} else if (value_size >= 16 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_16KB_64KB);
+		} else if (value_size >= 4 * KBYTE) {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_4KB_16KB);
+		} else {
+			dfly_ustat_atomic_inc_u64(stats, &stats->put_less_4KB);
+		}
 	}
-
 	return 0;
 
 }
