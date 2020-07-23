@@ -1,0 +1,7 @@
+#Auto Generated File do not modify
+configure_file(../../test/test_latency_counter/Makefile ../../test/test_latency_counter/Makefile COPYONLY)
+configure_file(../../test/test_latency_counter/test_lcounter.c ../../test/test_latency_counter/test_lcounter.c COPYONLY)
+#Symbolic links
+#TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference
+ADD_CUSTOM_TARGET(copy_test_latency_counter_links
+)

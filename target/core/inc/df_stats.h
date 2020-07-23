@@ -80,17 +80,29 @@ typedef struct stat_kvio {
 	ustat_named_t iters;
 	ustat_named_t putBandwidth;
 	ustat_named_t getBandwidth;
-	ustat_named_t less_4KB;
-	ustat_named_t _4KB_16KB;
-	ustat_named_t _16KB_1MB;
-	ustat_named_t _1MB_2MB;
-	ustat_named_t large_2MB;
+	ustat_named_t put_less_4KB;
+	ustat_named_t put_4KB_16KB;
+	ustat_named_t put_16KB_64KB;
+	ustat_named_t put_64KB_256KB;
+	ustat_named_t put_256KB_1MB;
+	ustat_named_t put_1MB_2MB;
+	ustat_named_t put_large_2MB;
+	ustat_named_t get_less_4KB;
+	ustat_named_t get_4KB_16KB;
+	ustat_named_t get_16KB_64KB;
+	ustat_named_t get_64KB_256KB;
+	ustat_named_t get_256KB_1MB;
+	ustat_named_t get_1MB_2MB;
+	ustat_named_t get_large_2MB;
 } stat_kvio_t;
 
 typedef struct stat_rqpair {
 	ustat_named_t reqs;
 	ustat_named_t reqs_max;
 	ustat_named_t max_qd;
+	ustat_named_t puts;
+	ustat_named_t gets;
+	ustat_named_t dels;
 } stat_rqpair_t;
 
 typedef struct stat_module {
@@ -122,6 +134,7 @@ extern const stat_kvio_t stat_dev_io_table;
 extern int dfly_ustats_get_ename(const char *ename, int id, char *buf, size_t len);
 extern ustat_handle_t *dfly_ustats_get_handle(void);
 extern int dfly_ustats_init(void);
+extern int dfly_qp_counters_inc_io_count(stat_rqpair_t *stats, int opc);
 
 int dfly_ustat_init_dev_stat(uint32_t subsys_id, const char *dev_name, void *dev);
 void dfly_ustat_remove_dev_stat(void *dev);

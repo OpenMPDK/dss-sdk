@@ -83,6 +83,7 @@ extern "C" {
 #include "df_numa.h"
 
 #include "df_log.h"
+#include "utils/dss_count_latency.h"
 
 #include "df_atomic.h"
 #include "df_counters.h"
@@ -105,6 +106,8 @@ extern "C" {
 #ifndef MIN
 #define MIN(a, b) ((a)<=(b) ? (a):(b))
 #endif
+
+#define DF_LATENCY_MEASURE_ENABLED
 
 #define MAX_SS (64)
 #define KB                  (1024)
@@ -136,6 +139,7 @@ struct dfly_io_device_s {
 	struct spdk_nvmf_ns *ns;
 	uint32_t index;
 
+	int32_t numa_node;
 	stat_kvio_t *stat_io;
 	stat_serial_t *stat_serial;
 };
@@ -233,6 +237,7 @@ struct dragonfly {
 	struct dragonfly_core core[64]; /**< round robin core selection data from each core */
 
 	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
+	bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 
 	uint32_t num_sgroups; /**< number of pools */
 
@@ -247,6 +252,8 @@ struct dragonfly {
 	pthread_mutex_t			df_ses_lock;
 
 	dict_t	 			*disk_stat_table;
+	uint64_t req_lat_to;//Request latency timeout
+	bool enable_latency_profiling;
 };
 
 struct dfly_qpair_s {
@@ -267,8 +274,11 @@ struct dfly_qpair_s {
 
 	uint32_t max_pending_lock_reqs;
 	uint32_t npending_lock_reqs;
+	uint16_t qid;
 
+	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
+	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
 };
 
 struct dword_bytes {
@@ -292,6 +302,7 @@ int dragonfly_core_finish(uint32_t nvmf_core);
 struct dfly_subsystem *dfly_get_subsystem_no_lock(uint32_t ssid);
 struct dfly_subsystem *dfly_get_subsystem(uint32_t ssid);
 struct dfly_subsystem *dfly_put_subsystem(uint32_t ssid);
+int dfly_get_nvmf_ssid(struct spdk_nvmf_subsystem *ss);
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg);
@@ -335,13 +346,11 @@ void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled);
 void df_subsystem_parse_conf(uint32_t ssid, struct spdk_conf_section *subsys_sp);
 uint32_t df_subsystem_enabled(uint32_t ssid);
 
-char *
-dfly_nvmf_rdma_qpair_peer_addr(struct spdk_nvmf_qpair *qp, char *addr, size_t len);
-
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req);
 
 int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
 int dfly_qpair_destroy(struct dfly_qpair_s *dqpair);
+struct dfly_qpair_s* df_get_dqpair(dfly_ctrl_t *ctrlr, uint16_t qid);
 int dfly_nvmf_request_complete(struct spdk_nvmf_request *req);
 
 extern struct spdk_nvmf_tgt *g_spdk_nvmf_tgt;
@@ -378,11 +387,23 @@ void dfly_qos_update_nops(dfly_request_t *req, void *tr_p, dfly_ctrl_t *ctrl);
 
 dfly_ctrl_t *df_init_ctrl(struct dfly_qpair_s *dqpair, uint16_t cntlid, uint32_t ssid);
 void df_destroy_ctrl(uint32_t ssid, uint16_t cntlid);
+dfly_ctrl_t *df_get_ctrl(uint32_t ssid, uint16_t cntlid);
 
 struct spdk_nvme_ns_data *dfly_nvme_ns_get_data(struct spdk_nvme_ns *ns);
 
 struct spdk_nvme_ctrlr * spdk_bdev_nvme_get_ctrlr(struct spdk_bdev *bdev);
 void dfly_nvme_ctrlr_update_namespaces(struct spdk_nvme_ctrlr *ctrlr);
+
+#ifdef DF_LATENCY_MEASURE_ENABLED
+void df_lat_update_tick(struct dfly_request *dreq, uint32_t state);
+void df_print_tick(struct dfly_request *dreq);
+void df_update_lat_us(struct dfly_request *dreq);
+
+#endif
+
+//Pool device submit function
+void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_device,
+			struct spdk_io_channel *ch);
 
 #ifdef __cplusplus
 }

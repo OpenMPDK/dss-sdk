@@ -64,11 +64,20 @@ const stat_kvio_t stat_dev_io_table = {
 	{ "iters", USTAT_TYPE_UINT64, 0, NULL },
 	{ "putBandwidth", USTAT_TYPE_UINT64, 0, NULL},
 	{ "getBandwidth", USTAT_TYPE_UINT64, 0, NULL},
-	{ "less_4KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_16KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_16KB_64KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_64KB_256KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_16KB_64KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_64KB_256KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_kvio_t stat_subsys_io_table = {
@@ -79,17 +88,29 @@ const stat_kvio_t stat_subsys_io_table = {
 	{ "iters", USTAT_TYPE_UINT64, 0, NULL },
 	{ "putBandwidth", USTAT_TYPE_UINT64, 0, NULL},
 	{ "getBandwidth", USTAT_TYPE_UINT64, 0, NULL},
-	{ "less_4KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_16KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_16KB_64KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_64KB_256KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_16KB_64KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_64KB_256KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_rqpair_t stat_rqpair_io_table = {
 	{"reqs", USTAT_TYPE_UINT64, 0, NULL},
 	{"reqs_max", USTAT_TYPE_UINT64, 0, NULL},
 	{"max_qd", USTAT_TYPE_UINT64, 0, NULL},
+	{"puts", USTAT_TYPE_UINT64, 0, NULL },
+	{"gets", USTAT_TYPE_UINT64, 0, NULL },
+	{"dels", USTAT_TYPE_UINT64, 0, NULL },
 };
 
 const stat_module_t stat_module_req_table = {
@@ -207,7 +228,7 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 
 	stat_subsys_t *s0;
 	stat_kvio_t *s1;
-	dfly_ustat_insert_stat_subsys_table(&s0, subsystem->id, &stat_subsys_nqn_table);
+	dfly_ustat_insert_stat_subsys_table((ustat_struct_t **)&s0, subsystem->id, &stat_subsys_nqn_table);
 	dfly_ustat_set_string(s0, &s0->name, nqn);
 
 	dfly_ustat_insert_stat_subsys_kvio(&s1, subsystem->id, &stat_subsys_io_table);
@@ -290,6 +311,27 @@ dfly_ustat_update_rqpair_stat(void *qpair, int ops)
 	}
 
 	dfly_ustat_set_u64(dqpair->stat_qpair, &dqpair->stat_qpair->reqs, (uint64_t)curr_qd);
+}
+
+int dfly_qp_counters_inc_io_count(stat_rqpair_t *stats, int opc)
+{
+	switch (opc) {
+	case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
+		ustat_atomic_inc_u64(stats, &stats->puts);
+		break;
+
+	case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+		ustat_atomic_inc_u64(stats, &stats->gets);
+		break;
+
+	case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:
+		ustat_atomic_inc_u64(stats, &stats->dels);
+		break;
+
+	default:
+		break;
+	}
+	return 0;
 }
 
 int
