@@ -83,6 +83,7 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_s
 		dqpair->reqs = (struct dfly_request *)(dqpair + 1);
 		dqpair->io_counter = 0;
 		dqpair->curr_qd = 0;
+		dqpair->qid = -1;
 		dfly_req = dqpair->reqs;
 		dqpair->df_poller = dfly_poller_init(0);
 
@@ -104,6 +105,8 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_s
 			strncpy(nvmf_qpair->dqpair->peer_addr, trid.traddr, INET6_ADDRSTRLEN);
 		}
 
+		dqpair->lat_ctx = dss_lat_new_ctx(nvmf_qpair->dqpair->peer_addr);
+
 		DFLY_DEBUGLOG(DFLY_LOG_QOS, "dqpair %p initialized\n", dqpair);
 	} else {
 		DFLY_DEBUGLOG(DLFY_LOG_CORE, "Allocating extra %d request for qpair %p\n", max_reqs, nvmf_qpair);
@@ -121,8 +124,37 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_s
 
 int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 {
+	struct dss_lat_prof_arr *tmp = NULL;
+
 	dfly_ustat_remove_qpair_stat(dqpair);
+	if(g_dragonfly->enable_latency_profiling && dqpair->parent_qpair->qid != 0) {
+		dss_lat_get_percentile(dqpair->lat_ctx, &tmp);
+		DFLY_DEBUGLOG(DLFY_LOG_CORE, "nReqs:%lu ,num Percentiles:%d [", nsamples, (tmp)->n_part);
+		int i;
+		for(i=0;i < tmp->n_part;i++) {
+			DFLY_DEBUGLOG(DLFY_LOG_CORE, "%d:%lu%s", tmp->prof[i].pVal,  tmp->prof[i].pLat, (i < tmp->n_part -1)?"|":"");
+		}
+		DFLY_DEBUGLOG(DLFY_LOG_CORE, "]\n");
+	}
+	dss_lat_del_ctx(dqpair->lat_ctx);
 	dfly_poller_fini(dqpair->df_poller);
 	free(dqpair);
 	return 0;
+}
+
+struct dfly_qpair_s* df_get_dqpair(dfly_ctrl_t *ctrlr, uint16_t qid)
+{
+	struct dfly_qpair_s *dqpair;
+
+	if(qid == -1) {
+		return NULL;
+	}
+
+	TAILQ_FOREACH(dqpair, &ctrlr->df_qpairs, qp_link) {
+		if(dqpair->qid == qid) {
+			return dqpair;
+		}
+	}
+
+	return NULL;
 }

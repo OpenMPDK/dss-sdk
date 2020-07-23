@@ -47,7 +47,7 @@
  *   Connect if some ip is not connected.
  */
 
-uint32_t nvme_connect_delay_in_mili_sec = 20; // delay Mili second 
+uint32_t nvme_connect_delay_in_mili_sec = 2000; // delay Mili second 
 
 bool split_lines(const std::string& result, char delimiter, vector<string>& lines)
 {

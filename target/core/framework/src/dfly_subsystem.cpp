@@ -95,6 +95,11 @@ struct dfly_subsystem *dfly_get_subsystem_no_lock(uint32_t ssid)
 	return &(g_dragonfly->subsystems[ssid]);
 }
 
+int dfly_get_nvmf_ssid(struct spdk_nvmf_subsystem *ss)
+{
+	return ss->id;
+}
+
 struct dfly_subsystem *dfly_get_subsystem(uint32_t ssid)
 {
 	struct dfly_subsystem *subsystem = &(g_dragonfly->subsystems[ssid]);

@@ -72,10 +72,12 @@ typedef struct dfly_session {
 } dfly_session_t;
 
 typedef struct dfly_ctrl {
+	pthread_mutex_t 				ct_lock;
 	dfly_session_t                  *ct_session;
 	uint32_t                         ct_cntlid;
 	TAILQ_ENTRY(dfly_ctrl)           ct_link; // Subsystem
 	void                            *ct_base[0];
+	TAILQ_HEAD(, dfly_qpair_s)         df_qpairs;
 } dfly_ctrl_t;
 
 struct spdk_nvmf_qpair;
