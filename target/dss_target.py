@@ -1,11 +1,13 @@
 #!/usr/bin/python
-import os
-from subprocess import Popen, PIPE
 import argparse
-import sys
 from datetime import date
+import json
 import multiprocessing
+import os
 from random import randint
+import re
+from subprocess import Popen, PIPE
+import sys
 
 g_env = None
 
@@ -417,6 +419,48 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     return 0
 
+def get_vlan_ips(target_vlan_id):
+    """
+    Get the list of IPs corresponding to the specified vlan id
+    Returns: list() of IPs in the specified vlan, or None if the vlan doesn't exist
+    """
+    lshw_cmd = "lshw -c network -json"
+    ret, out, err = exec_cmd(lshw_cmd)
+    lines = out.split("\n")
+    # Fix malformed json...
+    fixed_lines = []
+    fixed_lines.append("[")
+    for line in lines:
+        split = line.strip().split()
+        if split == ["}", "{"]:
+            fixed_lines.append("}, {")
+        else:
+            fixed_lines.append(line)
+    fixed_lines.append("]")
+
+    # Parse json after fixing malformed output
+    lshw_json = json.loads("".join(fixed_lines))
+    vlanid_ip_map = {}
+    vlan_id_regex = re.compile("id\s*[0-9]+")
+    for portalias in lshw_json:
+        if "logicalname" in portalias and "ip" in portalias["configuration"]:
+            devname = portalias["logicalname"]
+            ip = portalias["configuration"]["ip"]
+        else:
+            continue
+        new_cmd = "ip -d link show dev " + devname
+        ret, out, err = exec_cmd(new_cmd)
+        for line in out.split("\n"):
+            if "vlan" in line:
+                vlan_id = vlan_id_regex.search(line).group().split()[-1]
+                if vlan_id not in vlanid_ip_map:
+                    vlanid_ip_map[vlan_id] = []
+                vlanid_ip_map[vlan_id].append(ip)
+    if target_vlan_id in vlanid_ip_map:
+        return vlanid_ip_map[target_vlan_id]
+    else:
+        return None
+
 
 """
 Functions being called in the main function 
@@ -565,11 +609,19 @@ The most commonly used dss target commands are:
             help="Configuration file. One will be created if it doesn't exist. Need -ip_addrs argument",
         )
         parser.add_argument(
+            "-vids",
+            "--vlan-ids",
+            type=str,
+            required=False,
+            nargs="+",
+            help="ID of VLAN to determine which IPs to listen on",
+        )
+        parser.add_argument(
             "-ip_addrs",
             "--ip_addresses",
             type=str,
             nargs="+",
-            required=True,
+            required=False,
             help="List of space seperated ip_addresses to listen. Atleast one address is needed",
         )
         parser.add_argument(
@@ -618,16 +670,24 @@ The most commonly used dss target commands are:
             g_kv_firmware = args.kv_firmware
         if args.block_firmware:
             g_block_firmware = args.block_firmware
-        if args.ip_addresses:
-            g_ip_addrs = args.ip_addresses
         if args.wal:
             g_wal = args.wal
-        if args.tcp:
+        if args.tcp is not None:
             g_tcp = args.tcp
-        if args.rdma:
+        if args.rdma is not None:
             g_rdma = args.rdma
         if args.kv_ssc:
             g_kv_ssc = args.kv_ssc
+        if args.ip_addresses:
+            g_ip_addrs = args.ip_addresses
+        elif args.vlan_ids:
+            g_ip_addrs = []
+            for vlan_id in args.vlan_ids:
+                g_ip_addrs += get_vlan_ips(vlan_id)
+        else:
+            print("Must specify either --vlan-ids or --ip-addresses")
+            sys.exit(-1)
+
         print "dss_tgt config, config_file=" + g_conf_path + "ip_addrs=" + str(
             g_ip_addrs
         )[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1] + "block_fw=" + str(
@@ -668,6 +728,13 @@ The most commonly used dss target commands are:
         print (
             "Make necessary changes to core mask (-m option, # of cores that app should use) if needed."
         )
+        with open("run_nvmf_tgt.sh", 'w') as f:
+            f.write(
+                "./nvmf_tgt -c "
+                + g_conf_path
+                + " -r /var/run/spdk.sock -m "
+                + g_core_mask
+            )
         return ret
 
     def reset(self):
