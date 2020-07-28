@@ -158,7 +158,7 @@ def nvme_discover(proto, ip, port):
     ret, disc_out, err = exec_cmd(discover_cmd)
     if not disc_out:
         print("Discovery Failed: %s, %s" %(disc_out,err))
-        sys.exit(1)
+        return []
 
     nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
@@ -299,7 +299,7 @@ def get_vlan_ips(target_vlan_id, host, root_pw="msl-ssg"):
     if target_vlan_id in vlanid_ip_map:
         return vlanid_ip_map[target_vlan_id]
     else:
-        return None
+        return []
     
 def get_addrs(vlan_ids, hosts, ports):
     '''
