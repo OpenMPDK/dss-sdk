@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+#
+echo "Now running post installer!"
+
+die()
+{
+  echo "$*"
+  exit 1
+}
+
+SERVICE="ufm_msg_broker"
+SERVICE_PATH="/usr/share/ufmbroker/systemd"
+
+if [[ "$1" == "configure" ]]
+then
+  [[ -e ${SERVICE_PATH}/${SERVICE}.service ]] && systemctl stop ${SERVICE}
+fi
+
+# Create directory for log files
+# TODO(ER) this should be moved to the UFM-broker and removed from here
+if [[ ! -e /var/log/ufm_msg_broker ]]
+then
+  mkdir -p /var/log/ufm_msg_broker
+  chmod 666 /var/log/ufm_msg_broker
+fi
+
+[[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to find service file for ${SERVICE}"
+
+cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
+
+echo "Enable and start ${SERVICE} service "
+systemctl enable ${SERVICE}
+systemctl start ${SERVICE}
+
+exit 0
+

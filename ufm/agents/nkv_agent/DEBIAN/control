@@ -1,0 +1,9 @@
+Package: ufmbroker
+Version: 1.0
+Section: base
+Architecture: all
+Essential: no
+Priority: optional
+Depends: python
+Maintainer: Samsung
+Description: Universal message broker
