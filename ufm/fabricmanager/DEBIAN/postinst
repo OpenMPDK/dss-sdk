@@ -31,7 +31,12 @@ fi
 # command -v pip3 > /dev/null
 # [[ $? -ne 0 ]] && die "ERR: pip3 is not installed"
 
-/usr/bin/env pip3 install -r /usr/share/${SERVICE}/requirements.txt
+# See https://snarky.ca/why-you-should-use-python-m-pip/
+# to know why the safe way to execute pip is python3 -m pip,
+# not pip3.
+# /usr/bin/env pip3 install -r /usr/share/${SERVICE}/requirements.txt
+
+/usr/bin/env python3 -m pip install -r /usr/share/${SERVICE}/requirements.txt
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
 [[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to create service file for ${SERVICE}"
