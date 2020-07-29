@@ -259,15 +259,24 @@ def get_nvme_drives():
     #if ret != 0:
     return out
 
-def get_vlan_ips(target_vlan_id, host, root_pw="msl-ssg"):
+def get_vlan_ips(target_vlan_id, host, root_pws):
     """
     Get the list of IPs corresponding to the specified vlan id on the specified host
-    Returns: list() of IPs in the specified vlan, or None if the vlan doesn't exist
+    Returns: list() of IPs in the specified vlan, or [] if the vlan doesn't exist
     """
     lshw_cmd = "lshw -c network -json"
     iplink_cmd = "ip -d link show dev "
-    ret, stdout_lines, stderr_lines = exec_cmd_remote(lshw_cmd, host, user="root", pw=root_pw)
+    stdout_lines = None
+    for root_pw in root_pws:
+        try:
+            ret, stdout_lines, stderr_lines = exec_cmd_remote(lshw_cmd, host, user="root", pw=root_pw)
+            break
+        except:
+            pass
     # Fix malformed json...
+    if stdout_lines is None:
+        print("Error: all attempts to authenticate failed, aborting...")
+        sys.exit(-1)
     fixed_lines = []
     fixed_lines.append("[")
     for line in stdout_lines:
@@ -301,14 +310,14 @@ def get_vlan_ips(target_vlan_id, host, root_pw="msl-ssg"):
     else:
         return []
     
-def get_addrs(vlan_ids, hosts, ports):
+def get_addrs(vlan_ids, hosts, ports, root_pws):
     '''
     Get IP addresses of all interfaces with vlan ID in vlan_ids on all hosts in hosts
     '''
     ips = []
     for host in hosts:
         for vlan_id in vlan_ids:
-            vlan_ips = get_vlan_ips(vlan_id, host)
+            vlan_ips = get_vlan_ips(vlan_id, host, root_pws)
             for port in ports:
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
@@ -383,8 +392,12 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
         nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
     # Sort NQN infos
     nqn_infos.sort(key=lambda x : x[3].split(":")[0])
+    nqn_infos_dedup = []
+    for nqn_info in nqn_infos:
+        if nqn_info not in nqn_infos_dedup:
+            nqn_infos_dedup.append(nqn_info)
     # Connect to all discovered NQNs and their IPs.
-    nvme_connect(nqn_infos, disc_qpair)
+    nvme_connect(nqn_infos_dedup, disc_qpair)
 
     # Create nkv_config.json file
     create_config_file()
@@ -538,12 +551,13 @@ The most commonly used dss target commands are:
         parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
         parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
             default=512)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         args = parser.parse_args(sys.argv[2:])
 
         if args.addrs != None:
             disc_addrs = args.addrs
         elif args.vlan_ids != None and args.hosts != None and args.ports != None:
-            disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports)
+            disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
         else:
             print("Must specify --addrs or --hosts AND --vlan-ids AND --ports")
             sys.exit(-1)
@@ -568,7 +582,7 @@ The most commonly used dss target commands are:
             minio_dist = args.dist 
         elif args.port and not args.dist:
             minio_dist = discover_dist(args.port)
-        else:
+        elif args.dist and args.port:
             print("Must specify either --dist or --port, but not both.")
             return
         if args.stand_alone:
