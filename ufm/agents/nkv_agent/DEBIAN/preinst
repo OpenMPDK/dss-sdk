@@ -1,15 +1,29 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 echo "Now running pre-installer!"
 
-if [[ ! -x /usr/bin/python3 ]]
+die()
+{
+    echo "Pre-install failed"
+    echo "$*"
+    exit 1
+}
+
+if [[ ! -x /usr/bin/python ]]
 then
-    echo "ERR: Python3 is not installed"
+    echo "ERR: Python is not installed"
     exit 1
 fi
 
-/usr/bin/env pip3 install zmq
+python -m pip install --upgrade pip
+
+for p in docopt netifaces etcd3 pyinstaller pyzmq
+do
+    /usr/bin/env python -m pip install ${p} || die "ERR: Failed to install ${p}"
+done
+
+# psutil
 
 exit 0
 

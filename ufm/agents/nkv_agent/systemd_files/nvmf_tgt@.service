@@ -1,0 +1,16 @@
+[Unit]
+Description=Samsung Object Storage NVMF target operations with additional arguments
+After=nvmf_tgt.service
+
+[Service]
+User=root
+WorkingDirectory=/usr/share/nkvagent
+Environment="PYTHONPATH=/usr/share/nkvagent:/usr/dragonfly/cm/:$PYTHONPATH"
+Type=simple
+ExecStart=/usr/bin/env python kv-cli.py daemon --start_tgt %I
+RemainAfterExit=true
+ExecStop=/usr/bin/env python kv-cli.py daemon --stop_tgt %I
+
+[Install]
+WantedBy=multi-user.target
+

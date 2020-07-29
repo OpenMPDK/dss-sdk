@@ -3,4 +3,4 @@
 installed_rpms_dict: {}
 release_rpms_dict: {}
 
-target_packages: "nkv-target,FM-Agent"
+target_packages: "nkv-target,nkvagent"

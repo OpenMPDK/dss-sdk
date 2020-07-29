@@ -1,9 +1,9 @@
-Package: ufmbroker
+Package: nkvagent
 Version: 1.0
 Section: base
 Architecture: all
 Essential: no
 Priority: optional
-Depends: python
+Depends: python,ntp
 Maintainer: Samsung
-Description: Universal message broker
+Description: NKV Agent

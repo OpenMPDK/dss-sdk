@@ -1,37 +1,35 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 echo "Now running post un-installer!"
 
 die()
 {
+    echo "Post un-install failed"
     echo "$*"
     exit 1
 }
 
-SERVICE="ufm_msg_broker"
-APP_PATH="/usr/share/ufmbroker"
-SERVICE_PATH="/usr/share/ufmbroker/systemd"
+SERVICES="kv_cli nvmf_tgt nvmf_tgt@"
+SERVICE_PATH="/usr/share/nkvagent/systemd"
 
 # if update do not remove anything
 [[ $1 -eq 1 ]] && exit 0
 [[ "$1" == "upgrade" ]] && exit 0
 
-if [[ -e /etc/systemd/system/${SERVICE}.service ]]
-then
-    systemctl disable ${SERVICE}
-    systemctl stop ${SERVICE}
-    rm /etc/systemd/system/${SERVICE}.service
-fi
+for s in ${SERVICES}
+do
+    if [[ -e /etc/systemd/system/${s}.service ]]
+    then
+        systemctl disable ${s}
+        systemctl stop ${s}
+        rm /etc/systemd/system/${s}.service
+    fi
+done
 
-if [[ -e ${APP_PATH} ]]
+if [[ -e /var/log/nkv-agent ]]
 then
-    rm -rf ${APP_PATH}
-fi
-
-if [[ -e /var/log/ufm_msg_broker ]]
-then
-    rm -rf /var/log/ufm_msg_broker
+    rm -rf /var/log/nkv-agent
 fi
 
 exit 0

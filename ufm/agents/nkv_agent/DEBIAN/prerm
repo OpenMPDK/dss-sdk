@@ -8,6 +8,5 @@ echo "Now running the pre un-installer!"
 [[ "$1" == "upgrade" ]] && exit 0
 
 
-
 exit 0
 

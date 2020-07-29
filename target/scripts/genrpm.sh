@@ -83,7 +83,7 @@ EOF
 
 /usr/sbin/ldconfig
 systemctl daemon-reload
-if [ \$1 == 1 ]; then
+if [ \$1 -eq 1 ];then
 	# Fresh installation
 	systemctl enable nvmf_tgt
 	systemctl enable nvmf_tgt@internal_flag.service
@@ -98,7 +98,7 @@ fi
 } &> /tmp/fm-agent-output
 
 %postun
-if [ \$1 == 0 ]; then
+if [ \$1 -eq 0 ];then
 	systemctl stop nvmf_tgt
 	rm -f /etc/rsyslog.d/dfly.conf
 	rm -f /etc/ld.so.conf.d/kvlibs.conf
@@ -112,12 +112,12 @@ LAB_SPEC
 
 generateRPM()
 {
-		if ! eval "rpmbuild -bb --clean $rpm_spec_file --define '_topdir $rpm_tmp'"
-		then
-			echo "Failed to build RPM"
-			exit
-		fi
-		echo "RPM build success"
+    if ! eval "rpmbuild -bb --clean $rpm_spec_file --define '_topdir $rpm_tmp'"
+    then
+        echo "Failed to build RPM"
+        exit 1
+    fi
+    echo "RPM build success"
 }
 
 usage()

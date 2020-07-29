@@ -11,12 +11,6 @@ die()
 
 ubuntu_pip_install()
 {
-  which pip
-  [[ $? -ne 0 ]] && die "ERR: Fail to install pip "
-
-  which pip3
-  [[ $? -ne 0 ]] && die "ERR: Fail to install pip3 "
-
   [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-dev is not installed"
 }
 
@@ -25,7 +19,6 @@ centos_pip_install()
    # yum -y install python3-devel
 
    [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-devel is not installed"
-   python3 -m pip install --upgrade pip
 }
 
 

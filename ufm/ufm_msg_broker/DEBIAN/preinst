@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 echo "Now running pre-installer!"
@@ -9,7 +9,7 @@ then
     exit 1
 fi
 
-/usr/bin/env pip3 install zmq
+/usr/bin/env python3 -m pip install pyzmq
 
 exit 0
 

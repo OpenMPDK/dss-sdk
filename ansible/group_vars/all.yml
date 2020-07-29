@@ -27,7 +27,7 @@ include_vars:
 product_dir: /usr/dss/nkv-target # Binaries will still point to /usr/dragonfly
 config_file_dir: /etc/dragonfly
 logfile_dir: /var/log/dragonfly # Might not be needed
-nkv_agent_dir: /usr/nkv_agent
+nkv_agent_dir: /usr/share/nkvagent
 nkv_agent_config_file_dir: /etc/nkv-agent
 nkv_agent_logfile_dir: /var/log/nkv-agent
 cm_dir: "{{ product_dir }}/cm"

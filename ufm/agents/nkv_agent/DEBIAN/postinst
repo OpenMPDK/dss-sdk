@@ -1,37 +1,47 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 echo "Now running post installer!"
 
 die()
 {
-  echo "$*"
-  exit 1
+    echo "Post install failed"
+    echo "$*"
+    exit 1
 }
 
-SERVICE="ufm_msg_broker"
-SERVICE_PATH="/usr/share/ufmbroker/systemd"
+SERVICES="kv_cli nvmf_tgt nvmf_tgt@"
+SERVICE_PATH="/usr/share/nkvagent/systemd"
 
 if [[ "$1" == "configure" ]]
 then
-  [[ -e ${SERVICE_PATH}/${SERVICE}.service ]] && systemctl stop ${SERVICE}
+    for s in ${SERVICES}
+    do
+        [[ -e ${SERVICE_PATH}/${s}.service ]] && systemctl stop ${s}
+    done
 fi
 
 # Create directory for log files
-# TODO(ER) this should be moved to the UFM-broker and removed from here
-if [[ ! -e /var/log/ufm_msg_broker ]]
+# TODO(ER) this should be moved to the main()
+if [[ ! -e /var/log/nkv-agent ]]
 then
-  mkdir -p /var/log/ufm_msg_broker
-  chmod 666 /var/log/ufm_msg_broker
+    mkdir -p /var/log/nkv-agent
+    chmod 666 /var/log/nkv-agent
 fi
 
-[[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to find service file for ${SERVICE}"
+# for s in ${SERVICES}
+# do
+#    [[ ! -e ${SERVICE_PATH}/${s}.service ]] && die "ERR: Failed to find service file for ${s}.service"
+# done
 
-cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
+cp ${SERVICE_PATH}/* /etc/systemd/system/
 
-echo "Enable and start ${SERVICE} service "
-systemctl enable ${SERVICE}
-systemctl start ${SERVICE}
+for s in ${SERVICES}
+do
+    echo "Enable and start ${s} service "
+    systemctl enable ${s}
+    systemctl start ${s}
+done
 
 exit 0
 
