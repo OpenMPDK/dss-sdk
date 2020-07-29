@@ -25,7 +25,7 @@ class VlanAPI(Resource):
             redfish_backend = RedfishVlanBackend()
             response = redfish_backend.get(fab_id, sw_id, vlan_id)
         except Exception as e:
-            # print('Caught exc {e} in VlanAPI.get()')
+            # print('Caught exc {} in VlanAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -49,7 +49,7 @@ class VlanActionAPI(Resource):
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:
-            # print('Caught exc {e} in VlanActionAPI.post()')
+            # print('Caught exc {} in VlanActionAPI.post()'.format(e))
             resp = RedfishErrorResponse.get_server_error_response(e)
         return resp
 
@@ -63,7 +63,7 @@ class VlanCollectionAPI(Resource):
             redfish_backend = RedfishVlanCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            # print('Caught exc {e} in VlanCollectionAPI.get()')
+            # print('Caught exc {} in VlanCollectionAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -86,7 +86,7 @@ class VlanCollectionActionAPI(Resource):
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:
-            # print('Caught exc {e} in VlanCollectionActionAPI.post()')
+            # print('Caught exc {} in VlanCollectionActionAPI.post()'.format(e))
             resp = RedfishErrorResponse.get_server_error_response(e)
         return resp
 

@@ -12,12 +12,12 @@ def post_to_switch(sw_uuid, payload):
         json_request = json.dumps(payload, indent=4, sort_keys=True)
         json_response = None
         try:
-            print("post_to_switch request {}".format(json_request))
+            # print("post_to_switch request {}".format(json_request))
             skt.send_json(json_request)
 
             # block until response is received
             json_response = skt.recv_json()
-            print("post_to_switch response {}".format(json_response))
+            # print("post_to_switch response {}".format(json_response))
         except KeyboardInterrupt:
             pass
 

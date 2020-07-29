@@ -121,13 +121,49 @@ class SwitchMenu(UfmMenu):
                           desc=dpp["description"])
             self.dpp = dpp
 
+        if "Actions" in rsp and rsp["Actions"]["#EnableBufferManagement"]:
+
+            ebm = rsp["Actions"]["#EnableBufferManagement"]
+            print("    Action: (EnableBufferManagement) ")
+            self.add_item(labels=["ebm", "ebm"],
+                          action=self._enable_buffer_management_action,
+                          desc=ebm["description"])
+            self.ebm = ebm
+
+        if "Actions" in rsp and rsp["Actions"]["#DisableBufferManagement"]:
+
+            dbm = rsp["Actions"]["#DisableBufferManagement"]
+            print("    Action: (DisableBufferManagement) ")
+            self.add_item(labels=["dbm", "dbm"],
+                          action=self._disable_buffer_management_action,
+                          desc=dbm["description"])
+            self.dbm = dbm
+
+        if "Actions" in rsp and rsp["Actions"]["#SaveConfigurationFileNoSwitch"]:
+
+            sns = rsp["Actions"]["#SaveConfigurationFileNoSwitch"]
+            print("    Action: (SaveConfigurationFileNoSwitch) ")
+            self.add_item(labels=["sns", "sns"], args=["<file_name>"],
+                          action=self._save_config_file_no_switch_action,
+                          desc=sns["description"])
+            self.sns = sns
+
+        if "Actions" in rsp and rsp["Actions"]["#ShowConfigurationFiles"]:
+
+            scf = rsp["Actions"]["#ShowConfigurationFiles"]
+            print("    Action: (ShowConfigurationFiles) ")
+            self.add_item(labels=["scf", "scf"],
+                          action=self._show_config_files_action,
+                          desc=scf["description"])
+            self.scf = scf
+
         if "Actions" in rsp and rsp["Actions"]["#AnyCmd"]:
 
             any_cmd = rsp["Actions"]["#AnyCmd"]
             print("    Action: (AnyCmd) ")
             self.add_item(labels=["any_cmd", "any_cmd"],
                           action=self._any_cmd_action,
-                          desc=any_cmd["description"])
+                          desc=any_cmd["description"].replace("AnyCmd", "any_cmd"))
             self.any_cmd = any_cmd
 
         if len(rsp["Ports"]) > 0:
@@ -224,6 +260,53 @@ class SwitchMenu(UfmMenu):
             self._refresh()
         return
 
+    def _enable_buffer_management_action(self, menu, item):
+        rsp = ufmapi.redfish_post(self.ebm["target"])
+
+        ufmapi.print_switch_result(rsp,
+                                   'advanced buffer management force',
+                                   'Successfully Enabled Buffer Management',
+                                   'Failed to Enable Buffer Management')
+        return
+
+    def _disable_buffer_management_action(self, menu, item):
+        rsp = ufmapi.redfish_post(self.dbm["target"])
+
+        ufmapi.print_switch_result(rsp,
+                                   'no advanced buffer management force',
+                                   'Successfully Disabled Buffer Management',
+                                   'Failed to Disable Buffer Management')
+        return
+
+    def _save_config_file_no_switch_action(self, menu, item):
+        argv = item.argv
+
+        file_name = argv[1]
+        if file_name is None:
+            print("File name Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload['FileName'] = file_name
+        rsp = ufmapi.redfish_post(self.sns["target"], payload)
+
+        ufmapi.print_switch_result(rsp,
+                                   'configuration write to ' + file_name + ' no-switch',
+                                   'Successfully Write to Configuration File',
+                                   'Failed to Write to Configuration File')
+        return
+
+    def _show_config_files_action(self, menu, item):
+        rsp = ufmapi.redfish_post(self.scf["target"])
+
+        ufmapi.print_switch_result(rsp,
+                                   'show configuration files',
+                                   'Successfully Show Configuration Files',
+                                   'Failed to Show Configuration Files')
+
+        print(json.dumps(rsp, indent=4))
+        return
+
     def _any_cmd_action(self, menu, item):
         lst = self.get_all_args()
         any_cmd_str = ' '.join(lst)
@@ -231,6 +314,11 @@ class SwitchMenu(UfmMenu):
         if any_cmd_str is None:
             print("Any Cmd str Undefined, invalid or missing")
             return
+
+        any_cmd_str = any_cmd_str.replace('iport', 'iPort')
+        any_cmd_str = any_cmd_str.replace('ipool', 'iPool')
+        any_cmd_str = any_cmd_str.replace('eport', 'ePort')
+        any_cmd_str = any_cmd_str.replace('epool', 'ePool')
 
         payload = {}
         payload['AnyCmdStr'] = any_cmd_str

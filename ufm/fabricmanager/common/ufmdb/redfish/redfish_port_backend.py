@@ -223,7 +223,7 @@ class RedfishPortBackend():
             self.cfg['Actions']['#ShowPfcCounters']['Parameters'] = []
 
             param = {}
-            param['Priority'] = 'VLANId'
+            param['Name'] = 'Priority'
             param['Required'] = True
             param['DataType'] = 'Number'
             param['MinimumValue'] = '0'
@@ -238,10 +238,39 @@ class RedfishPortBackend():
                 self.cfg['@odata.id'] + '/Actions/ShowCongestionControl'
 
             ###############################
+            self.cfg['Actions']['#ShowBufferDetails'] = {}
+            self.cfg['Actions']['#ShowBufferDetails']['description'] = \
+                'Displays specific interface buffer information.'
+            self.cfg['Actions']['#ShowBufferDetails']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/ShowBufferDetails'
+
+            ###############################
+            self.cfg['Actions']['#BindPriorityToBuffer'] = {}
+            self.cfg['Actions']['#BindPriorityToBuffer']['description'] = \
+                'Bind switch priority to specific buffer.'
+            self.cfg['Actions']['#BindPriorityToBuffer']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/BindPriorityToBuffer'
+            self.cfg['Actions']['#BindPriorityToBuffer']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'Buffer'
+            param['Required'] = True
+            param['DataType'] = 'String'
+            self.cfg['Actions']['#BindPriorityToBuffer']['Parameters'].append(param)
+
+            param = {}
+            param['Name'] = 'Priority'
+            param['Required'] = True
+            param['DataType'] = 'Number'
+            param['MinimumValue'] = '0'
+            param['MaximumValue'] = '7'
+            self.cfg['Actions']['#BindPriorityToBuffer']['Parameters'].append(param)
+
+            ###############################
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            # print('Caught exc {e} in RedfishPortBackend.get()')
+            # print('Caught exc {} in RedfishPortBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -325,7 +354,7 @@ class RedfishPortCollectionBackend():
                 response = redfish_constants.NOT_FOUND
 
         except Exception as e:
-            # print('Caught exc {e} in RedfishPortCollectionBackend.get()')
+            # print('Caught exc {} in RedfishPortCollectionBackend.get()'.format(e).format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

@@ -148,6 +148,28 @@
         "#ShowCongestionControl": {
             "description": "Displays specific interface congestion control information.",
             "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/1/Actions/ShowCongestionControl"
+        },
+        "#ShowBufferDetails": {
+            "description": "Displays specific interface buffer information.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/1/Actions/ShowBufferDetails"
+        },
+        "#BindPriorityToBuffer": {
+            "description": "Bind switch priority to specific buffer.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/ab35df6c-1108-11ea-8000-1c34da32f0c0/Ports/1/Actions/BindPriorityToBuffer",
+            "Parameters": [
+                {
+                    "Name": "Buffer",
+                    "Required": true,
+                    "DataType": "String"
+                },
+                {
+                    "Name": "Priority",
+                    "Required": true,
+                    "DataType": "Number",
+                    "MinimumValue": "0",
+                    "MaximumValue": "7"
+                }
+            ]
         }
     }
 }

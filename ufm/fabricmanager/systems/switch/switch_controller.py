@@ -61,7 +61,7 @@ class SwitchController(UfmThread):
 
             payload = json.loads(jsonMessage)
             cmd = payload["cmd"]
-            print(payload)
+            # print(payload)
 
             dispatcher = {
                 'DeleteVLAN': self.handle_delete_vlan,
@@ -82,11 +82,17 @@ class SwitchController(UfmThread):
                 'DisableEcnMarking': self.handle_disable_ecn_marking,
                 'ShowCongestionControl': self.handle_show_port_congestion_control,
                 'ShowPfcCounters': self.handle_show_port_pfc_counters,
+                'ShowBufferDetails': self.handle_show_port_buffer_details,
+                'BindPriorityToBuffer': self.handle_bind_port_priority_to_specific_buffer,
 
                 'EnablePfcGlobally': self.handle_enable_pfc_globally,
                 'DisablePfcGlobally': self.handle_disable_pfc_globally,
                 'EnablePfcPerPriority': self.handle_enable_pfc_per_priority,
                 'DisablePfcPerPriority': self.handle_disable_pfc_per_priority,
+                'SaveConfigurationFileNoSwitch': self.handle_save_configuration_file_no_switch,
+                'ShowConfigurationFiles': self.handle_show_configuration_files,
+                'EnableBufferManagement': self.handle_enable_buffer_management,
+                'DisableBufferManagement': self.handle_disable_buffer_management,
 
                 'AnyCmd': self.handle_any_cmd
             }
@@ -95,9 +101,9 @@ class SwitchController(UfmThread):
             method = dispatcher.get(cmd, lambda: "Invalid cmd")
             resp = method(payload)
 
-            print(resp)
+            # print(resp)
         except Exception as e:
-            # print('Caught exc {e} in SwitchController.action_handler()')
+            print('Caught exc {} in SwitchController.action_handler()'.format(e))
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -451,7 +457,7 @@ class SwitchController(UfmThread):
         # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/6
         # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/switch_attributes/pfc/prio_disabled_list/7
         #
-        # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/8/pfc/disabled
+        # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/8/pfc/pfc_status/disabled
 
         if port_id:
             self.db.delete_prefix('/switches/' + self.uuid + '/ports/' + str(port_id) + '/pfc')
@@ -461,3 +467,37 @@ class SwitchController(UfmThread):
     def remove_all_per_switch(self):
         # remove everything starting with '/switches/' for this switch
         self.db.delete_prefix('/switches/' + self.uuid)
+
+    def handle_save_configuration_file_no_switch(self, payload):
+        file_name = payload['FileName']
+
+        resp = self.client.save_configuration_file_no_switch(file_name)
+        return resp.json()
+
+    def handle_show_configuration_files(self, payload):
+        resp = self.client.show_configuration_files()
+        return resp.json()
+
+    def handle_enable_buffer_management(self, payload):
+        resp = self.client.enable_buffer_management()
+        return resp.json()
+
+    def handle_disable_buffer_management(self, payload):
+        resp = self.client.disable_buffer_management()
+        return resp.json()
+
+    def handle_show_port_buffer_details(self, payload):
+        port_id = payload['port_id']
+
+        resp = self.client.show_port_buffer_details(port_id)
+        return resp.json()
+
+    def handle_bind_port_priority_to_specific_buffer(self, payload):
+        port_id = payload['port_id']
+        buf = payload['Buffer']
+        prio = payload['Priority']
+
+        resp = self.client.bind_port_priority_to_specific_buffer(port_id,
+                                                                 buf,
+                                                                 prio)
+        return resp.json()
