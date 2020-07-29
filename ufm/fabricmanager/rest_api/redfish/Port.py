@@ -25,7 +25,7 @@ class PortAPI(Resource):
             redfish_backend = RedfishPortBackend()
             response = redfish_backend.get(fab_id, sw_id, port_id)
         except Exception as e:
-            # print('Caught exc {e} in PortAPI.get()')
+            # print('Caught exc {} in PortAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -50,7 +50,7 @@ class PortActionAPI(Resource):
             resp = util.post_to_switch(sw_id, data)
 
         except Exception as e:
-            # print('Caught exc {e} in PortActionAPI.post()')
+            # print('Caught exc {} in PortActionAPI.post()'.format(e))
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -66,7 +66,7 @@ class PortCollectionAPI(Resource):
             redfish_backend = RedfishPortCollectionBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            # print('Caught exc {e} in PortCollectionAPI.get()')
+            # print('Caught exc {} in PortCollectionAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

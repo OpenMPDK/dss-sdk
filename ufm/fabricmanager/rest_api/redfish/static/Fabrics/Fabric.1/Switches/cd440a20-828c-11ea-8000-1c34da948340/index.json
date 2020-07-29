@@ -56,13 +56,37 @@
                 }
             ]
         },
+        "#EnableBufferManagement": {
+            "description": "Enable advanced buffer management on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/EnableBufferManagement"
+        },
+        "#DisableBufferManagement": {
+            "description": "Disable advanced buffer management on the switch.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/DisableBufferManagement"
+        },
+        "#SaveConfigurationFileNoSwitch": {
+            "description": "Save configuration file without making the new file active.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/SaveConfigurationFileNoSwitch",
+            "Parameters": [
+                {
+                    "Name": "FileName",
+                    "Required": true,
+                    "DataType": "String"
+                }
+            ]
+        },
+        "#ShowConfigurationFiles": {
+            "description": "Display the available configuration files and the active file.",
+            "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/ShowConfigurationFiles"
+        },
         "#AnyCmd": {
-            "description": "Send any cmd directly to the switch.",
+            "description": "Send any cmd directly to the switch, e.g. AnyCmd interface ethernet 1/5 ingress-buffer iPort pool iPool1 reserved 10k shared alpha 1",
             "target": "/redfish/v1/Fabrics/Fabric.1/Switches/cd440a20-828c-11ea-8000-1c34da948340/Actions/AnyCmd",
             "Parameters": [
                 {
                     "Name": "AnyCmdStr",
-                    "Required": true
+                    "Required": true,
+                    "DataType": "String"
                 }
             ]
         }

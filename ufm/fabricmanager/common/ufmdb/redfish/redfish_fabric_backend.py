@@ -39,7 +39,7 @@ class RedfishFabricBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception as e:
-            # print('Caught exc {e} in RedfishFabricBackend.get()')
+            # print('Caught exc {} in RedfishFabricBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -91,7 +91,7 @@ class RedfishFabricCollectionBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            # print('Caught exc {e} in RedfishFabricCollectionBackend.get()')
+            # print('Caught exc {} in RedfishFabricCollectionBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

@@ -26,7 +26,7 @@ class SwitchAPI(Resource):
             redfish_backend = RedfishSwitchBackend()
             response = redfish_backend.get(fab_id, sw_id)
         except Exception as e:
-            # print('Caught exc {e} in SwitchAPI.get()')
+            # print('Caught exc {} in SwitchAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -51,7 +51,7 @@ class SwitchActionAPI(Resource):
             resp = util.post_to_switch(sw_id, data)
 
         except Exception as e:
-            # print('Caught exc {e} in SwitchActionAPI.post()')
+            # print('Caught exc {} in SwitchActionAPI.post()'.format(e))
             resp = RedfishErrorResponse.get_server_error_response(e)
 
         return resp
@@ -67,7 +67,7 @@ class SwitchCollectionAPI(Resource):
             redfish_backend = RedfishSwitchCollectionBackend()
             response = redfish_backend.get(fab_id)
         except Exception as e:
-            # print('Caught exc {e} in SwitchCollectionAPI.get()')
+            # print('Caught exc {} in SwitchCollectionAPI.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

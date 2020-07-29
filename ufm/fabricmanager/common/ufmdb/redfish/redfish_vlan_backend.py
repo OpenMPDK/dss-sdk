@@ -69,7 +69,7 @@ class RedfishVlanBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            # print('Caught exc {e} in RedfishVlanBackend.get()')
+            # print('Caught exc {} in RedfishVlanBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -141,7 +141,7 @@ class RedfishVlanCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception as e:
-            # print('Caught exc {e} in RedfishVlanCollectionBackend.get()')
+            # print('Caught exc {} in RedfishVlanCollectionBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 

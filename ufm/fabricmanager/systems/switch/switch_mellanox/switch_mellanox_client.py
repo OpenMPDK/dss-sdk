@@ -62,7 +62,7 @@ class SwitchMellanoxClient(SwitchClientTemplate):
     def get_uuid(self):
         if self.uuid:
             return self.uuid
-        return _poll_uuid()
+        return self._poll_uuid()
 
     def send_cmd(self, json_data):
         '''
@@ -906,6 +906,66 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             "commands":
             [
                 any_cmd_str
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def save_configuration_file_no_switch(self, file_name):
+        json_cmd = {
+            "commands":
+            [
+                'configuration write to ' + file_name + ' no-switch'
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def show_configuration_files(self):
+        json_cmd = {
+            "commands":
+            [
+                'show configuration files'
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def enable_buffer_management(self):
+        json_cmd = {
+            "commands":
+            [
+                'advanced buffer management force'
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def disable_buffer_management(self):
+        json_cmd = {
+            "commands":
+            [
+                'no advanced buffer management force'
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def show_port_buffer_details(self, port_id):
+        json_cmd = {
+            "commands":
+            [
+                'show buffers details interfaces ethernet 1/' + str(port_id)
+            ]
+        }
+        resp = self.send_cmd(json_cmd)
+        return resp
+
+    def bind_port_priority_to_specific_buffer(self, port_id, buf, prio):
+        json_cmd = {
+            "commands":
+            [
+                'interface ethernet 1/' + str(port_id) + ' ingress-buffer ' + buf + ' bind switch-priority ' + str(prio)
             ]
         }
         resp = self.send_cmd(json_cmd)

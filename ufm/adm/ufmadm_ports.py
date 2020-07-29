@@ -233,6 +233,24 @@ class PortMenu(UfmMenu):
                           desc=scc["description"])
             self.scc = scc
 
+        if "Actions" in rsp and rsp["Actions"]["#ShowBufferDetails"]:
+
+            sbd = rsp["Actions"]["#ShowBufferDetails"]
+            print("    Action: (ShowBufferDetails) ")
+            self.add_item(labels=["sbd", "sbd"],
+                          action=self._show_buffer_details_action,
+                          desc=sbd["description"])
+            self.sbd = sbd
+
+        if "Actions" in rsp and rsp["Actions"]["#BindPriorityToBuffer"]:
+
+            bpb = rsp["Actions"]["#BindPriorityToBuffer"]
+            print("    Action: (BindPriorityToBuffer) ")
+            self.add_item(labels=["bpb", "bpb"], args=["<buf_name>", "<prio>"],
+                          action=self._bind_port_priority_to_specific_buffer_action,
+                          desc=bpb["description"])
+            self.bpb = bpb
+
         return
 
     def _back_action(self, menu, item):
@@ -531,4 +549,49 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
+        return
+
+    def _show_buffer_details_action(self, menu, item):
+        payload = {}
+        payload["port_id"] = self.pt
+
+        rsp = ufmapi.redfish_post(self.sbd["target"], payload)
+
+        ufmapi.print_switch_result(
+            rsp,
+            'show buffers details interfaces ethernet 1/' + str(self.pt),
+            'Successfully Show port buffer details',
+            'Failed to Show port buffer details')
+
+        print(json.dumps(rsp, indent=4))
+        return
+
+    def _bind_port_priority_to_specific_buffer_action(self, menu, item):
+        argv = item.argv
+
+        buf_name = argv[1]
+        if buf_name is None:
+            print("Buffer name Undefined, invalid or missing")
+            return
+        buf_name = buf_name.replace('iport', 'iPort')
+
+        prio = int(argv[2], 10)
+        if prio is None:
+            print("Switch Priority Undefined, invalid or missing")
+            return
+
+        payload = {}
+        payload["port_id"] = self.pt
+        payload["Buffer"] = buf_name
+        payload["Priority"] = prio
+
+        rsp = ufmapi.redfish_post(self.bpb["target"], payload)
+
+        ufmapi.print_switch_result(
+            rsp,
+            'interface ethernet 1/' + str(self.pt) + ' ingress-buffer ' + buf_name +
+            ' bind switch-priority ' + str(prio),
+            'Successfully Bind Switch Priority to Specific Buffer',
+            'Failed to Bind Priority to Specific Buffer')
+
         return

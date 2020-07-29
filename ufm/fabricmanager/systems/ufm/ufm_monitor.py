@@ -82,7 +82,7 @@ class UfmMonitor(UfmThread):
         return self._running
 
     def processMonitorrMessages(self, topic, message):
-        print("Topic: {}  Message to process is: {}\n".format(topic, message))
+        # print("Topic: {}  Message to process is: {}\n".format(topic, message))
 
         # this will send a Aka to publisher
         msg_ok = dict()

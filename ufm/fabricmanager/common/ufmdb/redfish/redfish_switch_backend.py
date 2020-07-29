@@ -84,15 +84,52 @@ class RedfishSwitchBackend():
             self.cfg['Actions']['#DisablePfcPerPriority']['Parameters'].append(param)
 
             ###############################
+            self.cfg['Actions']['#EnableBufferManagement'] = {}
+            self.cfg['Actions']['#EnableBufferManagement']['description'] = \
+                'Enable advanced buffer management on the switch.'
+            self.cfg['Actions']['#EnableBufferManagement']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/EnableBufferManagement'
+
+            ###############################
+            self.cfg['Actions']['#DisableBufferManagement'] = {}
+            self.cfg['Actions']['#DisableBufferManagement']['description'] = \
+                'Disable advanced buffer management on the switch.'
+            self.cfg['Actions']['#DisableBufferManagement']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/DisableBufferManagement'
+
+            ###############################
+            self.cfg['Actions']['#SaveConfigurationFileNoSwitch'] = {}
+            self.cfg['Actions']['#SaveConfigurationFileNoSwitch']['description'] = \
+                'Save configuration file without making the new file active.'
+            self.cfg['Actions']['#SaveConfigurationFileNoSwitch']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/SaveConfigurationFileNoSwitch'
+            self.cfg['Actions']['#SaveConfigurationFileNoSwitch']['Parameters'] = []
+
+            param = {}
+            param['Name'] = 'FileName'
+            param['Required'] = True
+            param['DataType'] = 'String'
+            self.cfg['Actions']['#SaveConfigurationFileNoSwitch']['Parameters'].append(param)
+
+            ###############################
+            self.cfg['Actions']['#ShowConfigurationFiles'] = {}
+            self.cfg['Actions']['#ShowConfigurationFiles']['description'] = \
+                'Display the available configuration files and the active file.'
+            self.cfg['Actions']['#ShowConfigurationFiles']['target'] = \
+                self.cfg['@odata.id'] + '/Actions/ShowConfigurationFiles'
+
+            ###############################
             self.cfg['Actions']['#AnyCmd'] = {}
             self.cfg['Actions']['#AnyCmd']['description'] = \
-                'Send any cmd directly to the switch.'
+                'Send any cmd directly to the switch, e.g. AnyCmd interface ethernet 1/5 ingress-buffer iPort ' + \
+                'pool iPool1 reserved 10k shared alpha 1'
             self.cfg['Actions']['#AnyCmd']['target'] = self.cfg['@odata.id'] + '/Actions/AnyCmd'
             self.cfg['Actions']['#AnyCmd']['Parameters'] = []
 
             param = {}
             param['Name'] = 'AnyCmdStr'
             param['Required'] = True
+            param['DataType'] = 'String'
             self.cfg['Actions']['#AnyCmd']['Parameters'].append(param)
 
             if sw["ports"]:
@@ -118,7 +155,7 @@ class RedfishSwitchBackend():
             response = self.cfg, redfish_constants.SUCCESS
 
         except Exception as e:
-            # print('Caught exc {e} in RedfishSwitchBackend.get()')
+            # print('Caught exc {} in RedfishSwitchBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
@@ -189,7 +226,7 @@ class RedfishSwitchCollectionBackend():
             else:
                 response = redfish_constants.NOT_FOUND
         except Exception as e:
-            # print('Caught exc {e} in RedfishSwitchCollectionBackend.get()')
+            # print('Caught exc {} in RedfishSwitchCollectionBackend.get()'.format(e))
             response = RedfishErrorResponse.get_server_error_response(e)
         return response
 
