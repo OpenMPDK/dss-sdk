@@ -219,6 +219,7 @@ bool event_mapping()
     if ( const char* env_event_map_path = std::getenv("EVENT_MAP_PATH") ) {
       event_map_path = env_event_map_path;
     }
+    std::unique_lock<std::mutex> lck(mtx_global);
     boost::property_tree::read_json(event_map_path, event_map);
     smg_alert(logger,"Reading event_map from %s", event_map_path.c_str());
   }

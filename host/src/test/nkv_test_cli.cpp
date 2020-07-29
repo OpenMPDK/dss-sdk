@@ -51,7 +51,7 @@ std::atomic<int> completed(0);
 //std::atomic<int> cur_qdepth[32];
 const char* S3_DELIMITER = "/";
 #define NKV_TEST_META_VAL_LEN 4096
-#define NKV_TEST_META_KEY_LEN 60
+#define NKV_TEST_META_KEY_LEN 100
 
 #define NKV_TEST_OP_LOCK_UNLOCK (6)
 
@@ -239,7 +239,7 @@ void *iothread(void *args)
     char* val = NULL;
     if (!targs->alignment) {
       val   = (char*)nkv_zalloc(targs->vlen);
-      memset(val, 0, targs->vlen);
+      //memset(val, 0, targs->vlen);
     } else {
       val   = (char*)aligned_alloc(targs->alignment, targs->vlen);
       if ((uint64_t)val % targs->alignment != 0) {
@@ -256,7 +256,8 @@ void *iothread(void *args)
       case 0: /*PUT*/
         {
       
-          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          //if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          if (targs->is_mixed) {
             char*meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
@@ -265,10 +266,10 @@ void *iothread(void *args)
             memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_1, "meta/bucket_%u/%u/1234/xl.json", targs->id, iter);
-            sprintf(meta_key_2, "meta/bucket_%u/%u/1234/part1.json", targs->id, iter);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+            sprintf(meta_key_1, "meta/tmp/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            sprintf(meta_key_2, "meta/tmp/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
             char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
@@ -384,14 +385,15 @@ void *iothread(void *args)
         break;
       case 1: /*GET*/
         {
-          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          //if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          if (targs->is_mixed) {
 
             char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             memset(meta_val_3, 0, NKV_TEST_META_VAL_LEN);
@@ -440,13 +442,14 @@ void *iothread(void *args)
 
       case 2: /*DEL*/
         {
-          if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          //if ((targs->is_mixed) && ( iter % 3 == 0)) {
+          if (targs->is_mixed) {
             char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/xl.json", targs->id, iter);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/part1.json", targs->id, iter);
+            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
 
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
@@ -571,6 +574,7 @@ void *iothread(void *args)
 
       case 3: /*PUT, GET, DEL*/
         {
+          memset(val, 0, targs->vlen);
           sprintf(val, "%0*d", klen, iter);
           
           if (targs->check_integrity) {

@@ -141,9 +141,6 @@ int dfly_device_admin_passthru(int handle, struct spdk_nvme_cmd *cmd,
 			       void *buff, uint64_t nbytes,
 			       df_dev_io_completion_cb cb, void *cb_arg);
 
-//Pool device submit function
-void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_device,
-			struct spdk_io_channel *ch);
 
 void dfly_register_device(struct df_device *io_device);
 void dfly_register_bdev(void);
