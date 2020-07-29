@@ -170,7 +170,6 @@ SET(FW_HEADERS
 )
 
 include_directories (${CMAKE_SOURCE_DIR}/include)
-include_directories (${CMAKE_BINARY_DIR}/oss/dpdk_master/x86_64-native-linuxapp-gcc/include)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/include)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/lib/nvmf/)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/lib/nvme/)
@@ -235,18 +234,11 @@ add_custom_command(
         COMMAND export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CMAKE_BINARY_DIR}/nkv-target/lib
 )
 
-ADD_CUSTOM_TARGET(dpdk_master
-  COMMENT "Building DPDK Master for SPDK TCP"
-  COMMAND make V=2 -C oss/dpdk_master install EXTRA_CPPFLAGS=-fPIC EXTRA_CFLAGS=-fPIC EXTRA_CFLAGS+=-O0 EXTRA_CFLAGS+=-g T=x86_64-native-linuxapp-gcc DESTDIR=../output/dpdk_master -j16
-)
 
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure --disable-tests --enable-debug --with-rdma --with-dpdk=../dpdk_master/x86_64-native-linuxapp-gcc
-  COMMAND make mk/cc.mk
-  COMMAND make  include/spdk/config.h
-  DEPENDS dpdk_master
+  COMMAND ./configure --disable-tests --enable-debug --with-rdma
 )
 
 ADD_CUSTOM_TARGET(spdk_tcp
@@ -254,8 +246,9 @@ ADD_CUSTOM_TARGET(spdk_tcp
   WORKING_DIRECTORY oss/spdk_tcp
   COMMAND make V=2 -j16
   DEPENDS dssd
-  DEPENDS oss
-  DEPENDS dss_lat
+  DEPENDS spdk_tcp_configure
+#  DEPENDS oss
+#  DEPENDS dss_lat
 )
 
 # cmake file is missing in this directory - ER
@@ -286,7 +279,7 @@ add_custom_command(
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/app/nvmf_tgt/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk/
