@@ -57,13 +57,11 @@ gl_nkv_config = """
 nkv_config_file = "../conf/nkv_config.json"
 
 gl_minio_start_sh = """
-
 export LD_LIBRARY_PATH="../lib"
 export MINIO_NKV_CONFIG="../conf/nkv_config.json"
 export MINIO_ACCESS_KEY=minio
 export MINIO_SECRET_KEY=minio123
 export MINIO_STORAGE_CLASS_STANDARD=EC:%(EC)d
-#export MINIO_PER_HOST_INSTANCE_COUNT=%(IC)d
 export MINIO_NKV_MAX_VALUE_SIZE=1048576
 export MINIO_NKV_TIMEOUT=20
 export MINIO_NKV_SYNC=1
@@ -486,7 +484,7 @@ def discover_dist(port):
     return ret
 
 
-def config_minio_dist(node_details, ec, instances):
+def config_minio_dist(node_details, ec):
     print("node details ec %d %s" %(ec, node_details))
     node_count = 0
     node_index = 0
@@ -504,7 +502,6 @@ def config_minio_dist(node_details, ec, instances):
         i += 4
         node_index += 1
         minio_startup = "minio_startup_" + ip + ".sh"
-        #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":instances, "DIST":1, "IP":ip, "PORT":port}
         minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
         minio_settings += minio_dist_node 
         with open(minio_startup, 'w') as f:
@@ -515,11 +512,11 @@ def config_minio_dist(node_details, ec, instances):
         f.write(etc_hosts_map)
     print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
 
-def config_minio(dist, sa, ec, instances):
+def config_minio(dist, sa, ec):
     if(sa):
         config_minio_sa(sa, ec)
     elif(dist):
-        config_minio_dist(dist, ec, instances)
+        config_minio_dist(dist, ec)
 
 
 class dss_host_args(object):
@@ -588,7 +585,6 @@ The most commonly used dss target commands are:
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
-        #parser.add_argument("-instances", "--instances", type=int, required=False, help="Number of MINIO instances per Node", default=2)
         args = parser.parse_args(sys.argv[2:])
        
         global g_minio_dist, g_minio_stand_alone
@@ -601,7 +597,7 @@ The most commonly used dss target commands are:
             return
         if args.stand_alone:
             g_minio_stand_alone = args.stand_alone 
-        config_minio(minio_dist, args.stand_alone, args.ec, args.instances)
+        config_minio(minio_dist, args.stand_alone, args.ec)
 
     def config_driver(self):
         build_driver()
