@@ -63,19 +63,21 @@ export MINIO_NKV_CONFIG="../conf/nkv_config.json"
 export MINIO_ACCESS_KEY=minio
 export MINIO_SECRET_KEY=minio123
 export MINIO_STORAGE_CLASS_STANDARD=EC:%(EC)d
-export MINIO_PER_HOST_INSTANCE_COUNT=%(IC)d
-#export MINIO_ERASURE_SET_DRIVE_COUNT=4
-#export MINIO_NKV_MAX_VALUE_SIZE=2097152
-export MINIO_NKV_MAX_VALUE_SIZE=786432
+#export MINIO_PER_HOST_INSTANCE_COUNT=%(IC)d
+export MINIO_NKV_MAX_VALUE_SIZE=1048576
 export MINIO_NKV_TIMEOUT=20
 export MINIO_NKV_SYNC=1
-#export MINIO_NKV_CHECKSUM=1
+export MINIO_ON_KV=1
+export MINIO_NKV_USE_CUSTOM_READER=1
 export MINIO_NKV_SHARED_SYNC_INTERVAL=2
+export MINIO_INSTANCE_HOST_PORT=%(IP)s:%(PORT)s
 export MINIO_NKV_SHARED=%(DIST)d
+export MINIO_EC_BLOCK_SIZE=65536
+export MINIO_ENABLE_NO_LOCK_READ=1
+export MINIO_ENABLE_NO_READ_VERIFY=1
+#export MINIO_NKV_CHECKSUM=1
 ulimit -n 65535
 ulimit -c unlimited
-#yum install boost-devel
-#yum install jemalloc-devel
 ./minio server --address %(IP)s:%(PORT)s """
 
 gl_minio_standalone = "/dev/nvme{%(start)s...%(end)s}n1"
@@ -183,6 +185,9 @@ def build_driver():
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
+    dss_script_path = os.path.dirname(os.path.realpath(__file__))
+    os.chdir(dss_script_path)
+
     if "5.1.0" in out:
         os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
     elif "3.10.0" in out:
@@ -207,6 +212,8 @@ def install_kernel_driver(align):
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
+    dss_script_path = os.path.dirname(os.path.realpath(__file__))
+    os.chdir(dss_script_path)
 
     if "5.1.0" in out:
         os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
@@ -225,6 +232,7 @@ def install_kernel_driver(align):
 
     disconnect_cmd = "nvme disconnect-all"
     rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
+    #rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
     insmod = "insmod ./nvme-core.ko mem_align=%d; insmod ./nvme-fabrics.ko; \
             insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
 
@@ -410,7 +418,8 @@ def config_minio_sa(node, ec):
     minio_node = ""
     minio_node += gl_minio_standalone % {"start":dev_start, "end":dev_end} +" "
     minio_startup = "minio_startup_sa" + ip + ".sh"
-    minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
     minio_settings += minio_node 
     with open(minio_startup, 'w') as f:
         f.write(minio_settings)
@@ -495,7 +504,8 @@ def config_minio_dist(node_details, ec, instances):
         i += 4
         node_index += 1
         minio_startup = "minio_startup_" + ip + ".sh"
-        minio_settings = gl_minio_start_sh % {"EC": ec, "IC":instances, "DIST":1, "IP":ip, "PORT":port}
+        #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":instances, "DIST":1, "IP":ip, "PORT":port}
+        minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
         minio_settings += minio_dist_node 
         with open(minio_startup, 'w') as f:
             f.write(minio_settings)
@@ -525,8 +535,12 @@ class dss_host_args(object):
             usage='''dss_host <command> [<args>]
 
 The most commonly used dss target commands are:
-   config_host  Discovers/connects device(s), and creates config file for DSS API layer
-   config_minio Generates MINIO scripts based on parameters
+   config_host    Discovers/connects device(s), and creates config file for DSS API layer
+   config_minio   Generates MINIO scripts based on parameters
+   config_driver  Build Kernel driver
+   verify_nkv_cli Run an instance of nkv_test_cli
+   remove         Disconnects all drives and remove kernel driver
+
 ''')
         parser.add_argument('command', help='Subcommand to run')
         # parse_args defaults to [1:] for args, but you need to
@@ -574,7 +588,7 @@ The most commonly used dss target commands are:
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
-        parser.add_argument("-instances", "--instances", type=int, required=False, help="Number of MINIO instances per Node", default=2)
+        #parser.add_argument("-instances", "--instances", type=int, required=False, help="Number of MINIO instances per Node", default=2)
         args = parser.parse_args(sys.argv[2:])
        
         global g_minio_dist, g_minio_stand_alone
