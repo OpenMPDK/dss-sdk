@@ -247,8 +247,8 @@ ADD_CUSTOM_TARGET(spdk_tcp
   COMMAND make V=2 -j16
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
-#  DEPENDS oss
-#  DEPENDS dss_lat
+  DEPENDS oss
+  DEPENDS dss_lat
 )
 
 # cmake file is missing in this directory - ER

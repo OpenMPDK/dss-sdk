@@ -53,7 +53,7 @@ extern "C" {
 #include "spdk/env.h"
 #include "spdk/event.h"
 #include "spdk/conf.h"
-#include "spdk/io_channel.h"
+#include "spdk/thread.h"
 #include "spdk/bdev.h"
 #include "spdk/nvme.h"
 

@@ -311,7 +311,7 @@ void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 	    req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
 
 		if ((req->cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC) &&
-		    !spdk_nvmf_qpair_is_admin_queue(req->qpair)) {
+		    !nvmf_qpair_is_admin_queue(req->qpair)) {
 
 			dfly_req_ini(req->dreq, DFLY_REQF_NVMF | DFLY_REQF_DATA, (void *)req);
 			req->dreq->req_ssid = req->qpair->ctrlr->subsys->id;

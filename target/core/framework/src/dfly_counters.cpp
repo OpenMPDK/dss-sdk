@@ -32,6 +32,7 @@
  */
 
 
+#include "dragonfly.h"
 #include "df_counters.h"
 #include "df_stats.h"
 #include "nvmf_internal.h"

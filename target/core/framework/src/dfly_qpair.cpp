@@ -37,7 +37,7 @@
 
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req)
 {
-	if(spdk_nvmf_qpair_is_admin_queue(nvmf_qpair)) {
+	if(nvmf_qpair_is_admin_queue(nvmf_qpair)) {
 		return 0;//Not enabled
 	}
 

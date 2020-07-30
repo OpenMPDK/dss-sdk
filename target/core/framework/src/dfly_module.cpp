@@ -136,7 +136,7 @@ void dfly_module_post_request(struct dfly_module_s *module, struct dfly_request 
 		m_inst = dfly_get_module_instance(module);
 	}
 
-	rc = spdk_ring_enqueue(m_inst->pipe.msg_ring, (void **)&req, 1);
+	rc = spdk_ring_enqueue(m_inst->pipe.msg_ring, (void **)&req, 1, NULL);
 	if (rc != 1) {
 		assert(false);
 	}
@@ -158,7 +158,7 @@ void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_requ
 		m_inst = dfly_get_module_instance(module);
 	}
 
-	rc = spdk_ring_enqueue(m_inst->pipe.cmpl_ring, (void **)&req, 1);
+	rc = spdk_ring_enqueue(m_inst->pipe.cmpl_ring, (void **)&req, 1, NULL);
 	if (rc != 1) {
 		assert(false);
 	}

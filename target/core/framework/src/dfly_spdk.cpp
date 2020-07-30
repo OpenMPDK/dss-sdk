@@ -71,12 +71,12 @@ dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
 {
 	struct spdk_nvmf_request	*req = (struct spdk_nvmf_request *)cb_arg;
 	struct spdk_nvme_cpl		*response = &req->rsp->nvme_cpl;
-	int				sc, sct, cdw0;
+	int				sc, sct;
+	uint32_t        cdw0;
 
 	struct dfly_request *dreq;
 
-	spdk_bdev_io_get_nvme_status(bdev_io, &sct, &sc);
-	spdk_bdev_io_get_nvme_result(bdev_io, &cdw0);
+	spdk_bdev_io_get_nvme_status(bdev_io, &cdw0, &sct, &sc);
 	response->status.sc = sc;
 	response->status.sct = sct;
 	response->cdw0 = cdw0;

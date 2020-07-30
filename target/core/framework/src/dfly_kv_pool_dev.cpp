@@ -391,14 +391,12 @@ dfly_kv_pool_io_completion_cb(struct spdk_bdev_io *bdev_io,
 			       || req->ops.complete_req == iter_ctrl_complete);
 
 			if (req->ops.complete_req == iter_ctrl_complete) {
-				spdk_bdev_io_get_nvme_result(bdev_io, &req->rsp_cdw0);
-				spdk_bdev_io_get_nvme_status(bdev_io, &req->rsp_sct, &req->rsp_sc);
+				spdk_bdev_io_get_nvme_status(bdev_io, &req->rsp_cdw0, &req->rsp_sct, &req->rsp_sc);
 			}
 
 			resp.rc = success;
 			resp.opc = req->ops.get_command(req);
-			spdk_bdev_io_get_nvme_result(bdev_io, &resp.cdw0);
-			spdk_bdev_io_get_nvme_status(bdev_io, &resp.nvme_sct, &resp.nvme_sc);
+			spdk_bdev_io_get_nvme_status(bdev_io, &resp.cdw0, &resp.nvme_sct, &resp.nvme_sc);
 
 			req->ops.complete_req(resp, req->req_private);
 			dfly_io_put_req(NULL, req);
