@@ -452,7 +452,10 @@ def discover_dist(port):
     # where the closed interval [devlow, devhigh] are 
     # all device numbers on that particular IP
     ips_devs = []
+    ips_ports = {}
     for addr in addrs:
+        identifier = addr.split(".")[-1]
+        ips_ports[identifier] = port
         subnet = getSubnet(addr)
         devs = subnet_device_map[subnet]
         # Extract device numbers using regex (i.e. nvme3 -> 3)
@@ -477,10 +480,12 @@ def discover_dist(port):
     ret = []
     # Expected format for dist is [ip, port, low, high, ip, port, low, high, ...]
     for ip, devlow, devhigh in ips_devs:
+        identifier = ip.split(".")[-1]
         ret.append(ip)
-        ret.append(port)
+        ret.append(ips_ports[identifier])
         ret.append(devlow)
         ret.append(devhigh)
+        ips_ports[identifier] += 1
     return ret
 
 
@@ -505,7 +510,11 @@ def config_minio_dist(node_details, ec):
         minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
         minio_settings += minio_dist_node 
         with open(minio_startup, 'w') as f:
+            f.write("#!/bin/bash")
             f.write(minio_settings)
+            f.write("\n")
+        os.chmod(minio_startup, 0o755)
+
         print("Successfully created MINIO startup script %s" %(minio_startup))
         etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
     with open("etc_hosts", 'w') as f:
