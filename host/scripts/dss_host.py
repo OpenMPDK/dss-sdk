@@ -114,8 +114,8 @@ def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
     stdin, stdout, stderr = client.exec_command(cmd)
     status = stdout.channel.recv_exit_status()
     client.close()
-    stdout_result = [x.strip() for x in stdout.readlines()]
-    stderr_result = [x.strip() for x in stderr.readlines()]
+    stdout_result = [x.strip().decode() for x in stdout.readlines()]
+    stderr_result = [x.strip().decode() for x in stderr.readlines()]
     return status, stdout_result, stderr_result
 
 def get_list_diff(li1, li2): 
@@ -265,56 +265,72 @@ def get_nvme_drives():
     #if ret != 0:
     return out
 
-def get_vlan_ips(target_vlan_id, host, root_pws):
+G_VLAN_IPS_CACHE = {}
+def get_ips_for_vlan(target_vlan_id, host, root_pws):
     """
     Get the list of IPs corresponding to the specified vlan id on the specified host
     Returns: list() of IPs in the specified vlan, or [] if the vlan doesn't exist
     """
-    lshw_cmd = "lshw -c network -json"
-    iplink_cmd = "ip -d link show dev "
-    stdout_lines = None
-    for root_pw in root_pws:
-        try:
-            ret, stdout_lines, stderr_lines = exec_cmd_remote(lshw_cmd, host, user="root", pw=root_pw)
-            break
-        except:
-            pass
-    # Fix malformed json...
-    if stdout_lines is None:
-        print("Error: all attempts to authenticate failed, aborting...")
-        sys.exit(-1)
-    fixed_lines = []
-    fixed_lines.append("[")
-    for line in stdout_lines:
-        split = line.strip().split()
-        if split == ["}", "{"]:
-            fixed_lines.append("}, {")
-        else:
-            fixed_lines.append(line)
-    fixed_lines.append("]")
+    if host not in G_VLAN_IPS_CACHE:
+        lshw_cmd = "lshw -c network -json"
+        iplink_cmd = "ip -d link show dev "
+        stdout_lines = None
+        for root_pw in root_pws:
+            try:
+                ret, stdout_lines, stderr_lines = exec_cmd_remote(lshw_cmd, host, user="root", pw=root_pw)
+                break
+            except:
+                pass
+        # Fix malformed json...
+        if stdout_lines is None:
+            print("Error: all attempts to authenticate failed, aborting...")
+            sys.exit(-1)
+        fixed_lines = []
+        fixed_lines.append("[")
+        for line in stdout_lines:
+            split = line.strip().split()
+            if split == ["}", "{"]:
+                fixed_lines.append("}, {")
+            else:
+                fixed_lines.append(line)
+        fixed_lines.append("]")
 
-    # Parse json after fixing malformed output
-    lshw_json = json.loads("".join(fixed_lines))
-    vlanid_ip_map = {}
-    vlan_id_regex = re.compile("id\s*[0-9]+")
-    for portalias in lshw_json:
-        if "logicalname" in portalias and "ip" in portalias["configuration"]:
-            devname = portalias["logicalname"]
-            ip = portalias["configuration"]["ip"]
-        else:
-            continue
-        get_vlanid_cmd = iplink_cmd + devname
-        _, lines, _ = exec_cmd_remote(get_vlanid_cmd, host, user="root", pw=root_pw)
-        for line in lines:
-            if "vlan" in line:
-                vlan_id = vlan_id_regex.search(line).group().split()[-1]
-                if vlan_id not in vlanid_ip_map:
-                    vlanid_ip_map[vlan_id] = []
-                vlanid_ip_map[vlan_id].append(ip)
-    if target_vlan_id in vlanid_ip_map:
-        return vlanid_ip_map[target_vlan_id]
+        # Parse json after fixing malformed output
+        lshw_json = json.loads("".join(fixed_lines))
+        G_VLAN_IPS_CACHE[host] = {}
+        vlan_id_regex = re.compile("id\s*[0-9]+")
+        for portalias in lshw_json:
+            if "logicalname" in portalias and "ip" in portalias["configuration"]:
+                devname = portalias["logicalname"]
+                ip = portalias["configuration"]["ip"]
+            else:
+                continue
+            get_vlanid_cmd = iplink_cmd + devname
+            _, lines, _ = exec_cmd_remote(get_vlanid_cmd, host, user="root", pw=root_pw)
+            for line in lines:
+                if "vlan" in line:
+                    vlan_id = vlan_id_regex.search(line).group().split()[-1]
+                    if vlan_id not in G_VLAN_IPS_CACHE[host]:
+                        G_VLAN_IPS_CACHE[host][vlan_id] = []
+                    G_VLAN_IPS_CACHE[host][vlan_id].append(ip)
+    if target_vlan_id in G_VLAN_IPS_CACHE[host]:
+        return G_VLAN_IPS_CACHE[host][target_vlan_id]
     else:
         return []
+
+def get_vlan_for_ips(ip, host, root_pws):
+    """
+    Get the vlan ID corresponding to the specified IP on the specified host
+    Returns: string VLAN ID for the specified IP, or None if the ip doesn't exist
+    """
+    # Call get_ips_for_vlan to cache the mapping
+    if host not in G_VLAN_IPS_CACHE:
+        get_ips_for_vlan(0, host, root_pws)
+    # Naive search through all VLAN ids to find target IP
+    for vlan_id, ips in G_VLAN_IPS_CACHE[host].items():
+        if ip in ips:
+            return vlan_id
+    return None
     
 def get_addrs(vlan_ids, hosts, ports, root_pws):
     '''
@@ -323,10 +339,19 @@ def get_addrs(vlan_ids, hosts, ports, root_pws):
     ips = []
     for host in hosts:
         for vlan_id in vlan_ids:
-            vlan_ips = get_vlan_ips(vlan_id, host, root_pws)
+            vlan_ips = get_ips_for_vlan(vlan_id, host, root_pws)
             for port in ports:
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
+
+def get_hostname(addr, root_pws):
+    for root_pw in root_pws:
+        try:
+            ret, stdout_lines, stderr_lines = exec_cmd_remote("hostname", addr, user="root", pw=root_pw)
+            return stdout_lines[0]
+        except:
+            pass
+
 
 def write_json(data, filename=nkv_config_file): 
     '''
@@ -427,10 +452,16 @@ def getSubnet(addr):
     # FIXME: Find true subnet based on remote routing table
     return addr.split(".")[0]
 
-def discover_dist(port):
+def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     '''
     Run nvme list-subsys on all targets to infe
     '''
+    print("Gathering information from nvme list-subsys")
+    # Build a mapping from frontend vlan ids to backend vlan ids
+    vlan_mapping = {}
+    for front, back in zip(frontend_vlan_ids, backend_vlan_ids):
+        vlan_mapping[back] = front
+
     ret, out, err = exec_cmd("nvme list-subsys -o json")
     subsystems = json.loads(out)
     subsystems = subsystems["Subsystems"]
@@ -454,7 +485,12 @@ def discover_dist(port):
     ips_devs = []
     ips_ports = {}
     for addr in addrs:
-        identifier = addr.split(".")[-1]
+        backend_vlan_id = get_vlan_for_ips(addr, addr, root_pws)
+        frontend_ip = get_ips_for_vlan(vlan_mapping[backend_vlan_id], addr, root_pws)[0]
+        # TODO: better way to get unique identifier (ideally hostname) for addr
+        # lookup host does not work due to IP range
+        # need a method that is robust to incorrect /etc/hosts (common problem)
+        identifier = get_hostname(addr, root_pws)
         ips_ports[identifier] = port
         subnet = getSubnet(addr)
         devs = subnet_device_map[subnet]
@@ -476,11 +512,12 @@ def discover_dist(port):
                     runs.append((dev_numbers[0], dev_numbers[idx]))
                     dev_numbers = []
         for run in runs:
-            ips_devs.append((addr, run[0], run[1]))
+            print("Adding: backend IP: {}, nvme{}:{}n1, frontend IP: {}".format(addr, run[0], run[1], frontend_ip))
+            ips_devs.append((frontend_ip, run[0], run[1]))
     ret = []
     # Expected format for dist is [ip, port, low, high, ip, port, low, high, ...]
     for ip, devlow, devhigh in ips_devs:
-        identifier = ip.split(".")[-1]
+        identifier = get_hostname(ip, root_pws)
         ret.append(ip)
         ret.append(ips_ports[identifier])
         ret.append(devlow)
@@ -594,13 +631,28 @@ The most commonly used dss target commands are:
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
+        parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
+        parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         args = parser.parse_args(sys.argv[2:])
        
         global g_minio_dist, g_minio_stand_alone
         if args.dist and not args.port:
             minio_dist = args.dist 
         elif args.port and not args.dist:
-            minio_dist = discover_dist(args.port)
+            if len(set(args.frontend_vlan_ids)) != len(args.frontend_vlan_ids):
+                print("Duplicate frontend vlan ID not supported")
+                return
+            if len(set(args.backend_vlan_ids)) != len(args.backend_vlan_ids):
+                print("Duplicate backend vlan ID not supported")
+                return
+            if len(args.frontend_vlan_ids) != len(args.backend_vlan_ids):
+                print("Must specify exactly 1 frontend vlan ID per backend vlan ID")
+                return
+            if len(args.frontend_vlan_ids) == 0:
+                print("No frontend vlan ids specified, exiting without doing anything...")
+                return
+            minio_dist = discover_dist(args.port, args.frontend_vlan_ids, args.backend_vlan_ids, args.root_pws)
         elif args.dist and args.port:
             print("Must specify either --dist or --port, but not both.")
             return
