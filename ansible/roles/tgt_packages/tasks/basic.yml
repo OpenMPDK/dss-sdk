@@ -6,7 +6,6 @@
     state: absent
   with_items:
     - "{{ dfly_temp_dir }}"
-    - "{{ temp_dir }}/{{ image_name }}.tar"
 
 - name: Find target RPMs
   find:
