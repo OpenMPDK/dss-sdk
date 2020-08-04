@@ -344,15 +344,6 @@ def get_addrs(vlan_ids, hosts, ports, root_pws):
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
 
-def get_hostname(addr, root_pws):
-    for root_pw in root_pws:
-        try:
-            ret, stdout_lines, stderr_lines = exec_cmd_remote("hostname", addr, user="root", pw=root_pw)
-            return stdout_lines[0]
-        except:
-            pass
-
-
 def write_json(data, filename=nkv_config_file): 
     '''
     Write nkv_config.json configuration file
@@ -483,15 +474,9 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     # where the closed interval [devlow, devhigh] are 
     # all device numbers on that particular IP
     ips_devs = []
-    ips_ports = {}
     for addr in addrs:
         backend_vlan_id = get_vlan_for_ips(addr, addr, root_pws)
         frontend_ip = get_ips_for_vlan(vlan_mapping[backend_vlan_id], addr, root_pws)[0]
-        # TODO: better way to get unique identifier (ideally hostname) for addr
-        # lookup host does not work due to IP range
-        # need a method that is robust to incorrect /etc/hosts (common problem)
-        identifier = get_hostname(addr, root_pws)
-        ips_ports[identifier] = port
         subnet = getSubnet(addr)
         devs = subnet_device_map[subnet]
         # Extract device numbers using regex (i.e. nvme3 -> 3)
@@ -517,12 +502,10 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     ret = []
     # Expected format for dist is [ip, port, low, high, ip, port, low, high, ...]
     for ip, devlow, devhigh in ips_devs:
-        identifier = get_hostname(ip, root_pws)
         ret.append(ip)
-        ret.append(ips_ports[identifier])
+        ret.append(port)
         ret.append(devlow)
         ret.append(devhigh)
-        ips_ports[identifier] += 1
     return ret
 
 
