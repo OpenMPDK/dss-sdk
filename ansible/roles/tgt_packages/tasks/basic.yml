@@ -12,7 +12,7 @@
   find:
     path: "{{ playbook_dir }}/release/"
     patterns: >-
-      '{% for package in target_packages %}{{ package }}*.rpm{% if not loop.last %},{% endif %}{% endfor %}'
+      {% for package in target_packages %}{{ package }}*.rpm{% if not loop.last %},{% endif %}{% endfor %}
   delegate_to: localhost
   run_once: true
   register: found_target_packages
