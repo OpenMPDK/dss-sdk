@@ -1,5 +1,5 @@
 """
-Usage: 
+Usage:
 kv-cli.py kv list <endpoint> <port> [--server=<uuid>]
 kv-cli.py kv add <endpoint> <port> (--server=<uuid>) (--devices=<devnode>)
                                    (--nqn=<nqn>) (--ip=<ip>) (--trtype=<trtype>)
@@ -15,7 +15,7 @@ Options:
 import re
 import sys
 
-from docopt import docopt
+from __future__ import print_function
 
 import utils.backend_layer
 import utils.key_prefix_constants as key_cons
@@ -78,7 +78,7 @@ class KVManager:
                 print("UUID:            %s" % identity["UUID"])
                 if target_attributes:
                     if 'status' not in target_attributes:
-                        print("SPDK:            No status" )
+                        print("SPDK:            No status")
                     elif target_attributes["status"] == "down":
                         KVL.kvprint(KVL.ERROR, "SPDK:            %s" %
                                     target_attributes["status"])
@@ -134,7 +134,7 @@ class KVManager:
                 if int(server_attributes["storage"]["nvme"]["Count"]) > 0:
                     nvme_devices = server_attributes["storage"]["nvme"]["devices"]
                     convert = lambda text: int(text) if text.isdigit() else text.lower()
-                    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+                    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
                     devnode_lambda = lambda value: (alphanum_key(nvme_devices[value]['PCIAddress']))
                     subsystem_list = []
                     if kv_attributes:
@@ -168,7 +168,7 @@ class KVManager:
                     print("")
 
                 if free_disk_serial_list:
-                    print("Free Disks: %s" %(",".join(free_disk_serial_list)))
+                    print("Free Disks: %s" % (",".join(free_disk_serial_list)))
                     print("")
 
                 if kv_attributes:

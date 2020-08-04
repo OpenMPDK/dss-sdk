@@ -4,6 +4,6 @@ Section: base
 Architecture: all
 Essential: no
 Priority: optional
-Depends: python,ntp
+Depends: python,ntp,python-psutil
 Maintainer: Samsung
 Description: NKV Agent

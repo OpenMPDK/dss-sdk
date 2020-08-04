@@ -88,20 +88,20 @@ buildPackage()
     cp DEBIAN/* ${full_package_name}/DEBIAN
 
     # Append git-it to version number
-    cat DEBIAN/control | awk -F: -vTAG=$gittag ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
+    cat DEBIAN/control | awk -F: -vTAG=${gittag} ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
                            !/^Version/ {print $0}
     ' > ${full_package_name}/DEBIAN/control
 
     # Copy code to working directory that should be
     # include in the deb install package
     mkdir -p ${dir_share}
+    cp *.py           ${dir_share}/
     cp -aR backend/   ${dir_share}/
     cp -aR common/    ${dir_share}/
     cp -aR tools/     ${dir_share}/
     cp -aR rest_api/  ${dir_share}/
     cp -aR systems/   ${dir_share}/
-    cp -aR templates/ ${dir_share}/
-    cp *.py           ${dir_share}/
+    cp -aR templates/ ${dir_share}/    
     cp tools/gunicorn.sh ${dir_share}/gunicorn.sh
     cp ufm.yaml       ${dir_share}/
     cp ../requirements.txt ${dir_share}/
@@ -148,12 +148,12 @@ do
     esac
 done
 
-pushd $WORKING_DIR
+pushd ${WORKING_DIR}
 
 if [[ $# -eq 0 ]]
 then
-  usage
-  die "ERR: No argument passed in"
+    usage
+    die "ERR: No argument passed in"
 fi
 
 command -v rpmbuild > /dev/null
@@ -163,8 +163,8 @@ command -v rpmbuild > /dev/null
 command -v fpm > /dev/null
 if [[ $? -ne 0 ]]
 then
-  fpm_install_msg
-  exit 2
+    fpm_install_msg
+    exit 2
 fi
 
 [[ ${buildPackageFlag} -ne 0 ]] && buildPackage ${jenkinsJobNo}

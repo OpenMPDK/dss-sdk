@@ -76,9 +76,8 @@ buildPackage()
     package_revision=1
 
     package_name=$(cat DEBIAN/control | sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g'  )
-    sw_version=$(cat DEBIAN/control | sed 's/ //g' | awk -F: '/^Version/ {printf("%s\n", $2)}' | sed 's/ //g')
 
-    full_package_name=$(echo ${package_name}_${sw_version}.${gittag}-${package_revision} | sed 's/ //g')
+    full_package_name=$(echo ${package_name}_${gittag}-${package_revision} | sed 's/ //g')
 
     dir_share=${full_package_name}/usr/share/${package_name}
 
@@ -89,7 +88,7 @@ buildPackage()
     cp DEBIAN/* ${full_package_name}/DEBIAN
 
     # Append git-it to version number
-    cat DEBIAN/control | awk -F: -vTAG=$gittag ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
+    cat DEBIAN/control | awk -F: -vTAG=${gittag} ' /^Version/ {printf("Version: %s\n", TAG) }
                            !/^Version/ {print $0}
     ' > ${full_package_name}/DEBIAN/control
 

@@ -10,8 +10,7 @@ if [ "$#" -ne 1 ]; then
 else
     TARGET_VER="$1"
 fi
-
-TGT_HASH=$(git rev-parse --verify HEAD)
+TGT_HASH=`git rev-parse --verify HEAD`
 sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"$TGT_VER\"/" include/version.h
 sed -i -e "s/^\#define OSS_TARGET_HASH.\+$/#define OSS_TARGET_HASH \"$TGT_HASH\"/" include/version.h
 

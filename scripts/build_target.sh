@@ -7,39 +7,50 @@ script_dir=$(readlink -f "$(dirname "$0")")
 top_dir=${script_dir}/..
 
 build_dir="${top_dir}/df_out"
+release_dir="${top_dir}/ansible/release"
 
 
-pushd "${top_dir}"
-  # Read build environment vars
-  pushd "${script_dir}"
-    # shellcheck disable=SC1091
-    source ./build_env
-  popd
+die()
+{
+    echo "$*"
+    exit 1
+}
 
-  pushd target
-    echo "Compiling the target source ...."
+# This function should be removed when the ansible no
+# longer extracts rpms from tar file
+aVeryUglyFunctionThatMustBeRemoved()
+{
+    local topDir=$1
+    local releaseDir=$2
 
-    ./build.sh "${TARGET_VER}" "${build_dir}" || die "ERR: Building target failed!"
+    [[ -e ${releaseDir} ]] || die "ERR: The Release directory does not exist: ${releaseDir}"
 
-    echo "Compiling the target source ....[DONE]"
-  popd
+    local build_dir="${topDir}/df_out"
 
-  [[ -d "${build_dir}" ]] || die "ERR: Build directory does not exist: ${build_dir}"
-  [[ -d "${build_dir}/rpm-build" ]] || die "ERR: RMP build directory does not exist: ${build_dir}/rpm-build"
+    pushd "${topDir}"
+      [[ -d "${build_dir}" ]] || die "ERR: Build directory does not exist: ${build_dir}"
+      [[ -d "${build_dir}/rpm-build" ]] || die "ERR: RMP build directory does not exist: ${build_dir}/rpm-build"
 
-  release_dir="${top_dir}/ansible/release"
-  [[ -e ${release_dir} ]] || die "ERR: The Release directory does not exist: ${release_dir}"
+      pushd "${build_dir}"
+         mkdir -p NKV-Release
 
-  cp "${build_dir}"/rpm-build/RPMS/x86_64/*.rpm ${release_dir}/
+         cp "${topDir}"/ansible/release/nkv-target*.rpm NKV-Release
+         cp "${topDir}"/ansible/release/nkvagent*.rpm NKV-Release
 
-  # TODO - This block needs to be removed
-  # pushd "${build_dir}"
-     # [[ -d NKV-Release ]] || mkdir -p NKV-Release
-     # cp rpm-build/RPMS/x86_64/*.rpm NKV-Release
-     #
-     # cp rpm-build/RPMS/x86_64/*.rpm NKV-Release
-     # tar -cf NKV-Release.tar NKV-Release
-     # cp NKV-Release.tar "${top_dir}"/ansible/release/
-  # popd
+         tar -cf NKV-Release.tar NKV-Release
+
+         # Copy NKV-Release.tar to Ansible release dir
+         cp NKV-Release.tar "${topDir}"/ansible/release/
+      popd
+    popd
+}
+
+pushd "${script_dir}"
+    [[ -d ${release_dir} ]] || mkdir -p ${release_dir}
+
+    ./build_target_only.sh
+    ./build_nkv_agent.sh
+
+    aVeryUglyFunctionThatMustBeRemoved "${top_dir}" "${release_dir}"
 popd
 

@@ -31,8 +31,6 @@ nkv_agent_dir: /usr/share/nkvagent
 nkv_agent_config_file_dir: /etc/nkv-agent
 nkv_agent_logfile_dir: /var/log/nkv-agent
 cm_dir: "{{ product_dir }}/cm"
-nkv_virtualenv_dir: "{{ nkv_agent_dir }}/venv"
-virtualenv_dir: "{{ nkv_virtualenv_dir }}"
 kv_cli_location: "{{ nkv_agent_dir }}/kv-cli.py"
 rest_server_location: "{{ cm_dir }}/rest_api/app.py"
 

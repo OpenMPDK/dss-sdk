@@ -6,10 +6,8 @@ TARGET_VER="0.1.0"
 UFM_VER="0"
 UFM_BROKER_VER="0"
 
-
 die()
 {
     echo "$*"
     exit 1
 }
-

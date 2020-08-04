@@ -18,12 +18,13 @@ fi
 
 python -m pip install --upgrade pip
 
+# pip psutil install does not work on python2.7 on Centos
+# yum install python-psutil
+
 for p in docopt netifaces etcd3 pyinstaller pyzmq
 do
     /usr/bin/env python -m pip install ${p} || die "ERR: Failed to install ${p}"
 done
-
-# psutil
 
 exit 0
 

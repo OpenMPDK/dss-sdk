@@ -6,10 +6,11 @@ import ConfigParser
 import logging
 
 kv_cli_path = "{{ kv_cli_location }}"
-virtual_env = "{{ nkv_virtualenv_dir }}/bin/python"
 config_file_location = "{{ config_file_dir }}/DFLY_CONFIG"
 
-logging.basicConfig(format='%(asctime)s %(message)s', filename="{{ logfile_dir }}/subsystem_add.log", level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(message)s',
+                    filename="{{ logfile_dir }}/subsystem_add.log",
+                    level=logging.DEBUG)
 
 
 def ConfigSectionMap(conf_parse, section):
@@ -26,8 +27,8 @@ def ConfigSectionMap(conf_parse, section):
             dict1[option] = conf_parse.get(section, option)
             if dict1[option] == -1:
                 logging.debug("skip: %s" % option)
-        except:
-            logging.error("exception on %s!" % option)
+        except Exception as ex:
+            logging.error("exception on {}! ({})".format(option, ex))
             dict1[option] = None
     return dict1
 
@@ -62,7 +63,7 @@ def get_drives_list():
     @return: comma separated drives list.
     """
     server_id = get_machine_id()
-    cmd = (virtual_env + " " + kv_cli_path +
+    cmd = (kv_cli_path +
            " kv list 127.0.0.1 23790 --server=" + server_id +
            " | grep -a 'Free Disks' | awk '{print $3}'")
     logging.debug("Command to list drives in system: %s", cmd)
@@ -86,7 +87,7 @@ def get_subsystem_cmds(target_info, target_data_drives, target_data_drive_list,
     """
     subsystem_ip_port = target_info['subsystem_ip_port']
     server_uuid = get_machine_id()
-    cmd = virtual_env + " " + kv_cli_path + " kv add 127.0.0.1 23790 --server=" + server_uuid + " --ip=" + subsystem_ip_port
+    cmd = kv_cli_path + " kv add 127.0.0.1 23790 --server=" + server_uuid + " --ip=" + subsystem_ip_port
     cmd += " --trtype=" + subsystem_trtype
 
     nvme_list = get_drives_list()
@@ -123,10 +124,8 @@ def get_subsystem_cmds(target_info, target_data_drives, target_data_drive_list,
         logging.debug("DFLY_CONFIG: Metadata drive list: %s", meta_drive_list)
 
     if len(drive_list) < int(target_data_drives) + int(target_meta_drives) or \
-                    len(drive_list) < int(len(data_drive_list)) + int(
-                len(meta_drive_list)):
-        logging.error("Number of drives appear to be less than mentioned in "
-                      "config file. Exiting...")
+       len(drive_list) < int(len(data_drive_list)) + int(len(meta_drive_list)):
+        logging.error("Number of drives appear to be less than mentioned in config file. Exiting...")
         sys.exit(0)
 
     data_pool_cmd, metadata_pool_cmd = None, None
@@ -278,5 +277,3 @@ if __name__ == '__main__':
             target_section = section
             logging.debug("Target section name: %s", target_section)
             create_subsystem(conf_parse, gb_dict, target_section)
-
-
