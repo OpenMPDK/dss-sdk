@@ -18,5 +18,3 @@
   loop:
     - nvmf_tgt
     - kv_cli
-  loop_control:
-    label: "{{ item.status.ActiveState }}"
