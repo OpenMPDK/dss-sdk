@@ -1,14 +1,20 @@
 ---
 
-- name: Copy python script to remote location
-  template:
-    src: install_packages.py
-    dest: /tmp/install_packages.py
+- name: Install target RPMs
+  yum:
+    name: "{{ dfly_temp_dir }}/{{ item.path | basename }}"
+  register: target_rpm_status
+  become: yes
+  loop: "{{ found_target_packages.files }}"
+  loop_control:
+    label: "{{ dfly_temp_dir }}/{{ item.path | basename }}"
+  failed_when: "'scriptlet failure' in target_rpm_status.msg"
 
-- name: Install required Target packages using script
-  command: python /tmp/install_packages.py "{{ target_packages }}"
-  register: install_log
-
-- name: Print install log
-  debug:
-    msg: "{{ install_log.stdout }}"
+- name: Check that target services are running
+  service:
+    name: "{{ item }}"
+  register: service_status
+  failed_when: service_status.status.ActiveState != "active"
+  loop:
+    - nvmf_tgt
+    - kv_cli
