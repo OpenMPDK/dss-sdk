@@ -21,10 +21,8 @@ python -m pip install --upgrade pip
 # pip psutil install does not work on python2.7 on Centos
 # yum install python-psutil
 
-for p in docopt netifaces etcd3 pyinstaller pyzmq pexpect
-do
-    /usr/bin/env python -m pip install ${p} || die "ERR: Failed to install ${p}"
-done
+[[ -e /usr/share/nkvagent/requirements.txt ]] || die "ERR: Filed to find requirements.txt"
+/usr/bin/env python -m pip install -r /usr/share/nkvagent/requirements.txt
 
 exit 0
 

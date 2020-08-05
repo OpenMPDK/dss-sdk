@@ -1,12 +1,9 @@
-# TODO - Check if these newer versions works
-#
-# etcd3==0.12.0
-# futures==3.3.0
-# grpcio==1.28.1
-#
-etcd3==0.7.0
-futures==3.2.0
-grpcio==1.8.6
+etcd3==0.12.0
+# etcd3==0.7.0
+futures==3.3.0
+# futures==3.2.0
+grpcio==1.28.1
+# grpcio==1.8.6
 click==6.7
 enum34==1.1.6
 Flask==0.12.2
@@ -31,3 +28,8 @@ pyudev==0.15
 pyxattr==0.5.1
 PyYAML==3.10
 pexpect==4.8.0
+pyinstall==0.1.4
+pyzmq==19.0.1
+flatten-dict==0.2.0
+netifaces==0.10.9
+docopt==0.6.2
