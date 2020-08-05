@@ -30,3 +30,4 @@ IPy==0.75
 pyudev==0.15
 pyxattr==0.5.1
 PyYAML==3.10
+pexpect==4.8.0
