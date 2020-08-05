@@ -1,5 +1,7 @@
 [Unit]
 Description=Samsung Object Storage NVMF target operations
+Requires=etcd-gateway.service
+After=etcd-gateway.service
 After=kv_cli.service
 
 [Service]

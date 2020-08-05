@@ -37,10 +37,8 @@ from etcd3.utils import increment_last_byte, to_bytes
 # This initializes the logger module for the other imports as well
 import utils.daemon_config as agent_conf
 from utils import log_setup
-logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR +
-                              agent_conf.AGENT_CONF_NAME)
-logger.info("Log config file: %s" % agent_conf.CONFIG_DIR +
-            agent_conf.AGENT_CONF_NAME)
+logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
+logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
 import constants
 import graphite
@@ -58,6 +56,7 @@ from utils.utils import check_spdk_running
 # from utils.utils import _eval
 from utils.target_events_processing import TargetEvents
 # from events.events import get_events_from_etcd_db, save_events_to_etcd_db
+
 
 # All the input args given to daemon
 g_input_args = {}

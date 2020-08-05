@@ -38,75 +38,43 @@ exit 0
 /usr/dss/nkv-target/bin/ustat
 /usr/dss/nkv-target/scripts/setup.sh
 /usr/dss/nkv-target/scripts/common.sh
-#/etc/systemd/system/nvmf_tgt.service
-#/etc/systemd/system/nvmf_tgt@.service
+
 /etc/rsyslog.d/dfly.conf
 /usr/dss/nkv-target/include/spdk/pci_ids.h
 /usr/dss/nkv-target/lib/libdssd.a
 /usr/dss/nkv-target/lib/liboss.a
 
 %post
+
 chmod +x /usr/dss/nkv-target/scripts/setup.sh
 chmod +x /usr/dss/nkv-target/scripts/common.sh
 
-set -x
-{
-function check_service(){
-	serv=\$1
-	action=\$2
-	stage=\$3
-        status=1
-	try=0
-	while [ \$try -lt 3 ]; do
-		systemctl \$action \$serv
-		sleep 1
-		systemctl status \$serv|grep "Active: active"
-		if [ \$? -eq 0 ]; then
-			status=0
-			break
-		fi
-		sleep 1
-		try=\$((try+1))
-	done 
-	if [ \$stage == 'upgrade' ]; then
-		if [ \$status -eq 0 ]; then
-			etcdctl put /software/upgrade/progress/node/\$(hostname -s)/services/\$serv up
-		else 
-			etcdctl put /software/upgrade/progress/node/\$(hostname -s)/services/\$serv down
-		fi
-	fi
-}
-
-cat > /etc/ld.so.conf.d/kvlibs.conf << EOF
+cat > /etc/ld.so.conf.d/kvlibs.conf << LAB_LDCONFIG
 /usr/dss/nkv-target/
-EOF
+LAB_LDCONFIG
 
 /usr/sbin/ldconfig
+
 systemctl daemon-reload
-if [ \$1 -eq 1 ];then
-	# Fresh installation
-	systemctl enable nvmf_tgt
-	systemctl enable nvmf_tgt@internal_flag.service
-	check_service nvmf_tgt start install
-	check_service nvmf_tgt@internal_flag start install
-	check_service rsyslog restart install
-else
-	# Upgrade stage
-	check_service nvmf_tgt restart upgrade
-	check_service rsyslog restart upgrade
-fi
-} &> /tmp/fm-agent-output
+systemctl rsyslog restart
+echo "rsyslog started ($?)"
 
 %postun
-if [ \$1 -eq 0 ];then
-	systemctl stop nvmf_tgt
-	rm -f /etc/rsyslog.d/dfly.conf
-	rm -f /etc/ld.so.conf.d/kvlibs.conf
-	/usr/sbin/ldconfig
+if [ \$1 -eq 0 ]
+then
+    systemctl stop nvmf_tgt
+    systemctl rsyslog stop
+
+    rm -f /etc/rsyslog.d/dfly.conf
+    rm -f /etc/ld.so.conf.d/kvlibs.conf
+
+    /usr/sbin/ldconfig
 fi
+
 %systemd_postun_with_restart rsyslog.service
 systemctl daemon-reload
 
+echo "Done ($?)"
 LAB_SPEC
 }
 
@@ -136,11 +104,13 @@ LAB_USAGE
 Target_ver=$2
 
 mkdir -p "${rpm_tmp}"
-for dir in BUILDROOT RPMS/x86_64 SRPMS SPECS; do
+for dir in BUILDROOT RPMS/x86_64 SRPMS SPECS
+do
     mkdir -p "${rpm_tmp}"/$dir
 done
 
-generateSpecFile 
+generateSpecFile
 
 generateRPM
+
 exit 0

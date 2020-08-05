@@ -1,5 +1,6 @@
 [Unit]
 Description=Samsung Object Storage KV Client
+Requires=etcd-gateway.service
 After=etcd-gateway.service
 
 [Service]
