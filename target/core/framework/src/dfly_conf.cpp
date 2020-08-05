@@ -285,8 +285,9 @@ dfly_config_read(struct spdk_conf_section *sp)
 		snprintf(g_list_conf.list_prefix_head, strlen(str) + 1, "%s", str);
 		g_list_prefix_head_size = strlen(str);
 	} else {
-		g_list_conf.list_prefix_head[0] = 0;
-		g_list_prefix_head_size = 0;
+		snprintf(g_list_conf.list_prefix_head, 4, "meta");
+		g_list_conf.list_prefix_head[4] = 0;
+		g_list_prefix_head_size = 4;
 
 	}
 
