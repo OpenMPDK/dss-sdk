@@ -9,14 +9,14 @@ top_dir=${script_dir}/..
 build_dir="${top_dir}/df_out"
 release_dir="${top_dir}/ansible/release"
 
-
-pushd "${top_dir}"
-  # Read build environment vars
-  pushd "${script_dir}"
+# Read build environment vars
+pushd "${script_dir}"
     # shellcheck disable=SC1091
     source ./build_env
-  popd
+popd
 
+
+pushd "${top_dir}"
   pushd target
     echo "Compiling the target source ...."
 
@@ -32,5 +32,4 @@ pushd "${top_dir}"
 
   cp "${build_dir}"/rpm-build/RPMS/x86_64/*.rpm ${release_dir}/
 popd
-
 

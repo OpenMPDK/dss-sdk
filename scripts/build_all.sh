@@ -7,18 +7,8 @@
 set -e
 
 script_dir=$(readlink -f "$(dirname "$0")")
-top_dir=${script_dir}/..
-release_dir="${top_dir}/ansible/release"
-
-die()
-{
-    echo "$*"
-    exit 1
-}
 
 pushd "${script_dir}"
-    [[ -d ${release_dir} ]] || mkdir -p ${release_dir}
-
     ./build_target.sh
     ./build_nkv_agent_only.sh
 
