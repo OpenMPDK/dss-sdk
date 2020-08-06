@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+#
+echo "Now running post un-installer!"
+
+die()
+{
+    echo "Post un-install failed"
+    echo "$*"
+    exit 1
+}
+
+SERVICES="kv_cli nvmf_tgt nvmf_tgt@"
+SERVICE_PATH="/usr/share/nkvagent/systemd"
+
+# if update do not remove anything
+[[ $1 -eq 1 ]] && exit 0
+[[ "$1" == "upgrade" ]] && exit 0
+
+for s in ${SERVICES}
+do
+    if [[ -e /etc/systemd/system/${s}.service ]]
+    then
+        systemctl disable ${s}
+        systemctl stop ${s}
+        rm /etc/systemd/system/${s}.service
+    fi
+done
+
+if [[ -e /var/log/nkv-agent ]]
+then
+    rm -rf /var/log/nkv-agent
+fi
+
+exit 0
+

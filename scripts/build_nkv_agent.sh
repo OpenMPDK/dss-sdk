@@ -21,23 +21,13 @@ echo "Removing existing RPM/DEB packages"
 rm -f "${release_dir}/nkvagent*.deb"
 rm -f "${release_dir}/nkvagent*.rpm"
 
-# Build Fabric Manager
-echo "Building Fabric Mananger"
+# Build NKV Agnet
+echo "Building  NKV Agent"
 
-pushd "${top_dir}/ufm/fabricmanager"
-./makeufmpackage.sh -prJ "$UFM_VER"
+pushd "${top_dir}/ufm/agents/nkv_agent/"
+./makenkvagentpackage.sh -pr -J "${AGENT_VER}"
 
 cp ./*.rpm "${release_dir}/"
 cp ./*.deb "${release_dir}/"
 popd
 
-# Build Message Broker
-echo "Building Message Broker"
-
-pushd "${top_dir}/ufm/ufm_msg_broker"
-./makebrokerpackage.sh -pr -J "$UFM_BROKER_VER"
-
-cp ./*.rpm "${release_dir}/"
-cp ./*.deb "${release_dir}/"
-
-popd

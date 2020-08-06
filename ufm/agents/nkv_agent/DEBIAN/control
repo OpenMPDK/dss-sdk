@@ -1,0 +1,9 @@
+Package: nkvagent
+Version: 1.0
+Section: base
+Architecture: all
+Essential: no
+Priority: optional
+Depends: python,ntp,python-psutil
+Maintainer: Samsung
+Description: NKV Agent

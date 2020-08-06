@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+#
+echo "Post installer!"
+
+die()
+{
+    echo "Post install failed"
+    echo "$*"
+    exit 1
+}
+
+SERVICES="kv_cli nvmf_tgt nvmf_tgt@internal_flag"
+AGENT_PATH="/usr/share/nkvagent"
+SERVICE_PATH="${AGENT_PATH}/systemd"
+
+# Create directory for log files
+# TODO(ER) this should be moved to the main()
+if [[ ! -d /var/log/nkv-agent ]]
+then
+    mkdir -p /var/log/nkv-agent
+    chmod 666 /var/log/nkv-agent
+fi
+
+check_service()
+{
+    local serv=$1
+    local action=$2
+    local stage=$3
+
+    local status=1
+    for try in 1 2 3
+    do
+        systemctl "${action}" "${serv}"
+        sleep 1
+
+        systemctl status "${serv}" | grep -qi "Active: active"
+        if [[ $? -ne 0 ]]
+        then
+            sleep 1
+            continue
+        fi
+
+        status=0
+        break
+    done
+
+    [[ ${stage} != 'upgrade' ]] && return 0
+
+    # TODO(ER) - This is plane wrong to have this in the install script
+    local key=/software/upgrade/progress/node/"$(hostname -s)"/services/"${serv}"
+    if [[ ${status} -eq 0 ]]
+    then
+        etcdctl put "${key}" up
+    else
+        etcdctl put "${key}" down
+    fi
+}
+
+# If this is an upgrade, stop all services
+if [[ "$1" == "configure" ]] || [[ "$1" -ne 1 ]]
+then
+    systemctl stop kv_cli
+    systemctl stop nvmf_tgt
+    systemctl stop nvmf_tgt@internal_flag
+fi
+
+echo "Updating python pip module"
+/usr/bin/env python -m pip install --upgrade pip
+
+echo "Installing python requirements"
+[[ -e ${AGENT_PATH}/requirements.txt ]] || die "ERR: Filed to find requirements.txt"
+/usr/bin/env python -m pip install -r ${AGENT_PATH}/requirements.txt
+
+cp ${SERVICE_PATH}/* /etc/systemd/system/
+
+
+systemctl daemon-reload
+
+if [[ "$1" == "configure" ]] || [[ "$1" -ne 1 ]]
+then
+    # Upgrade stage
+    echo "Upgrade stage"
+    check_service kv_cli restart upgrade
+    check_service nvmf_tgt restart upgrade
+    check_service nvmf_tgt@internal_flag restart upgrade
+else
+    echo "Enable and start ${SERVICES}"
+    check_service kv_cli start install
+    check_service nvmf_tgt start install
+    check_service nvmf_tgt@internal_flag start install
+fi
+
+echo "Post install done"

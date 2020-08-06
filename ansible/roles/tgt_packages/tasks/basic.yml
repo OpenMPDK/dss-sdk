@@ -6,29 +6,32 @@
     state: absent
   with_items:
     - "{{ dfly_temp_dir }}"
-    - "{{ temp_dir }}/{{ image_name }}.tar"
 
+- name: Find target RPMs
+  find:
+    path: "{{ playbook_dir }}/release/"
+    patterns: >-
+      {% for package in target_packages %}{{ package }}*.rpm{% if not loop.last %},{% endif %}{% endfor %}
+  delegate_to: localhost
+  run_once: true
+  register: found_target_packages
 
-- name: Copy tar file to each node
-  copy:
-    src: "{{ item }}"
-    dest: "{{ temp_dir }}"
-    mode: 0755
-  with_items:
-    - ./release/{{ image_name }}.tar
+- name: Assert target packages found
+  assert:
+    that: found_target_packages.files | length == target_packages | length
+    fail_msg: Target packages not found. Build target and agent packages first.
 
-- name: create dirs...
-  become: yes
-  become_user: root
+- name: Create RPM staging directory
   file:
     state: directory
-    path: '{{ item }}'
+    path: '{{ dfly_temp_dir }}'
     mode: 0755
-  with_items:
-    - "{{ dfly_temp_dir }}"
+  become: yes
 
-- name: Untar virtual env file to RHEL system
-  unarchive:
-    src: "{{ temp_dir }}/{{ image_name }}.tar"
+- name: Copy target RPMs
+  copy:
+    src: "{{ item.path }}"
     dest: "{{ dfly_temp_dir }}"
-    remote_src: yes
+  loop: "{{ found_target_packages.files }}"
+  loop_control:
+    label: "{{ item.path }}"

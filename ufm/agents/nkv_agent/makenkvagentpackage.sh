@@ -3,7 +3,7 @@
 #
 #
 WORKING_DIR="$(cd $(dirname $0) && pwd)"
-SCRIPT_VERSION="1.00.02.00"
+SCRIPT_VERSION="1.00.04.00"
 
 
 die()
@@ -20,6 +20,7 @@ $(basename "$0")  v$SCRIPT_VERSION
 usage:
     -p    Generate deb and rpm packages
     -r    Convert deb package to rpm package
+    -d    Copy RPM to specified release directory
     -J    Add Jenkins buildnumber
 
     -h    Show this help
@@ -75,9 +76,8 @@ buildPackage()
     package_revision=1
 
     package_name=$(cat DEBIAN/control | sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g'  )
-    sw_version=$(cat DEBIAN/control | sed 's/ //g' | awk -F: '/^Version/ {printf("%s\n", $2)}' | sed 's/ //g')
 
-    full_package_name=$(echo ${package_name}_${sw_version}.${gittag}-${package_revision} | sed 's/ //g')
+    full_package_name=$(echo ${package_name}_${gittag}-${package_revision} | sed 's/ //g')
 
     dir_share=${full_package_name}/usr/share/${package_name}
 
@@ -88,23 +88,27 @@ buildPackage()
     cp DEBIAN/* ${full_package_name}/DEBIAN
 
     # Append git-it to version number
-    cat DEBIAN/control | awk -F: -vTAG=${gittag} ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
+    cat DEBIAN/control | awk -F: -vTAG=${gittag} ' /^Version/ {printf("Version: %s\n", TAG) }
                            !/^Version/ {print $0}
     ' > ${full_package_name}/DEBIAN/control
 
     # Copy code to working directory that should be
     # include in the deb install package
     mkdir -p ${dir_share}
+    # kv-cli.py
     cp *.py           ${dir_share}/
-    cp -aR backend/   ${dir_share}/
-    cp -aR common/    ${dir_share}/
-    cp -aR tools/     ${dir_share}/
-    cp -aR rest_api/  ${dir_share}/
-    cp -aR systems/   ${dir_share}/
-    cp -aR templates/ ${dir_share}/    
-    cp tools/gunicorn.sh ${dir_share}/gunicorn.sh
-    cp ufm.yaml       ${dir_share}/
-    cp ../requirements.txt ${dir_share}/
+    cp -aR clusterlib          ${dir_share}/
+    cp -aR device_driver_setup ${dir_share}/
+    cp -aR etcdlib             ${dir_share}/
+    cp -aR events              ${dir_share}/
+    cp -aR logger              ${dir_share}/
+    cp -aR server_info         ${dir_share}/
+    cp -aR spdk_config_file    ${dir_share}/
+    cp -aR subcommands         ${dir_share}/
+    cp -aR test                ${dir_share}/
+    cp -aR udev_monitor        ${dir_share}/
+    cp -aR utils               ${dir_share}/
+    cp ../requirements.txt     ${dir_share}/
 
     mkdir -p ${dir_share}/systemd
     cp -a systemd_files/* ${dir_share}/systemd/
@@ -126,10 +130,21 @@ convertDebToRpmPackage()
     done
 }
 
+copyRpm2releaseDirectory()
+{
+    local releaseDir=$1
+
+    [[ -d ${releaseDir} ]] || die "ERR: Release directory does not exist: ${releaseDir}"
+
+    cp nkvagent*.rpm ${releaseDir}/
+}
+
 jenkinsJobNo="0"
 buildPackageFlag=0
 convertDeb2RPM=0
-while getopts "prJ:hu" opt
+copyRpmFlag=0
+releaseDir="/tmp"
+while getopts "prd:J:hu" opt
 do
     case $opt in
         p)
@@ -137,6 +152,11 @@ do
             ;;
         r)
             convertDeb2RPM=1
+            ;;
+        d)
+            convertDeb2RPM=1
+            copyRpmFlag=1
+            releaseDir="${OPTARG}"
             ;;
         J)
             jenkinsJobNo="${OPTARG}"
@@ -169,6 +189,7 @@ fi
 
 [[ ${buildPackageFlag} -ne 0 ]] && buildPackage ${jenkinsJobNo}
 [[ ${convertDeb2RPM} -ne 0 ]] && convertDebToRpmPackage
+[[ ${copyRpmFlag} -ne 0 ]] && copyRpm2releaseDirectory ${releaseDir}
 
 popd
 

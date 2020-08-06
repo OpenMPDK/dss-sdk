@@ -58,6 +58,7 @@
     - FM-Rest-Monitor
     - FM-Base
     - NKV
+    - nkvagent
     - nkv-target
     - etcd
     - haproxy

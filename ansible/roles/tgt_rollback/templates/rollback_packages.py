@@ -228,7 +228,7 @@ def check_and_downgrade_package(package_names):
         update_progress_in_db('etcd', 'downgraded')
 
     packages = {'FM-Base': 'base', 'FM-Rest-Monitor': 'monitor',
-                'NKV': 'nkv', 'FM-Agent': 'agent'}
+                'NKV': 'nkv', 'nkvagent': 'agent'}
 
     for key, value in packages.iteritems():
         if key not in package_names:
@@ -330,4 +330,3 @@ if __name__ == '__main__':
         update_progress_in_db('node_status', 'failed')
 
     update_progress_in_db('timestamp/end_epoch', str(int(time.time())))
-

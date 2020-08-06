@@ -1,5 +1,5 @@
 """
-Usage: 
+Usage:
 kv-cli.py kv list <endpoint> <port> [--server=<uuid>]
 kv-cli.py kv add <endpoint> <port> (--server=<uuid>) (--devices=<devnode>)
                                    (--nqn=<nqn>) (--ip=<ip>) (--trtype=<trtype>)
@@ -12,10 +12,10 @@ Options:
   --version            Show version.
   --ip_addresses=<ip>  Comma separated list of "<IP>:<port>" addresses.
 """
+from __future__ import print_function
+
 import re
 import sys
-
-from docopt import docopt
 
 import utils.backend_layer
 import utils.key_prefix_constants as key_cons
@@ -78,7 +78,7 @@ class KVManager:
                 print("UUID:            %s" % identity["UUID"])
                 if target_attributes:
                     if 'status' not in target_attributes:
-                        print("SPDK:            No status" )
+                        print("SPDK:            No status")
                     elif target_attributes["status"] == "down":
                         KVL.kvprint(KVL.ERROR, "SPDK:            %s" %
                                     target_attributes["status"])
@@ -134,7 +134,7 @@ class KVManager:
                 if int(server_attributes["storage"]["nvme"]["Count"]) > 0:
                     nvme_devices = server_attributes["storage"]["nvme"]["devices"]
                     convert = lambda text: int(text) if text.isdigit() else text.lower()
-                    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+                    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
                     devnode_lambda = lambda value: (alphanum_key(nvme_devices[value]['PCIAddress']))
                     subsystem_list = []
                     if kv_attributes:
@@ -168,7 +168,7 @@ class KVManager:
                     print("")
 
                 if free_disk_serial_list:
-                    print("Free Disks: %s" %(",".join(free_disk_serial_list)))
+                    print("Free Disks: %s" % (",".join(free_disk_serial_list)))
                     print("")
 
                 if kv_attributes:
@@ -208,7 +208,7 @@ class KVManager:
         if found == 0:
             KVL.kvprint(KVL.ERROR, "Unable to find '%s'" % server_uuid)
 
-    def create_subsystem(self, server_uuid, devices, nqn, ip_addresses, async, tr_type, core_id=None):
+    def create_subsystem(self, server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, core_id=None):
         """
         Add new subsystem to SPDK with the given parameters. The
         subsystem configuration arguments are written to etcdv3.
@@ -216,7 +216,7 @@ class KVManager:
         :param devices: Device node to use in the subsystem.
         :param nqn: NVMe Qualified Name to use with the subsystem.
         :param ip_addresses: Transport addresses list.
-        :param async: Asynchronous code path instead of waiting for response.
+        :param asynchronous: Asynchronous code path instead of waiting for response.
         :param core_id: Core to run the subsystem on.
         :return:
         """
@@ -404,7 +404,7 @@ class KVManager:
                 KVL.kvprint(KVL.ERROR, resp_msg)
                 sys.exit(-1)
 
-            if async == 1:
+            if asynchronous == 1:
                 self.client.cancel_watch(watch_id)
                 KVL.kvprint(KVL.SUCCESS, "Add subsystem command written")
             else:
@@ -419,13 +419,13 @@ class KVManager:
             self.backend.release_lock()
             KVL.kvprint(KVL.ERROR, "Unknown server %s" % server_uuid)
 
-    def delete_subsystem(self, server_uuid, nqn, async):
+    def delete_subsystem(self, server_uuid, nqn, asynchronous):
         """
         Remove subsystem with provided NQN from etcdv3 and
         local configuration file.
         :param server_uuid: Server UUID to perform removal.
         :param nqn: NQN to identify the subsystem on the server.
-        :param async: Asynchronous code path instead of waiting for response.
+        :param asynchronous: Asynchronous code path instead of waiting for response.
         :return:
         """
         search_prefix = self.backend.ETCD_SRV_BASE + server_uuid
@@ -478,7 +478,7 @@ class KVManager:
                 KVL.kvprint(KVL.ERROR, "Failed to write requested command")
                 sys.exit(-1)
 
-            if async == 1:
+            if asynchronous == 1:
                 self.client.cancel_watch(watch_id)
                 KVL.kvprint(KVL.SUCCESS, "Remove subsystem command written")
             else:

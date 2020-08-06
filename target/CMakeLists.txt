@@ -258,7 +258,8 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS dss_lat
 )
 
-add_subdirectory(test)
+# cmake file is missing in this directory - ER
+# add_subdirectory(test)
 
 add_library(dss_lat STATIC	utils/dss_count_latency.c)
 target_link_libraries(dss_lat -ljudyL)
@@ -289,7 +290,7 @@ add_custom_command(
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk/
-	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/        
+	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
 	COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
