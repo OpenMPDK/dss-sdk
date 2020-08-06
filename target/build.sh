@@ -4,7 +4,9 @@
 # set -o xtrace
 
 target_dir=$(readlink -f "$(dirname "$0")")
-
+build_dir="${target_dir}/../df_out"
+rpm_build_dir="${build_dir}/rpm-build"
+rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
 
 
 if [ "$#" -ne 1 ]; then
@@ -12,15 +14,11 @@ if [ "$#" -ne 1 ]; then
 else
     TARGET_VER="$1"
 fi
-TGT_HASH=`git rev-parse --verify HEAD`
+
+# TODO(ER) - TGT_VER is not set to anything
+TGT_HASH=$(git rev-parse --verify HEAD)
 sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"$TGT_VER\"/" include/version.h
 sed -i -e "s/^\#define OSS_TARGET_HASH.\+$/#define OSS_TARGET_HASH \"$TGT_HASH\"/" include/version.h
-
-
-CWDNAME=`basename "${target_dir}"`
-build_dir="${target_dir}/../df_out"
-rpm_build_dir="${build_dir}/rpm-build"
-rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
 
 die()
 {
@@ -28,7 +26,8 @@ die()
     exit 1
 }
 
-makePackageDirectories() {
+makePackageDirectories()
+{
     local rpmBuildDir=$1
 
     mkdir -p "${rpmBuildDir}"/SRPMS
@@ -43,7 +42,7 @@ makePackageDirectories() {
 generateSpecFile()
 {
     local rpmSpecFile=$1
-    local targetVer=$2
+    local targetVersion=$2
 
     [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
 
@@ -51,7 +50,7 @@ generateSpecFile()
 
 ####### NKV Target Package ###########
 Name:		nkv-target
-Version:        ${targetVer}
+Version:        ${targetVersion}
 Release:        1%{?dist}
 Summary:        DSS NKV Target Release
 License:        GPLv3+
@@ -84,7 +83,6 @@ exit 0
 /usr/dss/nkv-target/lib/liboss.a
 
 %post
-
 chmod +x /usr/dss/nkv-target/scripts/setup.sh
 chmod +x /usr/dss/nkv-target/scripts/common.sh
 
@@ -122,46 +120,45 @@ generateRPM()
     local rpmSpecFile=$1
     local rpmTmp=$2
 
-    # /usr/bin/env
     if ! eval "rpmbuild -bb --clean $rpmSpecFile --define '_topdir $rpmTmp' "
     then
-        die "ERR: Failed to build RPM"
+        return 1
     fi
     echo "RPM build success"
+
+    return 0
 }
 
+####################### main #######################################
+[[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
 
-rm -rf $build_dir
+mkdir -p "${build_dir}"
+mkdir -p "${rpm_build_dir}"
 
-cd $target_dir/oss
-./apply-patch.sh
-
-mkdir $build_dir
-mkdir $rpm_build_dir
-
-cd ${build_dir}
-
-cmake $target_dir -DCMAKE_BUILD_TYPE=Debug
-make spdk_tcp
+pushd "${target_dir}"/oss
+    ./apply-patch.sh
+popd
 
 
-makePackageDirectories ${rpm_build_dir}
+pushd "${build_dir}"
 
-cat > ""${rpm_build_dir}"/BUILD/nkv-target"/etc/rsyslog.d/dfly.conf << EOF
+    cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
+    make spdk_tcp
+
+    makePackageDirectories "${rpm_build_dir}"
+
+    cat > "${rpm_build_dir}"/BUILD/nkv-target/etc/rsyslog.d/dfly.conf << LAB_DFLY_CONF
 if \$programname == 'dfly' or \$syslogtag == '[dfly]:' \\
 then -/var/log/dragonfly/dfly.log
 &  stop
-EOF
+LAB_DFLY_CONF
 
-# cp "${target_dir}"/scripts/genrpm.sh "${rpm_build_dir}"/SPECS/
-cp -rf ${build_dir}/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
+    cp -rf "${build_dir}"/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
 
-generateSpecFile ${rpm_spec_file} ${TARGET_VER}
-generateRPM ${rpm_spec_file} ${rpm_build_dir}
+    generateSpecFile "${rpm_spec_file}" "${TARGET_VER}"
+    generateRPM "${rpm_spec_file}" "${rpm_build_dir}" || die "ERR: Failed to build RPM"
 
-#if ! sh "${rpm_build_dir}"/SPECS/genrpm.sh "${rpm_build_dir}" "$TARGET_VER"
-#then
-#    die "ERR: nkv-target RPM creation failed"
-#fi
+    cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
 
-cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
+popd
+
