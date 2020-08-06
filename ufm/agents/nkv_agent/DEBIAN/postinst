@@ -29,7 +29,7 @@ check_service()
     local stage=$3
 
     local status=1
-    for try in 0 1 2 3
+    for try in 1 2 3
     do
         systemctl "${action}" "${serv}"
         sleep 1
@@ -47,11 +47,13 @@ check_service()
 
     [[ ${stage} != 'upgrade' ]] && return 0
 
+    # TODO(ER) - This is plane wrong to have this in the install script
+    local key=/software/upgrade/progress/node/"$(hostname -s)"/services/"${serv}"
     if [[ ${status} -eq 0 ]]
     then
-        etcdctl put /software/upgrade/progress/node/"$(hostname -s)"/services/"${serv}" up
+        etcdctl put "${key}" up
     else
-        etcdctl put /software/upgrade/progress/node/"$(hostname -s)"/services/"${serv}" down
+        etcdctl put "${key}" down
     fi
 }
 
@@ -72,7 +74,7 @@ echo "Installing python requirements"
 
 cp ${SERVICE_PATH}/* /etc/systemd/system/
 
-# ---------------------------------
+
 systemctl daemon-reload
 
 if [[ "$1" == "configure" ]] || [[ "$1" -ne 1 ]]
