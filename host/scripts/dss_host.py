@@ -594,8 +594,10 @@ The most commonly used dss target commands are:
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         args = parser.parse_args(sys.argv[2:])
 
-        if args.addrs != None and args.port != None:
-            disc_addrs = ["{}:{}".format(addr, args.port) for addr in args.addrs]
+        if args.addrs != None and args.ports != None:
+            disc_addrs = []
+            for port in args.ports:
+                disc_addrs = ["{}:{}".format(addr, port) for addr in args.addrs]
         elif args.vlan_ids != None and args.hosts != None and args.ports != None:
             disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
         else:
