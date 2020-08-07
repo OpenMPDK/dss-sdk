@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 echo "Now running pre-installer!"
@@ -16,9 +16,7 @@ ubuntu_pip_install()
 
 centos_pip_install()
 {
-   # yum -y install python3-devel
-
-   [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-devel is not installed"
+  [[ ! -x /usr/bin/python3 ]] && die "ERR: Python3-devel is not installed"
 }
 
 
