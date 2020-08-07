@@ -585,7 +585,7 @@ The most commonly used dss target commands are:
         parser.add_argument("-vids", "--vlan-ids", nargs='+', help="Space delimited list of vlan IDs")
         parser.add_argument("-p", "--ports", type=int, nargs='+', required=False, help="Port numbers to be used for nvme discover.")
         parser.add_argument("--hosts", nargs='+', help="Space delimited list of target hostnames")
-        parser.add_argument("-a", "--addrs", type=str, nargs='+', help="Space-delimited list of ip:port for nvme discovery (required)")
+        parser.add_argument("-a", "--addrs", type=str, nargs='+', help="Space-delimited list of ip for nvme discovery (required)")
         parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
             default="rdma")
         parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
@@ -594,12 +594,12 @@ The most commonly used dss target commands are:
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         args = parser.parse_args(sys.argv[2:])
 
-        if args.addrs != None:
-            disc_addrs = args.addrs
+        if args.addrs != None and args.port != None:
+            disc_addrs = ["{}:{}".format(addr, args.port) for addr in args.addrs]
         elif args.vlan_ids != None and args.hosts != None and args.ports != None:
             disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
         else:
-            print("Must specify --addrs or --hosts AND --vlan-ids AND --ports")
+            print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
             sys.exit(-1)
 
         disc_proto = args.proto
