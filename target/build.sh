@@ -45,6 +45,7 @@ generateSpecFile()
     local rpmSpecFile=$1
     local packageName=$2
     local targetVersion=$3
+    local gitHash=$4
 
     [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
     [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
@@ -54,7 +55,7 @@ generateSpecFile()
 
 ####### NKV Target Package ###########
 Name: ${packageName}
-Version: ${targetVersion}
+Version: ${targetVersion}.${gitHash}
 Release: 1%{?dist}
 Summary: DSS NKV Target Release
 License: GPLv3+
@@ -184,7 +185,7 @@ pushd "${build_dir}"
 
     cp -rf "${build_dir}"/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
 
-    generateSpecFile "${rpm_spec_file}" "${packageName}" "${targetVersion}"
+    generateSpecFile "${rpm_spec_file}" "${packageName}" "${targetVersion}" "${gitHash}"
     generateRPM "${rpm_spec_file}" "${rpm_build_dir}" || die "ERR: Failed to build RPM"
 
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
