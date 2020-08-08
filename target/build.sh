@@ -162,14 +162,12 @@ packageName="nkv-target"
 # TODO(ER) - Add switch to Job number
 jenkingJobnumber=0
 targetVersion=${TARGET_VER}
-gitHash="$(git log -1 --format=%h)-${jenkingJobnumber}"
+gitHash="$(git log -1 --format=%h).${jenkingJobnumber}"
 
-# full_package_name=$(echo ${packageName}_${targetVersion}.${gitHash}-${packageRevision} | sed 's/ //g')
 
 pushd "${target_dir}"/oss
     ./apply-patch.sh
 popd
-
 
 pushd "${build_dir}"
     pushd "${target_dir}"
