@@ -9,21 +9,22 @@ rpm_build_dir="${build_dir}/rpm-build"
 rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
 
 
-if [ "$#" -ne 1 ]; then
-    TARGET_VER="0.5.0"
-else
-    TARGET_VER="$1"
-fi
-
-# TODO(ER) - TGT_VER is not set to anything
-TGT_HASH=$(git rev-parse --verify HEAD)
-sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"$TGT_VER\"/" include/version.h
-sed -i -e "s/^\#define OSS_TARGET_HASH.\+$/#define OSS_TARGET_HASH \"$TGT_HASH\"/" include/version.h
-
 die()
 {
     echo "$*"
     exit 1
+}
+
+updateVersionInHeaderFile()
+{
+    local targetVersion=$1
+    local gitHash=$2
+
+    [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
+    [[ -z "${gitHash}" ]] && die "ERR: Invalid git hash "
+
+    sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"${targetVersion}\"/" include/version.h
+    sed -i -e "s/^\#define OSS_TARGET_HASH.\+$/#define OSS_TARGET_HASH \"${gitHash}\"/" include/version.h
 }
 
 makePackageDirectories()
@@ -42,19 +43,22 @@ makePackageDirectories()
 generateSpecFile()
 {
     local rpmSpecFile=$1
-    local targetVersion=$2
+    local packageName=$2
+    local targetVersion=$3
 
+    [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
     [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
+
 
     cat > "$rpmSpecFile" <<LAB_SPEC
 
 ####### NKV Target Package ###########
-Name:		nkv-target
-Version:        ${targetVersion}
-Release:        1%{?dist}
-Summary:        DSS NKV Target Release
-License:        GPLv3+
-Vendor:         MSL-SSD
+Name: ${packageName}
+Version: ${targetVersion}
+Release: 1%{?dist}
+Summary: DSS NKV Target Release
+License: GPLv3+
+Vendor: MSL-SSD
 
 Prefix: /usr/dss/nkv-target
 
@@ -129,11 +133,37 @@ generateRPM()
     return 0
 }
 
+createDragonflyConfigFile()
+{
+    local filename=$1
+
+    cat > "${filename}" << LAB_DFLY_CONF
+if \$programname == 'dfly' or \$syslogtag == '[dfly]:' \\
+then -/var/log/dragonfly/dfly.log
+&  stop
+LAB_DFLY_CONF
+}
+
 ####################### main #######################################
+if [ "$#" -ne 1 ]; then
+    TARGET_VER="0.5.0"
+else
+    TARGET_VER="$1"
+fi
+
 [[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
 
 mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"
+
+packageName="nkv-target"
+# packageRevision=1
+# TODO(ER) - Add switch to Job number
+jenkingJobnumber=0
+targetVersion=${TARGET_VER}
+gitHash="$(git log -1 --format=%h)-${jenkingJobnumber}"
+
+# full_package_name=$(echo ${packageName}_${targetVersion}.${gitHash}-${packageRevision} | sed 's/ //g')
 
 pushd "${target_dir}"/oss
     ./apply-patch.sh
@@ -141,21 +171,20 @@ popd
 
 
 pushd "${build_dir}"
+    pushd "${target_dir}"
+        updateVersionInHeaderFile "${targetVersion}" "${gitHash}"
+    popd
 
     cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
     make spdk_tcp
 
     makePackageDirectories "${rpm_build_dir}"
 
-    cat > "${rpm_build_dir}"/BUILD/nkv-target/etc/rsyslog.d/dfly.conf << LAB_DFLY_CONF
-if \$programname == 'dfly' or \$syslogtag == '[dfly]:' \\
-then -/var/log/dragonfly/dfly.log
-&  stop
-LAB_DFLY_CONF
+    createDragonflyConfigFile "${rpm_build_dir}"/BUILD/nkv-target/etc/rsyslog.d/dfly.conf
 
     cp -rf "${build_dir}"/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
 
-    generateSpecFile "${rpm_spec_file}" "${TARGET_VER}"
+    generateSpecFile "${rpm_spec_file}" "${packageName}" "${targetVersion}"
     generateRPM "${rpm_spec_file}" "${rpm_build_dir}" || die "ERR: Failed to build RPM"
 
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
