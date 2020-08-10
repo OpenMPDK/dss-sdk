@@ -34,6 +34,50 @@
 
 #include "dragonfly.h"
 #include "nvmf_internal.h"
+#include "nvme_internal.h"
+
+#define MAX_STRING_LEN (256)
+static int
+df_get_file_int_value(char *path)
+{
+    FILE *fd;
+    int val = -1;
+    char buf[MAX_STRING_LEN + 1];
+
+    fd = fopen(path, "r");
+    if (!fd) {
+        return -1;
+    }
+
+    if (fgets(buf, sizeof(buf), fd) != NULL) {
+        val = strtoul(buf, NULL, 10);
+    }
+    fclose(fd);
+
+    if ((val == ULONG_MAX && errno == ERANGE) || (errno == EINVAL)) {
+        return -1;
+    }
+
+    return val;
+}
+
+static int df_get_pcie_numa_node(struct spdk_bdev *bdev)
+{
+    struct spdk_nvme_ctrlr *ctrlr;
+    char pci_file_name[MAX_STRING_LEN + 1];
+
+    ctrlr = spdk_bdev_nvme_get_ctrlr(bdev);
+    if(!ctrlr) {
+        return -1;
+    }
+
+    if(ctrlr->trid.trtype == SPDK_NVME_TRANSPORT_PCIE) {
+        sprintf(pci_file_name, "/sys/bus/pci/devices/%s/numa_node", ctrlr->trid.traddr);
+        return df_get_file_int_value(pci_file_name);
+    }
+
+    return -1;
+}
 
 int
 _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
@@ -329,6 +373,7 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 		const char *bdev_name = spdk_bdev_get_name(nvmf_subsys->ns[i]->bdev);
 		subsystem->devices[i].ns = nvmf_subsys->ns[i];
 		subsystem->devices[i].index = i;
+		subsystem->devices[i].numa_node = df_get_pcie_numa_node(nvmf_subsys->ns[i]->bdev);
 
 		dfly_ustat_init_dev_stat(subsystem->id, bdev_name, &subsystem->devices[i]);
 		dfly_kd_add_device(subsystem->id, bdev_name, strlen(bdev_name), &subsystem->devices[i]);
