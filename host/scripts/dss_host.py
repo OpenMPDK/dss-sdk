@@ -78,7 +78,7 @@ ulimit -n 65535
 ulimit -c unlimited
 ./minio server --address %(IP)s:%(PORT)s """
 
-gl_minio_standalone = "/dev/nvme{%(devnum)s}n1"
+gl_minio_standalone = "/dev/nvme%(devnum)s""n1"
 gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
 g_mini_ec = 0
 
