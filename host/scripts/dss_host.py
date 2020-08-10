@@ -621,10 +621,12 @@ The most commonly used dss target commands are:
         parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         args = parser.parse_args(sys.argv[2:])
        
+        minio_dist = args.dist
         global g_minio_dist, g_minio_stand_alone
         if args.dist and not args.port:
-            minio_dist = args.dist 
+            print("Configuring using user-provided --dist")
         elif args.port and not args.dist:
+            print("Configuring using VLAN ID")
             if len(set(args.frontend_vlan_ids)) != len(args.frontend_vlan_ids):
                 print("Duplicate frontend vlan ID not supported")
                 return
