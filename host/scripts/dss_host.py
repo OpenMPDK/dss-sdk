@@ -78,7 +78,7 @@ ulimit -n 65535
 ulimit -c unlimited
 ./minio server --address %(IP)s:%(PORT)s """
 
-gl_minio_standalone = "/dev/nvme{%(start)s...%(end)s}n1"
+gl_minio_standalone = "/dev/nvme{%(devnum)s}n1"
 gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
 g_minio_dist = [""]
 g_minio_stand_alone = [""]
@@ -427,13 +427,16 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
 
 def config_minio_sa(node, ec):
     print("node details ec %d %s" %(ec, node))
-    ip,port,dev_start,dev_end = node
+    ip = node[0]
+    port = node[1]
+    devs = node[2:]
     
     minio_node = ""
-    minio_node += gl_minio_standalone % {"start":dev_start, "end":dev_end} +" "
+    for dev in devs:
+        minio_node += gl_minio_standalone % {"devnum":dev} + " "
     minio_startup = "minio_startup_sa" + ip + ".sh"
     #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
-    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST": 0, "IP":ip, "PORT":port}
     minio_settings += minio_node 
     with open(minio_startup, 'w') as f:
         f.write(minio_settings)
@@ -614,8 +617,8 @@ The most commonly used dss target commands are:
             description='Generates MINIO scripts based on parameters')
         parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
-        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
-        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
+        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port <dev num 0> <dev num 1> ...\" for the local node")
+        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=2)
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
@@ -623,6 +626,9 @@ The most commonly used dss target commands are:
        
         minio_dist = args.dist
         global g_minio_dist, g_minio_stand_alone
+        if args.dist and args.stand_alone:
+            print("Both --dist and --stand_alone specified, please specify only one")
+            return
         if args.dist and not args.port:
             print("Configuring using user-provided --dist")
         elif args.port and not args.dist:
