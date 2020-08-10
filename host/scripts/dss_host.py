@@ -80,8 +80,6 @@ ulimit -c unlimited
 
 gl_minio_standalone = "/dev/nvme{%(devnum)s}n1"
 gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
-g_minio_dist = [""]
-g_minio_stand_alone = [""]
 g_mini_ec = 0
 
 g_etc_hosts = """
@@ -625,7 +623,6 @@ The most commonly used dss target commands are:
         args = parser.parse_args(sys.argv[2:])
        
         minio_dist = args.dist
-        global g_minio_dist, g_minio_stand_alone
         # Validate args
         if args.dist and args.stand_alone:
             print("Both --dist and --stand_alone specified, please specify only one")
@@ -650,9 +647,6 @@ The most commonly used dss target commands are:
         elif args.dist and args.port:
             print("Must specify either --dist or --port, but not both.")
             return
-        if args.stand_alone:
-            g_minio_stand_alone = args.stand_alone 
-
         # Generate minio run scripts
         config_minio(minio_dist, args.stand_alone, args.ec)
 
