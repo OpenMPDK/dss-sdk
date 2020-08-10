@@ -615,10 +615,10 @@ The most commonly used dss target commands are:
     def config_minio(self):
         parser = argparse.ArgumentParser(
             description='Generates MINIO scripts based on parameters')
-        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes. start_dev, end_dev should be integers.")
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
-        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port <dev num 0> <dev num 1> ...\" for the local node")
-        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=2)
+        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port <dev num 0> <dev num 1> ...\" for the local node. Dev numbers should be integers.")
+        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, leave as default (2) unless you know what you're doing.", default=2)
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
@@ -626,6 +626,7 @@ The most commonly used dss target commands are:
        
         minio_dist = args.dist
         global g_minio_dist, g_minio_stand_alone
+        # Validate args
         if args.dist and args.stand_alone:
             print("Both --dist and --stand_alone specified, please specify only one")
             return
@@ -651,6 +652,8 @@ The most commonly used dss target commands are:
             return
         if args.stand_alone:
             g_minio_stand_alone = args.stand_alone 
+
+        # Generate minio run scripts
         config_minio(minio_dist, args.stand_alone, args.ec)
 
     def config_driver(self):
