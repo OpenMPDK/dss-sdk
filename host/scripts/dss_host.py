@@ -1,15 +1,21 @@
+#!/usr/bin/python
 from __future__ import print_function
 
 #as3:/usr/local/lib/python2.7/site-packages# cat sitecustomize.py
 # encoding=utf8  
-import sys
-import re
+
+# Standard libraries
 import argparse
-import time
-import os
 import json
+import os
+import re
 import shutil
 from subprocess import Popen, PIPE
+import sys
+import time
+
+# Non-standard libraries
+import paramiko
 
 gl_nkv_config = """
 { 
@@ -51,25 +57,25 @@ gl_nkv_config = """
 nkv_config_file = "../conf/nkv_config.json"
 
 gl_minio_start_sh = """
-
 export LD_LIBRARY_PATH="../lib"
 export MINIO_NKV_CONFIG="../conf/nkv_config.json"
 export MINIO_ACCESS_KEY=minio
 export MINIO_SECRET_KEY=minio123
 export MINIO_STORAGE_CLASS_STANDARD=EC:%(EC)d
-export MINIO_PER_HOST_INSTANCE_COUNT=%(IC)d
-#export MINIO_ERASURE_SET_DRIVE_COUNT=4
-#export MINIO_NKV_MAX_VALUE_SIZE=2097152
-export MINIO_NKV_MAX_VALUE_SIZE=786432
+export MINIO_NKV_MAX_VALUE_SIZE=1048576
 export MINIO_NKV_TIMEOUT=20
 export MINIO_NKV_SYNC=1
-#export MINIO_NKV_CHECKSUM=1
+export MINIO_ON_KV=1
+export MINIO_NKV_USE_CUSTOM_READER=1
 export MINIO_NKV_SHARED_SYNC_INTERVAL=2
+export MINIO_INSTANCE_HOST_PORT=%(IP)s:%(PORT)s
 export MINIO_NKV_SHARED=%(DIST)d
+export MINIO_EC_BLOCK_SIZE=65536
+export MINIO_ENABLE_NO_LOCK_READ=1
+export MINIO_ENABLE_NO_READ_VERIFY=1
+#export MINIO_NKV_CHECKSUM=1
 ulimit -n 65535
 ulimit -c unlimited
-#yum install boost-devel
-#yum install jemalloc-devel
 ./minio server --address %(IP)s:%(PORT)s """
 
 gl_minio_standalone = "/dev/nvme{%(start)s...%(end)s}n1"
@@ -97,6 +103,20 @@ def exec_cmd(cmd):
 
    return ret, out, err
 
+def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
+    '''
+    Execute any given command on the specified host
+    @return: Return code, stdout, stderr
+    '''
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(host, username=user, password=pw)
+    stdin, stdout, stderr = client.exec_command(cmd)
+    status = stdout.channel.recv_exit_status()
+    client.close()
+    stdout_result = [x.strip().decode() for x in stdout.readlines()]
+    stderr_result = [x.strip().decode() for x in stderr.readlines()]
+    return status, stdout_result, stderr_result
 
 def get_list_diff(li1, li2): 
         return (list(set(li1) - set(li2))) 
@@ -138,7 +158,7 @@ def nvme_discover(proto, ip, port):
     ret, disc_out, err = exec_cmd(discover_cmd)
     if not disc_out:
         print("Discovery Failed: %s, %s" %(disc_out,err))
-        sys.exit(1)
+        return []
 
     nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
@@ -163,6 +183,9 @@ def build_driver():
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
+    dss_script_path = os.path.dirname(os.path.realpath(__file__))
+    os.chdir(dss_script_path)
+
     if "5.1.0" in out:
         os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
     elif "3.10.0" in out:
@@ -187,6 +210,8 @@ def install_kernel_driver(align):
     cmd = "uname -r"
     ret, out, err = exec_cmd(cmd)
     cwd = os.getcwd()
+    dss_script_path = os.path.dirname(os.path.realpath(__file__))
+    os.chdir(dss_script_path)
 
     if "5.1.0" in out:
         os.chdir("../openmpdk_driver/kernel_v5.1_nvmf")
@@ -205,6 +230,7 @@ def install_kernel_driver(align):
 
     disconnect_cmd = "nvme disconnect-all"
     rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
+    #rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
     insmod = "insmod ./nvme-core.ko mem_align=%d; insmod ./nvme-fabrics.ko; \
             insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
 
@@ -239,6 +265,84 @@ def get_nvme_drives():
     #if ret != 0:
     return out
 
+G_VLAN_IPS_CACHE = {}
+def get_ips_for_vlan(target_vlan_id, host, root_pws):
+    """
+    Get the list of IPs corresponding to the specified vlan id on the specified host
+    Returns: list() of IPs in the specified vlan, or [] if the vlan doesn't exist
+    """
+    if host not in G_VLAN_IPS_CACHE:
+        lshw_cmd = "lshw -c network -json"
+        iplink_cmd = "ip -d link show dev "
+        stdout_lines = None
+        for root_pw in root_pws:
+            try:
+                ret, stdout_lines, stderr_lines = exec_cmd_remote(lshw_cmd, host, user="root", pw=root_pw)
+                break
+            except:
+                pass
+        # Fix malformed json...
+        if stdout_lines is None:
+            print("Error: all attempts to authenticate failed, aborting...")
+            sys.exit(-1)
+        fixed_lines = []
+        fixed_lines.append("[")
+        for line in stdout_lines:
+            split = line.strip().split()
+            if split == ["}", "{"]:
+                fixed_lines.append("}, {")
+            else:
+                fixed_lines.append(line)
+        fixed_lines.append("]")
+
+        # Parse json after fixing malformed output
+        lshw_json = json.loads("".join(fixed_lines))
+        G_VLAN_IPS_CACHE[host] = {}
+        vlan_id_regex = re.compile("id\s*[0-9]+")
+        for portalias in lshw_json:
+            if "logicalname" in portalias and "ip" in portalias["configuration"]:
+                devname = portalias["logicalname"]
+                ip = portalias["configuration"]["ip"]
+            else:
+                continue
+            get_vlanid_cmd = iplink_cmd + devname
+            _, lines, _ = exec_cmd_remote(get_vlanid_cmd, host, user="root", pw=root_pw)
+            for line in lines:
+                if "vlan" in line:
+                    vlan_id = vlan_id_regex.search(line).group().split()[-1]
+                    if vlan_id not in G_VLAN_IPS_CACHE[host]:
+                        G_VLAN_IPS_CACHE[host][vlan_id] = []
+                    G_VLAN_IPS_CACHE[host][vlan_id].append(ip)
+    if target_vlan_id in G_VLAN_IPS_CACHE[host]:
+        return G_VLAN_IPS_CACHE[host][target_vlan_id]
+    else:
+        return []
+
+def get_vlan_for_ips(ip, host, root_pws):
+    """
+    Get the vlan ID corresponding to the specified IP on the specified host
+    Returns: string VLAN ID for the specified IP, or None if the ip doesn't exist
+    """
+    # Call get_ips_for_vlan to cache the mapping
+    if host not in G_VLAN_IPS_CACHE:
+        get_ips_for_vlan(0, host, root_pws)
+    # Naive search through all VLAN ids to find target IP
+    for vlan_id, ips in G_VLAN_IPS_CACHE[host].items():
+        if ip in ips:
+            return vlan_id
+    return None
+    
+def get_addrs(vlan_ids, hosts, ports, root_pws):
+    '''
+    Get IP addresses of all interfaces with vlan ID in vlan_ids on all hosts in hosts
+    '''
+    ips = []
+    for host in hosts:
+        for vlan_id in vlan_ids:
+            vlan_ips = get_ips_for_vlan(vlan_id, host, root_pws)
+            for port in ports:
+                ips += [x + ":" + str(port) for x in vlan_ips]
+    return list(set(ips))
 
 def write_json(data, filename=nkv_config_file): 
     '''
@@ -310,8 +414,12 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
         nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
     # Sort NQN infos
     nqn_infos.sort(key=lambda x : x[3].split(":")[0])
+    nqn_infos_dedup = []
+    for nqn_info in nqn_infos:
+        if nqn_info not in nqn_infos_dedup:
+            nqn_infos_dedup.append(nqn_info)
     # Connect to all discovered NQNs and their IPs.
-    nvme_connect(nqn_infos, disc_qpair)
+    nvme_connect(nqn_infos_dedup, disc_qpair)
 
     # Create nkv_config.json file
     create_config_file()
@@ -324,13 +432,84 @@ def config_minio_sa(node, ec):
     minio_node = ""
     minio_node += gl_minio_standalone % {"start":dev_start, "end":dev_end} +" "
     minio_startup = "minio_startup_sa" + ip + ".sh"
-    minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
     minio_settings += minio_node 
     with open(minio_startup, 'w') as f:
         f.write(minio_settings)
     print("Successfully created MINIO startup script %s" %(minio_startup))
     
-def config_minio_dist(node_details, ec, instances):
+def getSubnet(addr):
+    # FIXME: Find true subnet based on remote routing table
+    return addr.split(".")[0]
+
+def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
+    '''
+    Run nvme list-subsys on all targets to infe
+    '''
+    print("Gathering information from nvme list-subsys")
+    # Build a mapping from frontend vlan ids to backend vlan ids
+    vlan_mapping = {}
+    for front, back in zip(frontend_vlan_ids, backend_vlan_ids):
+        vlan_mapping[back] = front
+
+    ret, out, err = exec_cmd("nvme list-subsys -o json")
+    subsystems = json.loads(out)
+    subsystems = subsystems["Subsystems"]
+    subnet_device_map = {}
+    addrs = []
+    for subsys in subsystems:
+        if not "Paths" in subsys:
+            continue
+        for dev in subsys["Paths"]:
+            name = dev["Name"]
+            transport = dev["Transport"]
+            addr = re.search("traddr=(\S+)", dev["Address"]).group(1)
+            subnet = getSubnet(addr)
+            if not subnet in subnet_device_map:
+                subnet_device_map[subnet] = []
+            subnet_device_map[subnet].append(name)
+            addrs.append(addr)
+    # ret is a list of tuples (IP, devlow, devhigh)
+    # where the closed interval [devlow, devhigh] are 
+    # all device numbers on that particular IP
+    ips_devs = []
+    for addr in addrs:
+        backend_vlan_id = get_vlan_for_ips(addr, addr, root_pws)
+        frontend_ip = get_ips_for_vlan(vlan_mapping[backend_vlan_id], addr, root_pws)[0]
+        subnet = getSubnet(addr)
+        devs = subnet_device_map[subnet]
+        # Extract device numbers using regex (i.e. nvme3 -> 3)
+        dev_numbers = sorted([int(re.search("(\d+)", dev).group(1)) for dev in devs])
+        runs = []
+        # Find contiguous blocks of devices in the list
+        while len(dev_numbers) > 0:
+            for idx, num in enumerate(dev_numbers):
+                # If there is a gap between the dev number at idx-1 and idx,
+                # mark [0] - [idx - 1] as a contiguous range and then remove
+                # all of those dev numbers from the list
+                if num - dev_numbers[0] != idx:
+                    runs.append((dev_numbers[0], dev_numbers[idx - 1]))
+                    dev_numbers = dev_numbers[idx:]
+                    break
+                # If we reach the end of the list, the entire remaining list is contiguous
+                if idx == len(dev_numbers) - 1:
+                    runs.append((dev_numbers[0], dev_numbers[idx]))
+                    dev_numbers = []
+        for run in runs:
+            print("Adding: backend IP: {}, nvme{}:{}n1, frontend IP: {}".format(addr, run[0], run[1], frontend_ip))
+            ips_devs.append((frontend_ip, run[0], run[1]))
+    ret = []
+    # Expected format for dist is [ip, port, low, high, ip, port, low, high, ...]
+    for ip, devlow, devhigh in ips_devs:
+        ret.append(ip)
+        ret.append(port)
+        ret.append(devlow)
+        ret.append(devhigh)
+    return ret
+
+
+def config_minio_dist(node_details, ec):
     print("node details ec %d %s" %(ec, node_details))
     node_count = 0
     node_index = 0
@@ -348,21 +527,25 @@ def config_minio_dist(node_details, ec, instances):
         i += 4
         node_index += 1
         minio_startup = "minio_startup_" + ip + ".sh"
-        minio_settings = gl_minio_start_sh % {"EC": ec, "IC":instances, "DIST":1, "IP":ip, "PORT":port}
+        minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
         minio_settings += minio_dist_node 
         with open(minio_startup, 'w') as f:
+            f.write("#!/bin/bash")
             f.write(minio_settings)
+            f.write("\n")
+        os.chmod(minio_startup, 0o755)
+
         print("Successfully created MINIO startup script %s" %(minio_startup))
         etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
     with open("etc_hosts", 'w') as f:
         f.write(etc_hosts_map)
     print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
 
-def config_minio(dist, sa, ec, instances):
+def config_minio(dist, sa, ec):
     if(sa):
         config_minio_sa(sa, ec)
     elif(dist):
-        config_minio_dist(dist, ec, instances)
+        config_minio_dist(dist, ec)
 
 
 class dss_host_args(object):
@@ -378,8 +561,12 @@ class dss_host_args(object):
             usage='''dss_host <command> [<args>]
 
 The most commonly used dss target commands are:
-   config_host  Discovers/connects device(s), and creates config file for DSS API layer
-   config_minio Generates MINIO scripts based on parameters
+   config_host    Discovers/connects device(s), and creates config file for DSS API layer
+   config_minio   Generates MINIO scripts based on parameters
+   config_driver  Build Kernel driver
+   verify_nkv_cli Run an instance of nkv_test_cli
+   remove         Disconnects all drives and remove kernel driver
+
 ''')
         parser.add_argument('command', help='Subcommand to run')
         # parse_args defaults to [1:] for args, but you need to
@@ -395,35 +582,68 @@ The most commonly used dss target commands are:
     def config_host(self):
         parser = argparse.ArgumentParser(
             description='Discovers/connects device(s), and creates config file for DSS API layer')
-        parser.add_argument("-a", "--addrs", type=str, required=True, nargs='+', help="Space-delimited list of ip:port for nvme discovery (required)")
+        parser.add_argument("-vids", "--vlan-ids", nargs='+', help="Space delimited list of vlan IDs")
+        parser.add_argument("-p", "--ports", type=int, nargs='+', required=False, help="Port numbers to be used for nvme discover.")
+        parser.add_argument("--hosts", nargs='+', help="Space delimited list of target hostnames")
+        parser.add_argument("-a", "--addrs", type=str, nargs='+', help="Space-delimited list of ip for nvme discovery (required)")
         parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
             default="rdma")
         parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
         parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
             default=512)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         args = parser.parse_args(sys.argv[2:])
+
+        if args.addrs != None and args.ports != None:
+            disc_addrs = []
+            for port in args.ports:
+                disc_addrs = ["{}:{}".format(addr, port) for addr in args.addrs]
+        elif args.vlan_ids != None and args.hosts != None and args.ports != None:
+            disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
+        else:
+            print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
+            sys.exit(-1)
 
         disc_proto = args.proto
         driver_memalign = args.memalign
         disc_qpair = args.qpair
-        disc_addrs = args.addrs
         config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign)
 
     def config_minio(self):
         parser = argparse.ArgumentParser(
             description='Generates MINIO scripts based on parameters')
-        parser.add_argument("-dist", "--dist", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
         parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
-        parser.add_argument("-instances", "--instances", type=int, required=False, help="Number of MINIO instances per Node", default=2)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
+        parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
+        parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         args = parser.parse_args(sys.argv[2:])
        
         global g_minio_dist, g_minio_stand_alone
-        if args.dist:
-            g_minio_dist = args.dist 
+        if args.dist and not args.port:
+            minio_dist = args.dist 
+        elif args.port and not args.dist:
+            if len(set(args.frontend_vlan_ids)) != len(args.frontend_vlan_ids):
+                print("Duplicate frontend vlan ID not supported")
+                return
+            if len(set(args.backend_vlan_ids)) != len(args.backend_vlan_ids):
+                print("Duplicate backend vlan ID not supported")
+                return
+            if len(args.frontend_vlan_ids) != len(args.backend_vlan_ids):
+                print("Must specify exactly 1 frontend vlan ID per backend vlan ID")
+                return
+            if len(args.frontend_vlan_ids) == 0:
+                print("No frontend vlan ids specified, exiting without doing anything...")
+                return
+            minio_dist = discover_dist(args.port, args.frontend_vlan_ids, args.backend_vlan_ids, args.root_pws)
+        elif args.dist and args.port:
+            print("Must specify either --dist or --port, but not both.")
+            return
         if args.stand_alone:
             g_minio_stand_alone = args.stand_alone 
-        config_minio(args.dist, args.stand_alone, args.ec, args.instances)
+        config_minio(minio_dist, args.stand_alone, args.ec)
 
     def config_driver(self):
         build_driver()
