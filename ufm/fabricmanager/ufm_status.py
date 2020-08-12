@@ -54,7 +54,9 @@ class UfmStatus(UfmThread):
     def __updateLeader(self):
         status = self.dbclient.status()
         leadername = status.leader.name.lower()
+        leadername = leadername.split('.')[0]
         hostname = socket.gethostname().lower()
+        hostname = hostname.split('.')[0]
         self.__setLeader((hostname == leadername or leadername == "default"))
 
     def __monitor(self, cbArgs):

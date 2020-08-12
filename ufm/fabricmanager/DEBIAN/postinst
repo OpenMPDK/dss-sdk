@@ -25,6 +25,14 @@ then
   chmod 666 /var/log/ufm
 fi
 
+# Create service's temp directory
+# Need to be created before service starts
+if [[ ! -e /usr/share/${SERVICE}/ufm_tmp ]]
+then
+  mkdir -p /usr/share/${SERVICE}/ufm_tmp
+  chmod 666 /usr/share/${SERVICE}/ufm_tmp
+fi
+
 /usr/bin/env python3 -m pip install -r /usr/share/${SERVICE}/requirements.txt
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
