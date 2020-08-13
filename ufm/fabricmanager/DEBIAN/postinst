@@ -33,6 +33,8 @@ then
   chmod 666 /usr/share/${SERVICE}/ufm_tmp
 fi
 
+/usr/bin/env python3 -m pip install --upgrade pip
+
 /usr/bin/env python3 -m pip install -r /usr/share/${SERVICE}/requirements.txt
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
