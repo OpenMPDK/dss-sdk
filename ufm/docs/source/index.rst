@@ -4,13 +4,11 @@ UFM Quick Start Guide!
 Overview
 ^^^^^^^^
 
-The Unified Fabric Manager (UFM) is a software to manage NKV's, ESSD's and Switches. The UFM exposed a RedFish API for all the types of the sub systems.
+The Unified Fabric Manager (UFM) is a software to manage NKV's, and Switches. The UFM exposed a RedFish API for all the types of the sub systems.
 
 The typical UFM installation is with 3 nodes, where a UFM runs on each node. Only one of the UFM's is the master at the time, where the remaining UFM will be in idle mode.
 All the UFM's are storing retrieving data from a distributed database (ETCD).
 
-
-Also see the Getting Started With Simple Projects documentation, and for the best possible start, the UFM books. There is even a UFM Windows port to allow experimentation with UFM on a Windows host, using free tools, and without any special hardware requirements. New developers are also encouraged to make use of the configASSERT() macro.
 
 Build quick start guide
 ^^^^^^^^^^^^^^^^^^^^^^^
