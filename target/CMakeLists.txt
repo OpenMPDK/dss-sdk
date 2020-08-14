@@ -238,7 +238,8 @@ add_custom_command(
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure --disable-tests --enable-debug --with-rdma
+  COMMAND ./configure --disable-unit-tests --disable-tests --enable-debug --with-rdma
+  COMMAND make include/spdk/config.h
 )
 
 ADD_CUSTOM_TARGET(spdk_tcp

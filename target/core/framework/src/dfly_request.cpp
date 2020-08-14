@@ -116,10 +116,6 @@ void dfly_req_init_nvmf_info(struct dfly_request *req)
 
 	dfly_ustat_update_rqpair_stat(nvmf_req->qpair->dqpair, 0);
 
-#if 0
-	assert(req->req_key.length == 16);
-#endif
-
 	return;
 }
 
@@ -140,9 +136,6 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 		dfly_counters_size_count(ss->stat_kvio, nvmf_req, cmd->opc);
 		dfly_counters_bandwidth_cal(ss->stat_kvio, nvmf_req, cmd->opc);
 	}
-#if 0
-	assert(req->req_key.length == 16);
-#endif
 	req->io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
 	DFLY_ASSERT(req->io_device);
 
@@ -286,6 +279,7 @@ struct dfly_request_ops df_req_ops_inst = {
 int dfly_req_ini(struct dfly_request *req, int flags, void *ctx)
 {
 	assert(req);
+	assert(ctx);
 
 	req->req_ctx = ctx; /*parent nvme or rdma request*/
 	req->flags = flags;
@@ -311,7 +305,7 @@ void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 	    req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
 
 		if ((req->cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC) &&
-		    !nvmf_qpair_is_admin_queue(req->qpair)) {
+		    (nvmf_qpair_is_admin_queue(req->qpair) == false)) {
 
 			dfly_req_ini(req->dreq, DFLY_REQF_NVMF | DFLY_REQF_DATA, (void *)req);
 			req->dreq->req_ssid = req->qpair->ctrlr->subsys->id;

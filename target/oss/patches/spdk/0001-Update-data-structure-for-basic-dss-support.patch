@@ -1,7 +1,7 @@
-From c0964f4946cb89c5b2ad04eb274f3b66f877871d Mon Sep 17 00:00:00 2001
+From 5a08a565c90d74a2d65a048cb87aa521a1f66cd3 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 30 Jul 2020 11:35:25 -0700
-Subject: [PATCH] Update data structure for basic dss support
+Subject: [PATCH 1/3] Update data structure for basic dss support
 
     * Base spk version v20.07-rc1
     * Add dss pointers and add kv spec
@@ -376,10 +376,10 @@ index 281ac50..7fd2ee2 100644
 +++ b/include/spdk/nvme_spec.h
 @@ -40,6 +40,7 @@
  #define SPDK_NVME_SPEC_H
-
+ 
  #include "spdk/stdinc.h"
 +#include "spdk/nvme_samsung_spec.h"
-
+ 
  #ifdef __cplusplus
  extern "C" {
 diff --git a/include/spdk/nvmf.h b/include/spdk/nvmf.h
@@ -391,7 +391,7 @@ index 86ca574..110e3df 100644
  #include "spdk/queue.h"
  #include "spdk/uuid.h"
 +#include "spdk/dss_spdk.h"
-
+ 
  #ifdef __cplusplus
  extern "C" {
 diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
@@ -399,41 +399,42 @@ index ceb3318..1305d47 100644
 --- a/include/spdk/nvmf_transport.h
 +++ b/include/spdk/nvmf_transport.h
 @@ -98,6 +98,10 @@ struct spdk_nvmf_request {
-	struct spdk_poller		*poller;
-	uint64_t			timeout_tsc;
-
+ 	struct spdk_poller		*poller;
+ 	uint64_t			timeout_tsc;
+ 
 +//SPDK_CONFIG_DSS_TARGET
 +    struct dfly_request *dreq;
 +//END - SPDK_CONFIG_DSS_TARGET
 +
-	STAILQ_ENTRY(spdk_nvmf_request)	buf_link;
-	TAILQ_ENTRY(spdk_nvmf_request)	link;
+ 	STAILQ_ENTRY(spdk_nvmf_request)	buf_link;
+ 	TAILQ_ENTRY(spdk_nvmf_request)	link;
  };
 @@ -124,6 +128,10 @@ struct spdk_nvmf_qpair {
-	uint16_t				sq_head;
-	uint16_t				sq_head_max;
-
+ 	uint16_t				sq_head;
+ 	uint16_t				sq_head_max;
+ 
 +//SPDK_CONFIG_DSS_TARGET
 +    struct dfly_qpair_s     *dqpair;
 +//END - SPDK_CONFIG_DSS_TARGET
 +
-	struct spdk_nvmf_request		*first_fused_req;
-
-	TAILQ_HEAD(, spdk_nvmf_request)		outstanding;
+ 	struct spdk_nvmf_request		*first_fused_req;
+ 
+ 	TAILQ_HEAD(, spdk_nvmf_request)		outstanding;
 diff --git a/lib/nvmf/nvmf_internal.h b/lib/nvmf/nvmf_internal.h
 index f1f3837..ce85dbc 100644
 --- a/lib/nvmf/nvmf_internal.h
 +++ b/lib/nvmf/nvmf_internal.h
 @@ -258,6 +258,10 @@ struct spdk_nvmf_subsystem {
-	/* This is the maximum allowed nsid to a subsystem */
-	uint32_t				max_allowed_nsid;
-
+ 	/* This is the maximum allowed nsid to a subsystem */
+ 	uint32_t				max_allowed_nsid;
+ 
 +    //SPDK_CONFIG_DSS_TARGET
 +    uint32_t                oss_target_enabled;
 +    //END - SPDK_CONFIG_DSS_TARGET
 +
-	TAILQ_HEAD(, spdk_nvmf_ctrlr)			ctrlrs;
-	TAILQ_HEAD(, spdk_nvmf_host)			hosts;
-	TAILQ_HEAD(, spdk_nvmf_subsystem_listener)	listeners;
---
+ 	TAILQ_HEAD(, spdk_nvmf_ctrlr)			ctrlrs;
+ 	TAILQ_HEAD(, spdk_nvmf_host)			hosts;
+ 	TAILQ_HEAD(, spdk_nvmf_subsystem_listener)	listeners;
+-- 
 1.8.3.1
+

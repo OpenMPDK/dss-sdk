@@ -1,0 +1,326 @@
+From 3411402157790ac7d8cb7ac8f5fd8225b8e07cd5 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 25 Aug 2020 20:07:54 -0700
+Subject: [PATCH 3/3] NUMA memory allocation optimization
+
+---
+ include/spdk/nvmf_transport.h |   1 +
+ lib/nvmf/rdma.c               |   1 +
+ lib/nvmf/tcp.c                |   1 +
+ lib/nvmf/transport.c          | 193 +++++++++++++++++++++++++++++++++++++-----
+ 4 files changed, 176 insertions(+), 20 deletions(-)
+
+diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
+index 1305d47..113afdc 100644
+--- a/include/spdk/nvmf_transport.h
++++ b/include/spdk/nvmf_transport.h
+@@ -100,6 +100,7 @@ struct spdk_nvmf_request {
+ 
+ //SPDK_CONFIG_DSS_TARGET
+     struct dfly_request *dreq;
++	uint32_t data_pool_socket;
+ //END - SPDK_CONFIG_DSS_TARGET
+ 
+ 	STAILQ_ENTRY(spdk_nvmf_request)	buf_link;
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 226d5da..6590a19 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2211,6 +2211,7 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 	rdma_req->rsp.wr.next = NULL;
+ 	rdma_req->data.wr.next = NULL;
+ 	rdma_req->key.wr.next = NULL;
++	rdma_req->req.data_pool_socket = -1;
+ 	memset(&rdma_req->req.dif, 0, sizeof(rdma_req->req.dif));
+ 	rqpair->qd--;
+ 
+diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
+index 99a2f71..4526cb5 100644
+--- a/lib/nvmf/tcp.c
++++ b/lib/nvmf/tcp.c
+@@ -606,6 +606,7 @@ nvmf_tcp_request_free(struct spdk_nvmf_tcp_req *tcp_req)
+ 	SPDK_DEBUGLOG(SPDK_LOG_NVMF_TCP, "tcp_req=%p will be freed\n", tcp_req);
+ 	ttransport = SPDK_CONTAINEROF(tcp_req->req.qpair->transport,
+ 				      struct spdk_nvmf_tcp_transport, transport);
++	tcp_req->req.data_pool_socket = -1;
+ 	nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_COMPLETED);
+ 	nvmf_tcp_req_process(ttransport, tcp_req);
+ }
+diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
+index 11bb152..5674c96 100644
+--- a/lib/nvmf/transport.c
++++ b/lib/nvmf/transport.c
+@@ -45,6 +45,90 @@
+ 
+ #define MAX_MEMPOOL_NAME_LENGTH 40
+ 
++//SPDK_CONFIG_OSS_TARGET
++#include "dragonfly.h"
++
++struct dss_numa_mempool_s {
++	uint32_t socket_count;
++	struct spdk_mempool *data_pool[0];
++};
++
++struct dss_numa_mempool_s * dss_create_numa_mempool(const char *transport_name, struct spdk_nvmf_transport_opts *opts)
++{
++	struct dss_numa_mempool_s *numa_mempool;
++	char spdk_mempool_name[MAX_MEMPOOL_NAME_LENGTH];
++	int chars_written, i;
++
++    uint32_t socket_count = rte_socket_count();
++    SPDK_NOTICELOG("Found %u sockets to initialize %s data pool\n", socket_count, transport_name);
++    numa_mempool = calloc(1, sizeof(struct dss_numa_mempool_s) + (socket_count * sizeof(struct spdk_mempool *)));
++
++	if(!numa_mempool) {
++		SPDK_ERRLOG("Unable to allocate dss mempool\n");
++		return NULL;
++	}
++
++	numa_mempool->socket_count = socket_count;
++
++	for(i=0; i < socket_count; i++) {
++		chars_written = snprintf(spdk_mempool_name, MAX_MEMPOOL_NAME_LENGTH, "%s_%s_%s%u_%s", "spdk_nvmf",
++					 transport_name, "node", i, "data");
++		if (chars_written < 0) {
++			SPDK_ERRLOG("Unable to generate transport data buffer pool name.\n");
++			goto err;
++		}
++		numa_mempool->data_pool[i] = spdk_mempool_create(spdk_mempool_name,
++					   opts->num_shared_buffers/socket_count,
++					   opts->io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT,
++					   SPDK_MEMPOOL_DEFAULT_CACHE_SIZE,
++					   i);
++		if (!numa_mempool->data_pool[i]) {
++			SPDK_ERRLOG("Unable to allocate buffer pool for node\n");
++			goto err;
++		}
++	}
++
++	return numa_mempool;
++
++err:
++	for(;i>0; i--) {
++		if(numa_mempool->data_pool[i-1])spdk_mempool_free(numa_mempool->data_pool[i-1]);
++	}
++	return NULL;
++}
++
++void dss_numa_mempool_free(struct dss_numa_mempool_s *mp)
++{
++	int i;
++	for(i=0; i<mp->socket_count;i++) {
++		spdk_mempool_free(mp->data_pool[i]);
++	}
++}
++
++int dss_numa_mempool_get(struct dss_numa_mempool_s *mp, uint32_t node, int count, void **buffers)
++{
++	assert(count > 0);
++	assert(node < mp->socket_count);
++
++	if(count == 1) {
++		*buffers = spdk_mempool_get(mp->data_pool[node]);
++		if(!*buffers) return -ENOMEM;
++	} else {
++		if(spdk_mempool_get_bulk(mp->data_pool[node], buffers, count)) {
++			return -ENOMEM;
++		}
++	}
++	return 0;
++}
++
++void dss_numa_mempool_put(struct dss_numa_mempool_s *mp, uint32_t node, void *buf)
++{
++	assert(node < mp->socket_count);
++	spdk_mempool_put(mp->data_pool[node], buf);
++}
++
++//END - SPDK_CONFIG_OSS_TARGET
++
+ struct nvmf_transport_ops_list_element {
+ 	struct spdk_nvmf_transport_ops			ops;
+ 	TAILQ_ENTRY(nvmf_transport_ops_list_element)	link;
+@@ -136,24 +220,37 @@ spdk_nvmf_transport_create(const char *transport_name, struct spdk_nvmf_transpor
+ 
+ 	transport->ops = ops;
+ 	transport->opts = *opts;
+-	chars_written = snprintf(spdk_mempool_name, MAX_MEMPOOL_NAME_LENGTH, "%s_%s_%s", "spdk_nvmf",
+-				 transport_name, "data");
+-	if (chars_written < 0) {
+-		SPDK_ERRLOG("Unable to generate transport data buffer pool name.\n");
+-		ops->destroy(transport);
+-		return NULL;
+-	}
+ 
+-	transport->data_buf_pool = spdk_mempool_create(spdk_mempool_name,
+-				   opts->num_shared_buffers,
+-				   opts->io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT,
+-				   SPDK_MEMPOOL_DEFAULT_CACHE_SIZE,
+-				   SPDK_ENV_SOCKET_ID_ANY);
++	//SPDK_CONFIG_OSS_TARGET
++	if(g_dragonfly->target_pool_enabled) {
++		transport->data_buf_pool = dss_create_numa_mempool(transport_name, opts);
++		if (!transport->data_buf_pool) {
++			SPDK_ERRLOG("Unable to allocate buffer pool for poll group\n");
++			ops->destroy(transport);
++			return NULL;
++		}
+ 
+-	if (!transport->data_buf_pool) {
+-		SPDK_ERRLOG("Unable to allocate buffer pool for poll group\n");
+-		ops->destroy(transport);
+-		return NULL;
++	} else {
++	//END - SPDK_CONFIG_OSS_TARGET
++		chars_written = snprintf(spdk_mempool_name, MAX_MEMPOOL_NAME_LENGTH, "%s_%s_%s", "spdk_nvmf",
++					 transport_name, "data");
++		if (chars_written < 0) {
++			SPDK_ERRLOG("Unable to generate transport data buffer pool name.\n");
++			ops->destroy(transport);
++			return NULL;
++		}
++
++		transport->data_buf_pool = spdk_mempool_create(spdk_mempool_name,
++					   opts->num_shared_buffers,
++					   opts->io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT,
++					   SPDK_MEMPOOL_DEFAULT_CACHE_SIZE,
++					   SPDK_ENV_SOCKET_ID_ANY);
++
++		if (!transport->data_buf_pool) {
++			SPDK_ERRLOG("Unable to allocate buffer pool for poll group\n");
++			ops->destroy(transport);
++			return NULL;
++		}
+ 	}
+ 
+ 	return transport;
+@@ -174,6 +271,9 @@ spdk_nvmf_transport_get_next(struct spdk_nvmf_transport *transport)
+ int
+ spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport)
+ {
++	//SPDK_CONFIG_OSS_TARGET
++	if(!g_dragonfly->target_pool_enabled)
++	//END - SPDK_CONFIG_OSS_TARGET
+ 	if (transport->data_buf_pool != NULL) {
+ 		if (spdk_mempool_count(transport->data_buf_pool) !=
+ 		    transport->opts.num_shared_buffers) {
+@@ -183,6 +283,11 @@ spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport)
+ 		}
+ 	}
+ 
++	//SPDK_CONFIG_OSS_TARGET
++	if(g_dragonfly->target_pool_enabled) {
++		dss_numa_mempool_free(transport->data_buf_pool);
++	} else
++	//END - SPDK_CONFIG_OSS_TARGET
+ 	spdk_mempool_free(transport->data_buf_pool);
+ 
+ 	return transport->ops->destroy(transport);
+@@ -287,6 +392,11 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport)
+ 		group->buf_cache_count = 0;
+ 		group->buf_cache_size = transport->opts.buf_cache_size;
+ 		while (group->buf_cache_count < group->buf_cache_size) {
++			//SPDK_CONFIG_OSS_TARGET
++			if(g_dragonfly->target_pool_enabled) {
++				dss_numa_mempool_get(transport->data_buf_pool, spdk_env_get_socket_id(spdk_env_get_current_core()), 1, &buf);
++			} else
++			//END - SPDK_CONFIG_OSS_TARGET
+ 			buf = (struct spdk_nvmf_transport_pg_cache_buf *)spdk_mempool_get(transport->data_buf_pool);
+ 			if (!buf) {
+ 				SPDK_NOTICELOG("Unable to reserve the full number of buffers for the pg buffer cache.\n");
+@@ -321,6 +431,11 @@ nvmf_transport_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
+ 
+ 	STAILQ_FOREACH_SAFE(buf, &group->buf_cache, link, tmp) {
+ 		STAILQ_REMOVE(&group->buf_cache, buf, spdk_nvmf_transport_pg_cache_buf, link);
++		//SPDK_CONFIG_OSS_TARGET
++		if(g_dragonfly->target_pool_enabled) {
++			dss_numa_mempool_put(group->transport->data_buf_pool, spdk_env_get_socket_id(spdk_env_get_current_core()), buf);
++		} else
++		//END - SPDK_CONFIG_OSS_TARGET
+ 		spdk_mempool_put(group->transport->data_buf_pool, buf);
+ 	}
+ 	group->transport->ops->poll_group_destroy(group);
+@@ -452,13 +567,31 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
+ {
+ 	uint32_t i;
+ 
++	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
++	bool to_mempool = false;
++	if(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++		numa_socket = req->data_pool_socket;
++		to_mempool = true;
++	}
++
+ 	for (i = 0; i < req->iovcnt; i++) {
+-		if (group->buf_cache_count < group->buf_cache_size) {
++		if(to_mempool == true) {
++			if(g_dragonfly->target_pool_enabled) {
++				dss_numa_mempool_put(transport->data_buf_pool, numa_socket, req->buffers[i]);
++			} else {
++				assert(0);
++			}
++		} else if (group->buf_cache_count < group->buf_cache_size) {
+ 			STAILQ_INSERT_HEAD(&group->buf_cache,
+ 					   (struct spdk_nvmf_transport_pg_cache_buf *)req->buffers[i],
+ 					   link);
+ 			group->buf_cache_count++;
+ 		} else {
++			//SPDK_CONFIG_OSS_TARGET
++			if(g_dragonfly->target_pool_enabled) {
++				dss_numa_mempool_put(transport->data_buf_pool, numa_socket, req->buffers[i]);
++			} else
++			//END - SPDK_CONFIG_OSS_TARGET
+ 			spdk_mempool_put(transport->data_buf_pool, req->buffers[i]);
+ 		}
+ 		req->iov[i].iov_base = NULL;
+@@ -492,6 +625,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 	uint32_t num_buffers;
+ 	uint32_t i = 0, j;
+ 	void *buffer, *buffers[NVMF_REQ_MAX_BUFFERS];
++	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
+ 
+ 	/* If the number of buffers is too large, then we know the I/O is larger than allowed.
+ 	 *  Fail it.
+@@ -502,7 +636,10 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 	}
+ 
+ 	while (i < num_buffers) {
+-		if (!(STAILQ_EMPTY(&group->buf_cache))) {
++		if(g_dragonfly->target_pool_enabled &&
++			(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE)) {
++			goto alloc_pool;
++		} else if (!(STAILQ_EMPTY(&group->buf_cache))) {
+ 			group->buf_cache_count--;
+ 			buffer = STAILQ_FIRST(&group->buf_cache);
+ 			STAILQ_REMOVE_HEAD(&group->buf_cache, link);
+@@ -511,8 +648,24 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 			length = nvmf_request_set_buffer(req, buffer, length, io_unit_size);
+ 			i++;
+ 		} else {
+-			if (spdk_mempool_get_bulk(transport->data_buf_pool, buffers,
+-						  num_buffers - i)) {
++			//SPDK_CONFIG_OSS_TARGET
++			if(g_dragonfly->target_pool_enabled) {
++alloc_pool:
++				if(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++					struct dfly_io_device_s *iod = dfly_kd_get_device(req->dreq);
++					assert(iod);
++					if(iod->numa_node != -1) {
++						numa_socket = iod->numa_node;
++					}
++				}
++				if(dss_numa_mempool_get(transport->data_buf_pool, numa_socket, num_buffers - i, buffers)) {
++					return -ENOMEM;
++				}
++				req->data_pool_socket = numa_socket;
++			} else
++			//END - SPDK_CONFIG_OSS_TARGET
++			if (spdk_mempool_get_bulk(transport->data_buf_pool,
++						  num_buffers - i, buffers)) {
+ 				return -ENOMEM;
+ 			}
+ 			for (j = 0; j < num_buffers - i; j++) {
+-- 
+1.8.3.1
+

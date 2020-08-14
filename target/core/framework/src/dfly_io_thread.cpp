@@ -66,7 +66,7 @@ static int df_get_pcie_numa_node(struct spdk_bdev *bdev)
     struct spdk_nvme_ctrlr *ctrlr;
     char pci_file_name[MAX_STRING_LEN + 1];
 
-    ctrlr = spdk_bdev_nvme_get_ctrlr(bdev);
+    ctrlr = bdev_nvme_get_ctrlr(bdev);
     if(!ctrlr) {
         return -1;
     }

@@ -60,31 +60,24 @@ uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spd
  *
  */
 
-int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs)
+int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 {
 
 	struct dfly_qpair_s *dqpair = nvmf_qpair->dqpair;
-	struct dfly_request *dfly_req = NULL;
-	int i;
-
-	struct spdk_nvmf_request *nvmf_req;
 
 	int rc;
 	struct spdk_nvme_transport_id trid;
 
 	if (!dqpair) {
-		dqpair = (struct dfly_qpair_s *) calloc(1,
-							sizeof(struct dfly_qpair_s) + (max_reqs * sizeof(struct dfly_request)));
+		dqpair = (struct dfly_qpair_s *) calloc(1, sizeof(struct dfly_qpair_s));
 		if (!dqpair) {
 			return -1;
 		}
 		dqpair->parent_qpair = nvmf_qpair;
-		dqpair->nreqs = max_reqs;
-		dqpair->reqs = (struct dfly_request *)(dqpair + 1);
 		dqpair->io_counter = 0;
 		dqpair->curr_qd = 0;
 		dqpair->qid = -1;
-		dfly_req = dqpair->reqs;
+		dqpair->dss_enabled = false;
 		dqpair->df_poller = dfly_poller_init(0);
 
 		nvmf_qpair->dqpair = dqpair;
@@ -109,10 +102,28 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_s
 
 		DFLY_DEBUGLOG(DFLY_LOG_QOS, "dqpair %p initialized\n", dqpair);
 	} else {
-		DFLY_DEBUGLOG(DLFY_LOG_CORE, "Allocating extra %d request for qpair %p\n", max_reqs, nvmf_qpair);
-		dfly_req = (struct dfly_request *) calloc(1, max_reqs * sizeof(struct dfly_request));
+		DFLY_ASSERT(0);
+		//DFLY_DEBUGLOG(DLFY_LOG_CORE, "Allocating extra %d request for qpair %p\n", max_reqs, nvmf_qpair);
+		//dfly_req = (struct dfly_request *) calloc(1, max_reqs * sizeof(struct dfly_request));
 	}
 
+	return 0;
+}
+
+int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs)
+{
+
+	struct dfly_request *dfly_req = NULL;
+	struct spdk_nvmf_request *nvmf_req = NULL;
+	int i;
+
+	dfly_req = (struct dfly_request *) calloc(1, (max_reqs * sizeof(struct dfly_request)));
+	if (!dfly_req) {
+		return -1;
+	}
+
+	nvmf_qpair->dqpair->nreqs = max_reqs;
+	nvmf_qpair->dqpair->reqs = (struct dfly_request *)(dfly_req);
 
 	for (i = 0; i < max_reqs; i++) {
 		nvmf_req = (struct spdk_nvmf_request *)(req_arr + (i * req_size));
@@ -138,6 +149,9 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 	}
 	dss_lat_del_ctx(dqpair->lat_ctx);
 	dfly_poller_fini(dqpair->df_poller);
+	if(dqpair->reqs) {
+		free(dqpair->reqs);
+	}
 	free(dqpair);
 	return 0;
 }

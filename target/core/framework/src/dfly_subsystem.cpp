@@ -177,10 +177,11 @@ void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled)
 
 }
 
-void df_subsystem_parse_conf(uint32_t ssid, struct spdk_conf_section *subsys_sp)
+void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp)
 {
 
 	uint32_t ss_dss_enabled;
+	uint32_t ssid = subsys->id;
 
 	ss_dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "KV_PoolEnabled", g_dragonfly->target_pool_enabled);
 

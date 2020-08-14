@@ -276,6 +276,7 @@ struct dfly_qpair_s {
 	uint32_t npending_lock_reqs;
 	uint16_t qid;
 
+	bool dss_enabled;
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
 	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
@@ -343,12 +344,13 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 void *dfly_subsystem_list_device(struct dfly_subsystem *ss, void **dev_list, uint32_t *nr_dev);
 
 void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled);
-void df_subsystem_parse_conf(uint32_t ssid, struct spdk_conf_section *subsys_sp);
+void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp);
 uint32_t df_subsystem_enabled(uint32_t ssid);
 
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req);
 
-int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
+int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair);
+int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
 int dfly_qpair_destroy(struct dfly_qpair_s *dqpair);
 struct dfly_qpair_s* df_get_dqpair(dfly_ctrl_t *ctrlr, uint16_t qid);
 int dfly_nvmf_request_complete(struct spdk_nvmf_request *req);
@@ -391,7 +393,7 @@ dfly_ctrl_t *df_get_ctrl(uint32_t ssid, uint16_t cntlid);
 
 struct spdk_nvme_ns_data *dfly_nvme_ns_get_data(struct spdk_nvme_ns *ns);
 
-struct spdk_nvme_ctrlr * spdk_bdev_nvme_get_ctrlr(struct spdk_bdev *bdev);
+struct spdk_nvme_ctrlr * bdev_nvme_get_ctrlr(struct spdk_bdev *bdev);
 void dfly_nvme_ctrlr_update_namespaces(struct spdk_nvme_ctrlr *ctrlr);
 
 #ifdef DF_LATENCY_MEASURE_ENABLED
