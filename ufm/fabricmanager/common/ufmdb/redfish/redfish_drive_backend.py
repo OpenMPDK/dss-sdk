@@ -18,9 +18,7 @@ class RedfishDriveBackend:
     def create_instance(cls, sys_id, storage_id, drive_id):
         (sys_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(
             redfish_constants.SYSTEMS, sys_id)
-        if sys_type == 'essd':
-            return RedfishEssdDriveBackend(entry, storage_id, drive_id)
-        elif sys_type == 'nkv':
+        if sys_type == 'nkv':
             path = join(redfish_constants.REST_BASE,
                         redfish_constants.SYSTEMS, sys_id,
                         redfish_constants.STORAGE, storage_id,
@@ -30,24 +28,6 @@ class RedfishDriveBackend:
             return RedfishNkvSystemBackend(path)
         else:
             raise NotImplementedError
-
-
-class RedfishEssdDriveBackend(RedfishDriveBackend):
-    def __init__(self, entry, storage_id, drive_id):
-        self.entry = entry
-        self.storage_id = storage_id
-        self.drive_id = drive_id
-
-    def get(self):
-        key = join(self.entry['key'],
-                   redfish_constants.STORAGE, self.storage_id,
-                   redfish_constants.DRIVES, self.drive_id)
-        resp = ufmdb_redfish_resource.get_resource_value(key)
-        ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
-        return resp
-
-    def put(self, payload):
-        raise NotImplementedError
 
 
 class RedfishDriveCollectionBackend:
@@ -63,9 +43,7 @@ class RedfishDriveCollectionBackend:
     def create_instance(cls, sys_id, storage_id):
         (sys_type, entry) = ufmdb_redfish_resource.lookup_resource_in_db(
             redfish_constants.SYSTEMS, sys_id)
-        if sys_type == 'essd':
-            return RedfishEssdDriveCollectionBackend(entry, storage_id)
-        elif sys_type == 'nkv':
+        if sys_type == 'nkv':
             path = join(redfish_constants.REST_BASE,
                         redfish_constants.SYSTEMS, sys_id,
                         redfish_constants.STORAGE, storage_id,
@@ -75,20 +53,3 @@ class RedfishDriveCollectionBackend:
             return RedfishNkvSystemBackend(path)
         else:
             raise NotImplementedError
-
-
-class RedfishEssdDriveCollectionBackend(RedfishDriveCollectionBackend):
-    def __init__(self, entry, storage_id):
-        self.entry = entry
-        self.storage_id = storage_id
-
-    def get(self):
-        key = join(self.entry['key'],
-                   redfish_constants.STORAGE, self.storage_id,
-                   redfish_constants.DRIVES)
-        resp = ufmdb_redfish_resource.get_resource_value(key)
-        ufmdb_redfish_resource.sub_resource_values(resp, '@odata.id', 'System.eSSD.1', self.entry['type_specific_data']['suuid'])
-        return resp
-
-    def put(self, payload):
-        raise NotImplementedError
