@@ -105,19 +105,6 @@ See example:
             pwd: proximal
             messageQueuePort: 5516
 
-    essd:
-        enable: False
-        start: False
-        messageQueuePort: 5511
-
-        # essdDrive is optional (for testing)
-        essdDrives:
-            - "http://172.22.4.58:32860"
-            - "http://172.22.4.58:32852"
-            - "http://172.22.4.58:32851"
-            - "http://172.22.4.58:32826"
-
-
 
 UFM source code
 ^^^^^^^^^^^^^^^
