@@ -86,8 +86,6 @@ from systems.ufmarg import UfmArg
 from systems.switch.switch import EthSwitch
 from systems.switch.switch_arg import SwitchArg
 
-from systems.essd import essd_constants
-
 from systems.nkv.nkv import Nkv
 
 
@@ -304,30 +302,6 @@ def startSubSystems(sub_systems):
 def stopSubSystems(sub_systems):
     for sub in reversed(sub_systems):
         sub.stop()
-
-
-def insertEssdUrls(db, essdUrls):
-    listOfDrives = list()
-    try:
-        tmpString, _ = db.get(essd_constants.ESSDURLS_KEY)
-
-        if tmpString:
-            listOfDrives = json.loads(tmpString.decode('utf-8'))
-    except Exception:
-        pass
-
-    for d in essdUrls:
-        listOfDrives.append(d)
-
-    # remove duplicates from list
-    res = []
-    for i in listOfDrives:
-        if i not in res:
-            res.append(i)
-    res.sort()
-
-    jsonString = json.dumps(res, indent=4, sort_keys=True)
-    db.put(essd_constants.ESSDURLS_KEY, jsonString)
 
 
 def readConfigDataFromFile(filename):
