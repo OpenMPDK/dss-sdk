@@ -8,11 +8,9 @@ from systems.ufm.ufm_poller import UfmPoller
 
 class Ufm(SubSystem):
     def __init__(self, ufmArg):
-        self.ufmArg = ufmArg
-        self.log = self.ufmArg.log
-        SubSystem.__init__(self, services=(UfmMonitor(ufmArg=self.ufmArg),
-                                           UfmPoller(ufmArg=self.ufmArg),
-                                           UfmController(ufmArg=self.ufmArg)
-                                           ))
-
-        self.log.info("Init {}".format(self.__class__.__name__))
+        ufmArg.log.info("Init {}".format(self.__class__.__name__))
+        SubSystem.__init__(self,
+                           services=(UfmMonitor(ufmArg=ufmArg),
+                                     UfmPoller(ufmArg=ufmArg),
+                                     UfmController(ufmArg=ufmArg)),
+                           log=ufmArg.log)

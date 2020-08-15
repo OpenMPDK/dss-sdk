@@ -1,8 +1,6 @@
 import socket
 from enum import Enum
 from subprocess import PIPE, Popen
-from common.ufmdb import ufmdb
-from common.ufmlog import ufmlog
 from ufm_thread import UfmThread
 
 
@@ -27,7 +25,8 @@ class UfmStatus(UfmThread):
         self.onLeaderChangeCb = onLeaderChangeCb
         self.onLeaderChangeCbArgs = onLeaderChangeCbArgs
 
-        self.dbclient = ufmdb.client(db_type='etcd')
+        self.dbclient = self.onHealthChangeCbArgs.db
+        self.log = self.onHealthChangeCbArgs.log
         super(UfmStatus, self).__init__()
 
     def __del__(self):

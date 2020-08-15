@@ -10,7 +10,7 @@ def db():
     print('----------login----------')
 
     db = ufmdb.client(db_type = 'etcd')
-    
+
     yield db
 
     print('----------teardown----------')
@@ -36,7 +36,7 @@ def test_lease(db):
     #db.put('/key_2', 'value_2')
     #db.put('/key_3', 'value_3')
     #db.put('/key_4', 'value_4')
-    
+
     time.sleep(5)
     lease_info = db.get_lease_info(lease_id_1)
     print(lease_info)
@@ -58,7 +58,7 @@ def test_lease(db):
 
     value, metadata = db.get('/key_4')
     assert(value == b'value_4')
-    
+
     time.sleep(5)
     lease_info = db.get_lease_info(lease_id_1)
     print(lease_info)
@@ -72,7 +72,7 @@ def test_lease(db):
 
     value, metadata = db.get('/key_3')
     assert(value == b'value_3')
-    
+
     value, metadata = db.get('/key_4')
     assert(value == b'value_4')
 
@@ -82,10 +82,10 @@ def test_lease(db):
     lease_info_2 = db.get_lease_info(lease_id_2)
     print(lease_info_2)
 
-    db.put('/key_1', 'value_111', lease = lease_id_2)
-    db.put('/key_2', 'value_222', lease = lease_id_2)
-    db.put('/key_3', 'value_333', lease = lease_id_2)
-    db.put('/key_4', 'value_444', lease = lease_id_2)
+    db.put('/key_1', 'value_111', lease=lease_id_2)
+    db.put('/key_2', 'value_222', lease=lease_id_2)
+    db.put('/key_3', 'value_333', lease=lease_id_2)
+    db.put('/key_4', 'value_444', lease=lease_id_2)
     value, metadata = db.get('/key_1')
     print(type(value))
     assert(value == b'value_111')
@@ -104,20 +104,18 @@ def test_lease(db):
     time.sleep(15)
     lease_info_2 = db.get_lease_info(lease_id_2)
     print(lease_info_2)
-    
 
     value, metadata = db.get('/key_1')
-    assert(None == value)
+    assert(None is value)
 
     value, metadata = db.get('/key_2')
-    assert(None == value)
+    assert(None is value)
 
     value, metadata = db.get('/key_3')
-    assert(None == value)
+    assert(None is value)
 
     value, metadata = db.get('/key_4')
-    assert(None == value)
-
+    assert(None is value)
 
     '''
     time.sleep(15)
@@ -134,6 +132,3 @@ def test_lease(db):
     value, metadata = db.get('/key_4')
     assert(value == b'value_4')
     '''
-
-    
-

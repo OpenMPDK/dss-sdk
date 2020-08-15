@@ -1,7 +1,6 @@
-import pytest
 
 
-from node_util import *
+from node_util import get_clustername, get_network_ipv4_address
 
 
 class MockDB:
@@ -18,31 +17,30 @@ class MockDB:
         return None
 
 
-
 def test_get_clustername_pass():
-    db=MockDB(True)
+    db = MockDB(True)
 
     name = get_clustername(db)
     print(name)
 
-    assert name != None
+    assert name is not None
     assert name == 'Raven'
 
 
 def test_get_clustername_fail():
-    db=MockDB(False)
+    db = MockDB(False)
 
     name = get_clustername(db)
     print(name)
 
-    assert name == None
+    assert name is None
 
 
 def test_get_network_ipv4_address_fail():
-    node_uuid='547654765476547698797869876987'
-    mac_address='00:FF:01:02:03'
+    node_uuid = '547654765476547698797869876987'
+    mac_address = '00:FF:01:02:03'
 
-    db=MockDB(False)
+    db = MockDB(False)
     ip = get_network_ipv4_address(db, node_uuid, mac_address)
 
-    assert ip == None
+    assert ip is None

@@ -1,19 +1,18 @@
 import importlib
-import sys
 
 from common.ufmlog import ufmlog
 from functools import wraps
 
-#Database module to use
+# Database module to use
 db = None
 
 
 class Ufmdb(object):
     def __new__(cls, **kwargs):
-        #Get the database type, load the required module and
-        #validate the inputs to the database connection.
+        # Get the database type, load the required module and
+        # validate the inputs to the database connection.
 
-        #Change the database to use based on the inputs
+        # Change the database to use based on the inputs
         global db
         db_type = kwargs.pop('db_type', 'etcd')
         if db_type == 'etcd':
@@ -27,7 +26,7 @@ class Ufmdb(object):
         else:
             raise Exception('Invalid inputs provided')
 
-    def __init__(self,**kwargs):
+    def __init__(self, **kwargs):
         """
         Create connection to database.
 
@@ -57,10 +56,9 @@ class Ufmdb(object):
                 return None
         return func_wrapper
 
-
     def close(self):
         """Close connection to database."""
-        if (self.client != None):
+        if self.client is not None:
             return self.client.close()
 
     def __enter__(self):
@@ -326,6 +324,103 @@ class Ufmdb(object):
 
         self.log.detail("STATUS:")
         return self.client.status()
+
+    @log_error
+    def watch_callback(self, *args, **kwargs):
+        self.log.detail("WATCH_CALLBACK:")
+        return self.client.watch_callback(*args, **kwargs)
+
+    @staticmethod
+    def __convert_flat_key_list_to_json(etcd_key_dict):
+        """Convert the flat key in a list to json format
+
+        :param etcd_key_dict: simple list of keys
+
+        :return: converted json dictionary
+        """
+        json_dict = dict()
+        for k, v in etcd_key_dict.items():
+            if type(k) != str:
+                k = k.decode()
+            if type(v) != str:
+                v = v.decode()
+            keys = k.split('/')[1:]
+            json_kv = json_dict
+            for key in keys[:-1]:
+                json_kv = json_kv.setdefault(key, {})
+            json_kv[keys[-1]] = v
+        return json_dict
+
+    @log_error
+    def get_with_prefix(self, key_str, raw=False, sort_order=None, sort_target=None):
+        """ Get all the keys with the prefix
+
+        If raw is True, it returns all the DB entries as KV as-is
+        If raw is false, then it returns the json converted output
+
+        :param key_str: Key
+        :param raw: Default value is False.
+                    If true, returns the all the key/value as a dictionary
+                    If false, returns JSON format of the key values
+        :param sort_order: Option for sorting the order of keys
+                           one of 'ascend', 'descend' or None
+        :param sort_target: Option for the target
+                            one of 'key', 'version', 'create', 'mod', 'value'
+                            Default is 'key' if None specified
+
+        :return: Returns JSON formatted or the dictionary with the key/value based on 'raw' field
+        """
+        flat_key_dict = dict()
+        try:
+            ret = self.client.get_prefix(key_str, sort_order=sort_order, sort_target=sort_target)
+            for value, meta in ret:
+                flat_key_dict[meta.key] = value
+
+        except Exception:
+            self.logger.exception('Got exception getting the key with prefix %s', key_str)
+
+        if raw:
+            output = flat_key_dict
+        else:
+            if not flat_key_dict:
+                output = dict()
+                d = output
+                for elem in key_str.split('/')[1:]:
+                    d = d.setdefault(elem, {})
+            else:
+                output = self.__convert_flat_key_list_to_json(flat_key_dict)
+
+        return output
+
+    @log_error
+    def put_multiple(self, kv_dict, strings_with_lease=None, lease=None):
+        """Save multiple Key Values in the ETCD DB.
+
+        Some of the keys can be saved with lease so that they get removed
+        automatically upon the lease expiration.
+        :param kv_dict: A dictionary with Keys and Values
+        :param strings_with_lease: A list of strings (subset of keys in kv_dict) to be set with lease
+        :param lease: lease structure created by ETCD DB
+        :return: Returns True if successfully saved.
+                Else false.
+        """
+        compare = []
+        success = []
+        failure = []
+        status = False
+        try:
+            for k, v in kv_dict.iteritems():
+                if strings_with_lease and k in strings_with_lease:
+                    success.append(self.client.transactions.put(k, v, lease))
+                else:
+                    success.append(self.client.transactions.put(k, v))
+
+            status, responses = self.client.transaction(compare, success, failure)
+        except Exception:
+            pass
+
+        return status
+
 
 def client(**kwargs):
     """Return an instance of Ufmdb_Client."""

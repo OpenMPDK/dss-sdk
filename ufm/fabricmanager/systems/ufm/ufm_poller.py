@@ -34,10 +34,8 @@ class UfmPoller(UfmThread):
         self.msgListner.start()
 
         self._running = True
-        super(UfmPoller, self).start(threadName='UfmPoller',
-                                     cb=self._poller,
-                                     cbArgs=self.ufmArg,
-                                     repeatIntervalSecs=6.0)
+        super(UfmPoller, self).start(threadName='UfmPoller', cb=self._poller,
+                                     cbArgs=self.ufmArg, repeatIntervalSecs=30.0)
 
     def stop(self):
         super(UfmPoller, self).stop()
@@ -50,22 +48,38 @@ class UfmPoller(UfmThread):
     def is_running(self):
         return self._running
 
-    def _poller(self, ufmArg):
-        # Save current uptime to DB
-        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY,
-                      str((datetime.now() - self.startTime).seconds))
+    def read_node_capacity_in_kb(self):
+        df = os.statvfs('/')
+        if df.f_blocks > 0:
+            return df.f_blocks * 4
+        return 0
 
-        # Read disk space of node and write it to db
+    def read_avail_space_percent():
         df_struct = os.statvfs('/')
         if df_struct.f_blocks > 0:
-            df_out = df_struct.f_bfree * 100 / df_struct.f_blocks
-            if df_out:
-                ufmArg.db.put(ufm_constants.UFM_LOCAL_DISKSPACE, str(df_out))
+            return df_struct.f_bfree * 100 / df_struct.f_blocks
+        return 0
 
-            if df_out > 95.0:
-                diskSpaceMsg = dict()
-                diskSpaceMsg['status'] = "ok"
-                diskSpaceMsg['service'] = "UfmPoller"
-                diskSpaceMsg['local_disk_space'] = int(df_out)
+    def _poller(self, ufmArg):
+        # Save current uptime to DB
+        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str((datetime.now() - self.startTime).seconds))
 
-                self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE, diskSpaceMsg)
+        hostname = ufmArg.hostname
+        node_capacity_Kb = self.read_node_capacity_in_kb()
+        if node_capacity_Kb:
+            ufmArg.db.put("/cluster/{}/total_capacity_in_kb".format(hostname), str(node_capacity_Kb))
+
+        avail_space_percent = self.read_avail_space_percent()
+        if avail_space_percent:
+            ufmArg.db.put(ufm_constants.UFM_LOCAL_DISKSPACE, str(avail_space_percent))
+
+            # NKV needs the disk space in this location of the db
+            ufmArg.db.put("/cluster/{}/space_avail_percent".format(hostname), str(avail_space_percent))
+
+        if avail_space_percent > 95.0:
+            diskSpaceMsg = dict()
+            diskSpaceMsg['status'] = "ok"
+            diskSpaceMsg['service'] = "UfmPoller"
+            diskSpaceMsg['local_disk_space'] = int(avail_space_percent)
+
+            self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE, diskSpaceMsg)
