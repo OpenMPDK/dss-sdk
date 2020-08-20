@@ -13,6 +13,7 @@ import shutil
 from subprocess import Popen, PIPE
 import sys
 import time
+import socket
 
 # Non-standard libraries
 import paramiko
@@ -53,8 +54,6 @@ gl_nkv_config = """
 ]
 }
 """
-
-nkv_config_file = "../conf/nkv_config.json"
 
 gl_minio_start_sh = """
 export LD_LIBRARY_PATH="../lib"
@@ -253,12 +252,10 @@ def install_kernel_driver(align):
     os.chdir(cwd)
 
 
-def get_nvme_drives():
+def get_nvme_drives(cmd):
     '''
     Get nvme drive list
     '''
-    #time.sleep(2)
-    cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
     ret, out, err = exec_cmd(cmd)
     #if ret != 0:
     return out
@@ -342,7 +339,7 @@ def get_addrs(vlan_ids, hosts, ports, root_pws):
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
 
-def write_json(data, filename=nkv_config_file): 
+def write_json(data, filename):
     '''
     Write nkv_config.json configuration file
     '''
@@ -350,13 +347,9 @@ def write_json(data, filename=nkv_config_file):
         json.dump(data, f, indent=4) 
 
 
-def create_config_file():
-    '''
-    Create nkv_config.json file in conf directory
-    '''
-    print("----- Creating nkv_config.json -----")
+def get_drives_list(nvme_list_cmd):
     # Get list of drives connected to NVMf Target
-    drives_list = get_nvme_drives()
+    drives_list = get_nvme_drives(nvme_list_cmd)
     print("drive list: %s" % drives_list)
     if drives_list:
         drives_list = drives_list.split(',')
@@ -364,15 +357,26 @@ def create_config_file():
         print("Drive list is empty. Exiting.")
         sys.exit(1)
 
-    os.remove(nkv_config_file)
+    return drives_list
+
+
+def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
+    '''
+    Create nkv_config.json file in conf directory
+    '''
+    print("----- Creating %s -----" %nkv_conf_file)
+    try:
+        os.remove(nkv_conf_file)
+    except:
+        pass
 
     # Write the initial configuration skeleton in file.
-    with open(nkv_config_file, 'w') as f:
+    with open(nkv_conf_file, 'w') as f:
         f.write(gl_nkv_config)
 
     # Loop through drives and add them in local mounts.
     # This is the place to do any other variable changes of config file.
-    with open(nkv_config_file, 'r') as f:
+    with open(nkv_conf_file, 'r') as f:
         data = json.load(f)
         temp = data['nkv_local_mounts'] 
          
@@ -381,25 +385,67 @@ def create_config_file():
             y = { "mount_point": drive }
 
             temp.append(y)
-        os.remove(nkv_config_file)
-        write_json(data)
+
+        try:
+            os.remove(nkv_conf_file)
+        except:
+            pass
+
+        write_json(data, nkv_conf_file)
 
 
-def run_nkv_test_cli():
+def num(s):
+    try:
+        return int(s)
+    except ValueError:
+        return float(s)
+
+
+def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value, threads, numobjects):
     '''
     Run Sample nkv_test_cli after setting up drives"
     '''
     print("----- Running sample nkv_test_cli -----")
-    nkv_cmd = "LD_LIBRARY_PATH=../lib ./nkv_test_cli -c " + nkv_config_file + \
-            " -i msl-ssg-dl04 -p 1030 -b meta/first/testing -k 60 -v 1048576 -n 100 -t 128 -o 3"
+    nkv_cmd = "LD_LIBRARY_PATH=../lib numactl -N " + numa_num + " -m " + numa_num + " ./nkv_test_cli -c " + nkv_conf_file + \
+            " -i msl-ssg-dl04 -p 1030 -b meta/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
+            threads + " -o " + workload
+    #print(nkv_cmd)
+    result_file = "nkv_numa" + numa_num + ".out"
     ret, out, err = exec_cmd(nkv_cmd)
     if ret != 0:
         print("nkv_test_cli Failed: %s" %(err)) 
     else:
-        with open("nkv.out", 'w') as f:
+        with open(result_file, 'w') as f:
             f.write(out)
-        print("nkv_test_cli run output written to nkv.out")
-            
+        print("nkv_test_cli run output written to %s" % result_file)
+
+    nkv_test_result(result_file)
+
+
+def nkv_test_result(result_file):
+    '''
+    Parse nkv_test_cli results
+    '''
+    bw_lines = []
+    with open(result_file, 'r') as w:
+        for line in w:
+            if 'Throughput' in line:
+                bw_lines.append(line)
+
+    bw = 0.0
+    for i in bw_lines:
+        bw = bw + num(re.split(r'[=MB]', i)[2].lstrip())
+
+    with open(result_file, 'a+') as w:
+        w.write("\n------------------------------\n")
+        w.write("BW = %s GB/s\n" % round(float(bw/1000),2))
+        w.write("------------------------------")
+
+    print("------------------------------")
+    print("BW = %s GB/s" % round(float(bw/1000),2))
+    print("------------------------------")
+
+
 def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
@@ -419,8 +465,10 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Connect to all discovered NQNs and their IPs.
     nvme_connect(nqn_infos_dedup, disc_qpair)
 
+    cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
+    list_of_drives = get_drives_list(cmd)
     # Create nkv_config.json file
-    create_config_file()
+    create_config_file(list_of_drives)
 
 
 def config_minio_sa(node, ec):
@@ -654,7 +702,55 @@ The most commonly used dss target commands are:
         build_driver()
 
     def verify_nkv_cli(self):
-        run_nkv_test_cli()
+        '''
+        Run nkv_test_cli using the arguments provided.
+        Find out the drives to run by running nvme list-subsys command first.
+        '''
+        parser = argparse.ArgumentParser(
+            description='Generates nkv_config.json to run nkv_test_cli on each node')
+        parser.add_argument("-c", "--conf", type=str, help="nkv config json file name")
+        parser.add_argument("-a", "--addr", type=str, help="Provide IP octets to distinguish the drives in 'nvme list-subsys' \
+                           output (e.g., 201.0)", default="traddr")
+        parser.add_argument("-o", "--workload", type=str, help="Workload type - PUT(0), GET(1), DELETE(2)")
+        parser.add_argument("-m", "--numa", type=str, help="NUMA node to run the nkv_test_cli on")
+        parser.add_argument("-k", "--keysize", type=str, help="Key size in bytes. Should be < 255B, default=60", default="60")
+        parser.add_argument("-v", "--valsize", type=str, help="Value size in bytes. Default/Max=1048576", default="1048576")
+        parser.add_argument("-t", "--threads", type=str, help="Number of threads to run (default=128)", default="128")
+        parser.add_argument("-n", "--numobj", type=str, help="Number of objects for each thread (default=1000)", default="1000")
+        args = parser.parse_args(sys.argv[2:])
+
+        if args.conf:
+            nkv_conf_file = "../conf/" + args.conf
+        else:
+            print("No config file provided")
+            return
+
+        if args.addr:
+            addr_octet = args.addr
+        else:
+            print("No address octet provided")
+            return
+
+        if args.numa:
+            numa = args.numa
+        else:
+            print("No numa number given")
+            return
+
+        if args.workload:
+            workload = args.workload
+        else:
+            print("provide workload type")
+            return
+
+        cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
+        drive_list = get_drives_list(cmd)
+        create_config_file(drive_list, nkv_conf_file)
+
+        meta_str = socket.gethostname() + "/numa" + numa
+
+        run_nkv_test_cli(nkv_conf_file, numa, workload, meta_str, args.keysize, args.valsize, args.threads, args.numobj)
+
 
     def remove(self):
         parser = argparse.ArgumentParser(
