@@ -739,3 +739,69 @@ invalid:
 	return;
 }
 SPDK_RPC_REGISTER("dss_get_latency_profile", dss_rpc_get_latency_profile, SPDK_RPC_RUNTIME)
+
+struct dss_rpc_reset_ustat_counters_req_s {
+	char *nqn;
+};
+
+static const struct spdk_json_object_decoder dss_rpc_reset_ustat_counters_decoders[] = {
+	{"nqn", offsetof(struct dss_rpc_reset_ustat_counters_req_s, nqn), spdk_json_decode_string},
+};
+
+void free_rpc_reset_ustat_counters(struct dss_rpc_reset_ustat_counters_req_s *req)
+{
+	free(req->nqn);
+}
+
+static void dss_rpc_reset_ustat_counters(struct spdk_jsonrpc_request *request,
+		const struct spdk_json_val *params)
+{
+	struct spdk_nvmf_subsystem *subsystem;
+	struct dfly_subsystem *df_subsys;
+	struct dss_rpc_reset_ustat_counters_req_s req = {};
+	struct spdk_json_write_ctx *w;
+
+	if (spdk_json_decode_object(params, dss_rpc_reset_ustat_counters_decoders,
+				    SPDK_COUNTOF(dss_rpc_reset_ustat_counters_decoders),
+				    &req)) {
+		DFLY_ERRLOG("spdk_json_decode_object failed\n");
+		goto invalid;
+	}
+
+	subsystem = spdk_nvmf_tgt_find_subsystem(g_spdk_nvmf_tgt, req.nqn);
+	if (!subsystem) {
+		DFLY_ERRLOG("Subsystem not found\n");
+		goto invalid;
+	}
+
+	df_subsys = dfly_get_subsystem_no_lock(dfly_get_nvmf_ssid(subsystem));
+
+	if(df_subsys && df_subsys->initialized == true) {
+		dfly_counters_reset(df_subsys);
+	} else {
+		DFLY_ERRLOG("Subsystem not initialized\n");
+		goto invalid;
+	}
+
+	w = spdk_jsonrpc_begin_result(request);
+	if (w == NULL) {
+		return;
+	}
+
+	spdk_json_write_object_begin(w);
+
+	spdk_json_write_name(w, "reset_done");
+	spdk_json_write_bool(w, true);
+
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_result(request, w);
+	free_rpc_latency_profile(&req);
+	return;
+
+invalid:
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
+	free_rpc_reset_ustat_counters(&req);
+	return;
+}
+SPDK_RPC_REGISTER("dss_reset_ustat_counters", dss_rpc_reset_ustat_counters, SPDK_RPC_RUNTIME)

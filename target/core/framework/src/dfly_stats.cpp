@@ -238,6 +238,36 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 	return (0);
 }
 
+/*
+ * Does not guarantee accuracy if IOs are still going on
+ */
+void dfly_ustat_reset_kvio_stat(stat_kvio_t *stat)
+{
+	dfly_ustat_set_u64(stat, &stat->puts,           0);
+	dfly_ustat_set_u64(stat, &stat->gets,           0);
+	dfly_ustat_set_u64(stat, &stat->dels,           0);
+	dfly_ustat_set_u64(stat, &stat->exists,         0);
+	dfly_ustat_set_u64(stat, &stat->iters,          0);
+	dfly_ustat_set_u64(stat, &stat->putBandwidth,   0);
+	dfly_ustat_set_u64(stat, &stat->getBandwidth,   0);
+	dfly_ustat_set_u64(stat, &stat->put_less_4KB,   0);
+	dfly_ustat_set_u64(stat, &stat->put_4KB_16KB,   0);
+	dfly_ustat_set_u64(stat, &stat->put_16KB_64KB,  0);
+	dfly_ustat_set_u64(stat, &stat->put_64KB_256KB, 0);
+	dfly_ustat_set_u64(stat, &stat->put_256KB_1MB,  0);
+	dfly_ustat_set_u64(stat, &stat->put_1MB_2MB,    0);
+	dfly_ustat_set_u64(stat, &stat->put_large_2MB,  0);
+	dfly_ustat_set_u64(stat, &stat->get_less_4KB,   0);
+	dfly_ustat_set_u64(stat, &stat->get_4KB_16KB,   0);
+	dfly_ustat_set_u64(stat, &stat->get_16KB_64KB,  0);
+	dfly_ustat_set_u64(stat, &stat->get_64KB_256KB, 0);
+	dfly_ustat_set_u64(stat, &stat->get_256KB_1MB,  0);
+	dfly_ustat_set_u64(stat, &stat->get_1MB_2MB,    0);
+	dfly_ustat_set_u64(stat, &stat->get_large_2MB,  0);
+
+	return;
+}
+
 void
 dfly_ustat_remove_subsys_stat(void *subsys)
 {
@@ -332,6 +362,21 @@ int dfly_qp_counters_inc_io_count(stat_rqpair_t *stats, int opc)
 		break;
 	}
 	return 0;
+}
+
+/*
+ * Does not guarantee accuracy if IOs are still going on
+ */
+void dfly_qp_reset_counters(stat_rqpair_t *stats)
+{
+	dfly_ustat_set_u64(stats, &stats->puts,     0);
+	dfly_ustat_set_u64(stats, &stats->gets,     0);
+	dfly_ustat_set_u64(stats, &stats->dels,     0);
+	dfly_ustat_set_u64(stats, &stats->reqs,     0);
+	dfly_ustat_set_u64(stats, &stats->reqs_max, 0);
+	//Don't reset stats->max_qd. This is constant;
+
+	return;
 }
 
 int
