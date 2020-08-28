@@ -5,27 +5,24 @@ from common.ufmdb import ufmdb_client
 
 class Ufmdb_etcd3_Client(ufmdb_client.UfmdbClient):
     def __init__(self, **kwargs):
-                 #ca_cert=None, cert_key=None, cert_cert=None, timeout=None,
-                 #user=None, password=None, options=None):
+        # ca_cert=None, cert_key=None, cert_cert=None, timeout=None,
+        # user=None, password=None, options=None):
         """
         Create database connection.
         """
-        #host and the port are treated separately to provide
-        #default values.
-        #db_type is ufmdb specific and should be removed before
-        #invoking the connection
-
-        kwargs.pop('db_type','etcd_db')
+        # host and the port are treated separately to provide
+        # default values.
+        # db_type is ufmdb specific and should be removed before
+        # invoking the connection
+        kwargs.pop('db_type', 'etcd_db')
         host = kwargs.pop('host', 'localhost')
-        port = kwargs.pop('port',2379)
-        self.client = etcd.client(host = host,
-                                  port = port,
-                                  **kwargs)
+        port = kwargs.pop('port', 2379)
+        self.client = etcd.client(host=host, port=port, **kwargs)
         self.transactions = self.client.transactions
 
     def close(self):
         """Close connection to database."""
-        if (self.client != None):
+        if self.client is not None:
             return self.client.close()
 
     def put(self, key, value, **kwargs):
@@ -98,6 +95,7 @@ class Ufmdb_etcd3_Client(ufmdb_client.UfmdbClient):
         Delete a single key in database.
 
         :param key: key in database to delete
+
         :param kwargs: additional options dictionary
             :param prev_kv: return the deleted key-value pair
             :type prev_kv: bool
@@ -149,6 +147,11 @@ class Ufmdb_etcd3_Client(ufmdb_client.UfmdbClient):
         :returns: watch_id. Later it could be used for cancelling watch.
         """
         return self.client.add_watch_callback(*args, **kwargs)
+
+    def watch_callback(self, key_prefix, cb_fn, **kwargs):
+        kwargs['range_end'] = etcd.utils.increment_last_byte(etcd.utils.to_bytes(key_prefix))
+
+        return self.client.add_watch_callback(key=key_prefix, callback=cb_fn, **kwargs)
 
     def cancel_watch(self, watch_id):
         """
@@ -220,16 +223,23 @@ class Ufmdb_etcd3_Client(ufmdb_client.UfmdbClient):
         """Get the status of the responding member."""
         return self.client.status()
 
+
 def is_valid_init_args(**kwargs):
-    """ Validate the input options provided. """
-    validparams = ['host', 'port', 'ca_cert', 'cert_key',
-                 'cert_cert', 'timeout','user', 'password', 'options']
+    """
+    Validate the input options provided.
+    """
+    validparams = ['host', 'port', 'ca_cert', 'cert_key', 'cert_cert',
+                   'timeout', 'user', 'password', 'options']
+
     return is_valid_params(validparams, **kwargs)
+
 
 def is_valid_params(validparams, **kwargs):
     return ufmdb_client.is_valid_params(validparams, **kwargs)
 
-def client(**kwargs):
-    """Return an instance of Ufmdb_etcd3_Client."""
-    return Ufmdb_etcd3_Client(**kwargs)
 
+def client(**kwargs):
+    """
+    Return an instance of Ufmdb_etcd3_Client.
+    """
+    return Ufmdb_etcd3_Client(**kwargs)

@@ -39,7 +39,9 @@ components = ['NONE', 'CM_NODE', 'AGENT', 'TARGET', 'SUBSYSTEM',
               'DATAPATH', 'NETWORK', 'DISK', 'ETCDDB', 'SERVICE']
 
 severity = ['NONE', 'INFO', 'WARN', 'CRIT']
+
 event_type = {'config': 0, 'state': 1, 'client': 2}
+
 # All the function hooks in global_event_handlers will be run
 global_event_handlers = None
 

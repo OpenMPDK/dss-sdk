@@ -12,6 +12,7 @@ class UfmMonitor(UfmThread):
 
         self.log = self.ufmArg.log
         self.db = self.ufmArg.db
+        self.log.info("Init {}".format(self.__class__.__name__))
 
         self.msgListner = Subscriber(event=self.event,
                                      ports=(self.ufmArg.ufmPorts),
@@ -56,8 +57,7 @@ class UfmMonitor(UfmThread):
         try:
             self.watch_id = self.db.add_watch_callback(ufm_constants.UFM_PREFIX, self._ufmMonitorCallback)
         except Exception as e:
-            self.log.error('UFM: Could not set callback (key={}) (id={})'.format(ufm_constants.UFM_PREFIX,
-                                                                                 str(e)))
+            self.log.error('UFM: Could not set callback (key={}) (id={})'.format(ufm_constants.UFM_PREFIX, e))
             self.watch_id = None
 
         self.log.info("====> UFM: Done Configure DB key watch'er <====")

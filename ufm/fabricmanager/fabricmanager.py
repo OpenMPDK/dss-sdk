@@ -17,21 +17,16 @@ import yaml
 # Flask Imports
 from flask import Flask, make_response, render_template
 from flask_restful import Api, Resource
-# from flask_restful import reqparse
-# from flask import request
 
 # REST API Imports
 from rest_api.redfish.JsonSchemas import JsonSchemas
 from rest_api.resource_manager import ResourceManager
-# from rest_api.redfish.System_api import UfmdbSystemAPI
+
 
 # Internal Imports
 import config
 from common.ufmlog import ufmlog
 from common.ufmdb import ufmdb
-
-# Depricated library
-from common.clusterlib import lib
 
 from ufm_status import UfmStatus
 from ufm_status import UfmLeaderStatus
@@ -121,7 +116,7 @@ api = Api(app)
 connect_to_single_db_node = False
 
 # Time between each check of which FM is the lead
-MASTER_CHECK_INTERVAL = 1
+MASTER_CHECK_INTERVAL = 20
 
 CLUSTER_TIMEOUT = (3 * 60)
 
@@ -351,11 +346,7 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
 
     try:
         if ufmArg.nkvConfig['enable']:
-            subSystems.append(
-                Nkv(ufmArg=ufmArg,
-                    hostname=ufmArg.hostname,
-                    db=ufmArg.deprecatedDb)
-            )
+            subSystems.append(Nkv(ufmArg=ufmArg))
     except Exception as e:
         log.exception(e)
         pass
@@ -377,14 +368,15 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
 
 
 class StatusChangeCbArg(object):
-    def __init__(self, subsystems, target, kwargs, ufmArg, log):
+    def __init__(self, subsystems, target, kwargs, ufmArg):
         self.subsystems = subsystems
         self.target = target
         self.kwargs = kwargs
         self.ufmArg = ufmArg
         self.apiServer = None
         self.isRunning = False
-        self.log = log
+        self.db = ufmArg.db
+        self.log = ufmArg.log
 
 
 def setMasterInDb(ufmArg):
@@ -484,7 +476,7 @@ def main():
 
     try:
         dbType = ufmArg.ufmConfig['dbType']
-        dbAddress = ufmArg.ufmConfig['dbIp']
+        # dbAddress = ufmArg.ufmConfig['dbIp']
         ufmMessageQueuePort = ufmArg.ufmConfig['messageQueuePort']
     except Exception:
         log.error("Failed to read ufm configuration file.")
@@ -496,12 +488,7 @@ def main():
         log.error("Failed to connect to database.")
         sys.exit(-1)
 
-    # Connect to db with deprecated library.
-    try:
-        deprecatedDb = lib.create_db_connection(ip_address=dbAddress, log=log)
-    except Exception:
-        log.error("Failed to connect to deprecated DB.")
-        sys.exit(-1)
+    log.info("Database version: {}".format(db.status().version))
 
     config.rest_base = REST_BASE
 
@@ -514,7 +501,6 @@ def main():
                uuid=uuid.getnode(),
                ufmMainEvent=ufmMainEvent,
                publisher=Publisher(ufmMessageQueuePort))
-    ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
     initializeSubSystems(
@@ -529,8 +515,7 @@ def main():
     status_cb_arg = StatusChangeCbArg(subsystems=subSystems,
                                       target=app.run,
                                       kwargs=kwargs,
-                                      ufmArg=ufmArg,
-                                      log=log)
+                                      ufmArg=ufmArg)
 
     ufm_status = UfmStatus(onHealthChangeCb=onHealthChange,
                            onHealthChangeCbArgs=status_cb_arg,
