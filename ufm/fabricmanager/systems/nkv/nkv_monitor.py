@@ -41,36 +41,38 @@ def save_events_to_db(db, event_list, log=None):
 
         try:
             ev_value = json.dumps(event)
-        except Exception:
+        except Exception as ex:
             log.error("Failed to convert to json {}".format(event))
+            log.error("Exception: {} {}".format(__file__, ex))
             continue
 
         try:
             db.put(ev_key, ev_value)
-        except Exception:
+        except Exception as ex:
             log.error("Failed to save data to db: {}".format(event))
+            log.error("Exception: {} {}".format(__file__, ex))
 
 
-def process_event(db, logger, hostname, event_q, servers_out, event):
+def process_event(db, log, hostname, event_q, servers_out, event):
     """
       Check for the cluster status key and stop/start the
       keepalived service depending on its status.
     """
     if not event_q:
-        logger.error('Processed event is called with invalid event_q object')
+        log.error('Processed event is called with invalid event_q object')
         return
 
     cluster_status_key = "/cluster/{}/status".format(hostname)
     if event.key == cluster_status_key:
         if not event.value:
-            start_stop_service(logger, 'keepalived', 'stop')
+            start_stop_service(log=log, service_name='keepalived', action='stop')
         else:
             old_value = event._event.prev_kv.value
             if old_value != event.value:
                 if event.value == 'up':
-                    start_stop_service(logger, 'keepalived', 'start')
+                    start_stop_service(log=log, service_name='keepalived', action='start')
                 else:
-                    start_stop_service(logger, 'keepalived', 'stop')
+                    start_stop_service(log=log, service_name='keepalived', action='stop')
 
     # Start reading the events with old value and new value and start processing
     if event.key.startswith(event_constants.EVENT_PROCESS_KEY_PREFIX.encode('utf-8')):
@@ -88,7 +90,7 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
 
     clustername = get_clustername(db)
     if not clustername:
-        logger.error('Could not find cluster name in DB')
+        log.error('Could not find cluster name in DB')
         return
 
     t_event = dict()
@@ -99,7 +101,7 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
                           key=event.key,
                           val=event.value)
     if not status:
-        # logger.debug("Unhandled event: {}".format(t_event))
+        # log.debug("Unhandled event: {}".format(t_event))
         return
 
     event_list = []
@@ -107,14 +109,14 @@ def process_event(db, logger, hostname, event_q, servers_out, event):
         t_event['timestamp'] = str(int(time.time()))
         event_list.append(t_event)
 
-    save_events_to_db(db, event_list, log=logger)
+    save_events_to_db(db, event_list, log=log)
 
 
 class NkvMonitor(object):
     def __init__(self, ufmArg=None):
         self.ufmArg = ufmArg
         self.hostname = ufmArg.hostname
-        self.logger = ufmArg.log
+        self.log = ufmArg.log
         self.db = ufmArg.db
         self.thread = None
         self.ev_worker_thread = None
@@ -138,7 +140,7 @@ class NkvMonitor(object):
         except Exception:
             self.brokerPort = ZMQ_BROKER_PORT
 
-        self.logger.info("Init {}".format(self.__class__.__name__))
+        self.log.info("Init {}".format(self.__class__.__name__))
 
     def __del__(self):
         self.thread_event.clear()
@@ -162,32 +164,31 @@ class NkvMonitor(object):
             if cluster_out:
                 return cluster_out['cluster'][self.hostname]['ip_address']
         except Exception as ex:
-            self.logger.error("Failed to read IP address from db ({})".format(ex))
+            self.log.error("Failed to read IP address from db ({})".format(ex))
 
         return None
 
     def key_watcher_cb(self, event):
-        # self.logger.debug("===> db watcher callback got called <===")
         if not isinstance(event.events, list):
             return
 
         if not self.event_processer:
-            self.logger.error("======> Error <=========")
+            self.log.error("======> Error <=========")
 
         global g_servers_out
         for e in event.events:
             process_event(db=self.db,
-                          logger=self.logger,
+                          log=self.log,
                           hostname=self.hostname,
                           event_q=self.event_processer,
                           servers_out=g_servers_out,
                           event=e)
 
     def start(self):
-        self.logger.info("======> NkvMonitor <=========")
+        self.log.info("======> NkvMonitor <=========")
 
         if self.running:
-            self.logger.debug("==> NkvMonitor is already running <==")
+            self.log.debug("==> NkvMonitor is already running <==")
             return
 
         vip_address = None
@@ -198,36 +199,37 @@ class NkvMonitor(object):
             vip_address = self.get_ip_of_nic()
 
         if not vip_address:
-            self.logger.error('Could not find VIP address of cluster. Exiting')
+            self.log.error('Could not find VIP address of cluster. Exiting')
             sys.exit(-1)
 
-        self.logger.debug("vip address: [%s]", vip_address)
+        self.log.debug("vip address: [%s]", vip_address)
 
         if not self.g_event_notifier_fn:
-            self.logger.debug('IP for the broker {}'.format(vip_address))
+            self.log.debug('IP for the broker {}'.format(vip_address))
             try:
-                self.en = EventNotification(vip_address, self.brokerPort, logger=self.logger)
+                self.en = EventNotification(vip_address, self.brokerPort, logger=self.log)
                 self.g_event_notifier_fn = self.en.process_events
-            except Exception:
-                self.logger.error('EventNotification instance not created')
+            except Exception as ex:
+                self.log.error('EventNotification instance could not be created')
+                self.log.error("Exception: {} {}".format(__file__, ex))
 
         node_ip = self.get_host_ip()
         if not node_ip:
-            self.logger.error("Error in getting the node IP address. Exiting")
+            self.log.error("Error in getting the node IP address. Exiting")
             sys.exit(-1)
 
         self.node_info = Node_Info(stopper_event=self.thread_event,
                                    db=self.db,
                                    hostname=self.hostname,
                                    check_interval=UPDATE_NODE_INFO_INTERVAL,
-                                   logger=self.logger)
+                                   log=self.log)
         self.node_info.start()
 
         self.node_health = Node_Health(stopper_event=self.thread_event,
                                        db=self.db,
                                        hostname=self.hostname,
                                        check_interval=UPDATE_NODE_INFO_INTERVAL,
-                                       logger=self.logger)
+                                       log=self.log)
         self.node_health.start()
 
         self.event_processer = Event_Processor(stopper_event=self.thread_event,
@@ -235,28 +237,28 @@ class NkvMonitor(object):
                                                db=self.db,
                                                hostname=self.hostname,
                                                check_interval=UPDATE_NODE_INFO_INTERVAL,
-                                               logger=self.logger)
+                                               log=self.log)
         self.event_processer.start()
 
         # The watch callback must be set after the event processor is initialize
-        self.logger.info("======> Configure DB key watcher <=========")
+        self.log.info("======> Configure DB key watcher <=========")
         try:
             self.watch_id = self.db.watch_callback('/', self.key_watcher_cb)
 
-            self.logger.info('==> Watch id: {}'.format(self.watch_id))
+            self.log.info('==> Watch id: {}'.format(self.watch_id))
         except Exception as ex:
-            self.logger.error('Exception could not get watch id: {}'.format(ex))
+            self.log.error('Exception could not get watch id: {}'.format(ex))
             self.watch_id = None
 
         self.running = True
-        self.logger.info("======> NkvMonitor has started <=========")
+        self.log.info("======> NkvMonitor has started <=========")
 
     def stop(self):
         if not self.db:
-            self.logger.error("DB should not been closed")
+            self.log.error("DB should not been closed")
         else:
             if not self.watch_id:
-                self.logger.error("Failed to cancel DB watcher")
+                self.log.error("Failed to cancel DB watcher")
             else:
                 self.db.cancel_watch(self.watch_id)
 
@@ -274,7 +276,7 @@ class NkvMonitor(object):
             self.event_processer = None
 
         self.running = False
-        self.logger.info("======> NkvMonitor Stopped <=========")
+        self.log.info("======> NkvMonitor Stopped <=========")
 
     def is_running(self):
         return self.running

@@ -7,21 +7,17 @@ LEASE_INTERVAL = 20
 
 
 class Node_Info(threading.Thread):
-    def __init__(self,
-                 stopper_event=None,
-                 db=None,
-                 hostname=None,
-                 check_interval=600,
-                 logger=None):
+    def __init__(self, stopper_event=None, db=None, hostname=None,
+                 check_interval=600, log=None):
         super(Node_Info, self).__init__()
         self.stopper_event = stopper_event
         self.db = db
         self.hostname = hostname
         self.check_interval = check_interval
-        self.logger = logger
+        self.log = log
         self.node_status_lease = None
         self.last_db_status = None
-        self.logger.info("Init {}".format(self.__class__.__name__))
+        self.log.info("Init {}".format(self.__class__.__name__))
 
     def read_system_uptime(self):
         uptime = 0
@@ -46,7 +42,7 @@ class Node_Info(threading.Thread):
 
     def run(self):
         self.start_time = datetime.now()
-        self.logger.info("Start Update Node Info thread")
+        self.log.info("Start Update Node Info thread")
 
         while not self.stopper_event.is_set():
             self.db.put('/cluster/uptime_in_seconds', str((datetime.now() - self.start_time).seconds))
@@ -64,13 +60,12 @@ class Node_Info(threading.Thread):
             try:
                 if not self.node_status_lease or self.node_status_lease.remaining_ttl < 0:
                     self.node_status_lease = self.db.lease(LEASE_INTERVAL)
-                    # self.logger.debug("Create a lease for leader name")
                 else:
                     # _, lease_id = self.db.refresh_lease(lease=self.node_status_lease)
                     self.node_status_lease.refresh_lease()
-                    self.logger.error("Lease refreshed")
+                    self.log.error("Lease refreshed")
             except Exception:
-                self.logger.exception('Failed to creating/renewing lease')
+                self.log.exception('Failed to creating/renewing lease')
                 continue  # This can be changed to a break later
 
             # Only leader and status have a lease
@@ -82,10 +77,11 @@ class Node_Info(threading.Thread):
 
                 # self.db.put("/cluster/{}/db_size".format(self.hostname),
                 #            str(db_status.dbSize), lease=self.node_status_lease)
-            except Exception:
-                self.logger.error("Failed to update leader name and database size")
+            except Exception as ex:
+                self.log.error("Failed to update leader name and database size")
+                self.log.error("Exception: {} {}".format(__file__, ex))
 
             self.stopper_event.wait(self.check_interval)
 
         self.db.put('/cluster/uptime_in_seconds', str(0))
-        self.logger.info("Update Node Info thread has Stopped")
+        self.log.info("Update Node Info thread has Stopped")

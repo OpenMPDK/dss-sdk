@@ -8,7 +8,7 @@ import common.events.events_def_en as events_def
 # Used to be "process_events_from_worker_queue"
 class Event_Processor(threading.Thread):
     def __init__(self, stopper_event=None, event_notifier_fn=None,
-                 db=None, hostname=None, check_interval=60, logger=None):
+                 db=None, hostname=None, check_interval=60, log=None):
         super(Event_Processor, self).__init__()
 
         self.stopper_event = stopper_event
@@ -16,7 +16,7 @@ class Event_Processor(threading.Thread):
         self.event_notifier_fn = event_notifier_fn
         self.hostname = hostname
         self.check_interval = check_interval
-        self.log = logger
+        self.log = log
 
         self.queue_tevent = threading.Event()
         self.queue_tevent.clear()
@@ -117,8 +117,9 @@ class Event_Processor(threading.Thread):
 
                 try:
                     event_info = ast.literal_eval(evt1)
-                except Exception:
-                    self.log.error("Failed to convert event to dict: {} key={}".format(__file__, evt1))
+                except Exception as ex:
+                    self.log.error("Failed to convert event to dict: key={}".format(evt1))
+                    self.log.error("Exception: {} {}".format(__file__, ex))
                     continue
 
                 if self.validate_event(event_info=event_info, event_key=event_tuple[0], event_value=event_tuple[1]):
@@ -131,9 +132,9 @@ class Event_Processor(threading.Thread):
 
                     self.db.put(key, event_tuple[1])
                     self.db.delete(evt0)
-                except Exception:
-                    self.log.error("Failed to mark event being processed: {} {}".format(__file__, evt0))
-
+                except Exception as ex:
+                    self.log.error("Failed to mark event being processed: {}".format(evt0))
+                    self.log.error("Exception: {} {}".format(__file__, ex))
             else:
                 self.queue_tevent.clear()
 

@@ -196,13 +196,13 @@ def format_event(event, db, clustername, servers_out, key, val=None):
     return False
 
 
-def start_stop_service(logger, service_name, action):
+def start_stop_service(log, service_name, action):
     cmd = ' '.join(['systemctl', str(action), str(service_name)])
     pipe = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 
     out, err = pipe.communicate()
     if out:
-        logger.info('cmd %s output %s', cmd, str(out))
+        log.info('cmd %s output %s', cmd, str(out))
 
     if err:
-        logger.info('cmd %s error %s', cmd, str(err))
+        log.info('cmd %s error %s', cmd, str(err))

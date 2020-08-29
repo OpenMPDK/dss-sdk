@@ -7,14 +7,14 @@ from subprocess import PIPE, Popen
 
 
 class Node_Health(threading.Thread):
-    def __init__(self, stopper_event=None, db=None, hostname=None, check_interval=60, logger=None):
+    def __init__(self, stopper_event=None, db=None, hostname=None, check_interval=60, log=None):
         super(Node_Health, self).__init__()
         self.stopper_event = stopper_event
         self.db = db
         self.hostname = hostname
         self.check_interval = check_interval
-        self.logger = logger
-        self.logger.info("Init {}".format(self.__class__.__name__))
+        self.log = log
+        self.log.info("Init {}".format(self.__class__.__name__))
 
         self.tgt_node_key = '/object_storage/servers/{uuid}/node_status'
 
@@ -50,7 +50,7 @@ class Node_Health(threading.Thread):
         pipe = Popen(cmd.split(), stdout=PIPE, stderr=PIPE)
         out, err = pipe.communicate()
 
-        self.logger.debug('fping cmd %s out [%s] err [%s]', cmd, out, err)
+        self.log.debug('fping cmd %s out [%s] err [%s]', cmd, out, err)
 
         if err:
             lines_list = err.decode("utf-8").split('\n')
@@ -61,14 +61,14 @@ class Node_Health(threading.Thread):
                 ipaddr_out = line.split(':')[0].strip()
                 iface = ipaddr_dict[ipaddr_out]
 
-                self.logger.detail("Updting NIC status for iface: [%s]", iface)
+                self.log.detail("Updting NIC status for iface: [%s]", iface)
 
                 # Update the NIC status and the CRC on the DB
                 if 'min/avg/max' not in line:
-                    self.logger.detail("min/avg/max not detected in line: [%s]", line)
+                    self.log.detail("min/avg/max not detected in line: [%s]", line)
                     if ifaces[iface]['Status'] != 'down':
-                        self.logger.detail("iface status not previously down, changing to down")
-                        self.logger.debug('interface: [%s], down', iface)
+                        self.log.detail("iface status not previously down, changing to down")
+                        self.log.debug('interface: [%s], down', iface)
 
                         ifaces[iface]['Status'] = 'down'
                         crc = zlib.crc32(json.dumps(ifaces[iface], sort_keys=True).encode())
@@ -76,9 +76,9 @@ class Node_Health(threading.Thread):
                         kv_dict[self.tgt_interface_key.format(uuid=server, if_name=iface)] = 'down'
                         kv_dict[self.tgt_interface_crc.format(uuid=server, if_name=iface)] = str(crc)
                     else:
-                        self.logger.detail("NIC previously down, skipping")
+                        self.log.detail("NIC previously down, skipping")
                 elif ifaces[iface]['Status'] != 'up':
-                    self.logger.detail("iface status not previously up, changing to up")
+                    self.log.detail("iface status not previously up, changing to up")
                     ifaces[iface]['Status'] = 'up'
                     crc = zlib.crc32(json.dumps(ifaces[iface], sort_keys=True).encode())
                     ifaces[iface]['CRC'] = crc
@@ -86,7 +86,7 @@ class Node_Health(threading.Thread):
                     kv_dict[self.tgt_interface_crc.format(uuid=server, if_name=iface)] = str(crc)
                     return True
                 else:
-                    self.logger.detail("NIC not detected, and not previously up, skipping")
+                    self.log.detail("NIC not detected, and not previously up, skipping")
 
         return False
 
@@ -102,15 +102,16 @@ class Node_Health(threading.Thread):
         Also if the machine is pingable and the heartbeat value is alive, then we
         assume that the agent will update the NICs status.
         """
-        self.logger.info("Start {}".format(self.__class__.__name__))
+        self.log.info("Start {}".format(self.__class__.__name__))
 
         global g_servers_out
 
         g_servers_out = None
         try:
             tgt_node_status_lease = self.db.lease(4 * self.check_interval)
-        except Exception:
-            self.logger.error('Error in creating lease for target nodes status')
+        except Exception as ex:
+            self.log.error('Error in creating lease for target nodes status')
+            self.log.error("Exception: {} {}".format(__file__, ex))
             tgt_node_status_lease = None
 
         new_ip_status = {}
@@ -121,12 +122,13 @@ class Node_Health(threading.Thread):
             # Get all the target nodes and its attributes
             try:
                 servers_out = self.db.get_with_prefix('/object_storage/servers')
-            except Exception:
-                self.logger.error("Failed to connect to db")
+            except Exception as ex:
+                self.log.error("Failed to connect to db")
+                self.log.error("Exception: {} {}".format(__file__, ex))
                 continue
 
             if not servers_out:
-                self.logger.info("===> No server found")
+                self.log.info("===> No server found")
                 continue
 
             try:
@@ -135,9 +137,10 @@ class Node_Health(threading.Thread):
                 hb_list = []
                 if 'list' in g_servers_out:
                     hb_list = g_servers_out.pop('list')
-                    self.logger.info("Server(s) found: {}".format(hb_list))
-            except Exception:
-                self.logger.warning("Failed to get list of servers")
+                    self.log.info("Server(s) found: {}".format(hb_list))
+            except Exception as ex:
+                self.log.warning("Failed to get list of servers")
+                self.log.error("Exception: {} {}".format(__file__, ex))
                 g_servers_out = None
                 hb_list = []
                 continue
@@ -159,13 +162,13 @@ class Node_Health(threading.Thread):
                     try:
                         server_name = g_servers_out[server]['server_attributes']['identity']['Hostname']
                     except Exception:
-                        self.logger.warning('Failed to get hostname of server from DB')
+                        self.log.warning('Failed to get hostname of server from DB')
                         continue
 
                     try:
                         ifaces = g_servers_out[server]['server_attributes']['network']['interfaces']
                     except Exception:
-                        self.logger.error('Failed to get interfaces of server from DB')
+                        self.log.error('Failed to get interfaces of server from DB')
                         continue
 
                     # ===> Heartbeat last update is too old on server <===
@@ -186,13 +189,14 @@ class Node_Health(threading.Thread):
                         strings_with_lease.append(key)
                 try:
                     if kv_dict:
-                        self.logger.debug("KVs updated to ETCD DB {}".format(kv_dict))
+                        self.log.debug("KVs updated to ETCD DB {}".format(kv_dict))
                         # self.db.refresh_lease(lease=tgt_node_status_lease)
                         tgt_node_status_lease.refresh()
                         self.db.put_multiple(kv_dict, strings_with_lease, tgt_node_status_lease)
-                except Exception:
-                    self.logger.exception('Failed to save target node status to DB')
+                except Exception as ex:
+                    self.log.exception('Failed to save target node status to DB')
+                    self.log.error("Exception: {} {}".format(__file__, ex))
 
     def stop(self):
-        self.logger.info("Node health check thread stopped")
+        self.log.info("Node health check thread stopped")
         pass
