@@ -13,6 +13,7 @@ import shutil
 from subprocess import Popen, PIPE
 import sys
 import time
+import socket
 
 # Non-standard libraries
 import paramiko
@@ -54,8 +55,6 @@ gl_nkv_config = """
 }
 """
 
-nkv_config_file = "../conf/nkv_config.json"
-
 gl_minio_start_sh = """
 export LD_LIBRARY_PATH="../lib"
 export MINIO_NKV_CONFIG="../conf/nkv_config.json"
@@ -78,10 +77,8 @@ ulimit -n 65535
 ulimit -c unlimited
 ./minio server --address %(IP)s:%(PORT)s """
 
-gl_minio_standalone = "/dev/nvme{%(start)s...%(end)s}n1"
-gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
-g_minio_dist = [""]
-g_minio_stand_alone = [""]
+gl_minio_standalone = "/dev/nvme%(devnum)s""n1"
+gl_minio_dist_node = "http://%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
 g_mini_ec = 0
 
 g_etc_hosts = """
@@ -255,12 +252,10 @@ def install_kernel_driver(align):
     os.chdir(cwd)
 
 
-def get_nvme_drives():
+def get_nvme_drives(cmd):
     '''
     Get nvme drive list
     '''
-    #time.sleep(2)
-    cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
     ret, out, err = exec_cmd(cmd)
     #if ret != 0:
     return out
@@ -344,7 +339,7 @@ def get_addrs(vlan_ids, hosts, ports, root_pws):
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
 
-def write_json(data, filename=nkv_config_file): 
+def write_json(data, filename):
     '''
     Write nkv_config.json configuration file
     '''
@@ -352,13 +347,9 @@ def write_json(data, filename=nkv_config_file):
         json.dump(data, f, indent=4) 
 
 
-def create_config_file():
-    '''
-    Create nkv_config.json file in conf directory
-    '''
-    print("----- Creating nkv_config.json -----")
+def get_drives_list(nvme_list_cmd):
     # Get list of drives connected to NVMf Target
-    drives_list = get_nvme_drives()
+    drives_list = get_nvme_drives(nvme_list_cmd)
     print("drive list: %s" % drives_list)
     if drives_list:
         drives_list = drives_list.split(',')
@@ -366,15 +357,26 @@ def create_config_file():
         print("Drive list is empty. Exiting.")
         sys.exit(1)
 
-    os.remove(nkv_config_file)
+    return drives_list
+
+
+def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
+    '''
+    Create nkv_config.json file in conf directory
+    '''
+    print("----- Creating %s -----" %nkv_conf_file)
+    try:
+        os.remove(nkv_conf_file)
+    except:
+        pass
 
     # Write the initial configuration skeleton in file.
-    with open(nkv_config_file, 'w') as f:
+    with open(nkv_conf_file, 'w') as f:
         f.write(gl_nkv_config)
 
     # Loop through drives and add them in local mounts.
     # This is the place to do any other variable changes of config file.
-    with open(nkv_config_file, 'r') as f:
+    with open(nkv_conf_file, 'r') as f:
         data = json.load(f)
         temp = data['nkv_local_mounts'] 
          
@@ -383,25 +385,67 @@ def create_config_file():
             y = { "mount_point": drive }
 
             temp.append(y)
-        os.remove(nkv_config_file)
-        write_json(data)
+
+        try:
+            os.remove(nkv_conf_file)
+        except:
+            pass
+
+        write_json(data, nkv_conf_file)
 
 
-def run_nkv_test_cli():
+def num(s):
+    try:
+        return int(s)
+    except ValueError:
+        return float(s)
+
+
+def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value, threads, numobjects):
     '''
     Run Sample nkv_test_cli after setting up drives"
     '''
     print("----- Running sample nkv_test_cli -----")
-    nkv_cmd = "LD_LIBRARY_PATH=../lib ./nkv_test_cli -c " + nkv_config_file + \
-            " -i msl-ssg-dl04 -p 1030 -b meta/first/testing -k 60 -v 1048576 -n 100 -t 128 -o 3"
+    nkv_cmd = "LD_LIBRARY_PATH=../lib numactl -N " + numa_num + " -m " + numa_num + " ./nkv_test_cli -c " + nkv_conf_file + \
+            " -i msl-ssg-dl04 -p 1030 -b meta/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
+            threads + " -o " + workload
+    #print(nkv_cmd)
+    result_file = "nkv_numa" + numa_num + ".out"
     ret, out, err = exec_cmd(nkv_cmd)
     if ret != 0:
         print("nkv_test_cli Failed: %s" %(err)) 
     else:
-        with open("nkv.out", 'w') as f:
+        with open(result_file, 'w') as f:
             f.write(out)
-        print("nkv_test_cli run output written to nkv.out")
-            
+        print("nkv_test_cli run output written to %s" % result_file)
+
+    nkv_test_result(result_file)
+
+
+def nkv_test_result(result_file):
+    '''
+    Parse nkv_test_cli results
+    '''
+    bw_lines = []
+    with open(result_file, 'r') as w:
+        for line in w:
+            if 'Throughput' in line:
+                bw_lines.append(line)
+
+    bw = 0.0
+    for i in bw_lines:
+        bw = bw + num(re.split(r'[=MB]', i)[2].lstrip())
+
+    with open(result_file, 'a+') as w:
+        w.write("\n------------------------------\n")
+        w.write("BW = %s GB/s\n" % round(float(bw/1000),2))
+        w.write("------------------------------")
+
+    print("------------------------------")
+    print("BW = %s GB/s" % round(float(bw/1000),2))
+    print("------------------------------")
+
+
 def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
@@ -421,19 +465,24 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     # Connect to all discovered NQNs and their IPs.
     nvme_connect(nqn_infos_dedup, disc_qpair)
 
+    cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
+    list_of_drives = get_drives_list(cmd)
     # Create nkv_config.json file
-    create_config_file()
+    create_config_file(list_of_drives)
 
 
 def config_minio_sa(node, ec):
     print("node details ec %d %s" %(ec, node))
-    ip,port,dev_start,dev_end = node
+    ip = node[0]
+    port = node[1]
+    devs = node[2:]
     
     minio_node = ""
-    minio_node += gl_minio_standalone % {"start":dev_start, "end":dev_end} +" "
+    for dev in devs:
+        minio_node += gl_minio_standalone % {"devnum":dev} + " "
     minio_startup = "minio_startup_sa" + ip + ".sh"
     #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
-    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST": 0, "IP":ip, "PORT":port}
     minio_settings += minio_node 
     with open(minio_startup, 'w') as f:
         f.write(minio_settings)
@@ -509,6 +558,14 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     return ret
 
 
+def is_ipv4(string):
+    try:
+        socket.inet_aton(string)
+        return True
+    except socket.error:
+        return False
+
+
 def config_minio_dist(node_details, ec):
     print("node details ec %d %s" %(ec, node_details))
     node_count = 0
@@ -521,7 +578,7 @@ def config_minio_dist(node_details, ec):
         while (j < len(node_details)):
             ip,port,dev_start,dev_end = node_details[j:j+4]
             node_count += 1
-            minio_dist_node += gl_minio_dist_node % {"node":node_count, "port":port, "start":dev_start, "end":dev_end} +" "
+            minio_dist_node += gl_minio_dist_node % {"node":ip, "port":port, "start":dev_start, "end":dev_end} +" "
             j += 4
         ip,port,dev_start, dev = node_details[i:i+4]
         i += 4
@@ -536,10 +593,13 @@ def config_minio_dist(node_details, ec):
         os.chmod(minio_startup, 0o755)
 
         print("Successfully created MINIO startup script %s" %(minio_startup))
-        etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
-    with open("etc_hosts", 'w') as f:
-        f.write(etc_hosts_map)
-    print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
+        if is_ipv4(ip):
+            etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
+
+    if etc_hosts_map:
+        with open("etc_hosts", 'w') as f:
+            f.write(etc_hosts_map)
+        print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
 
 def config_minio(dist, sa, ec):
     if(sa):
@@ -612,19 +672,24 @@ The most commonly used dss target commands are:
     def config_minio(self):
         parser = argparse.ArgumentParser(
             description='Generates MINIO scripts based on parameters')
-        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
+        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes. start_dev, end_dev should be integers.")
         parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
-        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes")
-        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, specify 0 for no EC", default=0)
+        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port <dev num 0> <dev num 1> ...\" for the local node. Dev numbers should be integers.")
+        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, leave as default (2) unless you know what you're doing.", default=2)
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         args = parser.parse_args(sys.argv[2:])
        
-        global g_minio_dist, g_minio_stand_alone
+        minio_dist = args.dist
+        # Validate args
+        if args.dist and args.stand_alone:
+            print("Both --dist and --stand_alone specified, please specify only one")
+            return
         if args.dist and not args.port:
-            minio_dist = args.dist 
+            print("Configuring using user-provided --dist")
         elif args.port and not args.dist:
+            print("Configuring using VLAN ID")
             if len(set(args.frontend_vlan_ids)) != len(args.frontend_vlan_ids):
                 print("Duplicate frontend vlan ID not supported")
                 return
@@ -641,15 +706,62 @@ The most commonly used dss target commands are:
         elif args.dist and args.port:
             print("Must specify either --dist or --port, but not both.")
             return
-        if args.stand_alone:
-            g_minio_stand_alone = args.stand_alone 
+        # Generate minio run scripts
         config_minio(minio_dist, args.stand_alone, args.ec)
 
     def config_driver(self):
         build_driver()
 
     def verify_nkv_cli(self):
-        run_nkv_test_cli()
+        '''
+        Run nkv_test_cli using the arguments provided.
+        Find out the drives to run by running nvme list-subsys command first.
+        '''
+        parser = argparse.ArgumentParser(
+            description='Generates nkv_config.json to run nkv_test_cli on each node')
+        parser.add_argument("-c", "--conf", type=str, help="nkv config json file name")
+        parser.add_argument("-a", "--addr", type=str, help="Provide IP octets to distinguish the drives in 'nvme list-subsys' \
+                           output (e.g., 201.0)", default="traddr")
+        parser.add_argument("-o", "--workload", type=str, help="Workload type - PUT(0), GET(1), DELETE(2)")
+        parser.add_argument("-m", "--numa", type=str, help="NUMA node to run the nkv_test_cli on")
+        parser.add_argument("-k", "--keysize", type=str, help="Key size in bytes. Should be < 255B, default=60", default="60")
+        parser.add_argument("-v", "--valsize", type=str, help="Value size in bytes. Default/Max=1048576", default="1048576")
+        parser.add_argument("-t", "--threads", type=str, help="Number of threads to run (default=128)", default="128")
+        parser.add_argument("-n", "--numobj", type=str, help="Number of objects for each thread (default=1000)", default="1000")
+        args = parser.parse_args(sys.argv[2:])
+
+        if args.conf:
+            nkv_conf_file = "../conf/" + args.conf
+        else:
+            print("No config file provided")
+            return
+
+        if args.addr:
+            addr_octet = args.addr
+        else:
+            print("No address octet provided")
+            return
+
+        if args.numa:
+            numa = args.numa
+        else:
+            print("No numa number given")
+            return
+
+        if args.workload:
+            workload = args.workload
+        else:
+            print("provide workload type")
+            return
+
+        cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
+        drive_list = get_drives_list(cmd)
+        create_config_file(drive_list, nkv_conf_file)
+
+        meta_str = socket.gethostname() + "/numa" + numa
+
+        run_nkv_test_cli(nkv_conf_file, numa, workload, meta_str, args.keysize, args.valsize, args.threads, args.numobj)
+
 
     def remove(self):
         parser = argparse.ArgumentParser(
