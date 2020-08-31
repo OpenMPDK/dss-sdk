@@ -158,6 +158,9 @@ uint64_t dfly_ustat_get_u64(ustat_struct_t *s, ustat_named_t *n);
 void dfly_ustat_set_u64(ustat_struct_t *s, ustat_named_t *n, uint64_t v);
 void dfly_ustat_set_string(ustat_struct_t *s, ustat_named_t *n, const char *str);
 
+void dfly_ustat_reset_kvio_stat(stat_kvio_t *stat);
+void dfly_qp_reset_counters(stat_rqpair_t *stats);
+
 #ifdef  __cplusplus
 }
 #endif

@@ -51,6 +51,7 @@ int dfly_counters_timestamp(void);
 int dfly_counters_increment_io_count(stat_kvio_t *stats, int opc);
 int dfly_counters_size_count(stat_kvio_t *stats, struct spdk_nvmf_request *req, int opc);
 int dfly_counters_bandwidth_cal(stat_kvio_t *stats, struct spdk_nvmf_request *req, int opc);
+void dfly_counters_reset(struct dfly_subsystem *subsystem);
 #ifdef __cplusplus
 }
 #endif

@@ -1,5 +1,17 @@
 ---
 
+- name: Get kernel
+  command: uname -r
+  changed_when: false
+  register: kernel_ver
+
+- name: Assert valid kernel version
+  assert:
+    that: kernel_ver.stdout in kernel_devel_url
+    msg: |
+      Found kernel version {{ kernel_ver.stdout }}
+      Required kernel must match {{ kernel_devel_url }}
+
 - name: Install yum dependencies
   yum:
     name:
