@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 import threading
+import time
+from subprocess import PIPE, Popen
 
 from ufm_thread import UfmThread
 from systems.ufm import ufm_constants
@@ -28,18 +30,21 @@ class UfmPoller(UfmThread):
 
     def start(self):
         self.ufmArg.log.info("Start {}".format(self.__class__.__name__))
+        self.ufmArg.lastDatabaseIsUp = False
         self.startTime = datetime.now()
         self.ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str(0))
+        self.ufmArg.db.put('/cluster/uptime_in_seconds', str(0))
 
         self.msgListner.start()
 
         self._running = True
         super(UfmPoller, self).start(threadName='UfmPoller', cb=self._poller,
-                                     cbArgs=self.ufmArg, repeatIntervalSecs=30.0)
+                                     cbArgs=self.ufmArg, repeatIntervalSecs=60.0)
 
     def stop(self):
         self.event.set()
         super(UfmPoller, self).stop()
+        self.ufmArg.db.put('/cluster/uptime_in_seconds', str(0))
         self.msgListner.stop()
         self.msgListner.join()
 
@@ -48,6 +53,15 @@ class UfmPoller(UfmThread):
 
     def is_running(self):
         return self._running
+
+    def read_system_uptime(self):
+        uptime = 0
+        with open('/proc/uptime') as f:
+            out = f.read()
+            # Convert seconds to hours
+            uptime = int(float(out.split()[0]))/3600
+
+        return uptime
 
     def read_node_capacity_in_kb(self):
         df = os.statvfs('/')
@@ -61,11 +75,75 @@ class UfmPoller(UfmThread):
             return df_struct.f_bfree * 100 / df_struct.f_blocks
         return 0
 
+    def isDatabaseUp(self):
+        cmd = "ETCDCTL_API=3 etcdctl endpoint health"
+
+        pipe = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+        out, err = pipe.communicate()
+        if out:
+            for line in out.decode('utf-8').splitlines():
+                if 'healthy' in line:
+                    return True
+
+        return False
+
+    def isDatabaseRunning(self, ufmArg):
+        databaseIsUp = self.isDatabaseUp()
+
+        if ufmArg.lastDatabaseIsUp != databaseIsUp:
+            ufmArg.lastDatabaseIsUp = databaseIsUp
+            statusKey = "/cluster/{}".format(ufmArg.hostname)
+            if databaseIsUp:
+                databaseState = 'up'
+            else:
+                databaseState = 'down'
+                # if database is down, do not try to write to it
+
+                databaseStateMsg = {'module': 'UfmPoller',
+                                    'service': 'poller',
+                                    'database_state': 'down'}
+
+                ufmArg.publisher.send(ufm_constants.UFM_DATABASE_STATE, databaseStateMsg)
+
+                return False
+
+            ufmArg.db.put(statusKey + "/status", databaseState)
+            ufmArg.db.put(statusKey + "/status_updated", str(int(time.time())))
+
+        try:
+            if not ufmArg.node_status_lease or ufmArg.node_status_lease.remaining_ttl < 0:
+                ufmArg.node_status_lease = ufmArg.db.lease(20)
+            else:
+                ufmArg.node_status_lease.refresh_lease()
+        except Exception:
+            ufmArg.log.exception('Failed to creating/renewing lease')
+
+        # Only leader and status have a lease
+        try:
+            dbStatus = ufmArg.db.status()
+
+            ufmArg.db.put("/cluster/leader", dbStatus.leader.name.lower(), lease=ufmArg.node_status_lease)
+        except Exception as ex:
+            ufmArg.log.error("Failed to update leader-name and database size: {}".format(ex))
+            return False
+
+        return True
+
     def _poller(self, ufmArg):
+        if not self.isDatabaseRunning(ufmArg):
+            ufmArg.log.error("Database is down")
+            return
+
         # Save current uptime to DB
-        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str((datetime.now() - self.startTime).seconds))
+        uptimeString = str((datetime.now() - self.startTime).seconds)
+
+        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, uptimeString)
+        ufmArg.db.put('/cluster/uptime_in_seconds', uptimeString)
 
         hostname = ufmArg.hostname
+        uptime = self.read_system_uptime()
+        ufmArg.db.put("/cluster/{}/uptime".format(hostname), str(uptime))
+
         node_capacity_Kb = self.read_node_capacity_in_kb()
         if node_capacity_Kb:
             ufmArg.db.put("/cluster/{}/total_capacity_in_kb".format(hostname), str(node_capacity_Kb))
