@@ -186,10 +186,11 @@ class Node_Health(threading.Thread):
                             kv_dict[key] = 'down'
 
                         strings_with_lease.append(key)
+
+                        self.log.info("NIC on target {} has changed to {}".format(server, kv_dict[key]))
                 try:
                     if kv_dict:
                         self.log.debug("KVs updated to ETCD DB {}".format(kv_dict))
-                        # self.db.refresh_lease(lease=tgt_node_status_lease)
                         tgt_node_status_lease.refresh()
                         self.db.put_multiple(kv_dict, strings_with_lease, tgt_node_status_lease)
                 except Exception as ex:
