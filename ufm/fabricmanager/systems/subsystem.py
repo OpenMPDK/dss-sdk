@@ -23,13 +23,13 @@ class SubSystem():
             self._running = True
 
     def stop(self):
-        if self.log:
-            self.log.info("SubSystem Stop {}".format(self.__class__.__name__))
-
         for service in iter(self.services):
             service.stop()
 
         self._running = False
+
+        if self.log:
+            self.log.info("SubSystem Stop {}".format(self.__class__.__name__))
 
     def is_running(self):
         return self._running

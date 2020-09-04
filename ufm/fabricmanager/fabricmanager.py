@@ -399,10 +399,11 @@ def serverStateChange(startup, cbArgs):
         cbArgs.isRunning = True
     elif startup is not True and cbArgs.isRunning is True:
         cbArgs.log.info('serverStateChange: Shutting down UFM')
+        stopSubSystems(cbArgs.subsystems)
         cbArgs.server.terminate()
         cbArgs.server.join()
-        stopSubSystems(cbArgs.subsystems)
         cbArgs.isRunning = False
+        cbArgs.log.info('Done shutting down all subsystems in UFM')
 
 
 def onHealthChange(ufmHealthStatus, cbArgs):
@@ -437,7 +438,8 @@ def main():
 
     log.detail('main: Setting up signal handler')
     signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
+    # signal.signal(signal.SIGQUIT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     log.detail('main: Parsing args')
     parser = argparse.ArgumentParser(
@@ -526,10 +528,14 @@ def main():
     ufm_status.start()
 
     while not ufmMainEvent.is_set():
-        time.sleep(MASTER_CHECK_INTERVAL)
+        ufmMainEvent.wait(MASTER_CHECK_INTERVAL)
 
+    log.info(" ===> send a STOP signal to UFM <===")
     ufm_status.stop()
 
+    # this sleep is here just so we can see the final
+    # log messages
+    time.sleep(MASTER_CHECK_INTERVAL)
     log.info(" ===> UFM is Stopped! <===")
 
 

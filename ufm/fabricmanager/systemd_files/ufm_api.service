@@ -1,0 +1,21 @@
+[Unit]
+Description=Fabric Manager API
+After=network.target ufm.target
+
+[Service]
+User=root
+KillMode=process
+WorkingDirectory = /usr/share/ufm
+PIDFile = /run/ufm_api/ufm_api.pid
+
+Environment="PYTHONPATH=/usr/share/ufm/:$PYTHONPATH"
+ExecStartPre = /bin/mkdir -p /run/ufm_api
+ExecStart = /usr/bin/env gunicorn --worker-tmp-dir /dev/shm -w 4 --bind 0.0.0.0:5000 --pid /run/ufm_api/ufm_api.pid fabricmanager:app
+ExecReload = /bin/kill -s HUP $MAINPID
+ExecStop = /bin/kill -s TERM $MAINPID
+ExecStopPost = /bin/rm -rf /run/ufm_api
+PrivateTmp = true
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
