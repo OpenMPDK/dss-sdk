@@ -111,10 +111,10 @@ class UfmPoller(UfmThread):
             ufmArg.db.put(statusKey + "/status_updated", str(int(time.time())))
 
         try:
-            if not ufmArg.node_status_lease or ufmArg.node_status_lease.remaining_ttl < 0:
-                ufmArg.node_status_lease = ufmArg.db.lease(20)
+            if not ufmArg.nodeStatusLease or ufmArg.nodeStatusLease.remaining_ttl < 0:
+                ufmArg.nodeStatusLease = ufmArg.db.lease(20)
             else:
-                ufmArg.node_status_lease.refresh_lease()
+                ufmArg.nodeStatusLease.refresh_lease()
         except Exception:
             ufmArg.log.exception('Failed to creating/renewing lease')
 
@@ -122,7 +122,7 @@ class UfmPoller(UfmThread):
         try:
             dbStatus = ufmArg.db.status()
 
-            ufmArg.db.put("/cluster/leader", dbStatus.leader.name.lower(), lease=ufmArg.node_status_lease)
+            ufmArg.db.put("/cluster/leader", dbStatus.leader.name.lower(), lease=ufmArg.nodeStatusLease)
         except Exception as ex:
             ufmArg.log.error("Failed to update leader-name and database size: {}".format(ex))
             return False

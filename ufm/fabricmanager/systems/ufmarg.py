@@ -8,6 +8,7 @@ class UfmArg():
         self.prefix = "/empty/"
         self.mainEvent = None
         self.publisher = None
+        self.nodeStatusLease = None
 
     def set(self, db, hostname, log, uuid, ufmMainEvent, publisher=None):
         self.db = db
