@@ -277,6 +277,6 @@ class NkvMonitor(object):
 
         self.running = False
         self.log.info("======> NkvMonitor Stopped <=========")
-
+   
     def is_running(self):
         return self.running

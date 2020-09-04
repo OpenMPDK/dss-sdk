@@ -38,6 +38,7 @@ class UfmPoller(UfmThread):
                                      cbArgs=self.ufmArg, repeatIntervalSecs=30.0)
 
     def stop(self):
+        self.event.set()
         super(UfmPoller, self).stop()
         self.msgListner.stop()
         self.msgListner.join()

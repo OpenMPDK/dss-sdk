@@ -28,13 +28,13 @@ fi
 [[ -e ${APP_PATH} ]] && rm -rf ${APP_PATH}
 [[ -e /var/log/${SERVICE} ]] && rm -rf /var/log/${SERVICE}
 
-if [[ -e /etc/systemd/system/gunicorn.service ]]
+if [[ -e /etc/systemd/system/ufm_api.service ]]
 then
-  systemctl disable gunicorn
-  systemctl stop gunicorn
+  systemctl disable ufm_api
+  systemctl stop ufm_api
   systemctl daemon-reload
 
-  rm /etc/systemd/system/gunicorn.service
+  rm /etc/systemd/system/ufm_api.service
 fi
 
 exit 0

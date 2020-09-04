@@ -39,18 +39,18 @@ fi
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
 [[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to create service file for ${SERVICE}"
-[[ ! -e ${SERVICE_PATH}/gunicorn.service ]] && die "ERR: Failed to copy gunicorn service file"
+[[ ! -e ${SERVICE_PATH}/ufm_api.service ]] && die "ERR: Failed to copy ufm_api service file"
 
 cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
-cp ${SERVICE_PATH}/gunicorn.service /etc/systemd/system/
+cp ${SERVICE_PATH}/ufm_api.service /etc/systemd/system/
 
 systemctl daemon-reload
 
-systemctl enable gunicorn
-systemctl start gunicorn
-
 systemctl enable ${SERVICE}
 systemctl start ${SERVICE}
+
+systemctl enable ufm_api
+systemctl start ufm_api
 
 exit 0
 
