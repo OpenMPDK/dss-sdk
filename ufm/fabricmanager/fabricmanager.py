@@ -400,8 +400,13 @@ def serverStateChange(startup, cbArgs):
     elif startup is not True and cbArgs.isRunning is True:
         cbArgs.log.info('serverStateChange: Shutting down UFM')
         stopSubSystems(cbArgs.subsystems)
-        cbArgs.server.terminate()
-        cbArgs.server.join()
+        pid = cbArgs.server.pid
+        cbArgs.log.info("Process ID={}".format(pid))
+        # Added kill, because flask does not have a app.stop()
+        # to stop its process
+        os.kill(pid, signal.SIGKILL)
+        # cbArgs.server.terminate()
+        # cbArgs.server.join()
         cbArgs.isRunning = False
         cbArgs.log.info('Done shutting down all subsystems in UFM')
 
@@ -440,7 +445,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     # signal.signal(signal.SIGQUIT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-
+   
     log.detail('main: Parsing args')
     parser = argparse.ArgumentParser(
         description='Process Server\'s Configuration Settings.'
@@ -529,7 +534,7 @@ def main():
 
     while not ufmMainEvent.is_set():
         ufmMainEvent.wait(MASTER_CHECK_INTERVAL)
-
+  
     log.info(" ===> send a STOP signal to UFM <===")
     ufm_status.stop()
 
