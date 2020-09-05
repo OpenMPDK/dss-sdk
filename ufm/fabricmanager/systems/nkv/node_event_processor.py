@@ -139,5 +139,3 @@ class Event_Processor(threading.Thread):
                 self.queue_tevent.clear()
 
             self.queue_tevent.wait(self.check_interval)
-
-        self.log.info("======> event process worker stopped <=========")

@@ -264,22 +264,19 @@ class NkvMonitor(object):
 
         self.thread_event.set()
 
-        self.log.info("======> Stop - 0 <=========")
         if self.node_info and self.node_info.is_alive():
             self.node_info.join()
 
-        self.log.info("======> Stop - 1 <=========")
         if self.node_health and self.node_health.is_alive():
             self.node_health.join()
             self.node_health = None
 
-        self.log.info("======> Stop - 2 <=========")
         if self.event_processer and self.event_processer.is_alive():
             self.event_processer.join()
             self.event_processer = None
 
         self.running = False
         self.log.info("======> NkvMonitor Stopped <=========")
-
+   
     def is_running(self):
         return self.running

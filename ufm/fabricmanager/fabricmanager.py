@@ -408,7 +408,6 @@ def serverStateChange(startup, cbArgs):
         # cbArgs.server.terminate()
         # cbArgs.server.join()
         cbArgs.isRunning = False
-        cbArgs.log.info('Done shutting down all subsystems in UFM')
 
 
 def onHealthChange(ufmHealthStatus, cbArgs):
@@ -442,8 +441,7 @@ def main():
     global resource_manager
 
     log.detail('main: Setting up signal handler')
-    signal.signal(signal.SIGINT, signal_handler)
-    # signal.signal(signal.SIGQUIT, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)    
     signal.signal(signal.SIGTERM, signal_handler)
    
     log.detail('main: Parsing args')
@@ -534,7 +532,7 @@ def main():
 
     while not ufmMainEvent.is_set():
         ufmMainEvent.wait(MASTER_CHECK_INTERVAL)
-  
+
     log.info(" ===> send a STOP signal to UFM <===")
     ufm_status.stop()
 
