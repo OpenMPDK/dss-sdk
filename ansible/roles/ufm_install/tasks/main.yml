@@ -59,7 +59,7 @@
     daemon_reload: yes
   loop:
     - ufm
-    - gunicorn
+    - ufm_api
   become: yes
 
 - name: Check that UFM services are running
@@ -71,7 +71,7 @@
     - ufm_etcd
     - ufm
     - ufm_msg_broker.service
-    - gunicorn
+    - ufm_api
 
 - name: Delete RPM/DEB files from Fabric Mananger Hosts
   file:
