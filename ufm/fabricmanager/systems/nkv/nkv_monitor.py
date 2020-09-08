@@ -9,7 +9,6 @@ from netifaces import interfaces, ifaddresses, AF_INET
 from common.events import event_constants
 from common.events.event_notification import EventNotification
 
-from systems.nkv.node_info import Node_Info
 from systems.nkv.node_health import Node_Health
 from systems.nkv.node_event_processor import Event_Processor
 
@@ -218,13 +217,6 @@ class NkvMonitor(object):
             self.log.error("Error in getting the node IP address. Exiting")
             sys.exit(-1)
 
-        self.node_info = Node_Info(stopper_event=self.thread_event,
-                                   db=self.db,
-                                   hostname=self.hostname,
-                                   check_interval=UPDATE_NODE_INFO_INTERVAL,
-                                   log=self.log)
-        self.node_info.start()
-
         self.node_health = Node_Health(stopper_event=self.thread_event,
                                        db=self.db,
                                        hostname=self.hostname,
@@ -263,9 +255,6 @@ class NkvMonitor(object):
                 self.db.cancel_watch(self.watch_id)
 
         self.thread_event.set()
-
-        if self.node_info and self.node_info.is_alive():
-            self.node_info.join()
 
         if self.node_health and self.node_health.is_alive():
             self.node_health.join()

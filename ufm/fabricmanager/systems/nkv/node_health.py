@@ -17,7 +17,6 @@ class Node_Health(threading.Thread):
         self.log.info("Init {}".format(self.__class__.__name__))
 
         self.tgt_node_key = '/object_storage/servers/{uuid}/node_status'
-
         self.tgt_interface_key = '/object_storage/servers/{uuid}/server_attributes' \
                                  '/network/interfaces/{if_name}/Status'
 
@@ -137,7 +136,7 @@ class Node_Health(threading.Thread):
                 hb_list = []
                 if 'list' in g_servers_out:
                     hb_list = g_servers_out.pop('list')
-                    self.log.info("Server(s) found: {}".format(hb_list))
+                    # self.log.info("Server(s) found: {}".format(hb_list))
             except Exception as ex:
                 self.log.warning("Failed to get list of servers")
                 self.log.error("Exception: {} {}".format(__file__, ex))
@@ -187,10 +186,11 @@ class Node_Health(threading.Thread):
                             kv_dict[key] = 'down'
 
                         strings_with_lease.append(key)
+
+                        self.log.info("NIC on target {} has changed to {}".format(server, kv_dict[key]))
                 try:
                     if kv_dict:
                         self.log.debug("KVs updated to ETCD DB {}".format(kv_dict))
-                        # self.db.refresh_lease(lease=tgt_node_status_lease)
                         tgt_node_status_lease.refresh()
                         self.db.put_multiple(kv_dict, strings_with_lease, tgt_node_status_lease)
                 except Exception as ex:
