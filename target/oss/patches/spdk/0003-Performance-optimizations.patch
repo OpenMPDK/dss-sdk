@@ -1,17 +1,23 @@
-From 3411402157790ac7d8cb7ac8f5fd8225b8e07cd5 Mon Sep 17 00:00:00 2001
+From 2f9a44c09450a97b7f71531b6981af3f7551cbf9 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 25 Aug 2020 20:07:54 -0700
-Subject: [PATCH 3/3] NUMA memory allocation optimization
+Subject: [PATCH 3/3] Performance optimizations
 
+    * NUMA memory allocation optimization
+    * Allocate buffers for put from connection specific numa node
+    * Allocate buffers for get from device specific numa node
+    * Pre-allocate buffers for Put/Get for each poller
+    * Default buffers allocated per poller is 32
+    * TCP - Update response length to object length
 ---
- include/spdk/nvmf_transport.h |   1 +
- lib/nvmf/rdma.c               |   1 +
- lib/nvmf/tcp.c                |   1 +
- lib/nvmf/transport.c          | 193 +++++++++++++++++++++++++++++++++++++-----
- 4 files changed, 176 insertions(+), 20 deletions(-)
+ include/spdk/nvmf_transport.h |   4 +
+ lib/nvmf/rdma.c               |  45 +++++++
+ lib/nvmf/tcp.c                |  30 +++++
+ lib/nvmf/transport.c          | 302 +++++++++++++++++++++++++++++++++++++++---
+ 4 files changed, 361 insertions(+), 20 deletions(-)
 
 diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
-index 1305d47..113afdc 100644
+index 1305d47..e2d2f86 100644
 --- a/include/spdk/nvmf_transport.h
 +++ b/include/spdk/nvmf_transport.h
 @@ -100,6 +100,7 @@ struct spdk_nvmf_request {
@@ -22,11 +28,70 @@ index 1305d47..113afdc 100644
  //END - SPDK_CONFIG_DSS_TARGET
  
  	STAILQ_ENTRY(spdk_nvmf_request)	buf_link;
+@@ -150,6 +151,9 @@ struct spdk_nvmf_transport_poll_group {
+ 	uint32_t							buf_cache_count;
+ 	uint32_t							buf_cache_size;
+ 	struct spdk_nvmf_poll_group					*group;
++	//SPDK_CONFIG_DSS_TARGET
++	uint32_t	core_id;
++	//END - SPDK_CONFIG_DSS_TARGET
+ 	TAILQ_ENTRY(spdk_nvmf_transport_poll_group)			link;
+ };
+ 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 226d5da..6590a19 100644
+index 226d5da..bab5b17 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
-@@ -2211,6 +2211,7 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+@@ -695,6 +695,9 @@ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+ 	//TODO: only for subsytem with oss_target _enabled
+ 
+ 	if(rqpair->qpair.dqpair) {
++		if(rqpair->qpair.qid != 0) {
++			dfly_put_core(rqpair->qpair.dqpair->listen_addr, spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
++		}
+ 		dfly_qpair_destroy(rqpair->qpair.dqpair);
+ 	}
+ 
+@@ -726,6 +729,38 @@ static inline void dfly_poller_rdma_qos_sched(struct spdk_nvmf_rdma_transport *r
+ 	}
+ }
+ 
++static struct spdk_nvmf_transport_poll_group *
++dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
++{
++	struct spdk_nvmf_rdma_transport *rtransport;
++    struct spdk_nvme_transport_id trid;
++    int ret;
++    uint32_t core = 0;
++	struct spdk_nvmf_rdma_poll_group *pg;
++
++	rtransport = SPDK_CONTAINEROF(qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++
++    ret = spdk_nvmf_qpair_get_local_trid(qpair, &trid);
++    if (ret) {
++        SPDK_ERRLOG("Invalid host transport Id.\n");
++		return NULL;
++    } else {
++        struct spdk_nvme_transport_id peer_trid;
++        spdk_nvmf_qpair_get_peer_trid(qpair, &peer_trid);
++        core = dfly_get_next_core(trid.traddr, 4, peer_trid.traddr);
++    }
++
++	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
++		if(pg->group.core_id == core) {
++			break;
++		}
++	}
++
++	assert(pg);
++
++	return pg;
++}
++
+ //END - transport specific OSS qpair functions
+ static int
+ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nvmf_rdma_device *device, struct spdk_nvmf_rdma_request *rdma_req)
+@@ -2211,6 +2246,7 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
  	rdma_req->rsp.wr.next = NULL;
  	rdma_req->data.wr.next = NULL;
  	rdma_req->key.wr.next = NULL;
@@ -34,11 +99,59 @@ index 226d5da..6590a19 100644
  	memset(&rdma_req->req.dif, 0, sizeof(rdma_req->req.dif));
  	rqpair->qd--;
  
+@@ -3762,6 +3798,15 @@ nvmf_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
+ 	if (qpair->qid == 0) {
+ 		pg = &rtransport->conn_sched.next_admin_pg;
+ 	} else {
++		//SPDK_CONFIG_OSS_TARGET
++		if(g_dragonfly->target_pool_enabled) {
++			struct spdk_nvmf_rdma_poll_group *optimal_pg;
++			optimal_pg = dfly_rdma_get_optimal_poll_group(qpair);
++			if(optimal_pg) {
++				return &optimal_pg->group;
++			}
++		}
++		//END - SPDK_CONFIG_OSS_TARGET
+ 		pg = &rtransport->conn_sched.next_io_pg;
+ 	}
+ 
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index 99a2f71..4526cb5 100644
+index 99a2f71..b7926e4 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
-@@ -606,6 +606,7 @@ nvmf_tcp_request_free(struct spdk_nvmf_tcp_req *tcp_req)
+@@ -284,6 +284,31 @@ static bool nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+ //SPDK_CONFIG_OSS_TARGET
+ //transport specific OSS qpair functions
+ 
++static inline void dfly_update_result_data_len(struct spdk_nvmf_tcp_req * tcp_req)
++{
++
++    struct spdk_nvmf_tcp_qpair   *tqpair;
++    struct spdk_nvme_cpl        *rsp;
++
++    tqpair = SPDK_CONTAINEROF(tcp_req->req.qpair, struct spdk_nvmf_tcp_qpair, qpair);
++    rsp = &tcp_req->req.rsp->nvme_cpl;
++
++    if(df_qpair_susbsys_enabled(&tqpair->qpair, NULL)) {
++        return;
++    }
++
++    switch(tcp_req->req.cmd->nvme_cmd.opc) {
++        case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
++            if(rsp->cdw0 < tcp_req->req.length) {
++                tcp_req->req.length = rsp->cdw0;
++			}
++			break;
++		default:
++			break;
++	}
++	return;
++}
++
+ //TODO :: FIX:://Optimization ofr retrieve completion with cdw0
+ //static inline void dfly_update_iov_count(struct spdk_nvmf_tcp_req * tcp_req, uint32_t *iov_cnt)
+ //{
+@@ -606,6 +631,7 @@ nvmf_tcp_request_free(struct spdk_nvmf_tcp_req *tcp_req)
  	SPDK_DEBUGLOG(SPDK_LOG_NVMF_TCP, "tcp_req=%p will be freed\n", tcp_req);
  	ttransport = SPDK_CONTAINEROF(tcp_req->req.qpair->transport,
  				      struct spdk_nvmf_tcp_transport, transport);
@@ -46,21 +159,47 @@ index 99a2f71..4526cb5 100644
  	nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_COMPLETED);
  	nvmf_tcp_req_process(ttransport, tcp_req);
  }
+@@ -2266,6 +2292,10 @@ nvmf_tcp_send_c2h_data(struct spdk_nvmf_tcp_qpair *tqpair,
+ 		c2h_data->common.flags |= SPDK_NVME_TCP_CH_FLAGS_HDGSTF;
+ 	}
+ 
++	//SPDK_CONFIG_OSS_TARGET
++	dfly_update_result_data_len(tcp_req);
++	//END - SPDK_CONFIG_OSS_TARGET
++
+ 	/* set the psh */
+ 	c2h_data->cccid = tcp_req->req.cmd->nvme_cmd.cid;
+ 	c2h_data->datal = tcp_req->req.length;
 diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
-index 11bb152..5674c96 100644
+index 11bb152..ae5f090 100644
 --- a/lib/nvmf/transport.c
 +++ b/lib/nvmf/transport.c
-@@ -45,6 +45,90 @@
+@@ -45,6 +45,192 @@
  
  #define MAX_MEMPOOL_NAME_LENGTH 40
  
 +//SPDK_CONFIG_OSS_TARGET
 +#include "dragonfly.h"
 +
++struct dss_get_buf_s {
++	uint32_t numa_node;
++	int32_t buff_count;
++	STAILQ_HEAD(, spdk_nvmf_transport_pg_cache_buf)			buf_cache;
++	STAILQ_ENTRY(dss_get_buf_s) link;
++};
++
++struct dss_buf_head_s {
++	STAILQ_HEAD(, dss_get_buf_s) buf_head;
++};
++
 +struct dss_numa_mempool_s {
 +	uint32_t socket_count;
++	uint32_t max_cores;
++	uint32_t max_buff_count;
++	struct dss_buf_head_s *get_bufs;
 +	struct spdk_mempool *data_pool[0];
 +};
++
 +
 +struct dss_numa_mempool_s * dss_create_numa_mempool(const char *transport_name, struct spdk_nvmf_transport_opts *opts)
 +{
@@ -69,8 +208,10 @@ index 11bb152..5674c96 100644
 +	int chars_written, i;
 +
 +    uint32_t socket_count = rte_socket_count();
++	uint32_t max_cores = spdk_env_get_last_core();
++
 +    SPDK_NOTICELOG("Found %u sockets to initialize %s data pool\n", socket_count, transport_name);
-+    numa_mempool = calloc(1, sizeof(struct dss_numa_mempool_s) + (socket_count * sizeof(struct spdk_mempool *)));
++    numa_mempool = calloc(1, sizeof(struct dss_numa_mempool_s) + (socket_count * sizeof(struct spdk_mempool *) + (max_cores * sizeof(struct dss_buf_head_s))));
 +
 +	if(!numa_mempool) {
 +		SPDK_ERRLOG("Unable to allocate dss mempool\n");
@@ -78,6 +219,13 @@ index 11bb152..5674c96 100644
 +	}
 +
 +	numa_mempool->socket_count = socket_count;
++	numa_mempool->max_cores = max_cores;
++	numa_mempool->get_bufs = (struct dss_buf_head_s *)&numa_mempool->data_pool[socket_count];
++	numa_mempool->max_buff_count = 32;
++
++	for(i=0; i < max_cores; i++) {
++		STAILQ_INIT(&numa_mempool->get_bufs[i].buf_head);
++	}
 +
 +	for(i=0; i < socket_count; i++) {
 +		chars_written = snprintf(spdk_mempool_name, MAX_MEMPOOL_NAME_LENGTH, "%s_%s_%s%u_%s", "spdk_nvmf",
@@ -109,6 +257,24 @@ index 11bb152..5674c96 100644
 +void dss_numa_mempool_free(struct dss_numa_mempool_s *mp)
 +{
 +	int i;
++	struct dss_get_buf_s *get_buf, *tmp;
++	struct spdk_nvmf_transport_pg_cache_buf *buf, *tmp_buf;
++
++	for(i=0; i<mp->max_cores;i++) {
++		STAILQ_FOREACH_SAFE(get_buf, &mp->get_bufs[i].buf_head, link, tmp) {
++			STAILQ_REMOVE(&mp->get_bufs[i].buf_head, get_buf, dss_get_buf_s, link);
++			STAILQ_FOREACH_SAFE(buf, &get_buf->buf_cache, link, tmp_buf) {
++				STAILQ_REMOVE(&get_buf->buf_cache, buf, spdk_nvmf_transport_pg_cache_buf, link);
++				spdk_mempool_put(mp->data_pool[get_buf->numa_node], buf);
++			}
++			SPDK_NOTICELOG("De-Allocated get buffer for node %u on core %u\n", get_buf->numa_node, i);
++			memset(get_buf, 0, sizeof(struct dss_get_buf_s));
++			free(get_buf);
++		}
++	}
++
++	//TODO: verify count
++
 +	for(i=0; i<mp->socket_count;i++) {
 +		spdk_mempool_free(mp->data_pool[i]);
 +	}
@@ -116,14 +282,41 @@ index 11bb152..5674c96 100644
 +
 +int dss_numa_mempool_get(struct dss_numa_mempool_s *mp, uint32_t node, int count, void **buffers)
 +{
++	struct dss_get_buf_s *get_buf, *tmp;
++	uint32_t core_idx = spdk_env_get_current_core();
++	uint32_t curr_numa =spdk_env_get_socket_id(spdk_env_get_current_core());
++	int i = 0;
++
 +	assert(count > 0);
 +	assert(node < mp->socket_count);
 +
++	if(curr_numa != node) {
++		STAILQ_FOREACH_SAFE(get_buf, &mp->get_bufs[core_idx].buf_head, link, tmp) {
++			if(get_buf->numa_node == node) {
++				break;
++			}
++		}
++		if(get_buf) {
++			while(count && !(STAILQ_EMPTY(&get_buf->buf_cache))) {
++				assert(get_buf->buff_count > 0);
++				buffers[i] = STAILQ_FIRST(&get_buf->buf_cache);
++				assert(buffers[i]);
++				STAILQ_REMOVE_HEAD(&get_buf->buf_cache, link);
++				get_buf->buff_count--;
++				//SPDK_NOTICELOG("Buff count on node %u on core %u is %d\n", node, core_idx, get_buf->buff_count);
++			    count--;
++			}
++			if(count == 0) {
++				return 0;
++			}
++		}
++	}
++
 +	if(count == 1) {
-+		*buffers = spdk_mempool_get(mp->data_pool[node]);
-+		if(!*buffers) return -ENOMEM;
++		buffers[i] = spdk_mempool_get(mp->data_pool[node]);
++		if(!buffers[i]) return -ENOMEM;
 +	} else {
-+		if(spdk_mempool_get_bulk(mp->data_pool[node], buffers, count)) {
++		if(spdk_mempool_get_bulk(mp->data_pool[node], &buffers[i], count)) {
 +			return -ENOMEM;
 +		}
 +	}
@@ -132,7 +325,40 @@ index 11bb152..5674c96 100644
 +
 +void dss_numa_mempool_put(struct dss_numa_mempool_s *mp, uint32_t node, void *buf)
 +{
++	struct dss_get_buf_s *get_buf, *tmp;
++	uint32_t core_idx = spdk_env_get_current_core();
++	uint32_t curr_numa =spdk_env_get_socket_id(spdk_env_get_current_core());
 +	assert(node < mp->socket_count);
++
++	if(curr_numa != node) {
++		STAILQ_FOREACH_SAFE(get_buf, &mp->get_bufs[core_idx].buf_head, link, tmp) {
++			if(get_buf->numa_node == node) {
++				break;
++			}
++		}
++		if(!get_buf) {
++			//allocate and initialized
++			get_buf = calloc(1, sizeof(struct dss_get_buf_s));
++			//on failure goto buff_alloc_failed;
++			assert(get_buf);
++			if(get_buf) {
++				STAILQ_INIT(&get_buf->buf_cache);
++				get_buf->buff_count = 0;
++				get_buf->numa_node = node;
++				SPDK_NOTICELOG("Allocated get buffer for node %u on core %u\n", node, core_idx);
++				STAILQ_INSERT_HEAD(&mp->get_bufs[core_idx].buf_head, get_buf, link);
++			}
++		}
++		if(get_buf && get_buf->buff_count < mp->max_buff_count) {
++			STAILQ_INSERT_HEAD(&get_buf->buf_cache, (struct spdk_nvmf_transport_pg_cache_buf *)buf, link);
++			get_buf->buff_count++;
++			//SPDK_NOTICELOG("Buff count on node %u on core %u is %d\n", node, core_idx, get_buf->buff_count);
++			return;
++		} else {
++			assert(get_buf);
++		}
++	}
++
 +	spdk_mempool_put(mp->data_pool[node], buf);
 +}
 +
@@ -141,7 +367,7 @@ index 11bb152..5674c96 100644
  struct nvmf_transport_ops_list_element {
  	struct spdk_nvmf_transport_ops			ops;
  	TAILQ_ENTRY(nvmf_transport_ops_list_element)	link;
-@@ -136,24 +220,37 @@ spdk_nvmf_transport_create(const char *transport_name, struct spdk_nvmf_transpor
+@@ -136,24 +322,37 @@ spdk_nvmf_transport_create(const char *transport_name, struct spdk_nvmf_transpor
  
  	transport->ops = ops;
  	transport->opts = *opts;
@@ -195,7 +421,7 @@ index 11bb152..5674c96 100644
  	}
  
  	return transport;
-@@ -174,6 +271,9 @@ spdk_nvmf_transport_get_next(struct spdk_nvmf_transport *transport)
+@@ -174,6 +373,9 @@ spdk_nvmf_transport_get_next(struct spdk_nvmf_transport *transport)
  int
  spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport)
  {
@@ -205,7 +431,7 @@ index 11bb152..5674c96 100644
  	if (transport->data_buf_pool != NULL) {
  		if (spdk_mempool_count(transport->data_buf_pool) !=
  		    transport->opts.num_shared_buffers) {
-@@ -183,6 +283,11 @@ spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport)
+@@ -183,6 +385,11 @@ spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport)
  		}
  	}
  
@@ -217,19 +443,30 @@ index 11bb152..5674c96 100644
  	spdk_mempool_free(transport->data_buf_pool);
  
  	return transport->ops->destroy(transport);
-@@ -287,6 +392,11 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport)
+@@ -283,10 +490,22 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport)
+ 	STAILQ_INIT(&group->pending_buf_queue);
+ 	STAILQ_INIT(&group->buf_cache);
+ 
++	//SPDK_CONFIG_OSS_TARGET
++	if(g_dragonfly->target_pool_enabled) {
++		group->core_id = spdk_env_get_current_core();
++	} else {
++		group->core_id = -1;
++	}
++	//END - SPDK_CONFIG_OSS_TARGET
+ 	if (transport->opts.buf_cache_size) {
  		group->buf_cache_count = 0;
  		group->buf_cache_size = transport->opts.buf_cache_size;
  		while (group->buf_cache_count < group->buf_cache_size) {
 +			//SPDK_CONFIG_OSS_TARGET
 +			if(g_dragonfly->target_pool_enabled) {
-+				dss_numa_mempool_get(transport->data_buf_pool, spdk_env_get_socket_id(spdk_env_get_current_core()), 1, &buf);
++				dss_numa_mempool_get(transport->data_buf_pool, spdk_env_get_socket_id(group->core_id), 1, &buf);
 +			} else
 +			//END - SPDK_CONFIG_OSS_TARGET
  			buf = (struct spdk_nvmf_transport_pg_cache_buf *)spdk_mempool_get(transport->data_buf_pool);
  			if (!buf) {
  				SPDK_NOTICELOG("Unable to reserve the full number of buffers for the pg buffer cache.\n");
-@@ -321,6 +431,11 @@ nvmf_transport_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
+@@ -321,6 +540,11 @@ nvmf_transport_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
  
  	STAILQ_FOREACH_SAFE(buf, &group->buf_cache, link, tmp) {
  		STAILQ_REMOVE(&group->buf_cache, buf, spdk_nvmf_transport_pg_cache_buf, link);
@@ -241,7 +478,7 @@ index 11bb152..5674c96 100644
  		spdk_mempool_put(group->transport->data_buf_pool, buf);
  	}
  	group->transport->ops->poll_group_destroy(group);
-@@ -452,13 +567,31 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
+@@ -452,13 +676,31 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
  {
  	uint32_t i;
  
@@ -274,7 +511,7 @@ index 11bb152..5674c96 100644
  			spdk_mempool_put(transport->data_buf_pool, req->buffers[i]);
  		}
  		req->iov[i].iov_base = NULL;
-@@ -492,6 +625,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+@@ -492,6 +734,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
  	uint32_t num_buffers;
  	uint32_t i = 0, j;
  	void *buffer, *buffers[NVMF_REQ_MAX_BUFFERS];
@@ -282,7 +519,7 @@ index 11bb152..5674c96 100644
  
  	/* If the number of buffers is too large, then we know the I/O is larger than allowed.
  	 *  Fail it.
-@@ -502,7 +636,10 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+@@ -502,7 +745,10 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
  	}
  
  	while (i < num_buffers) {
@@ -294,7 +531,7 @@ index 11bb152..5674c96 100644
  			group->buf_cache_count--;
  			buffer = STAILQ_FIRST(&group->buf_cache);
  			STAILQ_REMOVE_HEAD(&group->buf_cache, link);
-@@ -511,8 +648,24 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+@@ -511,8 +757,24 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
  			length = nvmf_request_set_buffer(req, buffer, length, io_unit_size);
  			i++;
  		} else {
