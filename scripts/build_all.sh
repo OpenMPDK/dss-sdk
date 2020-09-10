@@ -10,7 +10,7 @@ script_dir=$(readlink -f "$(dirname "$0")")
 
 pushd "${script_dir}"
     ./build_target.sh
-    ./build_nkv_agent_only.sh
+    ./build_nkv_agent.sh
 
     ./build_ufm.sh
 popd
