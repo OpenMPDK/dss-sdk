@@ -290,3 +290,11 @@ add_custom_command(
 	COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
 )
 
+ADD_CUSTOM_TARGET(rocksdb
+  COMMENT "Building rocksdb async"
+  WORKING_DIRECTORY oss/rocksdb
+  COMMAND make clean SPDK_DIR=../spdk_tcp
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
+  DEPENDS spdk_tcp
+)
+

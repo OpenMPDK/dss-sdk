@@ -145,12 +145,33 @@ then -/var/log/dragonfly/dfly.log
 LAB_DFLY_CONF
 }
 
+parse_options()
+{
+	for i in "$@"
+	do
+	case $i in
+		--rocksdb)
+		BUILD_ROCKSDB=true
+		shift # past argument=value
+		;;
+		-v=*|--version=*)
+		TARGET_VER="${i#*=}"
+		shift # past argument=value
+		;;
+		*)
+			  # unknown option
+		;;
+	esac
+	done
+}
 ####################### main #######################################
-if [ "$#" -ne 1 ]; then
-    TARGET_VER="0.5.0"
-else
-    TARGET_VER="$1"
-fi
+
+BUILD_ROCKSDB=false
+TARGET_VER="0.5.0"
+
+parse_options $@
+echo "Build rockdb: $BUILD_ROCKSDB"
+echo "Target Version: $TARGET_VER"
 
 [[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
 
@@ -175,7 +196,11 @@ pushd "${build_dir}"
     popd
 
     cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
-    make spdk_tcp
+	if $BUILD_ROCKSDB;then
+		make rocksdb
+	else
+		make spdk_tcp
+	fi
 
     makePackageDirectories "${rpm_build_dir}"
 
