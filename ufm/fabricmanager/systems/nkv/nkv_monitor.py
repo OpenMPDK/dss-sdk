@@ -95,6 +95,7 @@ def process_event(db, log, hostname, event_q, servers_out, event):
     t_event = dict()
     status = format_event(event=t_event,
                           db=db,
+                          log=log,
                           clustername=clustername,
                           servers_out=servers_out,
                           key=event.key,
@@ -266,6 +267,6 @@ class NkvMonitor(object):
 
         self.running = False
         self.log.info("======> NkvMonitor Stopped <=========")
-   
+
     def is_running(self):
         return self.running
