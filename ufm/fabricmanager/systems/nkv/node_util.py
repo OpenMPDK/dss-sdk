@@ -167,7 +167,7 @@ def format_event(event, db, log, clustername, servers_out, key, val=None):
                     if val == b'down':
                         state = 'NETWORK_DOWN'
 
-                    log.info("Network state changed. {} state={}".format(ipv4_address, state))
+                    log.info("Network state has changed. {} state={}".format(ipv4_address, state))
 
             event['node'] = node_name
             event['args'] = {'net_interface': mac,
