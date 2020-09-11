@@ -90,7 +90,7 @@ def get_node_name_from_uuid(db, servers_out, node_uuid):
     return node_name
 
 
-def format_event(event, db, clustername, servers_out, key, val=None):
+def format_event(event, db, log, clustername, servers_out, key, val=None):
     key_list = key.decode().split('/')
 
     if 'cluster' in key_list:
@@ -166,6 +166,8 @@ def format_event(event, db, clustername, servers_out, key, val=None):
 
                     if val == b'down':
                         state = 'NETWORK_DOWN'
+
+                    log.info("Network state has changed. {} state={}".format(ipv4_address, state))
 
             event['node'] = node_name
             event['args'] = {'net_interface': mac,
