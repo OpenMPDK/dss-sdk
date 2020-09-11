@@ -5562,6 +5562,7 @@ configure_file(../../oss/spdk_tcp/lib/rdma/spdk_rdma.map ../../oss/spdk_tcp/lib/
 configure_file(../../oss/spdk_tcp/lib/reduce/Makefile ../../oss/spdk_tcp/lib/reduce/Makefile COPYONLY)
 configure_file(../../oss/spdk_tcp/lib/reduce/reduce.c ../../oss/spdk_tcp/lib/reduce/reduce.c COPYONLY)
 configure_file(../../oss/spdk_tcp/lib/reduce/spdk_reduce.map ../../oss/spdk_tcp/lib/reduce/spdk_reduce.map COPYONLY)
+configure_file(../../oss/spdk_tcp/lib/rocksdb/blobfs.2.h ../../oss/spdk_tcp/lib/rocksdb/blobfs.2.h COPYONLY)
 configure_file(../../oss/spdk_tcp/lib/rocksdb/env_spdk.cc ../../oss/spdk_tcp/lib/rocksdb/env_spdk.cc COPYONLY)
 configure_file(../../oss/spdk_tcp/lib/rocksdb/spdk.rocksdb.mk ../../oss/spdk_tcp/lib/rocksdb/spdk.rocksdb.mk COPYONLY)
 configure_file(../../oss/spdk_tcp/lib/rpc/Makefile ../../oss/spdk_tcp/lib/rpc/Makefile COPYONLY)
