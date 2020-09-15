@@ -1,8 +1,8 @@
-
+from rest_api.redfish import redfish_constants
 from common.ufmdb import ufmdb
 
-class ufmdb_util():
 
+class ufmdb_util():
     # Given a prefix, return a dict of full key and value pairs
     @classmethod
     def query_prefix(self, qstring):
@@ -10,13 +10,13 @@ class ufmdb_util():
 
         kv_dict = dict()
         query = db.get_prefix(qstring)
-        if query == None:
+        if query is None:
             query = db.get_prefix(qstring)
-            if query == None:
+            if query is None:
                 return dict()
 
         for value, metadata in query:
-            kv_dict.update({metadata.key.decode('utf-8'):value.decode('utf-8')})
+            kv_dict.update({metadata.key.decode('utf-8'): value.decode('utf-8')})
 
         return(kv_dict)
 
@@ -32,7 +32,6 @@ class ufmdb_util():
         else:
             return False
 
-
     @classmethod
     def is_valid_fabric(self, fab_id):
         return True
@@ -44,8 +43,6 @@ class ufmdb_util():
             return True
         else:
             return False
-
-
 
     @classmethod
     def is_valid_switch(self, sw_id):
@@ -59,7 +56,6 @@ class ufmdb_util():
         else:
             return False
 
-
     @classmethod
     def get_mq_port(self, sw_uuid):
         pre = '/switches/' + sw_uuid + '/switch_attributes/mq_port/'
@@ -71,12 +67,8 @@ class ufmdb_util():
 
         return mq_port
 
-
     @classmethod
     def convert_ranges_to_list(self, ranges_str):
         ranges = [(lambda l: range(l[0], l[-1]+1))(list(map(int, r.split('-')))) for r in ranges_str.split(',')]
         ret_list = [y for x in ranges for y in x]
         return ret_list
-
-
-

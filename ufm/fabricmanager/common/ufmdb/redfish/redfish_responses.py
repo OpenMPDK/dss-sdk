@@ -1,8 +1,7 @@
 # redfish_responses.py
 
 redfish_responses = {
-    '1':
-    {
+    '1': {
         "@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",
         "@odata.type": "#ServiceRoot.v1_0_0.ServiceRoot",
         "@odata.id": "/redfish/v1",
@@ -21,18 +20,16 @@ redfish_responses = {
             "@odata.id": "/redfish/v1/JSONSchemas"
         },
         "Systems": {
-            "@odata.id":"/redfish/v1/Systems"
+            "@odata.id": "/redfish/v1/Systems"
         },
         "Managers": {
-            "@odata.id":"/redfish/v1/Managers"
+            "@odata.id": "/redfish/v1/Managers"
         },
         "Fabrics": {
-            "@odata.id":"/redfish/v1/Fabrics"
+            "@odata.id": "/redfish/v1/Fabrics"
         },
     },
-
-    '1.1':
-    {
+    '1.1': {
         "@odata.context": "/redfish/v1/$metadata#ComputerSystemCollection.ComputerSystemCollection",
         "@odata.type": "#ComputerSystemCollection.ComputerSystemCollection",
         "@odata.id": "",
@@ -41,15 +38,14 @@ redfish_responses = {
         "Members@odata.count": 0,
         "Name": "System Collection"
     },
-
-    '1.2':
-    {
+    '1.2': {
         "@odata.id": "/redfish/v1/JSONSchemas",
         "id": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
         "type": "object",
         "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
         "title": "Redfish Schema Extension",
-        "description": "The properties defined in this schema shall adhere to the requirements of the Redfish Specification and the semantics of the descriptions in this file.",
+        "description": "The properties defined in this schema shall adhere to the requirements " +
+                       "of the Redfish Specification and the semantics of the descriptions in this file.",
         "allOf": [
             {
                 "$ref": "http://json-schema.org/draft-04/schema"
@@ -65,11 +61,13 @@ redfish_responses = {
                 "items": {
                     "type": "boolean"
                 },
-                "description": "This property is required to be specified in the body of a POST request to create the resource."
+                "description": "This property is required to be specified in the body " +
+                               "of a POST request to create the resource."
             },
             "longDescription": {
                 "type": "string",
-                "description": "This attribute shall contain normative language relating to the Redfish Specification and documentation."
+                "description": "This attribute shall contain normative language relating " +
+                               "to the Redfish Specification and documentation."
             },
             "copyright": {
                 "type": "string",
@@ -77,19 +75,32 @@ redfish_responses = {
             },
             "deprecated": {
                 "type": "string",
-                "description": "The term shall be applied to a property in order to specify that the property is deprecated.  The value of the string should explain the deprecation, including new property or properties to be used. The property can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated properties are likely to be removed in a future major version of the schema."
+                "description": "The term shall be applied to a property in order to specify " +
+                               "that the property is deprecated.  The value of the string should " +
+                               "explain the deprecation, including new property or properties to be " +
+                               "used. The property can be supported in new and existing implementations, " +
+                               "but usage in new implementations is discouraged.  " +
+                               "Deprecated properties are likely to be removed in a future major version " +
+                               "of the schema."
             },
             "enumDescriptions": {
                 "type": "object",
-                "description": "This attribute shall contain informative language related to the enumeration values of the property."
+                "description": "This attribute shall contain informative language related to the " +
+                               "enumeration values of the property."
             },
             "enumLongDescriptions": {
                 "type": "object",
-                "description": "This attribute shall contain normative language relating to the enumeration values of the property."
+                "description": "This attribute shall contain normative language relating to the " +
+                               "enumeration values of the property."
             },
             "enumDeprecated": {
                 "type": "object",
-                "description": "The term shall be applied to a value in order to specify that the value is deprecated.  The value of the string should explain the deprecation, including new value to be used.  The value can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated values are likely to be removed in a future major version of the schema."
+                "description": "The term shall be applied to a value in order to specify that the " +
+                               "value is deprecated.  The value of the string should explain the " +
+                               "deprecation, including new value to be used.  The value can be supported " +
+                               "in new and existing implementations, but usage in new implementations is " +
+                               "discouraged.  Deprecated values are likely to be removed in a future major " +
+                               "version of the schema."
             },
             "units": {
                 "type": "string",
@@ -117,9 +128,7 @@ redfish_responses = {
             }
         }
     },
-
-    '1.3':
-    {
+    '1.3': {
         "@odata.context": "/redfish/v1/$metadata#ManagerCollection.ManagerCollection",
         "@odata.type": "#ManagerCollection.ManagerCollection",
         "@odata.id": "/redfish/v1/Managers",
@@ -127,14 +136,12 @@ redfish_responses = {
         "Description": "Collection of Managers",
         "Members": [
             {
-                "@odata.id":"/redfish/v1/Managers/ufm"
+                "@odata.id": "/redfish/v1/Managers/ufm"
             }
         ],
         "Members@odata.count": 1,
     },
-
-    '1.1.1':
-    {
+    '1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
         "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
         "@odata.id": "",
@@ -167,9 +174,7 @@ redfish_responses = {
             "SupplyingComputerSystems": list()
         }
     },
-
-    '1.1.2':
-    {
+    '1.1.2': {
         "@odata.context": "/redfish/v1/$metadata#ComputerSystem.ComputerSystem",
         "@odata.id": "",
         "@odata.type": "#ComputerSystem.v1_9_0.ComputerSystem",
@@ -192,9 +197,7 @@ redfish_responses = {
         "oem": dict(),
         "Links": {"ConsumingComputerSystems": list()}
     },
-
-    '1.1.2.1':
-    {
+    '1.1.2.1': {
         "@odata.context": "/redfish/v1/$metadata#StorageCollection.StorageCollection",
         "@odata.type": "#StorageCollection.StorageCollection",
         "@odata.id": "",
@@ -204,9 +207,7 @@ redfish_responses = {
         "Name": "Storage Collection",
         "oem": dict(),
     },
-
-    '1.1.2.1.1':
-    {
+    '1.1.2.1.1': {
         "@odata.context": "/redfish/v1/$metadata#Storage.Storage",
         "@odata.type": "Storage.v1_8_0.Storage",
         "@odata.id": "",
@@ -216,9 +217,7 @@ redfish_responses = {
         "Name": "Storage",
         "oem": dict()
     },
-
-    '1.1.2.1.1.1':
-    {
+    '1.1.2.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#DriveCollection.DriveCollection",
         "@odata.id": "",
         "@odata.type": "#DriveCollection.DriveCollection",
@@ -227,9 +226,7 @@ redfish_responses = {
         "Members@odata.count": 0,
         "Name": "Drive Collection"
     },
-
-    '1.1.2.1.1.1.1':
-    {
+    '1.1.2.1.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#Drive.Drive",
         "@odata.type": "Drive.v1_8_0.Drive",
         "@odata.id": "",
@@ -242,13 +239,11 @@ redfish_responses = {
         "MediaType": "",
         "Model": "",
         "Protocol": "",
-        "Revision":"",
+        "Revision": "",
         "SerialNumber": "",
         "oem": dict()
     },
-
-    '1.1.2.2':
-    {
+    '1.1.2.2': {
         "@odata.context": "/redfish/v1/$metadata#EthernetInterfaceCollection.EthernetInterfaceCollection",
         "@odata.type": "#EthernetInterfaceCollection.EthernetInterfaceCollection",
         "@odata.id": "",
@@ -257,9 +252,7 @@ redfish_responses = {
         "Members@odata.count": 0,
         "Name": "Ethernet interfaces Collection"
     },
-
-    '1.1.2.2.1':
-    {
+    '1.1.2.2.1': {
         "@odata.context": "/redfish/v1/$metadata#EthernetInterface.EthernetInterface",
         "@odata.type": "#EthernetInterface.v1_5_1.EthernetInterface",
         "@odata.id": "",
@@ -275,7 +268,8 @@ redfish_responses = {
                 "SubnetMask": "",
                 "AddressOrigin": "",
                 "Gateway": "",
-                "oem": dict({'Port':0,'SupportedProtocol':""})
+                "oem": dict({'Port': 0,
+                             'SupportedProtocol': ""})
             }
         ],
         "IPv6DefaultGateway": "",
@@ -285,13 +279,12 @@ redfish_responses = {
                 "PrefixLength": 0,
                 "AddressOrigin": "",
                 "AddressState": "",
-                "oem": dict({'Port':0,'SupportedProtocol':""})
+                "oem": dict({'Port': 0,
+                             'SupportedProtocol': ""})
             }
         ]
     },
-
-    '1.3.1':
-    {
+    '1.3.1': {
         "@odata.context": "/redfish/v1/$metadata#UFM.v1_0_0.UFM",
         "@odata.type": "##UFM.v1_0_0.UFM",
         "@odata.id": "/redfish/v1/Managers/ufm",
@@ -310,29 +303,27 @@ redfish_responses = {
                 },
             }
     },
-    '1.3.1.1':
-    {
+    '1.3.1.1': {
         "@odata.context": "/redfish/v1/$metadata#LogServiceCollection.LogServiceCollection",
         "@odata.type": "#LogServiceCollection.LogServiceCollection",
         "@odata.id": "/redfish/v1/Managers/ufm/LogServices",
-        "Name":"Log Service Collection",
-        "Description":"Collection of Log Services for UFM Manager",
+        "Name": "Log Service Collection",
+        "Description": "Collection of Log Services for UFM Manager",
         "Members": [
             {
-                "@odata.id":"/redfish/v1/Managers/ufm/LogServices/Log"
+                "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log"
             }
         ],
         "Members@odata.count": 1,
     },
-    '1.3.1.1.1':
-    {
+    '1.3.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#LogServices.v1_1_0.LogServices",
         "@odata.type": "#LogServices.v1_1_0.LogServices",
         "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log",
-        "Id":"Log",
-        "Name":"UFM Log Services",
+        "Id": "Log",
+        "Name": "UFM Log Services",
         "MaxNumberOfRecords": 1000,
-        "Oem":{},
+        "Oem": {},
         "OverWritePolicy": "WrapsWhenFull",
         "Actions": {
             "#LogService.ClearLog": {
@@ -340,7 +331,6 @@ redfish_responses = {
             },
             "#LogService.Entries": {
                 "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries",
-                #"@Redfish.ActionInfo": "/redfish/v1/Managers/ufm/LogServices/Log/EntriesActionInfo"
             },
             "#LogService.GetMask": {
                 "target": "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.GetMask",
@@ -355,9 +345,7 @@ redfish_responses = {
             },
         }
     },
-
-    '1.3.1.1.1.1':
-    {
+    '1.3.1.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#LogEntryCollection.LogEntryCollection",
         "@odata.type": "#LogEntryCollection.LogEntryCollection",
         "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/Entries",
@@ -366,56 +354,52 @@ redfish_responses = {
         "Members": [],
         "Members@odata.count": 0,
     },
-
-    '1.3.1.1.1.2':
-    {
+    '1.3.1.1.1.2': {
         "@odata.context": "/redfish/v1/$metadata#ActionInfo.v1_1_0.ActionInfo",
         "@odata.type": "#ActionInfo.v1_1_0.ActionInfo",
         "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/SetMaskActionInfo",
-        "Id":"SetMaskActionInfo",
-        "Name":"Set Mask Action Info",
+        "Id": "SetMaskActionInfo",
+        "Name": "Set Mask Action Info",
         "Parameters": [
             {
-            "Name": "ErrorMask",
-            "Required": False,
-            "DataType": "number",
-            "MinimumValue" : 0,
-            "MaximumValue" : 0xFFFFFFFF},
-            {
-            "Name": "WarningMask",
-            "Required": False,
-            "DataType": "number",
-            "MinimumValue" : 0,
-            "MaximumValue" : 0xFFFFFFFF},
-            {
-            "Name": "InfoMask",
-            "Required": False,
-            "DataType": "number",
-            "MinimumValue" : 0,
-            "MaximumValue" : 0xFFFFFFFF},
-            {
-            "Name": "DebugMask",
-            "Required": False,
-            "DataType": "number",
-            "MinimumValue" : 0,
-            "MaximumValue" : 0xFFFFFFFF},
-            {
-            "Name": "DetailMask",
-            "Required": False,
-            "DataType": "number",
-            "MinimumValue" : 0,
-            "MaximumValue" : 0xFFFFFFFF},
+                "Name": "ErrorMask",
+                "Required": False,
+                "DataType": "number",
+                "MinimumValue": 0,
+                "MaximumValue": 0xFFFFFFFF
+            }, {
+                "Name": "WarningMask",
+                "Required": False,
+                "DataType": "number",
+                "MinimumValue": 0,
+                "MaximumValue": 0xFFFFFFFF
+            }, {
+                "Name": "InfoMask",
+                "Required": False,
+                "DataType": "number",
+                "MinimumValue": 0,
+                "MaximumValue": 0xFFFFFFFF
+            }, {
+                "Name": "DebugMask",
+                "Required": False,
+                "DataType": "number",
+                "MinimumValue": 0,
+                "MaximumValue": 0xFFFFFFFF
+            }, {
+                "Name": "DetailMask",
+                "Required": False,
+                "DataType": "number",
+                "MinimumValue": 0,
+                "MaximumValue": 0xFFFFFFFF},
         ]
     },
-    '1.3.1.1.1.3':
-    {
+    '1.3.1.1.1.3': {
         "@odata.context": "/redfish/v1/$metadata#ActionInfo.v1_1_0.ActionInfo",
         "@odata.type": "#ActionInfo.v1_1_0.ActionInfo",
         "@odata.id": "/redfish/v1/Managers/ufm/LogServices/Log/GetMaskActionInfo",
-        "Id":"GetMaskActionInfo",
-        "Name":"Get Mask Action Info",
-        "Parameters": [
-            {
+        "Id": "GetMaskActionInfo",
+        "Name": "Get Mask Action Info",
+        "Parameters": [{
             "Name": "MaskType",
             "Required": True,
             "DataType": "string",
@@ -430,11 +414,7 @@ redfish_responses = {
             },
         ]
     },
-
-
-
-    '1.4':
-    {
+    '1.4': {
         "@odata.context": "/redfish/v1/$metadata#FabricCollection.FabricCollection",
         "@odata.type": "#FabricCollection.FabricCollection",
         "@odata.id": "/redfish/v1/Fabrics",
@@ -443,9 +423,7 @@ redfish_responses = {
         "Members": list(),
         "Members@odata.count": 0,
     },
-
-    '1.4.1':
-    {
+    '1.4.1': {
         "@odata.context": "/redfish/v1/$metadata#Fabric.v1_1_1.Fabric",
         "@odata.type": "##Fabric.v1_1_1.Fabric",
         "@odata.id": "",
@@ -453,18 +431,16 @@ redfish_responses = {
         "Name": "Fabric",
         "Switches": dict()
     },
-    '1.4.1.1':
-    {
+    '1.4.1.1': {
         "@odata.context": "/redfish/v1/$metadata#SwitchCollection.SwitchCollection",
         "@odata.type": "#SwitchCollection.SwitchCollection",
         "@odata.id": "",
-        "Name":"Switch Collection",
-        "Description":"Collection of Switch information",
+        "Name": "Switch Collection",
+        "Description": "Collection of Switch information",
         "Members": list(),
         "Members@odata.count": 0,
     },
-    '1.4.1.1.1':
-    {
+    '1.4.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#Switch.Switch",
         "@odata.type": "#Switch.v1_3_1.Switch",
         "@odata.id": "",
@@ -474,8 +450,7 @@ redfish_responses = {
         "Ports": dict(),
         "VLANs": dict(),
     },
-    '1.4.1.1.1.1':
-    {
+    '1.4.1.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#PortCollection.PortCollection",
         "@odata.type": "#PortCollection.PortCollection",
         "@odata.id": "",
@@ -484,8 +459,7 @@ redfish_responses = {
         "Memners": list(),
         "Memners@odata.count": 0,
     },
-    '1.4.1.1.1.1.1':
-    {
+    '1.4.1.1.1.1.1': {
         "@odata.context": "/redfish/v1/$metadata#Port.Port",
         "@odata.type": "#Port.v1_2_1.Port",
         "@odata.id": "",
@@ -493,8 +467,7 @@ redfish_responses = {
         "Name": "Port",
         "Description": "Port information",
     },
-    '1.4.1.1.1.2':
-    {
+    '1.4.1.1.1.2': {
         "@odata.context": "/redfish/v1/$metadata#VLANCollection.VLANCollection",
         "@odata.type": "#VLANCollection.VLANCollection",
         "@odata.id": "",
@@ -503,8 +476,7 @@ redfish_responses = {
         "Memners": list(),
         "Memners@odata.count": 0,
     },
-    '1.4.1.1.1.2.1':
-    {
+    '1.4.1.1.1.2.1': {
         "@odata.context": "/redfish/v1/$metadata#VLAN.VLAN",
         "@odata.type": "#VLAN.v1_1_5.VLAN",
         "@odata.id": "",
@@ -512,10 +484,4 @@ redfish_responses = {
         "Name": "VLAN",
         "Description": "VLAN information",
     },
-
 }
-
-
-
-
-
