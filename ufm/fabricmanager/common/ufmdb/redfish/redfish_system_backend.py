@@ -98,7 +98,7 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
     @staticmethod
     def get_response_base():
         return {
-            '@odata.context': redfish_constants.REST_BASE + '$metadata#ComputerSystemCollection.ComputerSystemCollection',
+            '@odata.context': redfish_constants.REST_BASE+'$metadata#ComputerSystemCollection.ComputerSystemCollection',
             '@odata.id': redfish_constants.REST_BASE + 'Systems',
             '@odata.type': '#ComputerSystemCollection.ComputerSystemCollection',
             'Description': 'Collection of Computer Systems',

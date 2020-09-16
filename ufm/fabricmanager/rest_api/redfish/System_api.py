@@ -71,7 +71,7 @@ class UfmdbSystemAPI(Resource):
             response = self.rfdb.get(path, "{}")
             # payload = request.get_json(force=True)
             # response = self.rfdb.get(path, payload)
-            self.log("="*40)
+            self.log.error("="*40)
 
         except Exception as e:
             self.log.exception(e)

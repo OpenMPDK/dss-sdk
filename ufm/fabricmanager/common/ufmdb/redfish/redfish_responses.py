@@ -1,5 +1,6 @@
 # redfish_responses.py
 
+
 redfish_responses = {
     '1': {
         "@odata.context": "/redfish/v1/$metadata#ServiceRoot.ServiceRoot",

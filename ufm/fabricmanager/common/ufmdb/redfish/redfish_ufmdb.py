@@ -10,7 +10,7 @@ from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
 from common.ufmdb.redfish.redfish_responses import redfish_responses
 from common.ufmdb.redfish.redfish_resource import storage, drive, switch
-# from common.ufmdb.redfish.redfish_resource import fabrics
+from common.ufmdb.redfish.redfish_resource import fabrics
 from common.ufmdb.redfish.redfish_resource import system, subsystem
 from common.ufmdb.redfish.redfish_resource import interface, ipv4, ipv6
 from common.ufmdb.redfish.redfish_resource import port, vlan
@@ -340,9 +340,7 @@ class RedfishUfmdb(object):
             self.log.detail('_process_database_for_fabrics: done.')
             return
 
-        # TODO Sep/2020 - The class fabrics doesn't seem to exist
-        #
-        # self.fabrics.append(fabrics())
+        self.fabrics.append(fabrics())
 
         for fabric in self.fabrics:
             for key in switches:
@@ -351,7 +349,7 @@ class RedfishUfmdb(object):
                 sw = switch(uuid=sw_uuid)
                 fabric.switches.append(sw)
 
-                ports = "/switches/"+sw_uuid+"/ports/list"
+                ports = "/switches/{}/ports/list".format(sw_uuid)
                 for port_key in ports:
                     port_list = port_key.split("/")
                     port_id = port_list[5]     # /switches/{uuid}/ports/list/{port_id}
@@ -363,7 +361,7 @@ class RedfishUfmdb(object):
                         if attr_key.find("status") != -1:
                             _port.status = port_attr[attr_key]
 
-                vlans = "/switches/" + sw_uuid + "/VLANs/list"
+                vlans = "/switches/{}/VLANs/list".format(sw_uuid)
                 for vlan_key in vlans:
                     vlan_list = vlan_key.split("/")
                     vlan_id = vlan_list[5]     # /switches/{uuid}/VLANs/list/{vlan_id}
@@ -371,7 +369,6 @@ class RedfishUfmdb(object):
                     sw.vlans.append(_vlan)
 
         self.log.detail('_process_database_for_fabrics: done.')
-
         return
 
     def _build_redfish_actions(self):
@@ -629,7 +626,7 @@ class RedfishUfmdb(object):
         self.log.detail('_build_redfish_fabrics: requested.')
 
         if len(self.fabrics) == 0:
-            self.log.detail('_build_redfish_fabrics: done.  entries=%d', len(self.redfish))
+            self.log.detail('_build_redfish_fabrics: done. entries=%d', len(self.redfish))
             return
 
         # 1.4
@@ -714,7 +711,7 @@ class RedfishUfmdb(object):
         '''
         Translates a redfish request string request to a json file response
         '''
-        self.log.detail('GET: %s', request)
+        self.log.detail("GET: {}".format(request))
 
         try:
             if self.auto_update is True:
@@ -723,15 +720,12 @@ class RedfishUfmdb(object):
             if request in self.action:
                 func = self.action[request]
                 response = func(payload)
-
             elif request in self.redfish:
                 response = self.redfish[request]
-
             else:
                 if request != "/favicon.ico":
                     self.log.error('GET: Invalid Request. %s', request)
                 response = {"Status": 404, "Message": "Not Found"}
-
             return response
         except Exception as e:
             self.log.exception(e)
