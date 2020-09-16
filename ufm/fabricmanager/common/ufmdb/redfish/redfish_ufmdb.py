@@ -10,7 +10,7 @@ from common.ufmdb.ufmdb import client
 from common.ufmlog import ufmlog
 from common.ufmdb.redfish.redfish_responses import redfish_responses
 from common.ufmdb.redfish.redfish_resource import storage, drive, switch
-from common.ufmdb.redfish.redfish_resource import fabrics
+from common.ufmdb.redfish.redfish_resource import fabric
 from common.ufmdb.redfish.redfish_resource import system, subsystem
 from common.ufmdb.redfish.redfish_resource import interface, ipv4, ipv6
 from common.ufmdb.redfish.redfish_resource import port, vlan
@@ -340,14 +340,14 @@ class RedfishUfmdb(object):
             self.log.detail('_process_database_for_fabrics: done.')
             return
 
-        self.fabrics.append(fabrics())
+        self.fabrics.append(fabric())
 
-        for fabric in self.fabrics:
+        for _fabric in self.fabrics:
             for key in switches:
                 sw_list = key.split("/")
                 sw_uuid = sw_list[3]    # /switches/list/{uuid}
                 sw = switch(uuid=sw_uuid)
-                fabric.switches.append(sw)
+                _fabric.switches.append(sw)
 
                 ports = "/switches/{}/ports/list".format(sw_uuid)
                 for port_key in ports:
@@ -369,7 +369,6 @@ class RedfishUfmdb(object):
                     sw.vlans.append(_vlan)
 
         self.log.detail('_process_database_for_fabrics: done.')
-        return
 
     def _build_redfish_actions(self):
         self.log.detail('_build_redfish_actions: requested.')
@@ -633,19 +632,19 @@ class RedfishUfmdb(object):
         response_1_4 = copy.deepcopy(redfish_responses['1.4'])
         self.redfish[response_1_4['@odata.id']] = response_1_4  # 1.4  <<<<
 
-        for fabric in self.fabrics:
-            response_1_4['Members'].append({'@odata.id': '/redfish/v1/Fabrics/' + fabric.id})
+        for _fabric in self.fabrics:
+            response_1_4['Members'].append({'@odata.id': '/redfish/v1/Fabrics/' + _fabric.id})
 
         response_1_4['Members@odata.count'] = len(response_1_4['Members'])
 
-        for fabric in self.fabrics:
+        for _fabric in self.fabrics:
             # 1.4.1
             response_1_4_1 = copy.deepcopy(redfish_responses['1.4.1'])
-            response_1_4_1['id'] = fabric.id
-            response_1_4_1['@odata.id'] = response_1_4['@odata.id']+'/'+fabric.id
+            response_1_4_1['id'] = _fabric.id
+            response_1_4_1['@odata.id'] = response_1_4['@odata.id']+'/'+_fabric.id
             self.redfish[response_1_4_1['@odata.id']] = response_1_4_1  # 1.4.1   <<<<
 
-            if len(fabric.switches) == 0:
+            if len(_fabric.switches) == 0:
                 continue
 
             response_1_4_1['Switches'] = ({'@odata.id': response_1_4_1['@odata.id'] + '/Switches'})
@@ -655,7 +654,7 @@ class RedfishUfmdb(object):
             response_1_4_1_1['@odata.id'] = response_1_4_1['@odata.id'] + '/Switches'
             self.redfish[response_1_4_1_1['@odata.id']] = response_1_4_1_1  # 1.4.1.1   <<<<
 
-            for sw in fabric.switches:
+            for sw in _fabric.switches:
                 # 1.4.1.1.1
                 response_1_4_1_1_1 = copy.deepcopy(redfish_responses['1.4.1.1.1'])
                 response_1_4_1_1_1['id'] = sw.id

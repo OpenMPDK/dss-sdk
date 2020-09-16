@@ -30,9 +30,7 @@ def redfish_get(request, parms={}):
     global g_ufm_address
 
     try:
-        print("======================== Verify this =======================")
-
-        response = requests.get(g_ufm_address + REDFISH+request,  params=parms)
+        response = requests.get(g_ufm_address + REDFISH + request, params=parms)
         if response.status_code != 200:
             print("ERROR: Redfish response code ", response.status_code)
             return None
