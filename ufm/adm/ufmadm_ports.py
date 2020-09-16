@@ -39,12 +39,10 @@ class PortsMenu(UfmMenu):
 
         switch_menu = SwitchMenu(fab=self.fab, sw=self.sw)
         self.set_menu(switch_menu)
-        return
 
     def _menu_action(self, menu, item):
         pt_menu = PortMenu(fab=self.fab, sw=self.sw, pt=item.priv)
         self.set_menu(pt_menu)
-        return
 
 
 class PortMenu(UfmMenu):
@@ -67,7 +65,6 @@ class PortMenu(UfmMenu):
         self.pt = pt
 
         self._refresh()
-        return
 
     def _refresh(self):
         self.clear_items()
@@ -251,19 +248,15 @@ class PortMenu(UfmMenu):
                           desc=bpb["description"])
             self.bpb = bpb
 
-        return
-
     def _back_action(self, menu, item):
         ports_menu = PortsMenu(fab=self.fab, sw=self.sw)
         self.set_menu(ports_menu)
-        return
 
     def _menu_action(self, menu, item):
         from ufmadm_vlans import VlanMenu
 
         vlan_menu = VlanMenu(fab=self.fab, sw=self.sw, vlan=item.priv)
         self.set_menu(vlan_menu)
-        return
 
     def _set_access_port_action(self, menu, item):
         argv = item.argv
@@ -286,7 +279,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _unassign_access_port_action(self, menu, item):
         payload = {}
@@ -302,7 +294,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _set_trunk_port_all_action(self, menu, item):
         payload = {}
@@ -318,7 +309,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _set_trunk_port_range_action(self, menu, item):
         argv = item.argv
@@ -348,7 +338,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _set_hybrid_port_access_vlan_action(self, menu, item):
         argv = item.argv
@@ -371,7 +360,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _set_hybrid_port_allowed_vlan_action(self, menu, item):
         argv = item.argv
@@ -394,7 +382,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _remove_hybrid_port_allowed_vlan_action(self, menu, item):
         argv = item.argv
@@ -417,7 +404,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _enable_port_pfc_action(self, menu, item):
         payload = {}
@@ -433,7 +419,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _disable_port_pfc_action(self, menu, item):
         payload = {}
@@ -457,7 +442,6 @@ class PortMenu(UfmMenu):
         prio = int(argv[1], 10)
         if prio is None:
             print("Priority Val Undefined, invalid or missing")
-            return
 
         payload = {}
         payload["port_id"] = self.pt
@@ -472,7 +456,6 @@ class PortMenu(UfmMenu):
             'Failed to Show Port PFC Counters')
 
         print(json.dumps(rsp, indent=4))
-        return
 
     def _show_congestion_control_action(self, menu, item):
         payload = {}
@@ -487,7 +470,6 @@ class PortMenu(UfmMenu):
             'Failed to Show port congestion control info')
 
         print(json.dumps(rsp, indent=4))
-        return
 
     def _enable_ecn_marking_action(self, menu, item):
         argv = item.argv
@@ -505,7 +487,6 @@ class PortMenu(UfmMenu):
         max_ab = int(argv[3], 10)
         if min_ab is None:
             print("Maxmum Absolute Val Undefined, invalid or missing")
-            return
 
         payload = {}
         payload["port_id"] = self.pt
@@ -525,7 +506,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _disable_ecn_marking_action(self, menu, item):
         argv = item.argv
@@ -549,7 +529,6 @@ class PortMenu(UfmMenu):
 
         if succeeded:
             self._refresh()
-        return
 
     def _show_buffer_details_action(self, menu, item):
         payload = {}
@@ -564,7 +543,6 @@ class PortMenu(UfmMenu):
             'Failed to Show port buffer details')
 
         print(json.dumps(rsp, indent=4))
-        return
 
     def _bind_port_priority_to_specific_buffer_action(self, menu, item):
         argv = item.argv
@@ -593,5 +571,3 @@ class PortMenu(UfmMenu):
             ' bind switch-priority ' + str(prio),
             'Successfully Bind Switch Priority to Specific Buffer',
             'Failed to Bind Priority to Specific Buffer')
-
-        return
