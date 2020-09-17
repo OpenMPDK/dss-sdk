@@ -41,6 +41,10 @@ int dfly_req_fini(struct dfly_request *req)
 
 	void *key_data_buf = req->key_data_buf;//Still valid after fini
 
+	if(req->dqpair) {
+		dfly_ustat_update_rqpair_stat(req->dqpair ,1);
+	}
+
 	if (req->req_fuse_data) {
 		dfly_fuse_release(req);
 	}
