@@ -94,6 +94,7 @@ typedef struct stat_kvio {
 	ustat_named_t get_256KB_1MB;
 	ustat_named_t get_1MB_2MB;
 	ustat_named_t get_large_2MB;
+	ustat_named_t pending_reqs;
 } stat_kvio_t;
 
 typedef struct stat_rqpair {
