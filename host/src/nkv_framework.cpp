@@ -62,7 +62,7 @@ int32_t nkv_listing_wait_till_cache_init  = 1;
 int32_t nkv_listing_need_cache_stat  = 1;
 int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
-int32_t path_stat_collection = 1;
+std::atomic<int32_t> path_stat_collection(1);
 int32_t path_stat_detailed = 0;
 int32_t nkv_use_read_cache = 0;
 int32_t nkv_use_data_cache = 0;
@@ -73,7 +73,6 @@ int32_t nkv_remote_listing = 0;
 uint32_t nkv_max_key_length = 0;
 uint32_t nkv_max_value_length = 0;
 int32_t nkv_in_memory_exec = 0;
-
 std::mutex mtx_global;
 
 std::atomic<uint32_t> nic_load_balance (0);
@@ -548,7 +547,7 @@ void NKVTargetPath::populate_value_cache(std::string& key_str, nkv_value* n_valu
     data_cache[shard_id].erase(data_iter);
   }
   data_cache[shard_id].insert (std::make_pair<std::string, nkv_value_wrapper*> (std::move(key_str), std::move(nkvvalue)));
-  if (path_stat_collection) {
+  if (get_path_stat_collection()) {
     nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
   }
   r = pthread_rwlock_unlock(&data_rw_lock_list[shard_id]);
@@ -620,7 +619,7 @@ void NKVTargetPath::delete_from_value_cache(std::string& key_str) {
     assert (r == 0);
   }
 
-  if (path_stat_collection && count) {
+  if (get_path_stat_collection() && count) {
     nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
   }
   if (nkvvalue)
@@ -2407,9 +2406,47 @@ uint64_t NKVTarget::load_balance_get_path(std::unordered_set<uint64_t> &visited,
   return selected_path;
 }
 
+// Initialize IO path stats for NKV devices.
+void NKVTarget::add_nkv_path_stat()
+{
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      // Device path = /dev/nvme1n1, device_name= nvme1n1
+      string device_name = ((one_path->dev_path).substr(5, (one_path->dev_path).size()));
+      unsigned num_cpus = std::thread::hardware_concurrency();
+      if (num_cpus > MAX_CPU_CORE_COUNT)
+        num_cpus = MAX_CPU_CORE_COUNT;
+      for (unsigned iter = 0; iter < num_cpus; iter++) {
+        if (nkv_init_io_stats(device_name, iter) == false){
+          smg_error(logger, "IO stat initialization is failed for device - %s , cpu - %d", (one_path->dev_path).c_str(), iter);
+        }
+        smg_debug(logger, "Initialized IO stats for device - %s, cpu - %d", (one_path->dev_path).c_str(), iter);
+      }
+    }
+  }
+}
 
-// NKV ContainerList
 
+// ustat initialization for NKV
+void NKVContainerList::initiate_nkv_ustat()
+{
+  if( nkv_ustats_init() == 0 ) {
+    smg_alert(logger, "Initialized nkv device path ustat functionality ... ");
+    for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+      NKVTarget* target_ptr = m_iter->second;
+      target_ptr->add_nkv_path_stat();
+    }
+  }
+}
+
+int32_t get_path_stat_collection() {
+  return path_stat_collection.load(std::memory_order_relaxed);
+}
+
+void set_path_stat_collection(int32_t path_stat) {
+  path_stat_collection.store(path_stat, std::memory_order_relaxed);
+}
 
 /* Function Name: update_container
  * Params       : <string> -Address of Remote Mount Path

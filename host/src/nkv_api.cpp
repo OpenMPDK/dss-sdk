@@ -39,6 +39,7 @@
 #include "unified_fabric_manager.h"
 #include "auto_discovery.h"
 #include "event_handler.h"
+#include "nkv_stats.h"
 #include <pthread.h>
 #include <sstream>
 #include <queue>
@@ -115,7 +116,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
     }
 
     if (nkv_stopping) {
-      nkv_cnt_list->collect_nkv_stat();
+      //nkv_cnt_list->collect_nkv_stat();
       smg_warn(logger, "Stopping the nkv_stat_thread, nkv_handle = %u", nkv_handle);
       nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
       break;
@@ -163,7 +164,16 @@ void nkv_thread_func (uint64_t nkv_handle) {
       int32_t nkv_dynamic_logging_old = nkv_dynamic_logging;
       nkv_dynamic_logging = pt.get<int>("nkv_enable_debugging", 0);
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 10);
-      path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
+      int32_t prev_path_stat_collection = get_path_stat_collection();
+      set_path_stat_collection(pt.get<int>("nkv_need_path_stat", 1));
+      cout<<"****** DEBUG - PREV"<<prev_path_stat_collection <<" CURRENT:"<< get_path_stat_collection() <<endl;
+      if( prev_path_stat_collection && get_path_stat_collection() == 0 ) {
+        // Reset operation 
+        nkv_ustat_reset_io_stat();
+      }
+      if( prev_path_stat_collection == 0 && get_path_stat_collection() ) {
+        smg_alert(logger, "Ustat stat collection is enabled now!");
+      }
       path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
 
       if (nkv_dynamic_logging_old != nkv_dynamic_logging) {
@@ -189,7 +199,8 @@ void nkv_thread_func (uint64_t nkv_handle) {
     } else {
       smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
     }
-    nkv_cnt_list->collect_nkv_stat();
+
+    //nkv_cnt_list->collect_nkv_stat();
     nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
     
     std::unique_lock<std::mutex> lck(mtx_global);
@@ -281,8 +292,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       }
       num_path_per_container_to_iterate = pt.get<int>("nkv_num_path_per_container_to_iterate");
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 100);
-      nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 1);
-      path_stat_collection = pt.get<int>("nkv_need_path_stat", 1);
+      nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 0);
+      set_path_stat_collection(pt.get<int>("nkv_need_path_stat", 0));
       path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
       nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
@@ -323,7 +334,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
 
     if (!nkv_is_on_local_kv) {
-      path_stat_collection = 0;
+      set_path_stat_collection(0);
     }
   }
   catch (std::exception& e) {
@@ -379,6 +390,8 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       return NKV_ERR_CONFIG;
   }
 
+
+
   if (!nkv_is_on_local_kv && nkv_cnt_list->parse_add_path_mount_point(pt))
     return NKV_ERR_CONFIG;
 
@@ -423,9 +436,14 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     smg_error(logger, "Either NKV handle or NKV instance handle generated is zero !");
     return NKV_ERR_INTERNAL; 
   }
+
   if (nkv_stat_thread_needed || nkv_event_handler) {
     smg_info(logger, "Creating stat thread for nkv, app = %s", app_uuid);
     nkv_thread = std::thread(nkv_thread_func, *nkv_handle); 
+  }
+
+  if( get_path_stat_collection()) {
+    nkv_cnt_list->initiate_nkv_ustat();
   }
 
   // Add event_handler_thread
@@ -458,7 +476,7 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
 
   smg_info(logger, "nkv_close invoked for nkv_handle = %u", nkv_handle);
   nkv_stopping = true;
-  if (nkv_stat_thread_needed) {
+  if (nkv_stat_thread_needed || nkv_event_handler) {
     cv_global.notify_all();
     nkv_thread.join();
   }
@@ -480,6 +498,12 @@ nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
     fm = NULL;
   }
  
+  // Remove ustat pointers
+  for(auto device : device_cpu_ustat_map ) {
+    for(auto cpu_stat_ptr: device.second) {
+      nkv_ustat_delete(cpu_stat_ptr.second);
+    }
+  }
   #ifdef SAMSUNG_API 
     kvs_exit_env();
   #endif

@@ -48,6 +48,7 @@
 #include "kvs_api.h"
 #include "nkv_utils.h"
 #include "auto_discovery.h"
+#include "nkv_stats.h"
 #include <condition_variable>
 #include <pthread.h>
 #include <mutex>
@@ -87,7 +88,7 @@
   extern int32_t nkv_listing_need_cache_stat;
   extern int32_t nkv_listing_cache_num_shards;
   extern int32_t nkv_dynamic_logging;
-  extern int32_t path_stat_collection;
+  extern std::atomic<int32_t> path_stat_collection;
   extern int32_t path_stat_detailed;
   extern int32_t nkv_use_read_cache;
   extern int32_t nkv_read_cache_size;
@@ -103,6 +104,9 @@
 
   // Global lock used for boost read_json and cv_global
   extern std::mutex mtx_global;
+
+  int32_t get_path_stat_collection();
+  void set_path_stat_collection(int32_t path_stat);
 
   typedef struct iterator_info {
     std::unordered_set<uint64_t> visited_path;
@@ -273,18 +277,6 @@
       listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
       data_cache = new std::unordered_map<std::string, nkv_value_wrapper*> [nkv_listing_cache_num_shards];
       cnt_cache = new nkv_lruCache<std::string, nkv_value_wrapper> [nkv_read_cache_shard_size](nkv_read_cache_size);
-      for (int i = 0; i < MAX_CPU_CORE_COUNT; i++) {
-        nkv_cpu_pending_1_4k_put_io[i] = 0;
-        nkv_cpu_pending_4_64k_put_io[i] = 0;
-        nkv_cpu_pending_64_2m_put_io[i] = 0;
-
-        nkv_cpu_pending_1_4k_get_io[i] = 0;
-        nkv_cpu_pending_4_64k_get_io[i] = 0;
-        nkv_cpu_pending_64_2m_get_io[i] = 0;
-
-        nkv_cpu_pending_del_io[i] = 0;
-
-      }
       nkv_num_dc_keys = 0;
     }
 
@@ -610,46 +602,57 @@
 	      one_p->load_balance_update_path_parameter(0, 0);	
 	    }
 	  }
+          string device_name = ((one_p->dev_path).substr(5, (one_p->dev_path).size())); // example nvme1n1
           int core = -1;
           uint64_t v_len = 0;
           switch(which_op) {
             case NKV_STORE_OP:
-              if (!post_fn && path_stat_collection) {
+              if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
                 core = sched_getcpu();
+                stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
                 if (value->length <= 4096) {
                   one_p->nkv_cpu_pending_1_4k_put_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_small_put);
                 } else if (value->length > 4096 && value->length <= 65536) {
-                  one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_add(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_mid_put);
                 } else {
-                  one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_add(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_big_put);
                 }
               }
               stat = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
               break;
             case NKV_RETRIEVE_OP:
 
-              if (!post_fn && path_stat_collection) {
+              if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
                 core = sched_getcpu();
+                stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
                 if (value->length <= 4096) {
-                  one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_small_get);
                 } else if (value->length > 4096 && value->length <= 65536) {
-                  one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_mid_get);
                 } else {
-                  one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_add(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_big_get);
                 }
               }
 
               stat = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn);
               break;
             case NKV_DELETE_OP:
-              if (!post_fn && path_stat_collection) {
+              if (!post_fn && get_path_stat_collection()) {
                 core = sched_getcpu();
+                stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
-                one_p->nkv_cpu_pending_del_io[core].fetch_add(1, std::memory_order_relaxed);
+                //one_p->nkv_cpu_pending_del_io[core].fetch_add(1, std::memory_order_relaxed);
+                nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_del);
               }
               stat = one_p->do_delete_io_from_path(key, post_fn);
               break;
@@ -674,35 +677,44 @@
 	    }
 	  }
 
-          if (!post_fn && path_stat_collection) {
+          stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
+
+          if (!post_fn && get_path_stat_collection()) {
             switch (which_op) {
               case NKV_STORE_OP:
                 //core = sched_getcpu();   
                 assert(core >= 0);
                 if (v_len <= 4096) {
-                  one_p->nkv_cpu_pending_1_4k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_1_4k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_small_put);
                 } else if (v_len > 4096 && v_len <= 65536) {
-                  one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_mid_put);
                 } else {
-                  one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_big_put);
                 }
                 break;
               case NKV_RETRIEVE_OP:
                 //core = sched_getcpu();
                 assert(core >= 0);
                 if (v_len <= 4096) {
-                  one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_small_get);
                 } else if (v_len > 4096 && v_len <= 65536) {
-                  one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_mid_get);
                 } else {
-                  one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  //one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_sub(1, std::memory_order_relaxed);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_big_get);
                 }
                 break;
 
               case NKV_DELETE_OP:
                 //core = sched_getcpu();
                 assert(core >= 0);
-                one_p->nkv_cpu_pending_del_io[core].fetch_sub(1, std::memory_order_relaxed);
+                //one_p->nkv_cpu_pending_del_io[core].fetch_sub(1, std::memory_order_relaxed);
+                nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_del);
 
             }
           }
@@ -917,90 +929,8 @@
       }
     }
 
-    void collect_nkv_path_stat() {
-
-      for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
-        NKVTargetPath* one_path = p_iter->second;
-        if (one_path) {
-          smg_debug(logger, "collecting stat for path with address = %s , dev_path = %s, port = %d, status = %d",
-                   one_path->path_ip.c_str(), one_path->dev_path.c_str(), one_path->path_port, (one_path->path_status).load(std::memory_order_relaxed));
-         
-          if (path_stat_collection) {
-            unsigned num_cpus = std::thread::hardware_concurrency();
-            if (num_cpus > MAX_CPU_CORE_COUNT)
-              num_cpus = MAX_CPU_CORE_COUNT;
-          
-            uint64_t total_aggregated_os_put = 0;
-            uint64_t total_aggregated_os_get = 0;
-            uint64_t total_aggregated_os_del = 0;
-            
-            for (uint32_t iter = 0; iter < num_cpus; iter++) {
-
-              uint64_t total_os_put = one_path->nkv_cpu_pending_1_4k_put_io[iter].load(std::memory_order_relaxed) +
-                                      one_path->nkv_cpu_pending_4_64k_put_io[iter].load(std::memory_order_relaxed) +
-                                      one_path->nkv_cpu_pending_64_2m_put_io[iter].load(std::memory_order_relaxed);
-
-              uint64_t total_os_get = one_path->nkv_cpu_pending_1_4k_get_io[iter].load(std::memory_order_relaxed) +
-                                      one_path->nkv_cpu_pending_4_64k_get_io[iter].load(std::memory_order_relaxed) +
-                                      one_path->nkv_cpu_pending_64_2m_get_io[iter].load(std::memory_order_relaxed);
-
-              total_aggregated_os_put += total_os_put;
-              total_aggregated_os_get += total_os_get;
-              total_aggregated_os_del += one_path->nkv_cpu_pending_del_io[iter].load(std::memory_order_relaxed);
-
-              if (path_stat_detailed == 1) {
-                smg_alert(logger, "Path = %s, Address = %s, cpu = %d, num_outstanding_put = %u, num_outstanding_get = %u, num_outstanding_del = %u",
-                         one_path->dev_path.c_str(), one_path->path_ip.c_str(), iter, total_os_put, total_os_get, 
-                         one_path->nkv_cpu_pending_del_io[iter].load(std::memory_order_relaxed)); 
-              }
-
-              if (path_stat_detailed == 2) {
-                smg_alert(logger, "Path = %s, Address = %s, cpu = %d, num_outstanding_small_put = %u, num_outstanding_mid_put = %u, num_outstanding_big_put = %u\n",
-                         one_path->dev_path.c_str(), one_path->path_ip.c_str(), iter, one_path->nkv_cpu_pending_1_4k_put_io[iter].load(std::memory_order_relaxed),
-                         one_path->nkv_cpu_pending_4_64k_put_io[iter].load(std::memory_order_relaxed),
-                         one_path->nkv_cpu_pending_64_2m_put_io[iter].load(std::memory_order_relaxed));
-
-                smg_alert(logger, "Path = %s, Address = %s, cpu = %d, num_outstanding_small_get = %u, num_outstanding_mid_get = %u, num_outstanding_big_get = %u\n",
-                         one_path->dev_path.c_str(), one_path->path_ip.c_str(), iter, one_path->nkv_cpu_pending_1_4k_get_io[iter].load(std::memory_order_relaxed),
-                         one_path->nkv_cpu_pending_4_64k_get_io[iter].load(std::memory_order_relaxed),
-                         one_path->nkv_cpu_pending_64_2m_get_io[iter].load(std::memory_order_relaxed));
-
-
-              }
-            }
-            smg_alert(logger, "\nPath = %s, Address = %s, Data cache keys = %lld, List Cached keys = %lld, List cache Indexes = %lld, num_outstanding_put_total = %u, num_outstanding_get_total = %u, num_outstanding_del_total = %u\n",
-                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_dc_keys.load(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(), 
-                      total_aggregated_os_put, total_aggregated_os_get, total_aggregated_os_del);
-                      
-          }
-         
-          #if 0
-          if (!nkv_is_on_local_kv) {
-            smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
-                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
-                       0, 0, ss_space_avail_percent);
-            continue;
-          }
-          nkv_path_stat p_stat = {0};
-          nkv_result stat = nkv_get_path_stat_util(one_path->dev_path, &p_stat); 
-          if (stat == NKV_SUCCESS) {
-
-            smg_alert(logger, "Path = %s, Address = %s, Cached keys = %lld, Indexes = %lld, Capacity = %lld B, Used = %lld B, Percent used = %3.2f",
-                       one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load(),
-                       (long long)p_stat.path_storage_capacity_in_bytes, (long long)p_stat.path_storage_usage_in_bytes, p_stat.path_storage_util_percentage); 
-
-          } else {
-            smg_alert(logger, "Path = %s, Address = %s, Cache keys = %lld, Indexes = %lld, path stat collection failed !!",
-                      one_path->dev_path.c_str(), one_path->path_ip.c_str(), (long long)one_path->nkv_num_keys.load(), (long long)one_path->nkv_num_key_prefixes.load());
-          }
-          #endif
-        } else {
-          smg_error(logger, "NULL path found !!");
-          assert(0);
-        }
-      }
-
-    }
+    void add_nkv_path_stat();
+    
 
     void wait_or_detach_path_thread(bool will_wait) {
 
@@ -1513,24 +1443,10 @@
       return min_topology_exist;
     }
 
-    void collect_nkv_stat () {
-      
-      if ( path_stat_collection ) {
-        for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
-          NKVTarget* one_cnt = m_iter->second;
-          if (one_cnt) {
-            smg_debug(logger, "Collecting stat for target id = %d, target node = %s, container name = %s",
-                     one_cnt->t_id, one_cnt->target_node_name.c_str(), one_cnt->target_container_name.c_str());
-            one_cnt->collect_nkv_path_stat();
-          } else {
-            smg_error(logger, "Got NULL container while collecting stat !!");
-            assert(0);
-          }
-        }
-      } else {
-          smg_warn(logger, "NKV Path Stats Collection is disabled! ...");
-      }
-    }
+
+    // Code for ustat
+    void initiate_nkv_ustat();
+    
 
     void wait_or_detach_thread (bool will_wait = true) {
       for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {

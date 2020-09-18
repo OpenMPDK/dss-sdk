@@ -43,10 +43,18 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/libzmq/)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/zmqpp/)
 add_dependencies(zmqpp libzmq)
 
+# Opensource libraries
 set(ZMQ_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/zmqpp/src ${CMAKE_CURRENT_SOURCE_DIR}/src/zeromq/libzmq/include)
 set(ZMQ_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib/)
 include_directories(${ZMQ_INCLUDE_DIR})
 link_directories(${ZMQ_LIBRARY_DIR})
+
+set(USTAT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/include/ ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/lib/libustat/ )
+set(USTAT_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/lib/libustat/)
+include_directories(${USTAT_INCLUDE_DIR})
+link_directories(${USTAT_LIBRARY_DIR})
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/lib/libdssd.a DESTINATION ${CMAKE_BINARY_DIR}/lib)
 
 if(NKV_WITH_SAMSUNG_API)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
@@ -79,7 +87,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
-set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp)
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp ${CMAKE_BINARY_DIR}/lib/libdssd.a -ldl)
 
 # SOURCE CODE
 SET(SOURCES_NKV_KDD
@@ -90,6 +98,7 @@ SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/auto_discovery.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/remote/event_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/stats/nkv_stats.cpp
 )
 
 SET(HEADERS_NKV_KDD
@@ -142,6 +151,7 @@ add_custom_command(
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/sample_code_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../target/oss/dssd/cmd/ustat/ustat   ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/	
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/nkv_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/README_INSTALL.txt ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
