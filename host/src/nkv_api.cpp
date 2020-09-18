@@ -174,7 +174,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
       if( prev_path_stat_collection == 0 && get_path_stat_collection() ) {
         smg_alert(logger, "Ustat stat collection is enabled now!");
       }
-      path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
+      //path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
 
       if (nkv_dynamic_logging_old != nkv_dynamic_logging) {
         nkv_app_put_count = 0;
@@ -294,7 +294,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
       nkv_stat_thread_polling_interval = pt.get<int>("nkv_stat_thread_polling_interval_in_sec", 100);
       nkv_stat_thread_needed = pt.get<int>("nkv_stat_thread_needed", 0);
       set_path_stat_collection(pt.get<int>("nkv_need_path_stat", 0));
-      path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
+      //path_stat_detailed = pt.get<int>("nkv_need_detailed_path_stat", 0);
       nkv_dummy_path_stat = pt.get<int>("nkv_dummy_path_stat", 0);
       nkv_use_read_cache = pt.get<int>("nkv_use_read_cache", 0);
       nkv_read_cache_size = pt.get<int>("nkv_read_cache_size", 1024);
