@@ -71,5 +71,3 @@ def sub_resource_values(data, field, old, new):
     jsonpath_expr.find(data)
     jsonpath_expr.update(data, substituter)
     return
-
-

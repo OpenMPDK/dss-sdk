@@ -1,21 +1,22 @@
 # redfish_resource.py
 
-import pprint
+# import pprint
+
 
 class system(object):
     def __init__(self, uuid=""):
-        #print("system init. uuid=", uuid)
         self.uuid = uuid
-        self.subsystems = list()    #class subsystem
-        #self.ipv4 = list()
-        #self.ipv6 = list()
-        #self.ipv6gateway = ""
+        self.subsystems = list()    # class subsystem
+        # self.ipv4 = list()
+        # self.ipv6 = list()
+        # self.ipv6gateway = ""
 
     def pprint(self):
         print("System:")
         print("  uuid=", self.uuid)
         for subsys in self.subsystems:
             subsys.pprint()
+
 
 class subsystem(object):
     def __init__(self, uuid=""):
@@ -27,8 +28,8 @@ class subsystem(object):
         self.capacity = 0
         self.utilization = 0
         self.percent_avail = 0
-        self.storage = list()       #class storage
-        self.interfaces = list()    #class interface
+        self.storage = list()       # class storage
+        self.interfaces = list()    # class interface
         self.servername = ""
         self.nsid = 0
 
@@ -45,8 +46,10 @@ class subsystem(object):
         print("    nsid=", self.nsid)
         for intf in self.interfaces:
             intf.pprint()
+
         for stor in self.storage:
             stor.pprint()
+
 
 class interface(object):
     def __init__(self):
@@ -56,8 +59,8 @@ class interface(object):
         self.speed = 0
         self.type = ""
         self.status = ""
-        self.ip4_intf = list()   #class ipv4
-        self.ip6_intf = list()   #class ipv6
+        self.ip4_intf = list()   # class ipv4
+        self.ip6_intf = list()   # class ipv6
 
     def pprint(self):
         print("    Interface:")
@@ -69,9 +72,9 @@ class interface(object):
         print("      status=", self.status)
         for ip4 in self.ip4_intf:
             ip4.pprint()
+
         for ip6 in self.ip6_intf:
             ip6.pprint()
-        return
 
 
 class ipv4(object):
@@ -87,7 +90,6 @@ class ipv4(object):
         print("        mask=", self.mask)
         print("        origin=", self.origin)
         print("        gateway=", self.gateway)
-        return
 
 
 class ipv6(object):
@@ -105,7 +107,6 @@ class ipv6(object):
         print("        origin=", self.origin)
         print("        state=", self.state)
         print("        gateway=", self.gateway)
-        return
 
 
 class storage(object):
@@ -114,7 +115,7 @@ class storage(object):
         self.capacity = 0          # total size of all drives
         self.utilization = 0       # total utilization of all drives
         self.percent_avail = 0
-        self.drives = list()    #class drive
+        self.drives = list()       # class drive
 
     def pprint(self):
         print("    Storage:")
@@ -122,9 +123,9 @@ class storage(object):
         print("      capacity=", self.capacity)
         print("      utilization=", self.utilization)
         print("      percent_avail=", self.percent_avail)
+
         for drive in self.drives:
             drive.pprint()
-        return
 
 
 class drive(object):
@@ -154,20 +155,18 @@ class drive(object):
         print("        protocol=", self.protocol)
         print("        revision=", self.revision)
         print("        sn=", self.sn)
-        return
 
 
 class fabric(object):
     def __init__(self):
         self.id = "NVMEoF"
-        self.switches = list()    #class switch
+        self.switches = list()    # class switch
         for switch in self.switches:
             switch.pprint()
 
     def pprint(self):
         print("Fabric:")
         print("    id=", self.id)
-        return
 
 
 class switch(object):
@@ -176,9 +175,11 @@ class switch(object):
         self.SerialNumber = ""
         self.UUID = uuid
         self.Model = ""
+
         self.ports = list()
         for port in self.ports:
             port.pprint()
+
         self.vlans = list()
         for vlan in self.vlans:
             vlan.pprint()
@@ -189,19 +190,17 @@ class switch(object):
         print("        SerialNumber=", self.id)
         print("        UUID=", self.id)
         print("        Model=", self.id)
-        return
 
 
 class port(object):
     def __init__(self, port_id):
         self.id = port_id
-        status = ""
+        self.status = ""
 
     def pprint(self):
         print("        Port:")
         print("            id=", self.id)
         print("            status=", self.status)
-        return
 
 
 class vlan(object):
@@ -211,6 +210,3 @@ class vlan(object):
     def pprint(self):
         print("        VLAN:")
         print("            id=", self.id)
-        return
-
-

@@ -3,20 +3,21 @@
 import copy
 import subprocess
 
-from common.ufmlog import ufmlog
+# from common.ufmlog import ufmlog
 from common.ufmdb.redfish.redfish_responses import redfish_responses
 
 g_ufmlog = None
+
 
 def ufm_clearlog_action(payload):
     global g_ufmlog
 
     g_ufmlog.ufmlog.clear_log()
 
-    response = { "Status": 200, \
-        "Message": "Successfully completed request." }
+    response = {"Status": 200, "Message": "Successfully completed request."}
 
     return response
+
 
 def ufm_entries_action(payload):
     global g_ufmlog
@@ -37,6 +38,7 @@ def ufm_entries_action(payload):
 
     return response
 
+
 def redfish_log_entries(entries):
     '''
     Converts a list of UfmLogEntry objects to a list of Redfish LogEntry objects
@@ -44,35 +46,36 @@ def redfish_log_entries(entries):
     log_entries = []
     for entry in entries:
         LogEntry = {}
-        LogEntry["@odata.context"] =  "/redfish/v1/$metadata#LogEntry.LogEntry"
-        LogEntry["@odata.id"] =  "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries"
-        LogEntry["@odata.type"] =  "#LogEntry.v1_3_0.LogEntry"
-        LogEntry["Id"] =  str(entry.id)
-        LogEntry["Name"] =  "Log Entry "+str(entry.id)
-        LogEntry["EntryType"] =  "Oem"
-        LogEntry["OemRecordFormat"] =  "Samsung"
+        LogEntry["@odata.context"] = "/redfish/v1/$metadata#LogEntry.LogEntry"
+        LogEntry["@odata.id"] = "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries"
+        LogEntry["@odata.type"] = "#LogEntry.v1_3_0.LogEntry"
+        LogEntry["Id"] = str(entry.id)
+        LogEntry["Name"] = "Log Entry "+str(entry.id)
+        LogEntry["EntryType"] = "Oem"
+        LogEntry["OemRecordFormat"] = "Samsung"
 
         if entry.type == "ERROR":
-            LogEntry["Severity"] =  "Warning"
+            LogEntry["Severity"] = "Warning"
         if entry.type == "WARNING":
-            LogEntry["Severity"] =  "Warning"
+            LogEntry["Severity"] = "Warning"
         if entry.type == "INFO":
-            LogEntry["Severity"] =  "OK"
+            LogEntry["Severity"] = "OK"
         if entry.type == "DEBUG":
-            LogEntry["Severity"] =  "OK"
+            LogEntry["Severity"] = "OK"
         if entry.type == "DETAIL":
-            LogEntry["Severity"] =  "OK"
+            LogEntry["Severity"] = "OK"
         if entry.type == "EXCEPT":
-            LogEntry["Severity"] =  "Critical"
+            LogEntry["Severity"] = "Critical"
 
-        LogEntry["Created"] =  str(entry.timestamp)
-        LogEntry["SensorType"] =  entry.module
-        LogEntry["EntryCode"] =  entry.type
-        LogEntry["Message"] =  entry.msg
+        LogEntry["Created"] = str(entry.timestamp)
+        LogEntry["SensorType"] = entry.module
+        LogEntry["EntryCode"] = entry.type
+        LogEntry["Message"] = entry.msg
 
         log_entries.append(LogEntry)
 
     return log_entries
+
 
 '''
 Redfish LogEntry example
@@ -104,13 +107,15 @@ Redfish LogEntry example
 }
 '''
 
+
 def ufm_getregistry_action(payload):
     global g_ufmlog
+
     registry = g_ufmlog.ufmlog.get_module_registry()
 
-    response = { "Status": 200, \
-        "Message": "Successfully completed request.",
-        "Registry": registry }
+    response = {"Status": 200,
+                "Message": "Successfully completed request.",
+                "Registry": registry}
 
     return response
 
@@ -125,51 +130,52 @@ def ufm_getmask_action(payload):
         debug_mask = int(g_ufmlog.ufmlog.get_log_debug())
         detail_mask = int(g_ufmlog.ufmlog.get_log_detail())
 
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "ErrorMask": error_mask,
-            "WarningMask": warning_mask,
-            "InfoMask": info_mask,
-            "DebugMask": debug_mask,
-            "DetailMask": detail_mask }
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "ErrorMask": error_mask,
+                    "WarningMask": warning_mask,
+                    "InfoMask": info_mask,
+                    "DebugMask": debug_mask,
+                    "DetailMask": detail_mask}
 
     elif payload["MaskType"] == "ErrorMask":
         error_mask = g_ufmlog.ufmlog.get_log_error()
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "ErrorMask": error_mask}
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "ErrorMask": error_mask}
 
     elif payload["MaskType"] == "WarningMask":
         warning_mask = g_ufmlog.ufmlog.get_log_warning()
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "WarningMask": warning_mask}
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "WarningMask": warning_mask}
 
     elif payload["MaskType"] == "InfoMask":
         info_mask = g_ufmlog.ufmlog.get_log_info()
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "InfoMask": info_mask}
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "InfoMask": info_mask}
 
     elif payload["MaskType"] == "DebugMask":
         debug_mask = g_ufmlog.ufmlog.get_log_debug()
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "DebugMask": debug_mask}
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "DebugMask": debug_mask}
 
     elif payload["MaskType"] == "DetailMask":
         detail_mask = g_ufmlog.ufmlog.get_log_detail()
-        response = { "Status": 200, \
-            "Message": "Successfully completed request.", \
-            "DetailMask": detail_mask}
+        response = {"Status": 200,
+                    "Message": "Successfully completed request.",
+                    "DetailMask": detail_mask}
 
     return response
+
 
 def ufm_setmask_action(payload):
     global g_ufmlog
 
-    response = { "Status": 200, \
-            "Message": "Successfully completed request."}
+    response = {"Status": 200,
+                "Message": "Successfully completed request."}
 
     if "ErrorMask" in payload:
         value = payload["ErrorMask"]
@@ -203,6 +209,7 @@ def ufm_setmask_action(payload):
 
     return response
 
+
 def ufm_reset_action(payload):
     global g_ufmlog
 
@@ -214,23 +221,18 @@ def ufm_reset_action(payload):
         cmd = "python ufm.py stop &"
         subprocess.call(cmd, shell=True)
 
-        response = { "Status": 200, "Message": "Successfully requested shutdown." }
-
+        response = {"Status": 200,
+                    "Message": "Successfully requested shutdown."}
     elif type == 'ForceRestart':
         g_ufmlog.info("RESTART: requested.")
 
         cmd = "python ufm.py restart &"
         subprocess.call(cmd, shell=True)
 
-        response = { "Status": 200, "Message": "Successfully requested restart." }
-
+        response = {"Status": 200,
+                    "Message": "Successfully requested restart."}
     else:
-        response = { "Status": 400, "Message": "Bad Request" }
+        response = {"Status": 400,
+                    "Message": "Bad Request"}
 
     return response
-
-
-
-
-
-

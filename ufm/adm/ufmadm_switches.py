@@ -30,19 +30,16 @@ class SwitchesMenu(UfmMenu):
             count = count + 1
 
         self.fab = fab
-        return
 
     def _back_action(self, menu, item):
         from ufmadm_fabrics import FabricMenu
 
         fabric_menu = FabricMenu(self.fab)
         self.set_menu(fabric_menu)
-        return
 
     def _menu_action(self, menu, item):
         sw_menu = SwitchMenu(fab=self.fab, sw=item.priv)
         self.set_menu(sw_menu)
-        return
 
 
 class SwitchMenu(UfmMenu):
@@ -60,7 +57,6 @@ class SwitchMenu(UfmMenu):
         self.sw = sw
 
         self._refresh()
-        return
 
     def _refresh(self):
         self.clear_items()
@@ -178,26 +174,21 @@ class SwitchMenu(UfmMenu):
                           action=self._vlans_action,
                           desc="VLANs")
 
-        return
-
     def _back_action(self, menu, item):
         switches_menu = SwitchesMenu(fab=self.fab)
         self.set_menu(switches_menu)
-        return
 
     def _ports_action(self, menu, item):
         from ufmadm_ports import PortsMenu
 
         ports_menu = PortsMenu(fab=self.fab, sw=self.sw)
         self.set_menu(ports_menu)
-        return
 
     def _vlans_action(self, menu, item):
         from ufmadm_vlans import VlansMenu
 
         vlans_menu = VlansMenu(fab=self.fab, sw=self.sw)
         self.set_menu(vlans_menu)
-        return
 
     def _enable_pfc_globally_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.epg["target"])
@@ -207,7 +198,6 @@ class SwitchMenu(UfmMenu):
                                                'Failed to Enable PFC Globally')
         if succeeded:
             self._refresh()
-        return
 
     def _disable_pfc_globally_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.dpg["target"])
@@ -218,7 +208,6 @@ class SwitchMenu(UfmMenu):
                                                'Failed to Disable PFC Globally')
         if succeeded:
             self._refresh()
-        return
 
     def _enable_pfc_per_priority_action(self, menu, item):
         argv = item.argv
@@ -238,7 +227,6 @@ class SwitchMenu(UfmMenu):
                                                'Failed to Enable PFC Per Priority')
         if succeeded:
             self._refresh()
-        return
 
     def _disable_pfc_per_priority_action(self, menu, item):
         argv = item.argv
@@ -276,7 +264,6 @@ class SwitchMenu(UfmMenu):
                                    'no advanced buffer management force',
                                    'Successfully Disabled Buffer Management',
                                    'Failed to Disable Buffer Management')
-        return
 
     def _save_config_file_no_switch_action(self, menu, item):
         argv = item.argv
@@ -294,7 +281,6 @@ class SwitchMenu(UfmMenu):
                                    'configuration write to ' + file_name + ' no-switch',
                                    'Successfully Write to Configuration File',
                                    'Failed to Write to Configuration File')
-        return
 
     def _show_config_files_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.scf["target"])
@@ -305,7 +291,6 @@ class SwitchMenu(UfmMenu):
                                    'Failed to Show Configuration Files')
 
         print(json.dumps(rsp, indent=4))
-        return
 
     def _any_cmd_action(self, menu, item):
         lst = self.get_all_args()
@@ -332,4 +317,3 @@ class SwitchMenu(UfmMenu):
         self.clear_all_args()
         if succeeded:
             self._refresh()
-        return

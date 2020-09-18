@@ -215,8 +215,7 @@ def call_populate(local_path):
 # For any other RESTful requests, navigate them to RedfishAPI object
 # Note: <path:path> specifies any path
 if (MODE is not None and MODE.lower() == 'db'):
-    api.add_resource(ServiceRoot, REST_BASE,
-                     resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(ServiceRoot, REST_BASE, resource_class_kwargs={'rest_base': REST_BASE})
     api.add_resource(JsonSchemas, REST_BASE + 'JSONSchemas')
     api.add_resource(SystemCollectionAPI, REST_BASE + 'Systems')
     api.add_resource(SystemAPI, REST_BASE + 'Systems/<string:ident>')
@@ -243,8 +242,7 @@ if (MODE is not None and MODE.lower() == 'db'):
 
 
 elif (MODE is not None and MODE.lower() == 'local'):
-    api.add_resource(ServiceRoot, REST_BASE,
-                     resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(ServiceRoot, REST_BASE, resource_class_kwargs={'rest_base': REST_BASE})
     api.add_resource(SystemCollectionEmulationAPI, REST_BASE + 'Systems')
     api.add_resource(SystemEmulationAPI, REST_BASE + 'Systems/<string:ident>')
     api.add_resource(StorageCollectionEmulationAPI, REST_BASE + 'Systems/<string:ident>/Storage',
@@ -277,8 +275,7 @@ elif (MODE is not None and MODE.lower() == 'local'):
 
     call_populate(local_path)
 else:
-    api.add_resource(RedfishAPI, REST_BASE,
-                     REST_BASE + '<path:path>')
+    api.add_resource(RedfishAPI, REST_BASE, REST_BASE + '<path:path>')
     try:
         resource_manager = ResourceManager(REST_BASE, MODE)
     except Exception:
@@ -441,9 +438,9 @@ def main():
     global resource_manager
 
     log.detail('main: Setting up signal handler')
-    signal.signal(signal.SIGINT, signal_handler)    
+    signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-   
+
     log.detail('main: Parsing args')
     parser = argparse.ArgumentParser(
         description='Process Server\'s Configuration Settings.'

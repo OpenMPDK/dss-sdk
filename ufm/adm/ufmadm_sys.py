@@ -29,19 +29,15 @@ class SystemsMenu(UfmMenu):
 
             count = count + 1
 
-        return
-
     def _back_action(self, menu, item):
         from ufmadm_main import MainMenu
 
         main_menu = MainMenu()
         self.set_menu(main_menu)
-        return
 
     def _menu_action(self, menu, item):
         sys_menu = SysMenu(sys=item.priv)
         self.set_menu(sys_menu)
-        return
 
 
 class SysMenu(UfmMenu):
@@ -112,23 +108,19 @@ class SysMenu(UfmMenu):
             print("Unknown DurableNameFormat:", format)
 
         self.sys = sys
-        return
 
     def _back_action(self, menu, item):
         systems_menu = SystemsMenu()
         self.set_menu(systems_menu)
-        return
 
     def _stor_action(self, menu, item):
         from ufmadm_stor import StorMenu
 
         stor_menu = StorMenu(sys=self.sys)
         self.set_menu(stor_menu)
-        return
 
     def _eth_action(self, menu, item):
         from ufmadm_eth import EthMenu
 
         eth_menu = EthMenu(sys=self.sys)
         self.set_menu(eth_menu)
-        return
