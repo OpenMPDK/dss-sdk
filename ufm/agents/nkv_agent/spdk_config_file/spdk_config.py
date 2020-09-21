@@ -12,8 +12,51 @@ class SPDKConfig:
         self.temp_conf_path = "%s~" % self.conf_path
         self.logger = agent_logger
 
-    def read_local_config(self, path):
+    def read_subsystems(self, path):
         """
+        Read Subsystem sections from the configuration file.
+        :param path: Path where configuration file is located.
+        :return: dict of subsystems
+        """
+        try:
+            conf_fh = open(path, 'rb')
+        except IOError as e:
+            self.logger.exception("Error when attempting to read configuration file - %s" % str(e))
+            raise
+        lines = conf_fh.readlines()
+        arr = []
+        idx = -1
+        section = None
+        for line in lines:
+            line = line.strip(str.encode('\r\n '))
+            if line.startswith(str.encode("#")):
+                continue
+            line = line.split("#",1)[0]
+
+            m = re.match(r"^(\[Subsystem.+?\])$", line)
+            if m is not None:
+                section = m.group(1)
+                arr.append({section: {}})
+                idx += 1
+            else:
+                if section is None:
+                    continue
+                try:
+                    if line.startswith(str.encode("Listen")):
+                        key = line.split()[1]
+                        value = line.split()[2]
+                    elif line.startswith(str.encode("Namespace")):
+                        key = line
+                        value = ""
+                    else:
+                        key, value = line.split(str.encode(' '), 1)
+                    arr[idx][section][key] = value
+                except:
+                    continue
+        return arr
+
+    def read_local_config(self, path):
+        """ 
         Read configuration file and convert to in-memory array.
         :param path: Path where configuration file is located.
         :return:
