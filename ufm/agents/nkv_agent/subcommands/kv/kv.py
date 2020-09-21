@@ -1,6 +1,8 @@
 """
 Usage:
 kv-cli.py kv list <endpoint> <port> [--server=<uuid>]
+kv-cli.py kv add_from_file <endpoint> <port> (--server=<uuid>) (--config_file=<nvmf_conf_file>) (--trtype=<trtype>)
+                                   [--core=<core_id>] [--async]
 kv-cli.py kv add <endpoint> <port> (--server=<uuid>) (--devices=<devnode>)
                                    (--nqn=<nqn>) (--ip=<ip>) (--trtype=<trtype>)
                                    [--core=<core_id>] [--async]
@@ -22,6 +24,7 @@ import utils.key_prefix_constants as key_cons
 import utils.validate_kv as validate_kv
 from utils.utils import KVLog as KVL
 from utils.utils import time_delta, valid_ip
+from spdk_config_file.spdk_config import SPDKConfig
 
 SPDK_NVMF_NQN_MAX_LEN = 223
 SPDK_DOMAIN_LABEL_MAX_LEN = 63
@@ -419,6 +422,35 @@ class KVManager:
             self.backend.release_lock()
             KVL.kvprint(KVL.ERROR, "Unknown server %s" % server_uuid)
 
+    def add_subsystem_from_file(self, server_uuid, nvmf_conf_file, asynchronous, tr_type, core_id=None):
+        """
+        Add new subsystem to SPDK with the parameters given from the config file.
+        The subsystem configuration arguments are written to etcdv3.
+        :param server_uuid:
+        :param nvmf_conf_file:
+        :param asynchronous: Asynchronous code path instead of waiting for response.
+        :param tr_type
+        :param core_id: Core to run the subsystem on.
+        :return:
+        """
+        spdk_conf_obj = SPDKConfig(nvmf_conf_file)
+        arr = spdk_conf_obj.read_subsystems(nvmf_conf_file)
+
+        for d in arr:
+            for v in d.values():
+                devices = list(v['SN'])
+                nqn = v['NQN']
+                ip_addresses = list(v[tr_type.upper()])
+
+                if validate_kv.exceeded_maximum_listen_addresses(ip_addresses):
+                    print("Maximum of %d listen addresses allowed" % validate_kv.MAXIMUM_LISTEN_DIRECTIVES)
+                    sys.exit(-1)
+                elif validate_kv.exceeded_maximum_namespaces(devices):
+                    print("Maximum of %d namespaces allowed" % validate_kv.MAXIMUM_NAMESPACE_DIRECTIVES)
+                    sys.exit(-1)
+
+                self.create_subsystem(server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, core_id)
+
     def delete_subsystem(self, server_uuid, nqn, asynchronous):
         """
         Remove subsystem with provided NQN from etcdv3 and
@@ -525,6 +557,10 @@ def main(args):
                 kv_manager.display_remote_server_info(args["--server"], servers)
             else:
                 kv_manager.display_remote_server_uuid(servers)
+        elif args["add_from_file"]:
+            kv_manager.backend.set_lock(args["--server"])
+            kv_manager.add_subsystem_from_file(args["--server"], args["--config_file"], args["--async"],
+                                               args["--trtype"], args["--core"])
         elif args["add"]:
             kv_manager.backend.set_lock(args["--server"])
             ip_addresses = list(set(args["--ip"].split(',')))
