@@ -70,13 +70,13 @@ extern "C" {
 
 typedef struct stat_io
 {
-  ustat_named_t num_outstanding_del;
-  ustat_named_t num_outstanding_small_put;
-  ustat_named_t num_outstanding_mid_put; 
-  ustat_named_t num_outstanding_big_put;
-  ustat_named_t num_outstanding_small_get;
-  ustat_named_t num_outstanding_mid_get;
-  ustat_named_t num_outstanding_big_get;
+  ustat_named_t del_outstanding;
+  ustat_named_t put_less_4KB;
+  ustat_named_t put_4KB_64KB; 
+  ustat_named_t put_64KB_2MB;
+  ustat_named_t get_less_4KB;
+  ustat_named_t get_4KB_64KB;
+  ustat_named_t get_64KB_2MB;
 } stat_io_t;
 
 

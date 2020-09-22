@@ -43,13 +43,13 @@ const ustat_class_t ustat_class_nkv = {
 };
 
 const stat_io_t stat_io_table = {
-	{ "num_outstanding_small_put", USTAT_TYPE_UINT64, 0, NULL},
-	{ "num_outstanding_mid_put"  , USTAT_TYPE_UINT64, 0, NULL},
-	{ "num_outstanding_big_put"  , USTAT_TYPE_UINT64, 0, NULL},
-	{ "num_outstanding_small_get", USTAT_TYPE_UINT64, 0, NULL},
-	{ "num_outstanding_mid_get"  , USTAT_TYPE_UINT64, 0, NULL},
-	{ "num_outstanding_big_get"  , USTAT_TYPE_UINT64, 0, NULL},
-        { "num_outstanding_del"      , USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_4KB_16KB"  , USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_64KB_2MB"  , USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_4KB_64KB"  , USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_64KB_2MB"  , USTAT_TYPE_UINT64, 0, NULL},
+        { "del_outstanding"      , USTAT_TYPE_UINT64, 0, NULL},
 };
 
 
@@ -142,13 +142,13 @@ void nkv_ustat_reset_io_stat()
     for(auto cpu_stat: cpu_stats.second) {
       stat_io_t * stat = cpu_stat.second;
       // Set based on nkv_path_stat_detailed
-      ustat_set_u64(stat, &stat->num_outstanding_del, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_small_put, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_mid_put, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_big_put, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_small_get, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_mid_get, 0);
-      ustat_set_u64(stat, &stat->num_outstanding_big_get, 0);
+      ustat_set_u64(stat, &stat->del_outstanding, 0);
+      ustat_set_u64(stat, &stat->put_less_4KB, 0);
+      ustat_set_u64(stat, &stat->put_4KB_64KB, 0);
+      ustat_set_u64(stat, &stat->put_64KB_2MB, 0);
+      ustat_set_u64(stat, &stat->get_less_4KB, 0);
+      ustat_set_u64(stat, &stat->get_4KB_64KB, 0);
+      ustat_set_u64(stat, &stat->get_64KB_2MB, 0);
     }
   }
 }

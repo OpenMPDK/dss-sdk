@@ -235,15 +235,6 @@
     std::atomic<uint64_t> pending_io_value;
     std::condition_variable cv_path;
     nkv_lruCache<std::string, nkv_value_wrapper>* cnt_cache;
-    std::atomic<uint64_t> nkv_cpu_pending_1_4k_put_io[MAX_CPU_CORE_COUNT];
-    std::atomic<uint64_t> nkv_cpu_pending_4_64k_put_io[MAX_CPU_CORE_COUNT];
-    std::atomic<uint64_t> nkv_cpu_pending_64_2m_put_io[MAX_CPU_CORE_COUNT];
-
-    std::atomic<uint64_t> nkv_cpu_pending_1_4k_get_io[MAX_CPU_CORE_COUNT];
-    std::atomic<uint64_t> nkv_cpu_pending_4_64k_get_io[MAX_CPU_CORE_COUNT];
-    std::atomic<uint64_t> nkv_cpu_pending_64_2m_get_io[MAX_CPU_CORE_COUNT];
-
-    std::atomic<uint64_t> nkv_cpu_pending_del_io[MAX_CPU_CORE_COUNT];
     std::atomic<uint64_t> nkv_num_dc_keys;
 
 
@@ -613,14 +604,11 @@
                 stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
                 if (value->length <= 4096) {
-                  one_p->nkv_cpu_pending_1_4k_put_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_small_put);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->put_less_4KB);
                 } else if (value->length > 4096 && value->length <= 65536) {
-                  //one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_mid_put);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->put_4KB_64KB);
                 } else {
-                  //one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_big_put);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->put_64KB_2MB);
                 }
               }
               stat = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
@@ -633,14 +621,11 @@
                 stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
                 if (value->length <= 4096) {
-                  //one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_small_get);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->get_less_4KB);
                 } else if (value->length > 4096 && value->length <= 65536) {
-                  //one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_mid_get);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->get_4KB_64KB);
                 } else {
-                  //one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_add(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_big_get);
+                  nkv_ustat_atomic_inc_u64(stat, &stat->get_64KB_2MB);
                 }
               }
 
@@ -651,8 +636,7 @@
                 core = sched_getcpu();
                 stat_io_t* stat = device_cpu_ustat_map[device_name][core];  // stat_io_t
                 assert(core >= 0);
-                //one_p->nkv_cpu_pending_del_io[core].fetch_add(1, std::memory_order_relaxed);
-                nkv_ustat_atomic_inc_u64(stat, &stat->num_outstanding_del);
+                nkv_ustat_atomic_inc_u64(stat, &stat->del_outstanding);
               }
               stat = one_p->do_delete_io_from_path(key, post_fn);
               break;
@@ -685,36 +669,29 @@
                 //core = sched_getcpu();   
                 assert(core >= 0);
                 if (v_len <= 4096) {
-                  //one_p->nkv_cpu_pending_1_4k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_small_put);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->put_less_4KB);
                 } else if (v_len > 4096 && v_len <= 65536) {
-                  //one_p->nkv_cpu_pending_4_64k_put_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_mid_put);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->put_4KB_64KB);
                 } else {
-                  //one_p->nkv_cpu_pending_64_2m_put_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_big_put);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->put_64KB_2MB);
                 }
                 break;
               case NKV_RETRIEVE_OP:
                 //core = sched_getcpu();
                 assert(core >= 0);
                 if (v_len <= 4096) {
-                  //one_p->nkv_cpu_pending_1_4k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_small_get);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->get_less_4KB);
                 } else if (v_len > 4096 && v_len <= 65536) {
-                  //one_p->nkv_cpu_pending_4_64k_get_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_mid_get);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->get_4KB_64KB);
                 } else {
-                  //one_p->nkv_cpu_pending_64_2m_get_io[core].fetch_sub(1, std::memory_order_relaxed);
-                  nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_big_get);
+                  nkv_ustat_atomic_dec_u64(stat, &stat->get_64KB_2MB);
                 }
                 break;
 
               case NKV_DELETE_OP:
                 //core = sched_getcpu();
                 assert(core >= 0);
-                //one_p->nkv_cpu_pending_del_io[core].fetch_sub(1, std::memory_order_relaxed);
-                nkv_ustat_atomic_dec_u64(stat, &stat->num_outstanding_del);
+                nkv_ustat_atomic_dec_u64(stat, &stat->del_outstanding);
 
             }
           }
