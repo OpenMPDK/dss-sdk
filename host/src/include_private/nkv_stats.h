@@ -63,14 +63,22 @@ extern "C" {
 #define STAT_ENAME_LEN 64
 #define STAT_ENAME_APPLICATION "nkv"
 
+// Type of stats
+#define STAT_TYPE_OUTSTANDING "outstanding"
+#define STAT_TYPE_PENDING "pending"
+#define STAT_TYPE_QD "qd"
+
+
 #define STAT_ENAME_IO STAT_ENAME_APPLICATION 
-#define STAT_GNAME_NAME STAT_NAME_IO
+#define STAT_GNAME_NAME STAT_TYPE_OUTSTANDING
 
 
 
 typedef struct stat_io
 {
-  ustat_named_t del_outstanding;
+  ustat_named_t del;
+  ustat_named_t put;
+  ustat_named_t get;
   ustat_named_t put_less_4KB;
   ustat_named_t put_4KB_64KB; 
   ustat_named_t put_64KB_2MB;
@@ -79,30 +87,27 @@ typedef struct stat_io
   ustat_named_t get_64KB_2MB;
 } stat_io_t;
 
-
-
-extern ustat_handle_t* nkv_ustat_handle;
-extern unordered_map<string, unordered_map<unsigned, stat_io_t*>> device_cpu_ustat_map;
-
-
 int nkv_ustats_init(void);
-ustat_handle_t* get_nkv_ustat_handle(void); 
 
 // Reset operation 
-void nkv_ustat_reset_io_stat();
+void nkv_ustat_reset_io_stat(stat_io_t* stat);
 
 // Delete nkv stats
 void nkv_ustat_delete(ustat_struct_t *s);
 
 // Initialize stats for IO paths ( NKVTragetPath )
-bool nkv_init_io_stats(string& device_name, unsigned cpu_index);
+stat_io_t* nkv_init_path_io_stats(string& device_name, bool cpu_stat, unsigned cpu_index=0);
+
+
 
 // Updata ustat counters 
-int nkv_ustat_atomic_add_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
-int nkv_ustat_atomic_sub_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
-int nkv_ustat_atomic_set_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
-int nkv_ustat_atomic_inc_u64(ustat_struct_t* stat, ustat_named_t* counter);
-int nkv_ustat_atomic_dec_u64(ustat_struct_t* stat, ustat_named_t* counter);
+void nkv_ustat_atomic_add_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
+void nkv_ustat_atomic_sub_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
+void nkv_ustat_atomic_set_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value);
+void nkv_ustat_atomic_inc_u64(ustat_struct_t* stat, ustat_named_t* counter);
+void nkv_ustat_atomic_dec_u64(ustat_struct_t* stat, ustat_named_t* counter);
+
+uint64_t nkv_ustat_get_u64(ustat_struct_t* stat, ustat_named_t* counter);
 
 #ifdef __cplusplus
 }

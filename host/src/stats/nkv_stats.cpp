@@ -32,6 +32,7 @@
  */
 
 #include "nkv_stats.h"
+#include "nkv_framework.h"
 
 int nkv_ustats_get_ename(char *ename, const char* device_name, unsigned cpu_index);
 
@@ -44,17 +45,16 @@ const ustat_class_t ustat_class_nkv = {
 
 const stat_io_t stat_io_table = {
 	{ "put_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "put_4KB_16KB"  , USTAT_TYPE_UINT64, 0, NULL},
-	{ "put_64KB_2MB"  , USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_4KB_16KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "put_64KB_2MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_less_4KB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "get_4KB_64KB"  , USTAT_TYPE_UINT64, 0, NULL},
-	{ "get_64KB_2MB"  , USTAT_TYPE_UINT64, 0, NULL},
-        { "del_outstanding"      , USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_4KB_64KB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "get_64KB_2MB", USTAT_TYPE_UINT64, 0, NULL},
+        { "put"         , USTAT_TYPE_UINT64, 0, NULL},
+        { "get"         , USTAT_TYPE_UINT64, 0, NULL},
+        { "del"         , USTAT_TYPE_UINT64, 0, NULL},
 };
 
-
-ustat_handle_t* nkv_ustat_handle = NULL;
-unordered_map<string, unordered_map<unsigned, stat_io_t*>> device_cpu_ustat_map;
 
 /*
  * Params: category_type = device or subsystem
@@ -67,15 +67,9 @@ int nkv_ustats_get_ename(char *ename, const char* device_name, unsigned cpu_inde
   if ( device_name == NULL ) {
     return (-1);
   }
-  c = snprintf(ename,STAT_ENAME_LEN, "%s.%s.%s.%s.%d", STAT_ENAME_APPLICATION ,STAT_NAME_DEVICE, device_name, STAT_NAME_CPU, cpu_index);
+  c = snprintf(ename,STAT_ENAME_LEN, "%s.%s.%s.%s.%d.%s", STAT_ENAME_APPLICATION ,STAT_NAME_DEVICE, device_name, STAT_NAME_CPU, cpu_index,STAT_NAME_IO);
 
   return c;
-}
-
-// Return ustat handler
-ustat_handle_t* get_nkv_ustat_handle(void)
-{
-  return nkv_ustat_handle;
 }
 
 // Initialize ustat
@@ -87,33 +81,40 @@ int nkv_ustats_init(void)
      return -1;
    }
 
-  nkv_ustat_handle = handler;
+  nkv_cnt_list->set_nkv_ustat_handle(handler);
+  smg_alert(logger, "Initialized nkv Ustat handler! ");
   return 0;
 }
 
 // Delete the ustats
 void nkv_ustat_delete(ustat_struct_t *s)
 {
-  ustat_delete(s);
+  if(s) {
+    ustat_delete(s);
+  }
 }
 
 
 // Initiate stats counters for IO path 
-bool nkv_init_io_stats(string& device_name, unsigned cpu_index)
+stat_io_t* nkv_init_path_io_stats(string& device_name, bool cpu_stat, unsigned cpu_index=0)
 {
   // Get ustat handle
-  ustat_handle_t* ustat_handler = get_nkv_ustat_handle();
+  ustat_handle_t* ustat_handler = nkv_cnt_list->get_nkv_ustat_handle();
 
   if(! ustat_handler ) {
     smg_error(logger, "Received NULL ustat handler!");
-    return false;
+    return NULL;
   }
-
+  
   // Initialize ustat counters
   char *ename = alloca(STAT_ENAME_LEN);
-  nkv_ustats_get_ename(ename, device_name.c_str(), cpu_index);
-
-  stat_io_t* device_stat_io;
+  if( cpu_stat ) {
+    snprintf(ename,STAT_ENAME_LEN, "%s.%s.%s.%s.%d.%s", STAT_ENAME_APPLICATION ,STAT_NAME_DEVICE, device_name.c_str(), STAT_NAME_CPU, cpu_index,STAT_NAME_IO);
+  } else {
+    snprintf(ename,STAT_ENAME_LEN, "%s.%s.%s.%s", STAT_ENAME_APPLICATION ,STAT_NAME_DEVICE, device_name.c_str(),STAT_NAME_IO);
+  }
+  
+  stat_io_t* device_stat_io = NULL;
   try{
     device_stat_io = (stat_io_t *)ustat_insert(ustat_handler,
                                     ename, 
@@ -122,64 +123,71 @@ bool nkv_init_io_stats(string& device_name, unsigned cpu_index)
 				    sizeof(stat_io_table) / sizeof(ustat_named_t),
   		         	    &stat_io_table, NULL);
 
-    device_cpu_ustat_map[device_name].insert({cpu_index,device_stat_io});
-
   } catch(exception& e ) {
     smg_error(logger, "EXCEPTION: stat counter initialization failed - %s", e.what());
-    return false;
   }
-  
-  return true;
+
+  return device_stat_io;
 }
 
 // Reset all counters
-void nkv_ustat_reset_io_stat()
+void nkv_ustat_reset_io_stat(stat_io_t* stat)
 {
-  smg_alert(logger, "Ustat Reset operation initiated! All counters' values will reset.");
+  ustat_set_u64(stat, &stat->put_less_4KB, 0);
+  ustat_set_u64(stat, &stat->put_4KB_64KB, 0);
+  ustat_set_u64(stat, &stat->put_64KB_2MB, 0);
+  ustat_set_u64(stat, &stat->get_less_4KB, 0);
+  ustat_set_u64(stat, &stat->get_4KB_64KB, 0);
+  ustat_set_u64(stat, &stat->get_64KB_2MB, 0);
+  ustat_set_u64(stat, &stat->put, 0);
+  ustat_set_u64(stat, &stat->get, 0);
+  ustat_set_u64(stat, &stat->del, 0);
+}
 
-  // device and cpu level stats reset
-  for(auto cpu_stats : device_cpu_ustat_map ) {
-    for(auto cpu_stat: cpu_stats.second) {
-      stat_io_t * stat = cpu_stat.second;
-      // Set based on nkv_path_stat_detailed
-      ustat_set_u64(stat, &stat->del_outstanding, 0);
-      ustat_set_u64(stat, &stat->put_less_4KB, 0);
-      ustat_set_u64(stat, &stat->put_4KB_64KB, 0);
-      ustat_set_u64(stat, &stat->put_64KB_2MB, 0);
-      ustat_set_u64(stat, &stat->get_less_4KB, 0);
-      ustat_set_u64(stat, &stat->get_4KB_64KB, 0);
-      ustat_set_u64(stat, &stat->get_64KB_2MB, 0);
+// Increment counter with specified value.
+void nkv_ustat_atomic_set_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
+{
+  if( stat ) {
+    ustat_set_u64(stat, counter , value);
+  }
+}
+
+// Increment counter with specified value.
+void nkv_ustat_atomic_add_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
+{
+  if( stat ) {
+    ustat_atomic_add_u64(stat, counter , value);
+  }
+}
+
+// Decrement counter with specified value.
+void nkv_ustat_atomic_sub_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
+{
+  if( stat ) {
+    ustat_atomic_sub_u64(stat, counter , value);
+  }
+}
+
+// Increment counter with specified value.
+void nkv_ustat_atomic_inc_u64(ustat_struct_t* stat, ustat_named_t* counter)
+{
+  if( stat ) {
+    ustat_atomic_inc_u64(stat, counter);
+  }
+}
+
+// Decrement counter with specified value.
+void nkv_ustat_atomic_dec_u64(ustat_struct_t* stat, ustat_named_t* counter)
+{
+  if( stat ) {
+    if(nkv_ustat_get_u64(stat,counter)) {
+      ustat_atomic_dec_u64(stat, counter);
     }
   }
 }
 
-// Increment counter with specified value.
-int nkv_ustat_atomic_set_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
+// Return counter value
+uint64_t nkv_ustat_get_u64(ustat_struct_t* stat, ustat_named_t* counter)
 {
-  ustat_set_u64(stat, counter , value);
+  return ustat_get_u64(stat, counter);
 }
-
-// Increment counter with specified value.
-int nkv_ustat_atomic_add_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
-{
-  ustat_atomic_add_u64(stat, counter , value);
-}
-
-// Decrement counter with specified value.
-int nkv_ustat_atomic_sub_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
-{
-  ustat_atomic_sub_u64(stat, counter , value);
-}
-
-// Increment counter with specified value.
-int nkv_ustat_atomic_inc_u64(ustat_struct_t* stat, ustat_named_t* counter)
-{
-  ustat_atomic_inc_u64(stat, counter);
-}
-
-// Decrement counter with specified value.
-int nkv_ustat_atomic_dec_u64(ustat_struct_t* stat, ustat_named_t* counter)
-{
-  ustat_atomic_dec_u64(stat, counter);
-}
-
