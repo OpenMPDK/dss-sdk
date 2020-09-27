@@ -87,8 +87,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
-set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp ${CMAKE_BINARY_DIR}/lib/libdssd.a -ldl)
-
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp)
 # SOURCE CODE
 SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_api.cpp
@@ -108,7 +107,7 @@ SET(HEADERS_NKV_KDD
 set(NKVAPI_CXXFLAGS "-std=c++11 -MMD -MP -Wall -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${NKVAPI_CFLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${NKVAPI_CXXFLAGS}")
-set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -lsmglog -lzmq -lzmqpp -march=native)
+set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -lsmglog -lzmq -lzmqpp -march=native  ${CMAKE_BINARY_DIR}/lib/libdssd.a)
 
 set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/include)
 set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/include_private)
