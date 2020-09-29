@@ -718,6 +718,8 @@
 
           if (!post_fn && get_path_stat_collection()) {
             stat_io_t* cpu_stat = NULL;
+            core = sched_getcpu();
+            assert(core >= 0);
             if( one_p->get_cpu_stat_initialized() ) {
               cpu_stat = one_p->cpu_stats[core];  // stat_io_t
             }

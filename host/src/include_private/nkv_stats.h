@@ -76,15 +76,15 @@ extern "C" {
 
 typedef struct stat_io
 {
-  ustat_named_t del;
-  ustat_named_t put;
-  ustat_named_t get;
   ustat_named_t put_less_4KB;
   ustat_named_t put_4KB_64KB; 
   ustat_named_t put_64KB_2MB;
   ustat_named_t get_less_4KB;
   ustat_named_t get_4KB_64KB;
   ustat_named_t get_64KB_2MB;
+  ustat_named_t put;
+  ustat_named_t get;
+  ustat_named_t del;
 } stat_io_t;
 
 int nkv_ustats_init(void);
