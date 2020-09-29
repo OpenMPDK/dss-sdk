@@ -1,7 +1,7 @@
-From 2f9a44c09450a97b7f71531b6981af3f7551cbf9 Mon Sep 17 00:00:00 2001
+From 37639039507700bda93f3bf14f7ad57f427902a8 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 25 Aug 2020 20:07:54 -0700
-Subject: [PATCH 3/4] Performance optimizations
+Subject: [PATCH 3/6] Performance optimizations
 
     * NUMA memory allocation optimization
     * Allocate buffers for put from connection specific numa node

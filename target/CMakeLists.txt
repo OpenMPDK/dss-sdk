@@ -161,6 +161,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_req_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ops.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_counters.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.c
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dragonfly.cpp
 )
 SET(FW_HEADERS
@@ -181,6 +182,7 @@ include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
+include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
 include_directories (${CMAKE_SOURCE_DIR}/include)
 
 
@@ -250,6 +252,7 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS spdk_tcp_configure
   DEPENDS oss
   DEPENDS dss_lat
+  DEPENDS rocksdb_lib
 )
 
 # cmake file is missing in this directory - ER
@@ -298,3 +301,10 @@ ADD_CUSTOM_TARGET(rocksdb
   DEPENDS spdk_tcp
 )
 
+ADD_CUSTOM_TARGET(rocksdb_lib
+  COMMENT "Building rocksdb async static library"
+  WORKING_DIRECTORY oss/rocksdb
+  COMMAND make clean SPDK_DIR=../spdk_tcp
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/
+  DEPENDS spdk_tcp_configure
+)

@@ -355,7 +355,6 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair);
 struct dfly_qpair_s* df_get_dqpair(dfly_ctrl_t *ctrlr, uint16_t qid);
 int dfly_nvmf_request_complete(struct spdk_nvmf_request *req);
 
-extern struct spdk_nvmf_tgt *g_spdk_nvmf_tgt;
 void wal_flush_complete(struct df_dev_response_s resp, void *arg);
 void log_recovery_writethrough_complete(struct df_dev_response_s resp, void *arg);
 
@@ -407,6 +406,7 @@ void df_update_lat_us(struct dfly_request *dreq);
 void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_device,
 			struct spdk_io_channel *ch);
 
+struct spdk_nvmf_tgt *dfly_get_g_nvmf_tgt(void);
 #ifdef __cplusplus
 }
 #endif

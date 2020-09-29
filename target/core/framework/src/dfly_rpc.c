@@ -183,7 +183,7 @@ dfly_dump_subsystem_state(struct spdk_json_write_ctx *w)
 	spdk_json_write_name(w, "SUBSYSTEM");
 	spdk_json_write_object_begin(w);
 
-	subsystem = spdk_nvmf_subsystem_get_first(g_spdk_nvmf_tgt);
+	subsystem = spdk_nvmf_subsystem_get_first(dfly_get_g_nvmf_tgt());
 	while (subsystem) {
 		spdk_json_write_name(w, spdk_nvmf_subsystem_get_nqn(subsystem));
 		spdk_json_write_object_begin(w);
@@ -681,7 +681,7 @@ static void dss_rpc_get_latency_profile(struct spdk_jsonrpc_request *request,
 		goto invalid;
 	}
 
-	subsystem = spdk_nvmf_tgt_find_subsystem(g_spdk_nvmf_tgt, req.nqn);
+	subsystem = spdk_nvmf_tgt_find_subsystem(dfly_get_g_nvmf_tgt(), req.nqn);
 	if (!subsystem) {
 		DFLY_ERRLOG("Subsystem not found\n");
 		goto invalid;

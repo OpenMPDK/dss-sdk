@@ -334,7 +334,7 @@ struct df_device *dfly_kv_pool_open(const char *path, bool write)
 		return NULL;
 	}
 
-	subsystem = spdk_nvmf_subsystem_get_first(g_spdk_nvmf_tgt);
+	subsystem = spdk_nvmf_subsystem_get_first(dfly_get_g_nvmf_tgt());
 
 	while (subsystem) {
 		if (strncmp(subsystem->subnqn, path, SPDK_NVMF_NQN_MAX_LEN) == 0) {
