@@ -1,4 +1,4 @@
-# Fabric Manager (Python)
+# Unified Fabric Manager (Python)
 
 ## Official README
 
