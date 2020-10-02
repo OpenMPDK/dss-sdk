@@ -133,22 +133,22 @@ stat_io_t* nkv_init_path_io_stats(string& device_name, bool cpu_stat, unsigned c
 // Reset all counters
 void nkv_ustat_reset_io_stat(stat_io_t* stat)
 {
-  ustat_set_u64(stat, &stat->put_less_4KB, 0);
-  ustat_set_u64(stat, &stat->put_4KB_64KB, 0);
-  ustat_set_u64(stat, &stat->put_64KB_2MB, 0);
-  ustat_set_u64(stat, &stat->get_less_4KB, 0);
-  ustat_set_u64(stat, &stat->get_4KB_64KB, 0);
-  ustat_set_u64(stat, &stat->get_64KB_2MB, 0);
-  ustat_set_u64(stat, &stat->put, 0);
-  ustat_set_u64(stat, &stat->get, 0);
-  ustat_set_u64(stat, &stat->del, 0);
+  ustat_atomic_set_u64(stat, &stat->put_less_4KB, 0);
+  ustat_atomic_set_u64(stat, &stat->put_4KB_64KB, 0);
+  ustat_atomic_set_u64(stat, &stat->put_64KB_2MB, 0);
+  ustat_atomic_set_u64(stat, &stat->get_less_4KB, 0);
+  ustat_atomic_set_u64(stat, &stat->get_4KB_64KB, 0);
+  ustat_atomic_set_u64(stat, &stat->get_64KB_2MB, 0);
+  ustat_atomic_set_u64(stat, &stat->put, 0);
+  ustat_atomic_set_u64(stat, &stat->get, 0);
+  ustat_atomic_set_u64(stat, &stat->del, 0);
 }
 
 // Increment counter with specified value.
 void nkv_ustat_atomic_set_u64(ustat_struct_t* stat, ustat_named_t* counter, uint64_t value)
 {
   if( stat ) {
-    ustat_set_u64(stat, counter , value);
+    ustat_atomic_set_u64(stat, counter , value);
   }
 }
 
