@@ -20,7 +20,7 @@
     state: present
     version: "{{ ffi_version }}"
     include_dependencies: yes
-    user_install: now
+    user_install: no
   become: yes
 
 - name: Install fpm gem
