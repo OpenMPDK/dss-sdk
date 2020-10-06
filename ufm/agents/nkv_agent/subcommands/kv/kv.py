@@ -446,7 +446,7 @@ class KVManager:
             for v in d.values():
                 devices = list(v['SN'])
                 nqn = v['NQN']
-                ip_addresses = list(v[tr_type.upper()])
+                ip_addresses = list(v[tr_type.upper()].split(","))
 
                 if validate_kv.exceeded_maximum_listen_addresses(ip_addresses):
                     print("Maximum of %d listen addresses allowed" % validate_kv.MAXIMUM_LISTEN_DIRECTIVES)
