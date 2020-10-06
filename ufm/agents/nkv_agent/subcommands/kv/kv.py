@@ -220,9 +220,15 @@ class KVManager:
         :param nqn: NVMe Qualified Name to use with the subsystem.
         :param ip_addresses: Transport addresses list.
         :param asynchronous: Asynchronous code path instead of waiting for response.
+        :param tr_type: Type of transport, TCP or RDMA
         :param core_id: Core to run the subsystem on.
         :return:
         """
+        self.create_subsystem_cmd(server_uuid, devices, nqn, ip_addresses,
+                                  asynchronous, tr_type,
+                                  "construct_nvmf_subsystem", core_id)
+
+    def create_subsystem_cmd(self, server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, cmd, core_id=None):
         search_prefix = self.backend.ETCD_SRV_BASE + server_uuid
         self.backend.acquire_lock()
         resp = self.backend.get_json_prefix(search_prefix).values()[0]
@@ -380,7 +386,7 @@ class KVManager:
                               (int(core_numa),
                                "No NUMA" if device_numa == -1 else "NUMA " + str(device_numa)))
 
-            config_args = {"Command": "construct_nvmf_subsystem",
+            config_args = {"Command": cmd,
                            "NQN": nqn,
                            "namespaces": {},
                            "transport_addresses": {},
@@ -449,7 +455,10 @@ class KVManager:
                     print("Maximum of %d namespaces allowed" % validate_kv.MAXIMUM_NAMESPACE_DIRECTIVES)
                     sys.exit(-1)
 
-                self.create_subsystem(server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, core_id)
+                # self.create_subsystem(server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, core_id)
+                self.create_subsystem_cmd(server_uuid, devices, nqn, ip_addresses,
+                                          asynchronous, tr_type,
+                                          "store_nvmf_subsystem", core_id)
 
     def delete_subsystem(self, server_uuid, nqn, asynchronous):
         """
