@@ -808,6 +808,55 @@ class OSMDaemon:
         :return:
         """
         global g_restart_monitor_threads
+
+        def execute_subsystem_rpc():
+            spdk_namespaces = self.get_namespaces()
+            for nsid in namespaces:
+                pci_addr = namespaces[nsid]["PCIAddress"]
+                found = 0
+                for ns in spdk_namespaces:
+                    try:
+                        spdk_pci_addr = ns["driver_specific"]["nvme"]["trid"]["traddr"]
+                        if pci_addr == spdk_pci_addr:
+                            found = 1
+                            break
+                    except Exception:
+                        continue
+                if found:
+                    continue
+                else:
+                    # Build the SPDK RPC req for the command
+                    # construct_nvme_bdev and execute it.
+                    self.create_namespaces(namespaces[nsid])
+
+            rpc_req = SPDKJSONRPC.build_payload(command, rpc_args)
+            # logger.info(json.dumps(rpc_req, indent=2))
+            subsystem_lock.refresh()
+            logger.info("Sending JSON RPC call for nqn %s", nqn)
+            results = SPDKJSONRPC.call(rpc_req, self.jsonrpc_recv_size, self.default_spdk_rpc)
+            subsystem_lock.refresh()
+            logger.info("Sending JSON RPC call complete for nqn %s", nqn)
+            # logger.info("Results: \n" + json.dumps(results, indent=2))
+            return results
+
+        def get_numa_alignment(build_rpc=True):
+            numa_aligned = 1
+            numa_node = None
+            for nsid in namespaces:
+                sn = namespaces[nsid]["Serial"]
+                if build_rpc:
+                    rpc_args["namespaces"].append({"bdev_name": "%sn1" % sn,
+                                                    "nsid": int(nsid), })
+
+                # NUMA Alignment check for storage devices
+                if numa_aligned:
+                    cur_numa_node = self.etcd_server_attributes["storage"]["nvme"]["devices"][sn]["NUMANode"]
+                    if numa_node is None:
+                        numa_node = cur_numa_node
+                    elif cur_numa_node != numa_node:
+                        numa_aligned = 0
+            return numa_aligned
+
         while not stopper_event.is_set():
             # If the etcd server attributes are not initialized, then wait
             # till it gets initialized. Otherwise the nvmf subsystem calls fail
@@ -878,57 +927,10 @@ class OSMDaemon:
                         interface_speed = self.etcd_server_attributes["network"]["interfaces"][mac]["Speed"]
                         d["transport_addresses"] = {mac: {"interface_speed": interface_speed, }, }
 
-                    numa_aligned = 1
-                    numa_node = None
-                    for nsid in namespaces:
-                        sn = namespaces[nsid]["Serial"]
-                        rpc_args["namespaces"].append({"bdev_name": "%sn1" % sn,
-                                                       "nsid": int(nsid), })
-
-                        # NUMA Alignment check for storage devices
-                        if numa_aligned:
-                            cur_numa_node = self.etcd_server_attributes["storage"]["nvme"]["devices"][sn]["NUMANode"]
-                            if numa_node is None:
-                                numa_node = cur_numa_node
-                            elif cur_numa_node != numa_node:
-                                numa_aligned = 0
+                    numa_aligned = get_numa_alignment()
 
                     self.spdk_conf.add_subsystem_temp_local_config(config_dict)
-                elif command == "delete_nvmf_subsystem":
-                    self.remove_device_config(subsystem_lock, nqn)
-                    self.spdk_conf.delete_subsystem_temp_local_config(config_dict)
-                    rpc_args = {"nqn": nqn, }
-                else:
-                    logger.info("Unknown command [%s]. Exiting the system", command)
-                    sys.exit(-1)
-
-                spdk_namespaces = self.get_namespaces()
-                for nsid in namespaces:
-                    pci_addr = namespaces[nsid]["PCIAddress"]
-                    found = 0
-                    for ns in spdk_namespaces:
-                        try:
-                            spdk_pci_addr = ns["driver_specific"]["nvme"]["trid"]["traddr"]
-                            if pci_addr == spdk_pci_addr:
-                                found = 1
-                                break
-                        except Exception:
-                            continue
-                    if found:
-                        continue
-                    else:
-                        self.create_namespaces(namespaces[nsid])
-
-                rpc_req = SPDKJSONRPC.build_payload(command, rpc_args)
-                # logger.info(json.dumps(rpc_req, indent=2))
-                subsystem_lock.refresh()
-                logger.info("Sending JSON RPC call for nqn %s", nqn)
-                results = SPDKJSONRPC.call(rpc_req, self.jsonrpc_recv_size, self.default_spdk_rpc)
-                subsystem_lock.refresh()
-                logger.info("Sending JSON RPC call complete for nqn %s", nqn)
-                # logger.info("Results: \n" + json.dumps(results, indent=2))
-
-                if command == "construct_nvmf_subsystem":
+                    results = execute_subsystem_rpc()
                     if "error" in results:
                         logger.info("==== construct_nvmf_subsystem [%s] failed ====", nqn)
                         self.subsystem_fail(command, subsystem_lock, nqn, namespaces)
@@ -948,6 +950,10 @@ class OSMDaemon:
                                         'because of target restart')
                             g_restart_monitor_threads += 1
                 elif command == "delete_nvmf_subsystem":
+                    self.remove_device_config(subsystem_lock, nqn)
+                    self.spdk_conf.delete_subsystem_temp_local_config(config_dict)
+                    rpc_args = {"nqn": nqn, }
+                    results = execute_subsystem_rpc()
                     if "error" in results:
                         logger.info("==== delete_nvmf_subsystem [%s] failed ====", nqn)
                         self.subsystem_fail(command, subsystem_lock, nqn, namespaces)
@@ -965,8 +971,26 @@ class OSMDaemon:
                             logger.info('Restarting the monitoring threads '
                                         'because of target restart')
                             g_restart_monitor_threads += 1
+                elif command == "store_nvmf_subsystem":
+                    for mac in transport_addresses:
+                        interface_speed = self.etcd_server_attributes["network"]["interfaces"][mac]["Speed"]
+                        d["transport_addresses"] = {mac: {"interface_speed": interface_speed, }, }
+
+                    numa_aligned = get_numa_alignment(build_rpc=False)
+                    d["numa_aligned"] = numa_aligned
+                    self.nqn_uuid_map[nqn] = str(uuid.uuid4())
+                    d["UUID"] = self.nqn_uuid_map[nqn]
+                    d["time_created"] = time.time()
+                    self.backend.write_dict_to_etcd(d, self.SERVER_CONFIG_KEY_PREFIX + nqn + '/')
+                    self.set_device_config_status(subsystem_lock, nqn, "success")
+                    logger.info("==== store_nvmf_subsystem [%s] completed ====", nqn)
+                elif command == "erase_nvmf_subsystem":
+                    self.remove_device_config(subsystem_lock, nqn)
+                    self.removed_nqn_q.append(nqn)
+                    self.nqn_uuid_map.pop(nqn, None)
+                    logger.info("==== erase_nvmf_subsystem [%s] completed ====", nqn)
                 else:
-                    logger.error('Unknown command to handle %s', command)
+                    logger.info("Unknown command [%s]. Exiting the system", command)
                     sys.exit(-1)
 
                 if self.synchronize_etcd:
