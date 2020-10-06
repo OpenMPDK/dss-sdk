@@ -54,7 +54,7 @@ set(USTAT_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/lib/libusta
 include_directories(${USTAT_INCLUDE_DIR})
 link_directories(${USTAT_LIBRARY_DIR})
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/../target/oss/dssd/lib/libdssd.a DESTINATION ${CMAKE_BINARY_DIR}/lib)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/../df_out/dssd/lib/libdssd.a DESTINATION ${CMAKE_BINARY_DIR}/lib)
 
 if(NKV_WITH_SAMSUNG_API)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
@@ -150,7 +150,7 @@ add_custom_command(
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/sample_code_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../target/oss/dssd/cmd/ustat/ustat   ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/	
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../df_out/dssd/cmd/ustat/ustat   ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/	
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/bin/nkv_* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/test/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/README_INSTALL.txt ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
