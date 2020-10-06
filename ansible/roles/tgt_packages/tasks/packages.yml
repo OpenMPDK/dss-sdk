@@ -2,10 +2,10 @@
 
 - name: Install target RPMs
   yum:
-    name: "{{ dfly_temp_dir }}/{{ item.path | basename }}"
+    name: "{{ dfly_temp_dir }}/{{ item | basename }}"
   register: target_rpm_status
   become: yes
-  loop: "{{ found_target_packages.files }}"
+  loop: "{{ found_target_packages.files | sort(attribute='path') | map(attribute='path') | list }}"
   loop_control:
     label: "{{ dfly_temp_dir }}/{{ item.path | basename }}"
   failed_when: "'scriptlet failure' in target_rpm_status.msg"
