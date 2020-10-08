@@ -223,7 +223,7 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(EthernetInterfaceAPI, REST_BASE + 'Systems/<string:sys_id>/EthernetInterfaces/<string:eth_id>')
     api.add_resource(StorageCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage')
     api.add_resource(StorageAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
-    api.add_resource(DriveCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
+    api.add_resource(DriveCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>/Drives')
     api.add_resource(DriveAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>/Drives/<string:drive_id>')
     # api.add_resource(UfmdbSystemAPI, '/<path:path>')
 
