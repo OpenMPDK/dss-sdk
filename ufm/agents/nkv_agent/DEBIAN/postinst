@@ -31,6 +31,10 @@ check_service()
     local status=1
     for try in 1 2 3
     do
+        systemctl status ${serv} | grep -qi "${serv}.service; enabled"
+        if [[ $? -ne 0 ]]; then
+            systemctl enable ${serv}
+        fi
         systemctl "${action}" "${serv}"
         sleep 1
 

@@ -548,17 +548,15 @@ class OSMDaemon:
                                     tx_bytes_kb = int("".join(tx_bytes))/1024
                             if rx_bytes_kb:
                                 metric = \
-                                    'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s;ip_address=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac,
-                                     iface['IPv4'])
+                                    'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
+                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(rx_bytes_kb))))
 
                             if tx_bytes_kb:
                                 metric = \
-                                    'tx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s;ip_address=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac,
-                                     iface['IPv4'])
+                                    'tx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
+                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(tx_bytes_kb))))
                             logger.debug('Mellanox NIC metrics %s',
@@ -1145,25 +1143,25 @@ class OSMDaemon:
                                                                                             self.nqn_uuid_map))
             return
 
-        for drive in subsystem:
-            if drive.startswith('drive'):
+        for element in subsystem:
+            if element.startswith('drive'):
                 try:
                     # TODO The serial number coming from ustat is the
                     # TODO device name in nmaepsace. The proper serial
                     # TODO number should be sent by the ustat command.
                     # TODO For now, just strip the last two characters which is
                     # TODO more of the form <dev_serial> + "n1" to just serial
-                    serial = subsystem[drive]["id"]["serial"][:-2]
+                    serial = subsystem[element]["id"]["serial"][:-2]
                 except Exception:
                     logger.exception('ID or Serial not found for drive %s',
-                                     drive)
+                                     element)
                     continue
                 if serial not in prev_counters:
                     prev_counters[serial] = {}
 
-                if 'kvio' in subsystem[drive]:
+                if 'kvio' in subsystem[element]:
                     counters = {}
-                    self.statistics_helper(subsystem[drive]["kvio"].iteritems(),
+                    self.statistics_helper(subsystem[element]["kvio"].iteritems(),
                                            prev_counters[serial], counters, 0)
                     for counter in counters:
                         metric_path = "cluster_id_%s.target_id_%s.%s.disk.%s" % \
@@ -1171,22 +1169,22 @@ class OSMDaemon:
                                        "target_nqn_id_%s.disk_id_%s" % (subsystem_uuid, serial), counter)
                         value = str(counters[counter])
                         message_tuples.append((metric_path, (timestamp, value)))
-            elif drive.startswith('kvio'):
+            elif element.startswith('kvio'):
                 # Gather subsystem level statistics
                 if subsystem_uuid not in prev_counters:
                     prev_counters[subsystem_uuid] = {}
 
                 counters = {}
-                self.statistics_helper(subsystem[drive].iteritems(),
+                self.statistics_helper(subsystem[element].iteritems(),
                                        prev_counters[subsystem_uuid],
                                        counters,
                                        0)
-                for bw_element in ['getBandwidth', 'putBandwidth']:
+                for counter in counters:
                     metric_path = "cluster_id_%s.target_id_%s.%s.subsystem.%s" % \
                                       (self.CLUSTER_ID,
                                        self.SERVER_UUID,
-                                       "subsystem_id_%s" % (subsystem_uuid), bw_element)
-                    value = str(counters.get(bw_element, 0))
+                                       "subsystem_id_%s" % (subsystem_uuid), counter)
+                    value = str(counters[counter])
                     message_tuples.append((metric_path, (timestamp, value)))
 
     def session_statistics_to_message(self,
