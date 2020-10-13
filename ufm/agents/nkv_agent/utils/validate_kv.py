@@ -11,9 +11,14 @@ MAXIMUM_NAMESPACE_DIRECTIVES = 255
 def find_network_interface(ipaddr, interface_list):
     for interface in interface_list:
         for adrfam in ADRFAM:
-            if adrfam in interface_list[interface] and \
-                    ipaddr == interface_list[interface][adrfam]:
-                return adrfam, interface_list[interface]
+            if adrfam in interface_list[interface]:
+                if ipaddr == interface_list[interface][adrfam]:
+                    return adrfam, interface_list[interface]
+            else:
+                for iface in interface_list[interface]['Interfaces']:
+                    if adrfam in interface_list[interface]['Interfaces'][iface] and \
+                            ipaddr == interface_list[interface]['Interfaces'][iface][adrfam]:
+                        return adrfam, interface_list[interface]
     return None, None
 
 
