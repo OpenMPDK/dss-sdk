@@ -22,7 +22,7 @@ then
   systemctl disable ${SERVICE}
   systemctl stop ${SERVICE}
   systemctl daemon-reload
-  # rm /etc/systemd/system/${SERVICE}.service
+  rm /etc/systemd/system/${SERVICE}.service
 fi
 
 [[ -e ${APP_PATH} ]] && rm -rf ${APP_PATH}
