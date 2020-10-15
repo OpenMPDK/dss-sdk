@@ -1,7 +1,7 @@
-From f50f5d05f60c502a1d1d86f7d9f151a81f85324a Mon Sep 17 00:00:00 2001
+From 1814a529e56fb230396fab0c4a79c835c04ba4a2 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 21 Jul 2020 02:06:35 -0700
-Subject: [PATCH] Rocksdb async dss update * async random read support for
+Subject: [PATCH 1/4] Rocksdb async dss update * async random read support for
  linux * enable spdk/blobfs support * db_bench fullfill queue depth for async
  io when possible. * spdk malloc for async read buffer * spdk_mempool for
  async read buffer (disabled) * pipeline write option enabled. * spdk_cpumask

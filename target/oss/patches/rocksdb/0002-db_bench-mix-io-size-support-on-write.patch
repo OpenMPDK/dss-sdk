@@ -1,0 +1,362 @@
+From 62d11509f2f9d5a570ae4eee44fc7712f6811e72 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Wed, 14 Oct 2020 13:25:18 -0700
+Subject: [PATCH 2/4] * db_bench mix io size support on write       example:
+ --nr_io_size=4 --num=1048576 ingest object with val size as 128k, 256k, 512k
+ and 1024k, with total num as 1m. * db_bench key prefix range iteration.      
+ example: --prefix_size=6 --use_prefix_iter=true --key_prefix=0x01
+ --key_upbound=0x2D       db_bench use 16 bytes key, the following range
+ covered (0x00000000000100000000000000000000 -
+ 0x00000000002D00000000000000000000)
+
+---
+ tools/db_bench_tool.cc | 158 +++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 128 insertions(+), 30 deletions(-)
+
+diff --git a/tools/db_bench_tool.cc b/tools/db_bench_tool.cc
+index 6b248a1..beb6a9f 100644
+--- a/tools/db_bench_tool.cc
++++ b/tools/db_bench_tool.cc
+@@ -727,8 +727,37 @@ DEFINE_int32(table_cache_numshardbits, 4, "");
+ DEFINE_string(spdk, "", "Name of SPDK configuration file");
+ DEFINE_string(spdk_bdev, "", "Name of SPDK blockdev to load");
+ DEFINE_string(spdk_cpumask, "", "cpumask of SPDK");
+-
+ DEFINE_uint64(spdk_cache_size, 4096, "Size of SPDK filesystem cache (in MB)");
++DEFINE_int32(read_ratio, 1, "readwhilewriting read/write ratio");
++DEFINE_int32(nr_io_size, 1, "fillseq nr io size (inverse power of 2 of value_size)");
++DEFINE_int32(key_prefix, 0, "key prefix value (uint8) ");
++DEFINE_int32(key_upbound, 0, "upbound key prefix value (uint8)");
++DEFINE_bool(use_prefix_iter, false,"use key_prefix for iter seek on sequentail read");
++
++#include <time.h>
++
++#define NS 1000000000
++#define MS 1000000
++
++static inline void start_timer(struct timespec *start)
++{
++	clock_gettime(CLOCK_REALTIME, start);
++}
++
++static inline long long int elapsed_time(struct timespec start)
++{
++	struct timespec end;
++	long long int etime;
++	clock_gettime(CLOCK_REALTIME, &end);
++	if (end.tv_nsec >=  start.tv_nsec) {
++		etime = ((end.tv_sec - start.tv_sec) * NS) + (end.tv_nsec - start.tv_nsec);
++	} else {
++		etime = ((end.tv_sec - start.tv_sec - 1) * NS) + (NS + end.tv_nsec - start.tv_nsec);
++	}
++	return etime;
++}
++
++
+ 
+ #ifndef ROCKSDB_LITE
+ DEFINE_string(env_uri, "", "URI for registry Env lookup. Mutually exclusive"
+@@ -2354,7 +2383,7 @@ class Benchmark {
+       }
+       FLAGS_env = new ReportFileOpEnv(rocksdb::Env::Default());
+     }
+-
++    
+     if (!FLAGS_spdk.empty()) {
+         FLAGS_env = rocksdb::NewSpdkEnv(rocksdb::Env::Default(), FLAGS_db, FLAGS_spdk_cpumask, FLAGS_spdk, FLAGS_spdk_bdev, FLAGS_spdk_cache_size);
+         if (FLAGS_env == NULL) {
+@@ -2472,6 +2501,8 @@ class Benchmark {
+     if (key_size_ > pos - start) {
+       memset(pos, '0', key_size_ - (pos - start));
+     }
++
++    //printf("GenerateKeyFromInt v=0x%x key=%s\n", v, key->ToString(true).c_str());
+   }
+ 
+   std::string GetPathForMultiple(std::string base_name, size_t id) {
+@@ -2556,6 +2587,10 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+       }
+       write_options_.disableWAL = FLAGS_disable_wal;
+ 
++      if (FLAGS_run_async){
++        bench_func_.reset(new ReadRandomAsync());
++      }
++      
+       void (Benchmark::*method)(ThreadState*) = nullptr;
+       void (Benchmark::*post_process_method)() = nullptr;
+ 
+@@ -2658,7 +2693,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         method = &Benchmark::ReadRandom;
+       } else if (name == "readrandomasync") {
+ #ifndef OS_WIN
+-        bench_func_.reset(new ReadRandomAsync());
++        //bench_func_.reset(new ReadRandomAsync());
+         if (!FLAGS_run_async) {
+           fprintf(stdout, "run_async must be enabled\n");
+           exit(1);
+@@ -2682,7 +2717,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         method = &Benchmark::SeekRandom;
+       } else if (name == "seekrandomasync") {
+ #ifdef OS_WIN
+-        bench_func_.reset(new SeekRandomAsync());
++        //bench_func_.reset(new SeekRandomAsync());
+         if (!FLAGS_run_async) {
+           fprintf(stdout, "run_async must be enabled\n");
+           exit(1);
+@@ -2703,7 +2738,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         method = &Benchmark::DeleteRandom;
+       } else if (name == "readwhilewriting") {
+         num_threads++;  // Add extra thread for writing
+-        method = &Benchmark::ReadWhileWriting;
++        if (!FLAGS_run_async)
++            method = &Benchmark::ReadWhileWriting;
+       } else if (name == "readwhilemerging") {
+         num_threads++;  // Add extra thread for writing
+         method = &Benchmark::ReadWhileMerging;
+@@ -2994,18 +3030,31 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+     states.resize(n);
+     benches.resize(n);
+     //threads.reserve(n);
+-
++    ThreadArg* arg = new ThreadArg[n];
++    
+     for (int i = 0; i < n; i++) {
+-
+-      states[i].reset(new ThreadState(i));
+-      states[i]->stats.SetReporterAgent(reporter_agent.get());
+-      states[i]->shared = &shared;
+-
+-      benches[i] = std::move(bench_func_->Clone());
+-      benches[i]->SetState(this, &shared, states[i].get());
+-      FLAGS_env->StartThread(AsyncBenchFunc, benches[i].get());
+-      //port::Thread t(&AsyncBenchBase::Run, benches[i].get());
+-      //threads.push_back(std::move(t));
++      if(i > 0 || name == Slice("readrandomasync")){
++          states[i].reset(new ThreadState(i));
++          states[i]->stats.SetReporterAgent(reporter_agent.get());
++          states[i]->shared = &shared;
++
++          benches[i] = std::move(bench_func_->Clone());
++          benches[i]->SetState(this, &shared, states[i].get());
++          FLAGS_env->StartThread(AsyncBenchFunc, benches[i].get());
++          //port::Thread t(&AsyncBenchBase::Run, benches[i].get());
++          //threads.push_back(std::move(t));
++          printf("launch async read thread %d\n", i);
++      }else if(name == Slice("readwhilewriting")){
++          arg[i].bm = this;
++          arg[i].method = &Benchmark::WriteWhileAsyncReading;
++          arg[i].shared = &shared;
++          arg[i].thread = new ThreadState(i);
++          arg[i].thread->stats.SetReporterAgent(reporter_agent.get());
++          arg[i].thread->shared = &shared;
++          FLAGS_env->StartThread(ThreadBody, &arg[i]);
++          printf("launch write thread %d\n", i);
++      }
++      
+     }
+ 
+     shared.mu.Lock();
+@@ -3027,7 +3076,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+     // Stats for some threads can be excluded.
+     Stats merge_stats;
+     for (int i = 0; i < n; i++) {
+-      merge_stats.Merge(states[i]->stats);
++        if(i == 0 && name == Slice("readwhilewriting")){
++            merge_stats.Merge(arg[i].thread->stats);
++        }else{
++            merge_stats.Merge(states[i]->stats);
++        }
+     }
+     merge_stats.Report(name);
+ 
+@@ -3794,6 +3847,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+ 
+     int64_t stage = 0;
+     int64_t num_written = 0;
++    int64_t nr_batch = 0;
++    int64_t max_obj_size = value_size_;
+     while (!duration.Done(entries_per_batch_)) {
+       if (duration.GetStage() != stage) {
+         stage = duration.GetStage();
+@@ -3820,6 +3875,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         thread->stats.ResetLastOpTime();
+       }
+ 
++      value_size_ = max_obj_size >> (nr_batch % FLAGS_nr_io_size);
++      
+       for (int64_t j = 0; j < entries_per_batch_; j++) {
+         int64_t rand_num = key_gens[id]->Next();
+         GenerateKeyFromInt(rand_num, FLAGS_num, &key);
+@@ -3883,6 +3940,9 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+           }
+         }
+       }
++
++      nr_batch ++;
++      
+       if (!use_blob_db_) {
+ #ifndef ROCKSDB_LITE
+ 	//printf("DoWrite entries_per_batch_ %d batch count %d num_written %d bytes %ld\n", entries_per_batch_, batch.Count(), num_written, bytes);
+@@ -4217,8 +4277,35 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+     Iterator* iter = db->NewIterator(options);
+     int64_t i = 0;
+     int64_t bytes = 0;
+-    for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
++
++     char key_buf[16]={0};
++     key_buf[FLAGS_prefix_size - 1] = FLAGS_key_prefix;
++     Slice key_prefix(key_buf, 16);
++
++     char key_buf2[16]={(char)0xff};
++     if(FLAGS_key_upbound && FLAGS_key_upbound > FLAGS_key_prefix){
++        memset(key_buf2, 0, 16);
++        key_buf2[FLAGS_prefix_size - 1] = FLAGS_key_upbound;
++     }
++     Slice key_upbound(key_buf2, 16);
++     struct timespec s_time; 
++     start_timer(&s_time);
++     int32_t value_size = 0;
++    
++     if(FLAGS_use_prefix_iter){
++        //printf("ReadSequential key_prefix 0x%s\n", key_prefix.ToString(true).c_str());
++        iter->Seek(key_prefix);
++     }else{
++        iter->SeekToFirst();
++     }
++    //iter->Seek(key_prefix);
++    //for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
++    for (; i < reads_ && iter->Valid() && iter->key().compare(key_upbound) < 0; 
++            iter->Next()) {
++      if(!value_size){value_size = iter->value().size();}
+       bytes += iter->key().size() + iter->value().size();
++      //printf("ReadSequential key 0x%s\n", iter->key().ToString(true).c_str());
++      //bytes += iter->key().size() ; //+ iter->value().size();
+       thread->stats.FinishedOps(nullptr, db, 1, kRead);
+       ++i;
+ 
+@@ -4229,11 +4316,16 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+       }
+     }
+ 
++    long long int iter_sec = elapsed_time(s_time)/MS;
++    
+     delete iter;
+     thread->stats.AddBytes(bytes);
+     if (FLAGS_perf_level > rocksdb::PerfLevel::kDisable) {
+       thread->stats.AddMessage(get_perf_context()->ToString());
+     }
++
++    printf("iter value_size(%d) key range (0x%s - 0x%s), duration %ld ms, keys found %ld\n", 
++        value_size, key_prefix.ToString(true).c_str(), key_upbound.ToString(true).c_str(), iter_sec, i);
+   }
+ 
+   void ReadReverse(ThreadState* thread) {
+@@ -4508,21 +4600,21 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         while (nr_ops) {
+ 
+             while (in_flight_.load(std::memory_order_relaxed) < conc_io_ops_) {
+-                  //printf("Run RequestGet: in_flight_ %d nr_ops %d\n",
++                  //printf("Run RequestGet: in_flight_ %d nr_ops %d\n", 
+                   //  in_flight_.load(std::memory_order_relaxed), nr_ops);
+                   Status s = RequestGet();
+-                  //printf("Run: in_flight_ %d request s %s\n",
++                  //printf("Run: in_flight_ %d request s %s\n", 
+                   //  in_flight_.load(std::memory_order_relaxed), s.ToString().c_str());
+                   if (s.IsIOPending()) {
+                     in_flight_.fetch_add(1, std::memory_order_relaxed);
+                   } else {
+                     // to properly account things that were done
+-		        printf(" sync io %d!\n", ++ nr_sync_io);
++    		        printf(" sync io %d!\n", ++ nr_sync_io);
+                   }
+ 
+                   if(!(--nr_ops))
+                     break;
+-
++                
+             }
+ 
+             if(in_flight_.load(std::memory_order_relaxed))
+@@ -4531,9 +4623,9 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+ 
+        while(in_flight_.load(std::memory_order_relaxed))
+         usleep(100);
+-
++       
+        //     c_.wait(l);
+-
++      
+       char msg[100];
+       snprintf(msg, sizeof(msg), "(%" PRIu64 " of %" PRIu64 " found)\n",
+         found_.load(std::memory_order_relaxed),
+@@ -4619,7 +4711,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+       async(status);
+ 
+       bench_->read_.fetch_add(1, std::memory_order_relaxed);
+-
++      
+       if (status.IsNotFound()) {
+         fprintf(stderr, "%s\n", key_.ToString(true).c_str());
+       }
+@@ -4629,7 +4721,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+         bench_->bytes_.fetch_add(key_.size() +
+           (FLAGS_pin_slice == 1 ? pinnable_val_.size() : value_.size()),
+           std::memory_order_relaxed);
+-
++	
+       } else if (!status.IsNotFound()) {
+         fprintf(stderr, "Get returned an error: %s\n",
+           status.ToString().c_str());
+@@ -5090,6 +5182,10 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+     }
+   }
+ 
++  void WriteWhileAsyncReading(ThreadState* thread) {
++      BGWriter(thread, kWrite);
++  }
++
+   void ReadWhileMerging(ThreadState* thread) {
+     if (thread->tid > 0) {
+       ReadRandom(thread);
+@@ -5121,7 +5217,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+       DB* db = SelectDB(thread);
+       {
+         MutexLock l(&thread->shared->mu);
+-        if (FLAGS_finish_after_writes && written == writes_) {
++        if (FLAGS_finish_after_writes && written == (writes_ / FLAGS_read_ratio)) {
+           fprintf(stderr, "Exiting the writer after %u writes...\n", written);
+           break;
+         }
+@@ -5165,6 +5261,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
+       }
+     }
+     thread->stats.AddBytes(bytes);
++
++    printf("BGWriter written %d writes_ %d\n", written, writes_);
+   }
+ 
+   // Given a key K and value V, this puts (K+"0", V), (K+"1", V), (K+"2", V)
+@@ -6075,17 +6173,17 @@ int db_bench_tool(int argc, char** argv) {
+     FLAGS_stats_interval = 1000;
+   }
+ 
+-
++  
+   // Allocate the Benchmark off the heap, so that we can explicitly delete it
+   //  before the SpdkEnv is deleted.
+   rocksdb::Benchmark *benchmark = new rocksdb::Benchmark;
+   benchmark->Run();
+   delete benchmark;
+-
++  
+   if (!FLAGS_spdk.empty()) {
+       delete FLAGS_env;
+   }
+-
++  
+   return 0;
+ }
+ }  // namespace rocksdb
+-- 
+1.8.3.1
+

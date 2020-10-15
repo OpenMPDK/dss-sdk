@@ -1,0 +1,403 @@
+From e41dd74fed7be9e29b560056b6d19d49a25cb9ef Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Wed, 14 Oct 2020 14:08:45 -0700
+Subject: [PATCH 3/4] * simple clt with rocksdb library with async support
+
+---
+ Makefile                 |   5 +-
+ tools/rdb_spdk_simple.cc | 360 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 364 insertions(+), 1 deletion(-)
+ create mode 100644 tools/rdb_spdk_simple.cc
+
+diff --git a/Makefile b/Makefile
+index fd13120..5ff5569 100644
+--- a/Makefile
++++ b/Makefile
+@@ -11,7 +11,7 @@ SHELL := $(shell which bash)
+ 
+ CLEAN_FILES = # deliberately empty, so we can append below.
+ #CFLAGS += ${EXTRA_CFLAGS} -fsanitize=address
+-CFLAGS += ${EXTRA_CFLAGS}
++CFLAGS += ${EXTRA_CFLAGS} 
+ CXXFLAGS += ${EXTRA_CXXFLAGS}
+ LDFLAGS += $(EXTRA_LDFLAGS)
+ MACHINE ?= $(shell uname -m)
+@@ -949,6 +949,9 @@ librocksdb_env_basic_test.a: env/env_basic_test.o $(LIBOBJECTS) $(TESTHARNESS)
+ db_bench: tools/db_bench.o $(BENCHTOOLOBJECTS)
+ 	$(AM_LINK)
+ 
++rdb_spdk_simple: tools/rdb_spdk_simple.o $(LIBOBJECTS)
++	$(AM_LINK)
++
+ cache_bench: cache/cache_bench.o $(LIBOBJECTS) $(TESTUTIL)
+ 	$(AM_LINK)
+ 
+diff --git a/tools/rdb_spdk_simple.cc b/tools/rdb_spdk_simple.cc
+new file mode 100644
+index 0000000..360aa8f
+--- /dev/null
++++ b/tools/rdb_spdk_simple.cc
+@@ -0,0 +1,360 @@
++#ifndef __STDC_FORMAT_MACROS
++#define __STDC_FORMAT_MACROS
++#endif
++
++#include <unistd.h>
++
++#include "rocksdb/db.h"
++#include <fcntl.h>
++
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/types.h>
++#include <atomic>
++#include <cstddef>
++#include <functional>
++#include <mutex>
++#include <thread>
++#include <unordered_map>
++
++#include "async/async_absorber.h"
++#include "async/context_pool.h"
++#include "db/db_impl.h"
++#include "db/db_impl_request.h"
++#include "db/version_set.h"
++#include "hdfs/env_hdfs.h"
++#include "monitoring/histogram.h"
++#include "monitoring/statistics.h"
++#include "port/port.h"
++#include "port/stack_trace.h"
++#include "rocksdb/cache.h"
++#include "rocksdb/db.h"
++#include "rocksdb/env.h"
++#include "rocksdb/filter_policy.h"
++#include "rocksdb/memtablerep.h"
++#include "rocksdb/options.h"
++#include "rocksdb/perf_context.h"
++#include "rocksdb/persistent_cache.h"
++#include "rocksdb/rate_limiter.h"
++#include "rocksdb/slice.h"
++#include "rocksdb/slice_transform.h"
++#include "rocksdb/utilities/object_registry.h"
++#include "rocksdb/utilities/optimistic_transaction_db.h"
++#include "rocksdb/utilities/options_util.h"
++#include "rocksdb/utilities/sim_cache.h"
++#include "rocksdb/utilities/transaction.h"
++#include "rocksdb/utilities/transaction_db.h"
++#include "rocksdb/write_batch.h"
++#include "util/compression.h"
++#include "util/crc32c.h"
++#include "util/mutexlock.h"
++#include "util/random.h"
++#include "util/stderr_logger.h"
++#include "util/string_util.h"
++#include "util/testutil.h"
++#include "util/transaction_test_util.h"
++#include "util/xxhash.h"
++#include "utilities/blob_db/blob_db.h"
++#include "utilities/merge_operators.h"
++#include "utilities/persistent_cache/block_cache_tier.h"
++#include "rocksdb/async/asyncthreadpool.h"
++
++#define QUEUE_DEPTH 64    
++#define KEY_SIZE    16
++
++namespace rocksdb {
++
++struct RandomReadContext;
++
++class AsyncBenchBase {
++public:
++  virtual std::unique_ptr<AsyncBenchBase> Clone() = 0;
++  virtual ~AsyncBenchBase() {}
++
++protected:
++  AsyncBenchBase() {}
++  void OnComplete() {}
++
++};
++
++class ReadRandomAsync : public AsyncBenchBase{
++    public:
++  
++      explicit
++      ReadRandomAsync() :in_flight_(0){}
++      std::unique_ptr<AsyncBenchBase> Clone() override {
++        std::unique_ptr<AsyncBenchBase> result(new ReadRandomAsync(*this));
++        return result;
++      }
++
++      void ReadComplete(RandomReadContext* ctx) {
++        in_flight_.fetch_sub(1, std::memory_order_relaxed);
++      }
++      
++      ReadRandomAsync(const ReadRandomAsync&) :
++        ReadRandomAsync() {
++      }
++
++      std::atomic<int32_t>     in_flight_;
++};
++
++struct RandomReadContext : public async::AsyncStatusCapture {
++
++    RandomReadContext(ReadRandomAsync* bench, Slice& key):
++      bench_(bench), key_(key) {
++    }
++
++    RandomReadContext(ReadRandomAsync* bench, int idx):
++      bench_(bench), idx_(idx){
++    }
++
++    void SetKey(Slice& key){key_ = key;}
++      
++    async::Callable<Status, const Status&>
++      GetCallback() {
++      async::CallableFactory<RandomReadContext, Status, const Status&> f(this);
++      return f.GetCallable<&RandomReadContext::OnReadComplete>();
++    }
++
++    Status OnReadComplete(const Status& status) {
++      async(status.async());
++      if (status.IsNotFound()) {
++        fprintf(stderr, "key=%s no found\n", key_.ToString(true).c_str());
++      }else if(status.ok()) {
++        //found
++        //printf("OnReadComplete key=%s val=%s async=%d\n", key_.ToString(true).c_str(),
++        //    pinnable_val_.ToString().c_str(), async());
++      } else if (!status.IsNotFound()) {
++        fprintf(stderr, "Get returned an error: %s\n",
++          status.ToString().c_str());
++        abort();
++     }
++
++     if(async()){
++        //printf("OnReadComplete idx=%d\n", idx_);
++        bench_->ReadComplete(this);
++     }
++
++     return status;
++    }
++
++    ReadRandomAsync*      bench_;
++    Slice                 key_;
++    std::string           value_;
++    PinnableSlice         pinnable_val_;
++    int                   idx_;
++};
++
++
++// Generate key according to the given specification and random number.
++  // The resulting key will have the following format (if keys_per_prefix_
++  // is positive), extra trailing bytes are either cut off or padded with '0'.
++  // The prefix value is derived from key value.
++  //   ----------------------------
++  //   | prefix 00000 | key 00000 |
++  //   ----------------------------
++  // If keys_per_prefix_ is 0, the key is simply a binary representation of
++  // random number followed by trailing '0's
++  //   ----------------------------
++  //   |        key 00000         |
++  //   ----------------------------
++  void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key, 
++    int64_t keys_per_prefix= 0, int32_t prefix_size = 0, int32_t key_size = KEY_SIZE) {
++    char* start = const_cast<char*>(key->data());
++    char* pos = start;
++    if (keys_per_prefix > 0) {
++      int64_t num_prefix = num_keys / keys_per_prefix;
++      int64_t prefix = v % num_prefix;
++      int bytes_to_fill = std::min(prefix_size, 8);
++      if (port::kLittleEndian) {
++        for (int i = 0; i < bytes_to_fill; ++i) {
++          pos[i] = (prefix >> ((bytes_to_fill - i - 1) << 3)) & 0xFF;
++        }
++      } else {
++        memcpy(pos, static_cast<void*>(&prefix), bytes_to_fill);
++      }
++      if (prefix_size > 8) {
++        // fill the rest with 0s
++        memset(pos + 8, '0', prefix_size - 8);
++      }
++      pos += prefix_size;
++    }
++
++    int bytes_to_fill = std::min(key_size - static_cast<int>(pos - start), 8);
++    if (port::kLittleEndian) {
++      for (int i = 0; i < bytes_to_fill; ++i) {
++        pos[i] = (v >> ((bytes_to_fill - i - 1) << 3)) & 0xFF;
++      }
++    } else {
++      memcpy(pos, static_cast<void*>(&v), bytes_to_fill);
++    }
++    pos += bytes_to_fill;
++    if (key_size > pos - start) {
++      memset(pos, '0', key_size - (pos - start));
++    }
++
++    //printf("GenerateKeyFromInt v=0x%x key=%s\n", v, key->ToString(true).c_str());
++  }
++
++  void range_query(DB* db, ReadOptions options, Slice start_key, Slice end_key) {
++    options.tailing = false;
++
++    Iterator* iter = db->NewIterator(options);
++    iter->Seek(start_key);
++    int nr_objs = 0;
++    int64_t bytes = 0;
++
++    for (iter->Seek(start_key); iter->Valid() && iter->key().compare(end_key) < 0; iter->Next()) {
++        bytes += iter->key().size() + iter->value().size();
++        ++nr_objs;
++    }
++    delete iter;
++    printf("iter range(0x%s - 0x%s), keys found %ld, total size %ld\n", 
++        start_key.ToString(true).c_str(), end_key.ToString(true).c_str(), nr_objs, bytes);
++  }
++}
++
++
++
++int main(int argc, char ** argv)
++{
++    
++    rocksdb::DB* db;
++    rocksdb::Options options;
++    rocksdb::WriteOptions write_options;
++    rocksdb::ReadOptions read_options;
++
++    int use_existing_db = atoi(argv[1]);
++    int num_keys = atoi(argv[2]);
++    
++    std::string dbname = "/mnt/nvme0"; 
++    std::string cpumask = "0x1";  //for core 0
++    std::string nvme_conf = "/usr/local/etc/spdk/nvme0.conf";
++    std::string spdk_bdev = "nvme0n1";
++    uint64_t cache_size_in_mb = 8192;
++    char key_buffer[16] = {0};
++    
++    int i = 0;
++    
++    if(!use_existing_db){ 
++      rocksdb::Options options;
++      DestroyDB(dbname, options);
++    }
++
++    rocksdb::Env* spdk_env = rocksdb::NewSpdkEnv(rocksdb::Env::Default(), 
++    	dbname, cpumask, 
++    	nvme_conf, spdk_bdev, 
++    	cache_size_in_mb);
++    
++    options.env = spdk_env;
++    options.create_if_missing = true;
++    
++    options.compression = rocksdb::kNoCompression;
++    options.enable_write_thread_adaptive_yield = false;
++    options.max_write_buffer_number = 10;
++    options.target_file_size_base = 1073741824; // 1GB
++    options.max_subcompactions = 4;
++    options.num_levels = 2;
++    rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
++    if (!s.ok()) {
++        printf("open %s failed\n", s.ToString().c_str());
++        return -1;
++    }
++
++    if(!use_existing_db){
++        //write in batch
++        rocksdb::WriteBatch batch;
++    	batch.Clear();
++        
++        rocksdb::Slice val_to_put="valvalvalval";
++        int batch_size = 10;
++        rocksdb::Slice key_to_put(key_buffer, KEY_SIZE);
++        for(i= 0; i<num_keys; i++){
++            if(i+1 % batch_size){
++                rocksdb::GenerateKeyFromInt(i, num_keys, &key_to_put);
++                batch.Put(key_to_put, val_to_put);
++            }else{
++                s = db->Write(write_options, &batch);
++                batch.Clear();
++            }
++        }
++
++        if(batch.Count()){
++            s = db->Write(write_options, &batch);
++            batch.Clear();
++        }
++
++        //regular sync read
++        read_options.verify_checksums = false;
++        rocksdb::Slice key_to_get(key_buffer, KEY_SIZE);
++        rocksdb::PinnableSlice val_to_get;
++        int nr_read = 0;
++        for(i= 0; i<num_keys; i++){
++            rocksdb::GenerateKeyFromInt(i, num_keys, &key_to_get);
++    	    s = db->Get(read_options, db->DefaultColumnFamily(), key_to_get, &val_to_get);
++            if(!s.ok()){
++                printf("Get key[%d]:%s failed\n", i, key_to_get.ToString(true).c_str());
++                return -1;
++            }else{
++                nr_read ++;
++            }
++            val_to_get.Reset();
++        }
++        printf("nr_read %d\n", nr_read);
++        
++        //rocksdb::Slice key_start, key_end;
++        //rocksdb::range_query(db, read_options, key_start, key_end);
++        
++    }else{
++        //async read
++
++        rocksdb::ReadRandomAsync * bench_func = new rocksdb::ReadRandomAsync();
++        rocksdb::Slice key_async_get(key_buffer, KEY_SIZE);
++        int nr_keys = 0;
++        rocksdb::RandomReadContext * RdCtx[QUEUE_DEPTH];
++        for(i = 0; i<QUEUE_DEPTH; i++ ) RdCtx[i] = new rocksdb::RandomReadContext(bench_func, i);
++        while(nr_keys < num_keys){
++            while (bench_func->in_flight_.load(std::memory_order_relaxed) < QUEUE_DEPTH && nr_keys < num_keys) {
++                rocksdb::GenerateKeyFromInt(nr_keys, num_keys, &key_async_get);
++                int idx = nr_keys % QUEUE_DEPTH;
++                //pickup available ctx (no async pending io ...) TBD
++                rocksdb::RandomReadContext * ctx = RdCtx[idx];
++                ctx->SetKey(key_async_get);
++                s.async(false);
++                s = rocksdb::async::DBImplGetContext::RequestGet(ctx->GetCallback(), db, read_options,
++                    db->DefaultColumnFamily(), ctx->key_, &ctx->pinnable_val_, nullptr);
++                if (s.IsIOPending()) {
++                    s.async(true);
++                    bench_func->in_flight_.fetch_add(1, std::memory_order_relaxed);
++                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d\n", 
++                    //    nr_keys, idx, s.async(), bench_func->in_flight_.load(std::memory_order_relaxed));
++                } else {
++                    s.async(false);
++                    //printf("RequestGet key_id %d idx %d, async=%d status %s\n",
++                    //  nr_keys, idx, s.async(), s.ToString().c_str());
++                  ctx->OnReadComplete(s);
++                }
++                nr_keys ++;
++            }
++
++            if(bench_func->in_flight_.load(std::memory_order_relaxed))
++                    usleep(1000);
++
++        }
++
++        printf("done the async read submit with in_flight_ %d\n", bench_func->in_flight_.load(std::memory_order_relaxed));
++        if(bench_func->in_flight_.load(std::memory_order_relaxed))
++            usleep(100);
++
++        printf("done the async read\n");
++       
++        for(i = 0; i<QUEUE_DEPTH; i++ ) { 
++            delete RdCtx[i];
++        }
++        
++    }
++    
++    delete db;
++}
++
+-- 
+1.8.3.1
+
