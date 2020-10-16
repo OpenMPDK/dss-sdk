@@ -35,6 +35,7 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 #include "nvme_internal.h"
+#include "rocksdb/dss_kv2blk_c.h"
 
 #define MAX_STRING_LEN (256)
 static int
@@ -363,6 +364,9 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 	subsystem->num_io_devices = nvmf_subsys->max_nsid;
 
 	DFLY_ASSERT(subsystem->devices);
+
+	//Rocksdb compilation test
+	dss_rocksdb_open(NULL, NULL, NULL);//Dummy compilation test
 
 	if (dfly_init_kd_context(subsystem->id, DFLY_KD_RH_MURMUR3)) {
 		DFLY_ERRLOG("DFLY Key Distribution init failed\n");

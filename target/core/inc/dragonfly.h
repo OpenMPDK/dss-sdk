@@ -407,6 +407,7 @@ void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_de
 			struct spdk_io_channel *ch);
 
 struct spdk_nvmf_tgt *dfly_get_g_nvmf_tgt(void);
+
 #ifdef __cplusplus
 }
 #endif
