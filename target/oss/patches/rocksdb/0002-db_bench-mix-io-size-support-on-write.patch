@@ -1,20 +1,19 @@
-From 62d11509f2f9d5a570ae4eee44fc7712f6811e72 Mon Sep 17 00:00:00 2001
+From 357bc3cf79dc4e6030df4981d117b1929d6659e9 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 13:25:18 -0700
-Subject: [PATCH 2/4] * db_bench mix io size support on write       example:
+Subject: [PATCH 2/5] * db_bench mix io size support on write example:
  --nr_io_size=4 --num=1048576 ingest object with val size as 128k, 256k, 512k
- and 1024k, with total num as 1m. * db_bench key prefix range iteration.      
+ and 1024k, with total num as 1m. * db_bench key prefix range iteration.
  example: --prefix_size=6 --use_prefix_iter=true --key_prefix=0x01
- --key_upbound=0x2D       db_bench use 16 bytes key, the following range
- covered (0x00000000000100000000000000000000 -
- 0x00000000002D00000000000000000000)
+ --key_upbound=0x2D db_bench use 16 bytes key, the following range covered
+ (0x00000000000100000000000000000000 - 0x00000000002D00000000000000000000)
 
 ---
- tools/db_bench_tool.cc | 158 +++++++++++++++++++++++++++++++++++++++----------
- 1 file changed, 128 insertions(+), 30 deletions(-)
+ tools/db_bench_tool.cc | 130 +++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 114 insertions(+), 16 deletions(-)
 
 diff --git a/tools/db_bench_tool.cc b/tools/db_bench_tool.cc
-index 6b248a1..beb6a9f 100644
+index 6b248a1..ca0a97d 100644
 --- a/tools/db_bench_tool.cc
 +++ b/tools/db_bench_tool.cc
 @@ -727,8 +727,37 @@ DEFINE_int32(table_cache_numshardbits, 4, "");
@@ -56,15 +55,6 @@ index 6b248a1..beb6a9f 100644
  
  #ifndef ROCKSDB_LITE
  DEFINE_string(env_uri, "", "URI for registry Env lookup. Mutually exclusive"
-@@ -2354,7 +2383,7 @@ class Benchmark {
-       }
-       FLAGS_env = new ReportFileOpEnv(rocksdb::Env::Default());
-     }
--
-+    
-     if (!FLAGS_spdk.empty()) {
-         FLAGS_env = rocksdb::NewSpdkEnv(rocksdb::Env::Default(), FLAGS_db, FLAGS_spdk_cpumask, FLAGS_spdk, FLAGS_spdk_bdev, FLAGS_spdk_cache_size);
-         if (FLAGS_env == NULL) {
 @@ -2472,6 +2501,8 @@ class Benchmark {
      if (key_size_ > pos - start) {
        memset(pos, '0', key_size_ - (pos - start));
@@ -81,7 +71,7 @@ index 6b248a1..beb6a9f 100644
 +      if (FLAGS_run_async){
 +        bench_func_.reset(new ReadRandomAsync());
 +      }
-+      
++
        void (Benchmark::*method)(ThreadState*) = nullptr;
        void (Benchmark::*post_process_method)() = nullptr;
  
@@ -117,20 +107,9 @@ index 6b248a1..beb6a9f 100644
      states.resize(n);
      benches.resize(n);
      //threads.reserve(n);
--
 +    ThreadArg* arg = new ThreadArg[n];
-+    
+ 
      for (int i = 0; i < n; i++) {
--
--      states[i].reset(new ThreadState(i));
--      states[i]->stats.SetReporterAgent(reporter_agent.get());
--      states[i]->shared = &shared;
--
--      benches[i] = std::move(bench_func_->Clone());
--      benches[i]->SetState(this, &shared, states[i].get());
--      FLAGS_env->StartThread(AsyncBenchFunc, benches[i].get());
--      //port::Thread t(&AsyncBenchBase::Run, benches[i].get());
--      //threads.push_back(std::move(t));
 +      if(i > 0 || name == Slice("readrandomasync")){
 +          states[i].reset(new ThreadState(i));
 +          states[i]->stats.SetReporterAgent(reporter_agent.get());
@@ -152,7 +131,16 @@ index 6b248a1..beb6a9f 100644
 +          FLAGS_env->StartThread(ThreadBody, &arg[i]);
 +          printf("launch write thread %d\n", i);
 +      }
-+      
+ 
+-      states[i].reset(new ThreadState(i));
+-      states[i]->stats.SetReporterAgent(reporter_agent.get());
+-      states[i]->shared = &shared;
+-
+-      benches[i] = std::move(bench_func_->Clone());
+-      benches[i]->SetState(this, &shared, states[i].get());
+-      FLAGS_env->StartThread(AsyncBenchFunc, benches[i].get());
+-      //port::Thread t(&AsyncBenchBase::Run, benches[i].get());
+-      //threads.push_back(std::move(t));
      }
  
      shared.mu.Lock();
@@ -183,7 +171,7 @@ index 6b248a1..beb6a9f 100644
        }
  
 +      value_size_ = max_obj_size >> (nr_batch % FLAGS_nr_io_size);
-+      
++
        for (int64_t j = 0; j < entries_per_batch_; j++) {
          int64_t rand_num = key_gens[id]->Next();
          GenerateKeyFromInt(rand_num, FLAGS_num, &key);
@@ -193,7 +181,7 @@ index 6b248a1..beb6a9f 100644
        }
 +
 +      nr_batch ++;
-+      
++
        if (!use_blob_db_) {
  #ifndef ROCKSDB_LITE
  	//printf("DoWrite entries_per_batch_ %d batch count %d num_written %d bytes %ld\n", entries_per_batch_, batch.Count(), num_written, bytes);
@@ -213,10 +201,10 @@ index 6b248a1..beb6a9f 100644
 +        key_buf2[FLAGS_prefix_size - 1] = FLAGS_key_upbound;
 +     }
 +     Slice key_upbound(key_buf2, 16);
-+     struct timespec s_time; 
++     struct timespec s_time;
 +     start_timer(&s_time);
 +     int32_t value_size = 0;
-+    
++
 +     if(FLAGS_use_prefix_iter){
 +        //printf("ReadSequential key_prefix 0x%s\n", key_prefix.ToString(true).c_str());
 +        iter->Seek(key_prefix);
@@ -225,7 +213,7 @@ index 6b248a1..beb6a9f 100644
 +     }
 +    //iter->Seek(key_prefix);
 +    //for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
-+    for (; i < reads_ && iter->Valid() && iter->key().compare(key_upbound) < 0; 
++    for (; i < reads_ && iter->Valid() && iter->key().compare(key_upbound) < 0;
 +            iter->Next()) {
 +      if(!value_size){value_size = iter->value().size();}
        bytes += iter->key().size() + iter->value().size();
@@ -239,74 +227,18 @@ index 6b248a1..beb6a9f 100644
      }
  
 +    long long int iter_sec = elapsed_time(s_time)/MS;
-+    
++
      delete iter;
      thread->stats.AddBytes(bytes);
      if (FLAGS_perf_level > rocksdb::PerfLevel::kDisable) {
        thread->stats.AddMessage(get_perf_context()->ToString());
      }
 +
-+    printf("iter value_size(%d) key range (0x%s - 0x%s), duration %ld ms, keys found %ld\n", 
++    printf("iter value_size(%d) key range (0x%s - 0x%s), duration %ld ms, keys found %ld\n",
 +        value_size, key_prefix.ToString(true).c_str(), key_upbound.ToString(true).c_str(), iter_sec, i);
    }
  
    void ReadReverse(ThreadState* thread) {
-@@ -4508,21 +4600,21 @@ void VerifyDBFromDB(std::string& truth_db_name) {
-         while (nr_ops) {
- 
-             while (in_flight_.load(std::memory_order_relaxed) < conc_io_ops_) {
--                  //printf("Run RequestGet: in_flight_ %d nr_ops %d\n",
-+                  //printf("Run RequestGet: in_flight_ %d nr_ops %d\n", 
-                   //  in_flight_.load(std::memory_order_relaxed), nr_ops);
-                   Status s = RequestGet();
--                  //printf("Run: in_flight_ %d request s %s\n",
-+                  //printf("Run: in_flight_ %d request s %s\n", 
-                   //  in_flight_.load(std::memory_order_relaxed), s.ToString().c_str());
-                   if (s.IsIOPending()) {
-                     in_flight_.fetch_add(1, std::memory_order_relaxed);
-                   } else {
-                     // to properly account things that were done
--		        printf(" sync io %d!\n", ++ nr_sync_io);
-+    		        printf(" sync io %d!\n", ++ nr_sync_io);
-                   }
- 
-                   if(!(--nr_ops))
-                     break;
--
-+                
-             }
- 
-             if(in_flight_.load(std::memory_order_relaxed))
-@@ -4531,9 +4623,9 @@ void VerifyDBFromDB(std::string& truth_db_name) {
- 
-        while(in_flight_.load(std::memory_order_relaxed))
-         usleep(100);
--
-+       
-        //     c_.wait(l);
--
-+      
-       char msg[100];
-       snprintf(msg, sizeof(msg), "(%" PRIu64 " of %" PRIu64 " found)\n",
-         found_.load(std::memory_order_relaxed),
-@@ -4619,7 +4711,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
-       async(status);
- 
-       bench_->read_.fetch_add(1, std::memory_order_relaxed);
--
-+      
-       if (status.IsNotFound()) {
-         fprintf(stderr, "%s\n", key_.ToString(true).c_str());
-       }
-@@ -4629,7 +4721,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
-         bench_->bytes_.fetch_add(key_.size() +
-           (FLAGS_pin_slice == 1 ? pinnable_val_.size() : value_.size()),
-           std::memory_order_relaxed);
--
-+	
-       } else if (!status.IsNotFound()) {
-         fprintf(stderr, "Get returned an error: %s\n",
-           status.ToString().c_str());
 @@ -5090,6 +5182,10 @@ void VerifyDBFromDB(std::string& truth_db_name) {
      }
    }
@@ -336,27 +268,6 @@ index 6b248a1..beb6a9f 100644
    }
  
    // Given a key K and value V, this puts (K+"0", V), (K+"1", V), (K+"2", V)
-@@ -6075,17 +6173,17 @@ int db_bench_tool(int argc, char** argv) {
-     FLAGS_stats_interval = 1000;
-   }
- 
--
-+  
-   // Allocate the Benchmark off the heap, so that we can explicitly delete it
-   //  before the SpdkEnv is deleted.
-   rocksdb::Benchmark *benchmark = new rocksdb::Benchmark;
-   benchmark->Run();
-   delete benchmark;
--
-+  
-   if (!FLAGS_spdk.empty()) {
-       delete FLAGS_env;
-   }
--
-+  
-   return 0;
- }
- }  // namespace rocksdb
 -- 
 1.8.3.1
 

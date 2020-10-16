@@ -37,6 +37,12 @@
 #include "nvme_internal.h"
 #include "rocksdb/dss_kv2blk_c.h"
 
+extern "C" {
+#include "spdk/blob.h"
+#include "spdk/blobfs.h"
+#include "spdk/blob_bdev.h"
+}
+
 #define MAX_STRING_LEN (256)
 static int
 df_get_file_int_value(char *path)
@@ -101,7 +107,7 @@ int dfly_io_req_process(void *ctx, struct dfly_request *req)
 	}
 
 	if (!(req->flags & DFLY_REQF_NVME) && (status == SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE)) {
-		thrd_inst->module_ctx->io_ops->req_complete((struct spdk_nvmf_request *)req->req_ctx);
+		req->next_action = DFLY_COMPLETE_NVMF;
 		return DFLY_MODULE_REQUEST_PROCESSED;
 	} else {
 		return DFLY_MODULE_REQUEST_QUEUED;
@@ -149,7 +155,6 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 					dfly_req->dqpair->df_ctrlr);
 	}
 
-	//dfly_req_fini(dfly_req);
 	dfly_nvmf_request_complete(nvmf_req);
 
 	return;
@@ -213,12 +218,17 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	thread_instance->module_inst_ctx = inst_ctx;
 	thread_instance->module_inst_index = inst_index;
 
-	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
-		DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
-		thread_instance->io_chann_parr[i] = spdk_bdev_get_io_channel(
-				io_mod_ctx->dfly_subsys->devices[i].ns->desc);
+	if(g_dragonfly->blk_map) {
+		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i+=io_mod_ctx->num_threads) {
+			dfly_subsystem->devices[i].icore = spdk_env_get_current_core();
+		}
+	} else {
+		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
+			DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
+			thread_instance->io_chann_parr[i] = spdk_bdev_get_io_channel(
+					io_mod_ctx->dfly_subsys->devices[i].ns->desc);
+		}
 	}
-
 	return thread_instance;
 }
 
@@ -230,7 +240,9 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 
 	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
 		DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
-		DFLY_ASSERT(thread_instance->io_chann_parr[i]);
+		if(!g_dragonfly->blk_map) {
+			DFLY_ASSERT(thread_instance->io_chann_parr[i]);
+		}
 		if (thread_instance->io_chann_parr[i]) {
 			spdk_put_io_channel(thread_instance->io_chann_parr[i]);
 			thread_instance->io_chann_parr[i] = NULL;
@@ -365,9 +377,6 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 
 	DFLY_ASSERT(subsystem->devices);
 
-	//Rocksdb compilation test
-	dss_rocksdb_open(NULL, NULL, NULL);//Dummy compilation test
-
 	if (dfly_init_kd_context(subsystem->id, DFLY_KD_RH_MURMUR3)) {
 		DFLY_ERRLOG("DFLY Key Distribution init failed\n");
 		return -1;
@@ -394,12 +403,137 @@ int dfly_io_module_deinit_spdk_devices(struct dfly_subsystem *subsystem)
 
 	for (i = 0; i < subsystem->num_io_devices; i++) {
 		dfly_ustat_remove_dev_stat(&subsystem->devices[i]);
+		if(g_dragonfly->blk_map) {
+			dss_rocksdb_close(subsystem->devices[i].rdb_handle->rdb_db_handle);
+		}
 	}
 
 	free(subsystem->devices);
 	subsystem->devices = NULL;
 	subsystem->num_io_devices = 0;
 
+}
+
+int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
+				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg,
+					struct io_thread_ctx_s *io_thrd_ctx)
+{
+	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, &io_module_ops,
+					  io_thrd_ctx, io_thrd_ctx->num_threads, cb, cb_arg);
+
+	return 0;
+}
+
+void _all_dev_init_complete(void *arg1, void *arg2)
+{
+	struct init_multi_dev_s *dev_cb_event = arg1;
+	DFLY_NOTICELOG("All device initialized starting module from core %d\n", spdk_env_get_current_core());
+	dev_cb_event->cb(dev_cb_event->cb_arg, NULL);
+
+	memset(dev_cb_event, 0, sizeof(*dev_cb_event));
+	free(dev_cb_event);
+	return;
+}
+
+void _dev_init_done (void *cb_event)
+{
+	struct init_multi_dev_s *dev_cb_event = cb_event;
+	struct spdk_event *event;
+	pthread_mutex_lock(&dev_cb_event->l);
+	DFLY_ASSERT(dev_cb_event->pending_count);
+	dev_cb_event->pending_count--;
+	if(!dev_cb_event->pending_count) {
+		DFLY_NOTICELOG("Calling _all_dev_init_complete\n");
+		event = spdk_event_allocate(dev_cb_event->src_core, _all_dev_init_complete, dev_cb_event, NULL);
+		spdk_event_call(event);
+	}
+	pthread_mutex_unlock(&dev_cb_event->l);
+	return;
+}
+
+__call_fn_dss(void *arg1, void *arg2)
+{
+	fs_request_fn fn;
+
+	fn = (fs_request_fn)arg1;
+	fn(arg2);
+}
+
+static void
+__send_request_dss(fs_request_fn fn, void *arg)
+{
+	struct spdk_event *event;
+	struct spdk_fs_request *req = arg;
+
+	event = spdk_event_allocate(dss_get_fs_ch_core(req), __call_fn_dss, (void *)fn, arg);
+	spdk_event_call(event);
+}
+
+static void
+dss_rdb_fs_load_cb(void *ctx,
+	   struct spdk_filesystem *fs, int fserrno)
+{
+	struct dfly_io_device_s *dss_dev = ctx;
+
+	if (fserrno == 0) {
+		dss_dev->rdb_handle->rdb_fs_handle = fs;
+	}
+
+	dss_dev->rdb_handle->dev_channel = spdk_fs_alloc_thread_ctx(dss_dev->rdb_handle->rdb_fs_handle);
+	dss_set_fs_ch_core(dss_dev->rdb_handle->dev_channel, dss_dev->rdb_handle->rdb_bs_handle->icore);
+
+	DFLY_NOTICELOG("Opening rocksdb handle %d in core %d\n", dss_dev->index, spdk_env_get_current_core());
+	dss_rocksdb_open(dss_dev);//Completes asynchronusly
+}
+
+void _dev_init(void *device, void *cb_event)
+{
+	struct dfly_io_device_s *dss_dev = device;
+	DFLY_NOTICELOG("Initializing device %d in core %d\n", dss_dev->index, spdk_env_get_current_core());
+
+	dss_dev->rdb_handle->dev_name = spdk_bdev_get_name(dss_dev->ns->bdev);
+	dss_dev->rdb_handle->tmp_init_back_ptr = cb_event;
+
+	dss_dev->rdb_handle->rdb_bs_handle = spdk_bdev_create_bs_dev(dss_dev->ns->bdev, NULL, NULL);
+	dss_dev->rdb_handle->rdb_bs_handle->icore = dss_dev->icore;
+	spdk_fs_load(dss_dev->rdb_handle->rdb_bs_handle, __send_request_dss, dss_rdb_fs_load_cb, dss_dev);
+
+}
+
+void _dfly_rdb_init_devices( void *ctx, void * dummy) {
+	struct init_multi_dev_s *event_ctx = ctx;;
+	struct spdk_event *event;
+	int i;
+
+	pthread_mutex_lock(&event_ctx->l);
+	for(i=0; i < event_ctx->ss->num_io_devices; i++) {
+		event_ctx->pending_count++;
+		//Event call device init on core
+		event_ctx->ss->devices[i].rdb_handle = calloc(1, sizeof(struct rdb_dev_ctx_s));
+		event_ctx->ss->devices[i].rdb_handle->ss = event_ctx->ss;
+		event = spdk_event_allocate(event_ctx->ss->devices[i].icore,_dev_init, &event_ctx->ss->devices[i], event_ctx);
+		spdk_event_call(event);
+	}
+	pthread_mutex_unlock(&event_ctx->l);
+}
+
+void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_complete_cb cb, void *cb_arg, struct io_thread_ctx_s *io_thrd_ctx)
+{
+	struct init_multi_dev_s *event_ctx = calloc(1, sizeof(struct init_multi_dev_s));
+	uint64_t cache_size_in_mb = 512;
+
+	DFLY_ASSERT(event_ctx);
+	pthread_mutex_init(&event_ctx->l, NULL);
+	event_ctx->src_core = spdk_env_get_current_core();
+	event_ctx->cb = cb;
+	event_ctx->cb_arg = cb_arg;
+	event_ctx->pending_count = 0;
+	event_ctx->io_thrd_ctx = io_thrd_ctx;
+	event_ctx->ss = subsystem;
+
+	spdk_fs_set_cache_size(cache_size_in_mb);
+
+	_dfly_io_module_subsystem_start(subsystem, io_thrd_ctx->io_ops, _dfly_rdb_init_devices, event_ctx, io_thrd_ctx);
 }
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
@@ -417,6 +551,7 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 	io_thrd_ctx->dfly_subsys = subsystem;
 	io_thrd_ctx->io_ops = io_ops;
+	io_thrd_ctx->num_threads = 4;
 
 	rc = dfly_io_module_init_spdk_devices(subsystem,
 					      (struct spdk_nvmf_subsystem *)subsystem->parent_ctx);
@@ -424,10 +559,11 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 		DFLY_ASSERT(0);
 	}
 
-	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, &io_module_ops,
-					  io_thrd_ctx, 4, cb, cb_arg);
-
-	return 0;
+	if(g_dragonfly->blk_map) {
+		dfly_rdb_init_devices(subsystem, cb, cb_arg, io_thrd_ctx);
+	} else {
+		_dfly_io_module_subsystem_start(subsystem, io_ops, cb, cb_arg, io_thrd_ctx);
+	}
 }
 
 void _dfly_io_module_stop(void *event, void *dummy)

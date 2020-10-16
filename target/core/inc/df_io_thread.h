@@ -47,6 +47,7 @@ struct io_thread_ctx_s {
 	spdk_io_callback_fn spdk_nvmf_io_req_process_cb;
 	spdk_io_callback_fn spdk_nvmf_io_req_completion_cb;
 	dfly_spdk_nvmf_io_ops_t *io_ops;
+	uint32_t num_threads;
 };
 
 struct io_thread_inst_ctx_s {

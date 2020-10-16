@@ -1,27 +1,18 @@
-From e41dd74fed7be9e29b560056b6d19d49a25cb9ef Mon Sep 17 00:00:00 2001
+From 9da9bf83fbaacd5d8d71821c1cd2366b6be3d748 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:08:45 -0700
-Subject: [PATCH 3/4] * simple clt with rocksdb library with async support
+Subject: [PATCH 3/5] * simple clt with rocksdb library with async support
 
 ---
- Makefile                 |   5 +-
- tools/rdb_spdk_simple.cc | 360 +++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 364 insertions(+), 1 deletion(-)
+ Makefile                 |   3 +
+ tools/rdb_spdk_simple.cc | 359 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 362 insertions(+)
  create mode 100644 tools/rdb_spdk_simple.cc
 
 diff --git a/Makefile b/Makefile
-index fd13120..5ff5569 100644
+index fd13120..16bf9db 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -11,7 +11,7 @@ SHELL := $(shell which bash)
- 
- CLEAN_FILES = # deliberately empty, so we can append below.
- #CFLAGS += ${EXTRA_CFLAGS} -fsanitize=address
--CFLAGS += ${EXTRA_CFLAGS}
-+CFLAGS += ${EXTRA_CFLAGS} 
- CXXFLAGS += ${EXTRA_CXXFLAGS}
- LDFLAGS += $(EXTRA_LDFLAGS)
- MACHINE ?= $(shell uname -m)
 @@ -949,6 +949,9 @@ librocksdb_env_basic_test.a: env/env_basic_test.o $(LIBOBJECTS) $(TESTHARNESS)
  db_bench: tools/db_bench.o $(BENCHTOOLOBJECTS)
  	$(AM_LINK)
@@ -34,10 +25,10 @@ index fd13120..5ff5569 100644
  
 diff --git a/tools/rdb_spdk_simple.cc b/tools/rdb_spdk_simple.cc
 new file mode 100644
-index 0000000..360aa8f
+index 0000000..1b9f493
 --- /dev/null
 +++ b/tools/rdb_spdk_simple.cc
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,359 @@
 +#ifndef __STDC_FORMAT_MACROS
 +#define __STDC_FORMAT_MACROS
 +#endif
@@ -100,7 +91,7 @@ index 0000000..360aa8f
 +#include "utilities/persistent_cache/block_cache_tier.h"
 +#include "rocksdb/async/asyncthreadpool.h"
 +
-+#define QUEUE_DEPTH 64    
++#define QUEUE_DEPTH 64
 +#define KEY_SIZE    16
 +
 +namespace rocksdb {
@@ -120,7 +111,7 @@ index 0000000..360aa8f
 +
 +class ReadRandomAsync : public AsyncBenchBase{
 +    public:
-+  
++
 +      explicit
 +      ReadRandomAsync() :in_flight_(0){}
 +      std::unique_ptr<AsyncBenchBase> Clone() override {
@@ -131,7 +122,7 @@ index 0000000..360aa8f
 +      void ReadComplete(RandomReadContext* ctx) {
 +        in_flight_.fetch_sub(1, std::memory_order_relaxed);
 +      }
-+      
++
 +      ReadRandomAsync(const ReadRandomAsync&) :
 +        ReadRandomAsync() {
 +      }
@@ -150,7 +141,7 @@ index 0000000..360aa8f
 +    }
 +
 +    void SetKey(Slice& key){key_ = key;}
-+      
++
 +    async::Callable<Status, const Status&>
 +      GetCallback() {
 +      async::CallableFactory<RandomReadContext, Status, const Status&> f(this);
@@ -199,7 +190,7 @@ index 0000000..360aa8f
 +  //   ----------------------------
 +  //   |        key 00000         |
 +  //   ----------------------------
-+  void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key, 
++  void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key,
 +    int64_t keys_per_prefix= 0, int32_t prefix_size = 0, int32_t key_size = KEY_SIZE) {
 +    char* start = const_cast<char*>(key->data());
 +    char* pos = start;
@@ -250,7 +241,7 @@ index 0000000..360aa8f
 +        ++nr_objs;
 +    }
 +    delete iter;
-+    printf("iter range(0x%s - 0x%s), keys found %ld, total size %ld\n", 
++    printf("iter range(0x%s - 0x%s), keys found %ld, total size %ld\n",
 +        start_key.ToString(true).c_str(), end_key.ToString(true).c_str(), nr_objs, bytes);
 +  }
 +}
@@ -259,7 +250,7 @@ index 0000000..360aa8f
 +
 +int main(int argc, char ** argv)
 +{
-+    
++
 +    rocksdb::DB* db;
 +    rocksdb::Options options;
 +    rocksdb::WriteOptions write_options;
@@ -267,29 +258,29 @@ index 0000000..360aa8f
 +
 +    int use_existing_db = atoi(argv[1]);
 +    int num_keys = atoi(argv[2]);
-+    
-+    std::string dbname = "/mnt/nvme0"; 
++
++    std::string dbname = "/mnt/nvme0";
 +    std::string cpumask = "0x1";  //for core 0
 +    std::string nvme_conf = "/usr/local/etc/spdk/nvme0.conf";
 +    std::string spdk_bdev = "nvme0n1";
 +    uint64_t cache_size_in_mb = 8192;
 +    char key_buffer[16] = {0};
-+    
++
 +    int i = 0;
-+    
-+    if(!use_existing_db){ 
++
++    if(!use_existing_db){
 +      rocksdb::Options options;
 +      DestroyDB(dbname, options);
 +    }
 +
-+    rocksdb::Env* spdk_env = rocksdb::NewSpdkEnv(rocksdb::Env::Default(), 
-+    	dbname, cpumask, 
-+    	nvme_conf, spdk_bdev, 
-+    	cache_size_in_mb);
-+    
++    rocksdb::Env* spdk_env = rocksdb::NewSpdkEnv(rocksdb::Env::Default(),
++	dbname, cpumask,
++	nvme_conf, spdk_bdev,
++	cache_size_in_mb);
++
 +    options.env = spdk_env;
 +    options.create_if_missing = true;
-+    
++
 +    options.compression = rocksdb::kNoCompression;
 +    options.enable_write_thread_adaptive_yield = false;
 +    options.max_write_buffer_number = 10;
@@ -305,8 +296,8 @@ index 0000000..360aa8f
 +    if(!use_existing_db){
 +        //write in batch
 +        rocksdb::WriteBatch batch;
-+    	batch.Clear();
-+        
++	batch.Clear();
++
 +        rocksdb::Slice val_to_put="valvalvalval";
 +        int batch_size = 10;
 +        rocksdb::Slice key_to_put(key_buffer, KEY_SIZE);
@@ -332,7 +323,7 @@ index 0000000..360aa8f
 +        int nr_read = 0;
 +        for(i= 0; i<num_keys; i++){
 +            rocksdb::GenerateKeyFromInt(i, num_keys, &key_to_get);
-+    	    s = db->Get(read_options, db->DefaultColumnFamily(), key_to_get, &val_to_get);
++	    s = db->Get(read_options, db->DefaultColumnFamily(), key_to_get, &val_to_get);
 +            if(!s.ok()){
 +                printf("Get key[%d]:%s failed\n", i, key_to_get.ToString(true).c_str());
 +                return -1;
@@ -342,10 +333,10 @@ index 0000000..360aa8f
 +            val_to_get.Reset();
 +        }
 +        printf("nr_read %d\n", nr_read);
-+        
++
 +        //rocksdb::Slice key_start, key_end;
 +        //rocksdb::range_query(db, read_options, key_start, key_end);
-+        
++
 +    }else{
 +        //async read
 +
@@ -367,7 +358,7 @@ index 0000000..360aa8f
 +                if (s.IsIOPending()) {
 +                    s.async(true);
 +                    bench_func->in_flight_.fetch_add(1, std::memory_order_relaxed);
-+                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d\n", 
++                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d\n",
 +                    //    nr_keys, idx, s.async(), bench_func->in_flight_.load(std::memory_order_relaxed));
 +                } else {
 +                    s.async(false);
@@ -388,16 +379,15 @@ index 0000000..360aa8f
 +            usleep(100);
 +
 +        printf("done the async read\n");
-+       
-+        for(i = 0; i<QUEUE_DEPTH; i++ ) { 
++
++        for(i = 0; i<QUEUE_DEPTH; i++ ) {
 +            delete RdCtx[i];
 +        }
-+        
++
 +    }
-+    
++
 +    delete db;
 +}
-+
 -- 
 1.8.3.1
 

@@ -1,0 +1,381 @@
+From 052de6fe3073077a4d701c2c7e93185b555cbc8c Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 16 Oct 2020 14:02:21 -0700
+Subject: [PATCH 5/5] Rockdb API implementation for nvmf target blk dev
+
+---
+ db/dss_kv2blk_c.cc             | 295 +++++++++++++++++++++++++++++++++++++++++
+ include/rocksdb/dss_kv2blk_c.h |  21 +++
+ include/rocksdb/env.h          |   5 +
+ src.mk                         |   2 +
+ 4 files changed, 323 insertions(+)
+ create mode 100644 db/dss_kv2blk_c.cc
+ create mode 100644 include/rocksdb/dss_kv2blk_c.h
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+new file mode 100644
+index 0000000..338a0a0
+--- /dev/null
++++ b/db/dss_kv2blk_c.cc
+@@ -0,0 +1,295 @@
++
++#ifndef ROCKSDB_LITE
++
++#include "rocksdb/c.h"
++#include <unistd.h>
++
++#include "rocksdb/db.h"
++#include <fcntl.h>
++
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/types.h>
++#include <atomic>
++#include <cstddef>
++#include <functional>
++#include <mutex>
++#include <thread>
++#include <unordered_map>
++
++#include "async/async_absorber.h"
++#include "async/context_pool.h"
++#include "db/db_impl.h"
++#include "db/db_impl_request.h"
++#include "db/version_set.h"
++#include "hdfs/env_hdfs.h"
++#include "monitoring/histogram.h"
++#include "monitoring/statistics.h"
++#include "port/port.h"
++#include "port/stack_trace.h"
++#include "rocksdb/cache.h"
++#include "rocksdb/db.h"
++#include "rocksdb/env.h"
++#include "rocksdb/filter_policy.h"
++#include "rocksdb/memtablerep.h"
++#include "rocksdb/options.h"
++#include "rocksdb/perf_context.h"
++#include "rocksdb/persistent_cache.h"
++#include "rocksdb/rate_limiter.h"
++#include "rocksdb/slice.h"
++#include "rocksdb/slice_transform.h"
++#include "rocksdb/utilities/object_registry.h"
++#include "rocksdb/utilities/optimistic_transaction_db.h"
++#include "rocksdb/utilities/options_util.h"
++#include "rocksdb/utilities/sim_cache.h"
++#include "rocksdb/utilities/transaction.h"
++#include "rocksdb/utilities/transaction_db.h"
++#include "rocksdb/write_batch.h"
++#include "util/compression.h"
++#include "util/crc32c.h"
++#include "util/mutexlock.h"
++#include "util/random.h"
++#include "util/stderr_logger.h"
++#include "util/string_util.h"
++#include "util/testutil.h"
++#include "util/transaction_test_util.h"
++#include "util/xxhash.h"
++#include "utilities/blob_db/blob_db.h"
++#include "utilities/merge_operators.h"
++#include "utilities/persistent_cache/block_cache_tier.h"
++#include "rocksdb/async/asyncthreadpool.h"
++
++
++#include "rocksdb/dss_kv2blk_c.h"
++
++#include "dragonfly.h"
++#include "nvmf_internal.h"
++
++using rocksdb::DB;
++using rocksdb::DBOptions;
++using rocksdb::Options;
++using rocksdb::DBOptions;
++
++namespace rocksdb {
++
++struct RandomReadContext;
++
++struct RandomReadContext : public async::AsyncStatusCapture {
++
++    RandomReadContext(Slice& key, void *cb, void *cb_arg):
++      key_(key), _cb(cb), _cb_arg(cb_arg){
++    }
++
++    RandomReadContext(int idx, void *cb, void *cb_arg):
++      idx_(idx), _cb(cb), _cb_arg(cb_arg){
++    }
++
++    void SetKey(Slice& key){key_ = key;}
++    void SetValP(void *val){val_ = val;}
++    void SetValLen(uint32_t vlen){vlen_ = vlen;}
++
++    async::Callable<Status, const Status&>
++      GetCallback() {
++      async::CallableFactory<RandomReadContext, Status, const Status&> f(this);
++      return f.GetCallable<&RandomReadContext::OnReadComplete>();
++    }
++
++    Status OnReadComplete(const Status& status) {
++      async(status.async());
++      struct spdk_nvmf_request *req = (struct spdk_nvmf_request *)_cb_arg;
++	  struct spdk_nvme_cpl        *response = &req->rsp->nvme_cpl;
++
++	  //printf("Async read completed\n");
++      if (status.IsNotFound()) {
++        fprintf(stderr, "key=%s no found\n", key_.ToString(true).c_str());
++			response->status.sc = SPDK_NVME_SC_KV_KEY_NOT_EXIST;
++			response->status.sct = SPDK_NVME_SCT_KV_CMD;
++      }else if(status.ok()) {
++		response->status.sc = SPDK_NVME_SC_SUCCESS;
++		response->status.sct = SPDK_NVME_SCT_GENERIC;
++		response->cdw0 = pinnable_val_.size();
++
++		if(response->cdw0 <= vlen_) {
++			//printf("Copied full value len %d\n", response->cdw0);
++			memcpy(val_, pinnable_val_.data(), response->cdw0);
++		} else {
++			//printf("Copied partial value len %d of %d\n", vlen_, response->cdw0);
++			memcpy(val_, pinnable_val_.data(), vlen_);
++		}
++        //found
++        //printf("OnReadComplete key=%s val=%s async=%d\n", key_.ToString(true).c_str(),
++        //    pinnable_val_.ToString().c_str(), async());
++      } else if (!status.IsNotFound()) {
++        fprintf(stderr, "Get returned an error: %s\n",
++          status.ToString().c_str());
++			response->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
++			response->status.sct = SPDK_NVME_SCT_GENERIC;
++     }
++
++	 if(_cb) {
++		//Call callback
++	 } else {
++		assert(req->dreq->state == DFLY_REQ_IO_SUBMITTED_TO_DEVICE);
++
++		req->dreq->status =  response->status.sct;
++
++		req->dreq->state = DFLY_REQ_IO_COMPLETED_FROM_DEVICE;
++		req->dreq->next_action = DFLY_COMPLETE_IO;
++
++		dfly_handle_request(req->dreq);
++		//printf("rocksdb async get done\n");
++	 }
++
++     return status;
++    }
++
++    Slice                 key_;
++    std::string           value_;
++    PinnableSlice         pinnable_val_;
++    int                   idx_;
++	void				  *_cb_arg;
++	void				  *_cb;
++	void				  *val_;
++	uint32_t			  vlen_;
++};
++}
++
++void *_dss_rocksdb_open(void *arg)
++{
++	struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)arg;
++
++    rocksdb::DB* db;
++    rocksdb::Options options;
++
++    std::string dbname = "/mnt/nvme0";
++    std::string cpumask = "0x1";  //for core 0
++    std::string nvme_conf = "/usr/local/etc/spdk/nvme0.conf";
++    std::string spdk_bdev;
++    uint64_t cache_size_in_mb = 8192;
++
++	spdk_bdev += dss_dev->rdb_handle->dev_name;
++
++	//printf("Creating new dss ennv\n");
++	rocksdb::Env* dss_env = rocksdb::NewDssEnv(rocksdb::Env::Default(),
++        dbname, cpumask,
++        nvme_conf, spdk_bdev,
++        cache_size_in_mb,
++		(void *)dss_dev->rdb_handle->rdb_fs_handle,
++		(void *)dss_dev->rdb_handle->dev_channel,
++		dss_dev->icore);
++
++	//printf("Created new dss ennv\n");
++    options.env = dss_env;
++    options.create_if_missing = true;
++
++    /*
++    options.max_subcompactions = 4;
++    options.enable_write_thread_adaptive_yield = false;
++    options.compression = rocksdb::kNoCompression;
++    options.num_levels = 2;
++    options.max_write_buffer_number = 20;
++    options.target_file_size_base = 1073741824; // 1GB
++    */
++
++    rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
++    if (!s.ok()) {
++        printf("open %s failed\n", s.ToString().c_str());
++        return NULL;
++    }
++
++	dss_dev->rdb_handle->rdb_db_handle = db;
++	DFLY_ASSERT(dss_dev->rdb_handle->rdb_db_handle);
++
++	_dev_init_done(dss_dev->rdb_handle->tmp_init_back_ptr);
++	dss_dev->rdb_handle->tmp_init_back_ptr = NULL;
++
++	return NULL;
++}
++
++void *dss_rocksdb_open(struct dfly_io_device_s *dss_dev)
++{
++
++
++    pthread_t th;
++    pthread_attr_t attr;
++
++	pthread_attr_init(&attr);
++	pthread_create(&th, &attr, &_dss_rocksdb_open, dss_dev);
++}
++
++void dss_rocksdb_close(void *db)
++{
++	rocksdb::DB *dB = (rocksdb::DB *)db;
++	delete dB;
++	return;
++}
++
++int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen)
++{
++	    rocksdb::DB* db = (rocksdb::DB *)ctx;
++
++		rocksdb::Status s;
++		rocksdb::WriteOptions write_options;
++		write_options.sync = false;
++		write_options.disableWAL = true;
++
++		s = db->Put(write_options, rocksdb::Slice((char *)key, klen), rocksdb::Slice((char *)value, vlen));
++		if (!s.ok()) {
++			printf("Put failed\n");
++			return -1;
++		}
++		return 0;
++}
++
++void dss_rocksdb_get_async(void *ctx,
++							void *key, size_t klen,
++							void *value, uint32_t vlen,
++							void *cb, void *cb_arg)
++{
++	    rocksdb::DB* db = (rocksdb::DB*)ctx;
++
++		rocksdb::Status s;
++		rocksdb::ReadOptions read_options;
++		char key_buffer[16] = {0};
++        //async read
++
++        rocksdb::Slice key_async_get((const char *)key, klen);
++        rocksdb::RandomReadContext *RdCtx = new rocksdb::RandomReadContext(0, cb, cb_arg);
++                //pickup available ctx (no async pending io ...) TBD
++                RdCtx->SetKey(key_async_get);
++                RdCtx->SetValP(value);
++                RdCtx->SetValLen(vlen);
++                s.async(false);
++                s = rocksdb::async::DBImplGetContext::RequestGet(RdCtx->GetCallback(), db, read_options,
++                    db->DefaultColumnFamily(), RdCtx->key_, &RdCtx->pinnable_val_, nullptr);
++                if (s.IsIOPending()) {
++					//printf("rocksdb async get submitted\n");
++                    s.async(true);
++                } else {
++                    s.async(false);
++                  RdCtx->OnReadComplete(s);
++                }
++
++       delete RdCtx;
++       return;
++
++}
++
++int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen)
++{
++	    rocksdb::DB* db = (rocksdb::DB *)ctx;
++
++		rocksdb::Status s;
++		rocksdb::WriteOptions del_options;
++
++		del_options.disableWAL = true;
++
++		s = db->Delete(del_options, rocksdb::Slice((char *)key, klen));
++		if (!s.ok()) {
++			printf("Delete failed\n");
++			return -1;
++		}
++		return 0;
++}
++#endif
+diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
+new file mode 100644
+index 0000000..7484f2a
+--- /dev/null
++++ b/include/rocksdb/dss_kv2blk_c.h
+@@ -0,0 +1,21 @@
++
++#ifndef STORAGE_DSS_ROCKSDB_INCLUDE_C_H_
++#define STORAGE_DSS_ROCKSDB_INCLUDE_C_H_
++
++#pragma once
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++extern void* dss_rocksdb_open(struct dfly_io_device_s *dss_dev);
++extern void dss_rocksdb_close(void* db);
++extern int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen);
++extern void dss_rocksdb_get_async(void *ctx, void *key, size_t klen, void *value, uint32_t vlen, void *cb, void *cb_arg);
++extern int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen);
++
++#ifdef __cplusplus
++}  /* end extern "C" */
++#endif
++
++#endif  /* STORAGE_ROCKSDB_INCLUDE_C_H_ */
+diff --git a/include/rocksdb/env.h b/include/rocksdb/env.h
+index 6eaf5db..759efe2 100644
+--- a/include/rocksdb/env.h
++++ b/include/rocksdb/env.h
+@@ -1177,6 +1177,11 @@ Env* NewSpdkEnv(Env* base_env, const std::string& fsname,
+ // Initializes a thread for SpdkEnv processing.
+ void SpdkInitializeThread(void);
+ 
++// Returns a new environment that is used for SPDK environment.
++Env* NewDssEnv(Env* base_env, const std::string& fsname,
++		const std::string &cpumask, const std::string& confname,
++                const std::string& bdevname, uint64_t cache_size_in_mb,
++				void *spdk_fs, void *spdk_fs_ch, uint32_t run_core);
+ 
+ }  // namespace rocksdb
+ 
+diff --git a/src.mk b/src.mk
+index 3b28ec5..a551e8d 100644
+--- a/src.mk
++++ b/src.mk
+@@ -5,6 +5,7 @@ LIB_SOURCES =                                                   \
+   cache/sharded_cache.cc                                        \
+   db/builder.cc                                                 \
+   db/c.cc                                                       \
++  db/dss_kv2blk_c.cc                                            \
+   db/column_family.cc                                           \
+   db/compacted_db_impl.cc                                       \
+   db/compaction.cc                                              \
+@@ -65,6 +66,7 @@ LIB_SOURCES =                                                   \
+   env/env_hdfs.cc                                               \
+   env/env_posix.cc                                              \
+   $(SPDK_ROOT_DIR)/lib/rocksdb/env_spdk.cc                      \
++  $(SPDK_ROOT_DIR)/lib/rocksdb/env_dss.cc                      \
+   env/io_posix.cc                                               \
+   env/mock_env.cc                                               \
+   memtable/alloc_tracker.cc                                     \
+-- 
+1.8.3.1
+

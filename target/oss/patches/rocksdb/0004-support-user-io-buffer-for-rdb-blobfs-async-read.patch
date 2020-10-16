@@ -1,7 +1,7 @@
-From 18f7808a1012be273643b94b32d3fba8e5c3dea1 Mon Sep 17 00:00:00 2001
+From 62496f7f945dfd77a641a988e9246bf3ba5d2233 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:52:34 -0700
-Subject: [PATCH 4/4] * support user io buffer for rdb/blobfs async read
+Subject: [PATCH 4/5] * support user io buffer for rdb/blobfs async read
 
 ---
  async/async_status_capture.h       |  12 +++-
@@ -9,19 +9,19 @@ Subject: [PATCH 4/4] * support user io buffer for rdb/blobfs async read
  db/db_impl_request.h               |  13 +++-
  db/version_set_request.h           |  14 ++--
  include/rocksdb/status.h           |   9 ++-
- table/block_based_table_request.cc |  11 +--
+ table/block_based_table_request.cc |   9 +--
  table/block_based_table_request.h  |  11 +--
- table/format.h                     |  58 ++++++++--------
- table/format_request_context.cc    |  30 +++++---
- table/get_context.cc               |   6 +-
+ table/format.h                     |  32 +++++----
+ table/format_request_context.cc    |  20 ++++--
+ table/get_context.cc               |   4 ++
  table/get_context.h                |  12 +++-
- tools/db_bench_tool.cc             |  73 +++++++++++++++++---
- tools/rdb_spdk_simple.cc           |  85 +++++++++++++++++++----
- util/random_read_context.h         | 137 +++++++++++++++++++++++++++++--------
- 14 files changed, 364 insertions(+), 115 deletions(-)
+ tools/db_bench_tool.cc             |  71 ++++++++++++++++---
+ tools/rdb_spdk_simple.cc           |  81 ++++++++++++++++++----
+ util/random_read_context.h         | 135 +++++++++++++++++++++++++++++--------
+ 14 files changed, 340 insertions(+), 91 deletions(-)
 
 diff --git a/async/async_status_capture.h b/async/async_status_capture.h
-index 2eeab35..391a699 100644
+index 2eeab35..fda9831 100644
 --- a/async/async_status_capture.h
 +++ b/async/async_status_capture.h
 @@ -28,9 +28,10 @@ namespace async {
@@ -48,12 +48,12 @@ index 2eeab35..391a699 100644
 +  bool user_buffer() {
 +    return user_buffer_ ;
 +  }
-+ 
++
    void reset_async(const Status& s) {
      async_ = s.async();
    }
 diff --git a/db/db_impl_request.cc b/db/db_impl_request.cc
-index 04bcd90..2c4d1d5 100644
+index 04bcd90..1b20a25 100644
 --- a/db/db_impl_request.cc
 +++ b/db/db_impl_request.cc
 @@ -35,12 +35,15 @@ DBImplGetContext::DBImplGetContext(const Callback& cb, DBImpl* db,
@@ -61,7 +61,7 @@ index 04bcd90..2c4d1d5 100644
                                     const Slice& key, std::string* value, PinnableSlice* pinnable_input,
                                     ColumnFamilyHandle* column_family,
 -                                   bool* value_found) :
-+                                   bool* value_found, void * get_buffer , 
++                                   bool* value_found, void * get_buffer ,
 +                                   uint32_t get_buffer_size) :
    cb_(cb),
    db_impl_(db),
@@ -84,7 +84,7 @@ index 04bcd90..2c4d1d5 100644
        s = VersionSetGetContext::Get(sv_->current,
                                      read_options_, GetLookupKey(),
 diff --git a/db/db_impl_request.h b/db/db_impl_request.h
-index f99db5c..d60e1b8 100644
+index f99db5c..cdfefb2 100644
 --- a/db/db_impl_request.h
 +++ b/db/db_impl_request.h
 @@ -86,12 +86,14 @@ class DBImplGetContext : private AsyncStatusCapture {
@@ -98,7 +98,7 @@ index f99db5c..d60e1b8 100644
      DBImpl* db_impl = SafeCast<DBImpl>(db);
      std::unique_ptr<DBImplGetContext> context(new DBImplGetContext(cb, db_impl,
 -      read_options, key, value, pinnable_input, column_family, value_found));
-+      read_options, key, value, pinnable_input, 
++      read_options, key, value, pinnable_input,
 +      column_family, value_found,
 +      get_buffer, get_buffer_size));
      Status s = context->GetImpl();
@@ -140,14 +140,14 @@ index f99db5c..d60e1b8 100644
  
    ColumnFamilyData*   cfd_;
 diff --git a/db/version_set_request.h b/db/version_set_request.h
-index 033f188..aec2bda 100644
+index 033f188..3ac3294 100644
 --- a/db/version_set_request.h
 +++ b/db/version_set_request.h
 @@ -84,6 +84,7 @@ class VersionSetGetContext : private AsyncStatusCapture {
      PinnableSlice* value, Status* status,
      MergeContext* merge_context,
      RangeDelAggregator* range_del_agg, bool* value_found = nullptr,
-+    void * get_buffer = nullptr, uint32_t get_buffer_size=0, 
++    void * get_buffer = nullptr, uint32_t get_buffer_size=0,
      bool* key_exists = nullptr, SequenceNumber* seq = nullptr) {
  
      Slice ikey = k.internal_key();
@@ -250,7 +250,7 @@ index cd1b71a..bdcf03d 100644
    return *this;
  }
 diff --git a/table/block_based_table_request.cc b/table/block_based_table_request.cc
-index 5580416..311fd21 100644
+index 5580416..6d43e84 100644
 --- a/table/block_based_table_request.cc
 +++ b/table/block_based_table_request.cc
 @@ -1507,7 +1507,7 @@ Status TableOpenRequestContext::OnComplete(const Status& status) {
@@ -277,15 +277,6 @@ index 5580416..311fd21 100644
      }
    }
  
-@@ -1763,7 +1763,7 @@ Status BlockBasedGetContext::OnIndexIteratorCreate(const Status& status,
- 
- Status BlockBasedGetContext::OnNewDataBlockIterator(const Status& status) {
-   async(status);
--
-+    
-   Status s(status);
-   bool done = false;
-   auto iiter = GetIndexIter();
 @@ -1848,7 +1848,8 @@ Status BlockBasedGetContext::OnNewDataBlockIterator(const Status& status) {
    }
  
@@ -350,7 +341,7 @@ index 3e196c0..26f8b5b 100644
      }
      return s;
 diff --git a/table/format.h b/table/format.h
-index 3a81fd7..e45ccef 100644
+index 3a81fd7..8661e4a 100644
 --- a/table/format.h
 +++ b/table/format.h
 @@ -29,6 +29,8 @@ namespace rocksdb {
@@ -362,22 +353,20 @@ index 3a81fd7..e45ccef 100644
  class Block;
  class RandomAccessFile;
  struct ReadOptions;
-@@ -199,71 +201,73 @@ struct BlockContents {
+@@ -199,30 +201,31 @@ struct BlockContents {
    CompressionType compression_type;
    std::unique_ptr<char[]> allocation;
    bool spdk_memory;
 +  bool user_buffer;
  
--  BlockContents() : cachable(false), compression_type(kNoCompression),
+   BlockContents() : cachable(false), compression_type(kNoCompression),
 -    spdk_memory(false) {}
-+  BlockContents() : cachable(false), compression_type(kNoCompression), 
 +    spdk_memory(false),user_buffer(false) {}
  
    BlockContents(const Slice& _data, bool _cachable,
 -                CompressionType _compression_type)
--      : data(_data), cachable(_cachable),
 +                CompressionType _compression_type, bool use_user_buffer=false)
-+      : data(_data), cachable(_cachable), 
+       : data(_data), cachable(_cachable),
        compression_type(_compression_type),
 -      spdk_memory(false){}
 +      spdk_memory(false), user_buffer(use_user_buffer){}
@@ -393,47 +382,28 @@ index 3a81fd7..e45ccef 100644
  
    BlockContents(std::unique_ptr<char[]>&& _data, off_t offset, size_t _size, bool _cachable,
 -                CompressionType _compression_type)
-+                CompressionType _compression_type ,bool use_user_buffer=false) 
++                CompressionType _compression_type ,bool use_user_buffer=false)
        : data(_data.get() + offset, _size),
          cachable(_cachable),
          compression_type(_compression_type),
          allocation(std::move(_data)),
 -        spdk_memory(true){}
--
 +        spdk_memory(true), user_buffer(use_user_buffer){}
-+  
+ 
    BlockContents(BlockContents&& other) ROCKSDB_NOEXCEPT { *this = std::move(other); }
  
-   BlockContents& operator=(BlockContents&& other) ROCKSDB_NOEXCEPT {
--    //printf("BlockContents::operator= cpu %d this %p, other %p data %p size %d cachable %d compression_type %d alloc %p\n",
--    //        sched_getcpu(), this, &other,
--    //        other.data.data(), other.data.size(), other.cachable,
-+    //printf("BlockContents::operator= cpu %d this %p, other %p data %p size %d cachable %d compression_type %d alloc %p\n", 
-+    //        sched_getcpu(), this, &other, 
-+    //        other.data.data(), other.data.size(), other.cachable, 
-     //        other.compression_type, other.allocation.get());
--
-+	
-     data = std::move(other.data);
-     cachable = other.cachable;
+@@ -237,6 +240,7 @@ struct BlockContents {
      compression_type = other.compression_type;
      allocation = std::move(other.allocation);
      spdk_memory = other.spdk_memory;
 +    user_buffer = other.user_buffer;
  
--    //printf("BlockContents::operator= done cpu %d this %p, other %p data %p size %d cachable %d compression_type %d alloc %p\n",
--    //        sched_getcpu(), this, &other,
--    //        other.data.data(), other.data.size(), other.cachable,
-+    //printf("BlockContents::operator= done cpu %d this %p, other %p data %p size %d cachable %d compression_type %d alloc %p\n", 
-+    //        sched_getcpu(), this, &other, 
-+    //        other.data.data(), other.data.size(), other.cachable, 
-     //        other.compression_type, other.allocation.get());
--
-+    
-     return *this;
+     //printf("BlockContents::operator= done cpu %d this %p, other %p data %p size %d cachable %d compression_type %d alloc %p\n",
+     //        sched_getcpu(), this, &other,
+@@ -247,19 +251,19 @@ struct BlockContents {
    }
  
--  ~BlockContents() {
+   ~BlockContents() {
 -
 -    if(spdk_memory){
 -        void * alloc_buff = allocation.release();
@@ -441,14 +411,13 @@ index 3a81fd7..e45ccef 100644
 -        //        this, sched_getcpu(), alloc_buff, data.data(), data.size(), cachable, compression_type, allocation.get());
 -
 -        if(alloc_buff){
-+  ~BlockContents() {  
 +    void * alloc_buff = nullptr;
 +    if(spdk_memory && allocation.get()){
 +        alloc_buff = allocation.release();
 +        if(!user_buffer && alloc_buff){
  #ifndef RDB_SPDK_MEMPOOL
              spdk_free(alloc_buff);
-+            //printf("~BlockContents: %p cpu %d spdk_free allocation %p data %p size %d user_buffer %d spdk_memory %d\n", 
++            //printf("~BlockContents: %p cpu %d spdk_free allocation %p data %p size %d user_buffer %d spdk_memory %d\n",
 +            //       this, sched_getcpu(), alloc_buff, data.data(), data.size(), user_buffer, spdk_memory);
  #else
              spdk_mempool_put(g_rdb_mempool, alloc_buff);
@@ -458,33 +427,10 @@ index 3a81fd7..e45ccef 100644
          }
      }
  
--  }
-+  } 
- };
- 
- // Read the block identified by "handle" from "file".  On failure
 diff --git a/table/format_request_context.cc b/table/format_request_context.cc
-index fd0749b..38f0dd0 100644
+index fd0749b..8908902 100644
 --- a/table/format_request_context.cc
 +++ b/table/format_request_context.cc
-@@ -154,7 +154,7 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
-   if (is_read_block_) {
-     status = GetReadBlock()->OnReadBlockComplete(s, raw_slice);
-   }
--
-+  
-   if (!status.ok()) {
-     return status;
-   }
-@@ -172,7 +172,7 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
-   size_t n = GetN();
- #define SPDK_BLOBSTORE_IO_UNIT_SIZE_MASK (512 - 1)
-   off_t buff_offset =  (handle_.offset() & SPDK_BLOBSTORE_IO_UNIT_SIZE_MASK);
--
-+  
-   // We only allocate heap_buf_ if necessary
-   char* used_buf = (heap_buf_) ? heap_buf_.get() : inclass_buf_;
-   assert(used_buf != nullptr);
 @@ -198,9 +198,13 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
    } else if (slice.data() != used_buf) {
      // the slice content is not the buffer provided
@@ -501,12 +447,9 @@ index fd0749b..38f0dd0 100644
      }
    } else {
      // page is uncompressed, the buffer either stack or heap provided
-@@ -208,11 +212,19 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
-       heap_buf_.reset(new char[n]);
-       memcpy(heap_buf_.get(), inclass_buf_, n);
+@@ -210,9 +214,17 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
      }
--
-+    
+ 
      if(client_cb_){
 -        *contents_ = BlockContents(std::move(heap_buf_), buff_offset, n, true, compression_type);
 +        *contents_ = BlockContents(std::move(heap_buf_), buff_offset, n, true, compression_type, is_user_buffer_);
@@ -518,35 +461,20 @@ index fd0749b..38f0dd0 100644
 +            *contents_ = BlockContents(std::move(heap_buf_), 0, n, true, compression_type, is_user_buffer_);
 +        else
 +            *contents_ = BlockContents(std::move(heap_buf_), n, true, compression_type, is_user_buffer_);
-+        
++
 +        //printf("OnReadBlockContentsComplete 2 no cb_ is_user_buffer_ %d heap_buf_ %p buff_offset %d n %d\n",
 +        //    is_user_buffer_, heap_buf_.get(), buff_offset, n);
      }
    }
  
-@@ -230,10 +242,10 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
- Status ReadBlockContentsContext::OnIoCompletion(const Status& status,
-     const Slice& slice) {
-   assert(status.async());
--
-+  
-   if(!client_cb_)
-     std::unique_ptr<ReadBlockContentsContext> self(this);
--
-+  
-   Status s = OnReadBlockContentsComplete(status, slice);
-   // In these classes OnIOComplletion is only invoked when async
-   // simply enforce this
 diff --git a/table/get_context.cc b/table/get_context.cc
-index 494cd6f..4879524 100644
+index 494cd6f..f7b79e8 100644
 --- a/table/get_context.cc
 +++ b/table/get_context.cc
-@@ -37,7 +37,8 @@ GetContext::GetContext(const Comparator* ucmp,
-                        Statistics* statistics, GetState init_state,
+@@ -38,6 +38,7 @@ GetContext::GetContext(const Comparator* ucmp,
                         const Slice& user_key, PinnableSlice* pinnable_val,
                         bool* value_found, MergeContext* merge_context,
--                       RangeDelAggregator* _range_del_agg, Env* env,
-+                       RangeDelAggregator* _range_del_agg, Env* env, 
+                        RangeDelAggregator* _range_del_agg, Env* env,
 +                       void * get_buffer, uint32_t get_buffer_size,
                         SequenceNumber* seq,
                         PinnedIteratorsManager* _pinned_iters_mgr)
@@ -599,7 +527,7 @@ index 3603ef6..d633515 100644
  
  void replayGetContextLog(const Slice& replay_log, const Slice& user_key,
 diff --git a/tools/db_bench_tool.cc b/tools/db_bench_tool.cc
-index beb6a9f..6129fa1 100644
+index ca0a97d..f25328c 100644
 --- a/tools/db_bench_tool.cc
 +++ b/tools/db_bench_tool.cc
 @@ -733,6 +733,8 @@ DEFINE_int32(nr_io_size, 1, "fillseq nr io size (inverse power of 2 of value_siz
@@ -647,15 +575,15 @@ index beb6a9f..6129fa1 100644
       if(FLAGS_key_upbound && FLAGS_key_upbound > FLAGS_key_prefix){
 @@ -4290,6 +4296,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       Slice key_upbound(key_buf2, 16);
-      struct timespec s_time; 
+      struct timespec s_time;
       start_timer(&s_time);
 +     bool key_found = false;
       int32_t value_size = 0;
-     
+ 
       if(FLAGS_use_prefix_iter){
 @@ -4302,7 +4309,13 @@ void VerifyDBFromDB(std::string& truth_db_name) {
      //for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
-     for (; i < reads_ && iter->Valid() && iter->key().compare(key_upbound) < 0; 
+     for (; i < reads_ && iter->Valid() && iter->key().compare(key_upbound) < 0;
              iter->Next()) {
 -      if(!value_size){value_size = iter->value().size();}
 +      if(!key_found){
@@ -664,7 +592,7 @@ index beb6a9f..6129fa1 100644
 +        key_found = true;
 +      }
 +      last_key_found = iter->key();
-+      
++
        bytes += iter->key().size() + iter->value().size();
        //printf("ReadSequential key 0x%s\n", iter->key().ToString(true).c_str());
        //bytes += iter->key().size() ; //+ iter->value().size();
@@ -672,12 +600,12 @@ index beb6a9f..6129fa1 100644
        thread->stats.AddMessage(get_perf_context()->ToString());
      }
  
--    printf("iter value_size(%d) key range (0x%s - 0x%s), duration %ld ms, keys found %ld\n", 
+-    printf("iter value_size(%d) key range (0x%s - 0x%s), duration %ld ms, keys found %ld\n",
 -        value_size, key_prefix.ToString(true).c_str(), key_upbound.ToString(true).c_str(), iter_sec, i);
-+    printf("iter value_size(%d) key range (0x%s - 0x%s), found key (0x%s - 0x%s) duration %ld ms, keys found %ld\n", 
-+        value_size, 
-+        key_prefix.ToString(true).c_str(), 
-+        key_upbound.ToString(true).c_str(), 
++    printf("iter value_size(%d) key range (0x%s - 0x%s), found key (0x%s - 0x%s) duration %ld ms, keys found %ld\n",
++        value_size,
++        key_prefix.ToString(true).c_str(),
++        key_upbound.ToString(true).c_str(),
 +        first_key.c_str(),
 +        last_key_found.ToString(true).c_str(),
 +        iter_sec, i);
@@ -691,12 +619,12 @@ index beb6a9f..6129fa1 100644
 -
 +      if(FLAGS_value_size){
 +        int lba_size = 512;
-+        int spdk_buffer_size = (((FLAGS_value_size + 5 + (1 * lba_size) - 1) / lba_size) + 1) * lba_size; 
++        int spdk_buffer_size = (((FLAGS_value_size + 5 + (1 * lba_size) - 1) / lba_size) + 1) * lba_size;
 +          //result->get_buffer_ = malloc(spdk_buffer_size);
 +
-+        if(spdk_buffer_size > FLAGS_block_size){   
++        if(spdk_buffer_size > FLAGS_block_size){
 +          result->get_buffer_ = spdk_malloc( spdk_buffer_size, 512, NULL,
-+                	  				  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
++							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
 +          result->get_buffer_size_ = spdk_buffer_size; //FLAGS_value_size + 1024;
 +        }
 +      }
@@ -746,23 +674,21 @@ index beb6a9f..6129fa1 100644
 +      user_buffer(status);
  
        bench_->read_.fetch_add(1, std::memory_order_relaxed);
-       
-@@ -4721,7 +4761,17 @@ void VerifyDBFromDB(std::string& truth_db_name) {
-         bench_->bytes_.fetch_add(key_.size() +
+ 
+@@ -4722,6 +4762,16 @@ void VerifyDBFromDB(std::string& truth_db_name) {
            (FLAGS_pin_slice == 1 ? pinnable_val_.size() : value_.size()),
            std::memory_order_relaxed);
--	
-+
+ 
 +        if(user_buffer()){
 +            offset_ = (uint64_t)(pinnable_val_.data()) - (uint64_t)get_buffer_;
 +        }else{
 +            //to copy the data to user buffer from pinnable_val_.data() with size as pinnable_val_.size()
 +            //memcpy(g_value_buffer, pinnable_val_.data(), pinnable_val_.size());
 +        }
-+        //printf("OnReadComplete val %p, size %d get_buffer_ %p get_buffer_size_ %d user_buffer %d offset %ld\n", 
++        //printf("OnReadComplete val %p, size %d get_buffer_ %p get_buffer_size_ %d user_buffer %d offset %ld\n",
 +        //    pinnable_val_.data(), pinnable_val_.size(),
 +        //    get_buffer_, get_buffer_size_, user_buffer(), offset_);
-+        
++
        } else if (!status.IsNotFound()) {
          fprintf(stderr, "Get returned an error: %s\n",
            status.ToString().c_str());
@@ -777,7 +703,7 @@ index beb6a9f..6129fa1 100644
  
    // Calls MultiGet over a list of keys from a random distribution.
 diff --git a/tools/rdb_spdk_simple.cc b/tools/rdb_spdk_simple.cc
-index 360aa8f..3316b71 100644
+index 1b9f493..33486e7 100644
 --- a/tools/rdb_spdk_simple.cc
 +++ b/tools/rdb_spdk_simple.cc
 @@ -102,11 +102,20 @@ class ReadRandomAsync : public AsyncBenchBase{
@@ -803,7 +729,7 @@ index 360aa8f..3316b71 100644
      }
  
      void SetKey(Slice& key){key_ = key;}
-@@ -119,18 +128,34 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+@@ -119,16 +128,32 @@ struct RandomReadContext : public async::AsyncStatusCapture {
  
      Status OnReadComplete(const Status& status) {
        async(status.async());
@@ -820,7 +746,7 @@ index 360aa8f..3316b71 100644
 +            //to copy the data to user buffer from pinnable_val_.data() with size as pinnable_val_.size()
 +            //memcpy(g_value_buffer, pinnable_val_.data(), pinnable_val_.size());
 +        }
-+        printf("OnReadComplete idx %d async %d val %p, size %d get_buffer_ %p get_buffer_size_ %d user_buffer %d offset %ld\n", 
++        printf("OnReadComplete idx %d async %d val %p, size %d get_buffer_ %p get_buffer_size_ %d user_buffer %d offset %ld\n",
 +            idx_, async(), pinnable_val_.data(), pinnable_val_.size(),
 +            get_buffer_, get_buffer_size_, user_buffer(), offset_);
 +
@@ -828,19 +754,16 @@ index 360aa8f..3316b71 100644
          fprintf(stderr, "Get returned an error: %s\n",
            status.ToString().c_str());
          abort();
--     }
 +      }
- 
++
 +     if(get_buffer_){
 +          spdk_free(get_buffer_);
 +          get_buffer_ = nullptr;
 +          get_buffer_size_ = 0;
 +          offset_ = 0;
-+     }
-+     
+      }
+ 
       if(async()){
-         //printf("OnReadComplete idx=%d\n", idx_);
-         bench_->ReadComplete(this);
 @@ -144,6 +169,9 @@ struct RandomReadContext : public async::AsyncStatusCapture {
      std::string           value_;
      PinnableSlice         pinnable_val_;
@@ -860,36 +783,34 @@ index 360aa8f..3316b71 100644
  
      int use_existing_db = atoi(argv[1]);
      int num_keys = atoi(argv[2]);
--    
 +    int value_size = atoi(argv[3]);
-+
-     std::string dbname = "/mnt/nvme0"; 
+ 
+     std::string dbname = "/mnt/nvme0";
      std::string cpumask = "0x1";  //for core 0
      std::string nvme_conf = "/usr/local/etc/spdk/nvme0.conf";
      std::string spdk_bdev = "nvme0n1";
      uint64_t cache_size_in_mb = 8192;
-+    const size_t blobfs_io_unit_size = 512; 
++    const size_t blobfs_io_unit_size = 512;
 +    const size_t rdbBlockTrailerSize = 5;
 +    int spdk_buffer_size = 0;
      char key_buffer[16] = {0};
--    
+-
      int i = 0;
-     
-     if(!use_existing_db){ 
-@@ -249,6 +280,8 @@ int main(int argc, char ** argv)
-     
+ 
+     if(!use_existing_db){
+@@ -250,12 +281,15 @@ int main(int argc, char ** argv)
      options.env = spdk_env;
      options.create_if_missing = true;
-+
+ 
 +    rocksdb::RandomReadContext * ctx = nullptr;
-     
++
      options.compression = rocksdb::kNoCompression;
      options.enable_write_thread_adaptive_yield = false;
-@@ -256,6 +289,7 @@ int main(int argc, char ** argv)
+     options.max_write_buffer_number = 10;
      options.target_file_size_base = 1073741824; // 1GB
      options.max_subcompactions = 4;
      options.num_levels = 2;
-+    
++
      rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
      if (!s.ok()) {
          printf("open %s failed\n", s.ToString().c_str());
@@ -912,7 +833,7 @@ index 360aa8f..3316b71 100644
                  s.async(false);
 -                s = rocksdb::async::DBImplGetContext::RequestGet(ctx->GetCallback(), db, read_options,
 -                    db->DefaultColumnFamily(), ctx->key_, &ctx->pinnable_val_, nullptr);
-+                spdk_buffer_size = (((value_size + rdbBlockTrailerSize + blobfs_io_unit_size-1)/blobfs_io_unit_size)+1)*blobfs_io_unit_size; 
++                spdk_buffer_size = (((value_size + rdbBlockTrailerSize + blobfs_io_unit_size-1)/blobfs_io_unit_size)+1)*blobfs_io_unit_size;
 +                ctx->get_buffer_ = spdk_malloc( spdk_buffer_size, 512, NULL, SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
 +                if(!ctx->get_buffer_){
 +                    printf("spdk_malloc failed on idx %d\n", idx);
@@ -921,25 +842,25 @@ index 360aa8f..3316b71 100644
 +		}
 +                //s = rocksdb::async::DBImplGetContext::RequestGet(ctx->GetCallback(), db, read_options,
 +                //    db->DefaultColumnFamily(), ctx->key_, &ctx->pinnable_val_, nullptr);
-+                
++
 +                s = rocksdb::async::DBImplGetContext::RequestGet(
-+                    ctx->GetCallback(), 
-+                    db, 
++                    ctx->GetCallback(),
++                    db,
 +                    read_options,
-+                    db->DefaultColumnFamily(), 
-+                    ctx->key_, 
-+                    &ctx->pinnable_val_, 
-+                    nullptr, 
-+                    ctx->get_buffer_, 
-+                    ctx->get_buffer_size_, 
++                    db->DefaultColumnFamily(),
++                    ctx->key_,
++                    &ctx->pinnable_val_,
++                    nullptr,
++                    ctx->get_buffer_,
++                    ctx->get_buffer_size_,
 +                    nullptr);
                  if (s.IsIOPending()) {
                      s.async(true);
                      bench_func->in_flight_.fetch_add(1, std::memory_order_relaxed);
--                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d\n", 
+-                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d\n",
 -                    //    nr_keys, idx, s.async(), bench_func->in_flight_.load(std::memory_order_relaxed));
-+                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d get_buffer_ %p\n", 
-+                    //    nr_keys, idx, s.async(), 
++                    //printf("RequestGet key_id %d idx %d async=%d in_flight %d get_buffer_ %p\n",
++                    //    nr_keys, idx, s.async(),
 +                    //    bench_func->in_flight_.load(std::memory_order_relaxed),
 +                    //    ctx->get_buffer_);
                  } else {
@@ -955,7 +876,7 @@ index 360aa8f..3316b71 100644
  
          printf("done the async read\n");
 diff --git a/util/random_read_context.h b/util/random_read_context.h
-index 37e7050..aab929f 100644
+index 37e7050..be1f87d 100644
 --- a/util/random_read_context.h
 +++ b/util/random_read_context.h
 @@ -14,6 +14,8 @@
@@ -1024,14 +945,13 @@ index 37e7050..aab929f 100644
      status = context.Read();
      return context.OnReadBlockContentsComplete(status, context.result_);
    }
-@@ -539,40 +544,113 @@ class ReadBlockContentsContext {
-     assert(is_read_block_);
+@@ -540,37 +545,110 @@ class ReadBlockContentsContext {
      return reinterpret_cast<ReadBlockContext*>(&read_block_);
    }
-+  
-+#define SPDK_BLOBSTORE_IO_UNIT_SIZE 512
  
 -  void ConstructReadBlockContext(RandomAccessFileReader* reader) {
++#define SPDK_BLOBSTORE_IO_UNIT_SIZE 512
++
 +  void ConstructReadBlockContext(RandomAccessFileReader* reader, GetContext * get_context = NULL) {
  
      // Figure out if we can use in-class buffer
@@ -1065,22 +985,22 @@ index 37e7050..aab929f 100644
 -        heap_buf_.reset(new char[n + kBlockTrailerSize]);
 -        used_buf = heap_buf_.get();
 +        int lba_size = SPDK_BLOBSTORE_IO_UNIT_SIZE;
-+        int spdk_buffer_size = (((n + kBlockTrailerSize + lba_size - 1) / lba_size) + 1) * lba_size; 
-+        
-+        if(get_context && get_context->GetBuffer()){ 
++        int spdk_buffer_size = (((n + kBlockTrailerSize + lba_size - 1) / lba_size) + 1) * lba_size;
++
++        if(get_context && get_context->GetBuffer()){
 +            uint32_t get_buffer_size = get_context->GetBufferSize();
 +            if(spdk_buffer_size > get_buffer_size){
-+                //printf("ConstructReadBlockContext %p get_buffer %p size %d less than spdk_buffer_size size %d n %d\n", 
++                //printf("ConstructReadBlockContext %p get_buffer %p size %d less than spdk_buffer_size size %d n %d\n",
 +                //        this,
 +                //        get_context->GetBuffer(),
 +                //        get_context->GetBufferSize(),
 +                //        spdk_buffer_size, n);
 +            }
 +        }
-+        
++
 +        if(get_context && get_context->GetBuffer() && get_context->GetBufferSize()>= spdk_buffer_size){
 +
-+            //printf("ConstructReadBlockContext %p ready to use get_buffer %p size %d spdk_buffer_size size %d\n", 
++            //printf("ConstructReadBlockContext %p ready to use get_buffer %p size %d spdk_buffer_size size %d\n",
 +            //            this, get_context->GetBuffer(),
 +            //            get_context->GetBufferSize(),
 +            //            spdk_buffer_size);
@@ -1091,14 +1011,14 @@ index 37e7050..aab929f 100644
 +            if(0 && !client_cb_){
 +                buf = new char[n + kBlockTrailerSize];
 +            }
-+                
++
 +            #else
 +            if(client_cb_)
 +                buf = spdk_malloc( spdk_buffer_size, SPDK_BLOBSTORE_IO_UNIT_SIZE, NULL,
-+                	  				  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
++							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
 +            else
 +                buf = new char[n + kBlockTrailerSize];
-+            
++
 +            if(!buf){
 +                    printf("ConstructReadBlockContext memory alloc %d !\n", spdk_buffer_size);
 +                    abort();
@@ -1106,24 +1026,24 @@ index 37e7050..aab929f 100644
 +            #endif
 +            heap_buf_.reset((char *)buf);
 +            used_buf = heap_buf_.get();
-+            
++
 +        }else{
 +              if(client_cb_){
-+            	#ifndef RDB_SPDK_MEMPOOL
-+            	  buf = spdk_malloc( spdk_buffer_size, SPDK_BLOBSTORE_IO_UNIT_SIZE, NULL,
-+                	  				  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
-+            	#else
++		#ifndef RDB_SPDK_MEMPOOL
++		  buf = spdk_malloc( spdk_buffer_size, SPDK_BLOBSTORE_IO_UNIT_SIZE, NULL,
++							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
++		#else
 +                  buf = spdk_mempool_get(g_rdb_mempool);
-+            	#endif
++		#endif
 +                  //void * prev_buf = heap_buf_.get();
-+            	  if(!buf){
++		  if(!buf){
 +                    printf("ConstructReadBlockContext spdk memory alloc failed!\n");
 +                    buf = new char[n + kBlockTrailerSize];
 +                    if(!buf){
 +                        printf("ConstructReadBlockContext heap memory alloc failed!\n");
 +                        abort();
 +                    }else{
-+                        //printf("ConstructReadBlockContext heap_alloc %d get_context %p ukey_size %d val %p, buffer %p size %d\n", 
++                        //printf("ConstructReadBlockContext heap_alloc %d get_context %p ukey_size %d val %p, buffer %p size %d\n",
 +                        //    n + kBlockTrailerSize, get_context,
 +                        //    get_context->GetUserKey().size(),
 +                        //    get_context->GetVal(),
@@ -1131,7 +1051,7 @@ index 37e7050..aab929f 100644
 +                        //    get_context->GetBufferSize());
 +                    }
 +                  }else{
-+            	  	    //printf("ConstructReadBlockContext spdk_malloc %d n %d get_context %p ukey_size %d val %p, buffer %p size %d\n", 
++			    //printf("ConstructReadBlockContext spdk_malloc %d n %d get_context %p ukey_size %d val %p, buffer %p size %d\n",
 +                        //    spdk_buffer_size, n, get_context,
 +                        //    get_context->GetUserKey().size(),
 +                        //    get_context->GetVal(),
@@ -1145,7 +1065,7 @@ index 37e7050..aab929f 100644
 +                heap_buf_.reset(new char[n + kBlockTrailerSize]);
 +                used_buf = heap_buf_.get();
 +                if(get_context){
-+                    //printf("ConstructReadBlockContext heap_alloc %d get_context %p ukey_size %d val %p, buffer %p size %d\n", 
++                    //printf("ConstructReadBlockContext heap_alloc %d get_context %p ukey_size %d val %p, buffer %p size %d\n",
 +                    //    n + kBlockTrailerSize, get_context,
 +                    //    get_context->GetUserKey().size(),
 +                    //    get_context->GetVal(),
@@ -1156,11 +1076,8 @@ index 37e7050..aab929f 100644
        }
 +
      }
--    //printf("ConstructReadBlockContext decomp %d, DefaultStackBufferSize %d n %d, used_buf %p, used_bufkBlockTrailerSize %d\n",
-+    //printf("ConstructReadBlockContext decomp %d, DefaultStackBufferSize %d n %d, used_buf %p, used_bufkBlockTrailerSize %d\n", 
+     //printf("ConstructReadBlockContext decomp %d, DefaultStackBufferSize %d n %d, used_buf %p, used_bufkBlockTrailerSize %d\n",
  //	decompression_requested_, DefaultStackBufferSize, n, used_buf, kBlockTrailerSize);
-     new (&read_block_) ReadBlockContext(ReadBlockContext::ReadBlockCallback(),
-                                         reader,
 @@ -601,6 +679,7 @@ class ReadBlockContentsContext {
    bool                          is_read_block_;
    std::unique_ptr<char[]>       heap_buf_;

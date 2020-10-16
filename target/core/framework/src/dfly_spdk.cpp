@@ -1,6 +1,8 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
+#include "rocksdb/dss_kv2blk_c.h"
+
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
@@ -149,6 +151,58 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
 
+	if(df_subsystem_enabled(subsys->id) &&
+		g_dragonfly->blk_map) {//Rocksdb block trannslation
+		switch (cmd->opc) {
+			case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
+				//SPDK_NOTICELOG("Rocksdb put started\n");
+				rc = dss_rocksdb_put(io_device->rdb_handle->rdb_db_handle,
+										req->dreq->req_key.key, req->dreq->req_key.length,
+										req->dreq->req_value.value, req->dreq->req_value.length);
+				if(rc == -1) {
+					SPDK_ERRLOG("Rocksdb put failed\n");
+					req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+					req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+				} else {
+					DFLY_ASSERT(rc == 0);
+					//SPDK_NOTICELOG("Rocksdb put completed\n");
+					req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+					req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_SUCCESS;
+				}
+				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
+				break;
+			case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+				//SPDK_NOTICELOG("Rocksdb get started\n");
+				dss_rocksdb_get_async(io_device->rdb_handle->rdb_db_handle,
+										req->dreq->req_key.key, req->dreq->req_key.length,
+										req->dreq->req_value.value, req->dreq->req_value.length,
+										NULL, req);
+				return SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+				break;
+			case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:
+				rc = dss_rocksdb_delete(io_device->rdb_handle->rdb_db_handle,
+										req->dreq->req_key.key,
+										req->dreq->req_key.length);
+				if(rc == -1) {
+					SPDK_ERRLOG("Rocksdb delete failed\n");
+					req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+					req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+				} else {
+					DFLY_ASSERT(rc == 0);
+					//SPDK_NOTICELOG("Rocksdb delete completed\n");
+					req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+					req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_SUCCESS;
+				}
+				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
+				break;
+			default:
+				req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+				req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
+				break;
+		}
+		DFLY_ASSERT(0);
+	}
 	switch (cmd->opc) {
 	case SPDK_NVME_OPC_READ:
 	case SPDK_NVME_OPC_WRITE:

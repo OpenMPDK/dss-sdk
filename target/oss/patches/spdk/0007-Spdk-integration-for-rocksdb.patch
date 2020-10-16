@@ -1,0 +1,833 @@
+From 703d1bc1d47c8dd5b21ae79f0c1ace79f2362f14 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 16 Oct 2020 14:04:02 -0700
+Subject: [PATCH 7/7] Spdk integration for rocksdb
+
+    * Channel core to route requests
+    * Don't claim module for rocksdb
+    * DSS environment for spdk
+---
+ app/nvmf_tgt/Makefile       |   2 -
+ include/spdk/blob.h         |   1 +
+ lib/blobfs/blobfs.c         |  13 +
+ lib/nvmf/subsystem.c        |  21 +-
+ lib/rocksdb/env_dss.cc      | 663 ++++++++++++++++++++++++++++++++++++++++++++
+ lib/rocksdb/spdk.rocksdb.mk |   2 +-
+ mk/spdk.app.mk              |   2 +-
+ test/blobfs/mkfs/Makefile   |   2 +
+ 8 files changed, 697 insertions(+), 9 deletions(-)
+ create mode 100644 lib/rocksdb/env_dss.cc
+
+diff --git a/app/nvmf_tgt/Makefile b/app/nvmf_tgt/Makefile
+index f4ac12c..0a7796d 100644
+--- a/app/nvmf_tgt/Makefile
++++ b/app/nvmf_tgt/Makefile
+@@ -59,6 +59,4 @@ endif
+ SYS_LIBS += -lufc
+ endif
+ 
+-SYS_LIBS += -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
+-
+ include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
+diff --git a/include/spdk/blob.h b/include/spdk/blob.h
+index fbc2728..1751a12 100644
+--- a/include/spdk/blob.h
++++ b/include/spdk/blob.h
+@@ -193,6 +193,7 @@ struct spdk_bs_dev {
+ 
+ 	uint64_t	blockcnt;
+ 	uint32_t	blocklen; /* In bytes */
++	uint32_t 	icore;
+ };
+ 
+ struct spdk_bs_type {
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 1bc7379..be46001 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -363,6 +363,7 @@ struct spdk_fs_channel {
+ 	fs_send_request_fn		send_request;
+ 	bool				sync;
+ 	uint32_t			outstanding_reqs;
++	uint32_t icore;
+ 	pthread_spinlock_t		lock;
+ };
+ 
+@@ -372,6 +373,18 @@ struct spdk_fs_thread_ctx {
+ 	struct spdk_fs_channel	ch;
+ };
+ 
++//SPDK_CONFIG_OSS_TARGET
++void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core)
++{
++	ctx->ch.icore = core;
++}
++
++uint32_t dss_get_fs_ch_core( struct spdk_fs_request * req)
++{
++	return req->channel->icore;
++}
++//END - SPDK_CONFIG_OSS_TARGET
++
+ static struct spdk_fs_request *
+ alloc_fs_request_with_iov(struct spdk_fs_channel *channel, uint32_t iovcnt)
+ {
+diff --git a/lib/nvmf/subsystem.c b/lib/nvmf/subsystem.c
+index ebe8d9a..ae1d21f 100644
+--- a/lib/nvmf/subsystem.c
++++ b/lib/nvmf/subsystem.c
+@@ -48,6 +48,8 @@
+ #include "spdk_internal/log.h"
+ #include "spdk_internal/utf.h"
+ 
++#include "dragonfly.h"
++
+ #define MODEL_NUMBER_DEFAULT "SPDK bdev Controller"
+ 
+ /*
+@@ -994,7 +996,12 @@ spdk_nvmf_subsystem_remove_ns(struct spdk_nvmf_subsystem *subsystem, uint32_t ns
+ 		TAILQ_REMOVE(&ns->registrants, reg, link);
+ 		free(reg);
+ 	}
++//SPDK_CONFIG_OSS_TARGET
++	if(df_subsystem_enabled(subsystem->id) &&
++			!g_dragonfly->blk_map) {
+ 	spdk_bdev_module_release_bdev(ns->bdev);
++	}
++//END - SPDK_CONFIG_OSS_TARGET
+ 	spdk_bdev_close(ns->desc);
+ 	if (ns->ptpl_file) {
+ 		free(ns->ptpl_file);
+@@ -1191,12 +1198,16 @@ spdk_nvmf_subsystem_add_ns(struct spdk_nvmf_subsystem *subsystem, struct spdk_bd
+ 		free(ns);
+ 		return 0;
+ 	}
+-	rc = spdk_bdev_module_claim_bdev(bdev, ns->desc, &ns_bdev_module);
+-	if (rc != 0) {
+-		spdk_bdev_close(ns->desc);
+-		free(ns);
+-		return 0;
++//SPDK_CONFIG_OSS_TARGET
++	if(!g_dragonfly->blk_map) {
++		rc = spdk_bdev_module_claim_bdev(bdev, ns->desc, &ns_bdev_module);
++		if (rc != 0) {
++			spdk_bdev_close(ns->desc);
++			free(ns);
++			return 0;
++		}
+ 	}
++//END - SPDK_CONFIG_OSS_TARGET
+ 	subsystem->ns[opts.nsid - 1] = ns;
+ 	ns->nsid = opts.nsid;
+ 	TAILQ_INIT(&ns->registrants);
+diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
+new file mode 100644
+index 0000000..f50416c
+--- /dev/null
++++ b/lib/rocksdb/env_dss.cc
+@@ -0,0 +1,663 @@
++/*-
++ *   BSD LICENSE
++ *
++ *   Copyright (c) Intel Corporation.
++ *   All rights reserved.
++ *
++ *   Redistribution and use in source and binary forms, with or without
++ *   modification, are permitted provided that the following conditions
++ *   are met:
++ *
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above copyright
++ *       notice, this list of conditions and the following disclaimer in
++ *       the documentation and/or other materials provided with the
++ *       distribution.
++ *     * Neither the name of Intel Corporation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include <sched.h>
++#include <sys/types.h>
++
++#include "rocksdb/env.h"
++#include <set>
++#include <iostream>
++#include <stdexcept>
++#include <unordered_map>
++
++extern "C" {
++#include "spdk/env.h"
++#include "spdk/event.h"
++#include "spdk/blob.h"
++#include "spdk/blobfs.h"
++#include "spdk/blob_bdev.h"
++#include "spdk/log.h"
++#include "spdk/thread.h"
++#include "spdk/bdev.h"
++
++#include "spdk_internal/thread.h"
++#include "blobfs.2.h"
++}
++
++namespace rocksdb
++{
++
++//#define RDB_SPDK_MEMPOOL
++
++#ifndef RDB_SPDK_MEMPOOL
++#else
++struct spdk_mempool * g_dss_rdb_mempool = NULL;
++#endif
++
++static std::string
++dss_sanitize_path(const std::string &input, const std::string &mount_directory)
++{
++	int index = 0;
++	std::string name;
++	std::string input_tmp;
++
++	input_tmp = input.substr(mount_directory.length(), input.length());
++	for (const char &c : input_tmp) {
++		if (index == 0) {
++			if (c != '/') {
++				name = name.insert(index, 1, '/');
++				index++;
++			}
++			name = name.insert(index, 1, c);
++			index++;
++		} else {
++			if (name[index - 1] == '/' && c == '/') {
++				continue;
++			} else {
++				name = name.insert(index, 1, c);
++				index++;
++			}
++		}
++	}
++
++	if (name[name.size() - 1] == '/') {
++		name = name.erase(name.size() - 1, 1);
++	}
++	return name;
++}
++
++class DssSequentialFile : public SequentialFile
++{
++	struct spdk_file *mFile;
++	struct spdk_fs_thread_ctx *mSpdkFsCh;
++	uint64_t mOffset;
++public:
++	DssSequentialFile(struct spdk_file *file, struct spdk_fs_thread_ctx *fs_ch) : mFile(file), mSpdkFsCh(fs_ch), mOffset(0) {}
++	virtual ~DssSequentialFile();
++
++	virtual Status Read(size_t n, Slice *result, char *scratch) override;
++	virtual Status Skip(uint64_t n) override;
++	virtual Status InvalidateCache(size_t offset, size_t length) override;
++};
++
++DssSequentialFile::~DssSequentialFile(void)
++{
++	spdk_file_close(mFile, mSpdkFsCh);
++}
++
++Status
++DssSequentialFile::Read(size_t n, Slice *result, char *scratch)
++{
++	int64_t ret;
++
++	ret = spdk_file_read(mFile, mSpdkFsCh, scratch, mOffset, n);
++	if (ret >= 0) {
++		mOffset += ret;
++		*result = Slice(scratch, ret);
++		return Status::OK();
++	} else {
++		errno = -ret;
++		return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++	}
++}
++
++Status
++DssSequentialFile::Skip(uint64_t n)
++{
++	mOffset += n;
++	return Status::OK();
++}
++
++Status
++DssSequentialFile::InvalidateCache(__attribute__((unused)) size_t offset,
++				    __attribute__((unused)) size_t length)
++{
++	return Status::OK();
++}
++
++class DpdkRandomAccessFile : public RandomAccessFile
++{
++	struct spdk_file *mFile;
++	struct spdk_fs_thread_ctx *mSpdkFsCh;
++
++    struct DpdkRandomAccessFileContext{
++        void * data;
++        const RandomAccessCallback cb;
++        struct spdk_file * file;
++        uint64_t offset;
++        char* buffer;
++        size_t byte_read;
++        DpdkRandomAccessFileContext(
++            const RandomAccessCallback racb,
++            struct spdk_file * f,
++            uint64_t f_offset, char * data_buf, size_t nr_read)
++            :cb(racb), file(f),
++            offset(f_offset), buffer(data_buf), byte_read(nr_read), data(NULL){}
++    };
++
++public:
++	DpdkRandomAccessFile(struct spdk_file *file, struct spdk_fs_thread_ctx *fs_ch) : mFile(file), mSpdkFsCh(fs_ch) {}
++	virtual ~DpdkRandomAccessFile();
++
++	virtual Status Read(uint64_t offset, size_t n, Slice *result, char *scratch) const override;
++	virtual Status InvalidateCache(size_t offset, size_t length) override;
++    static void AsyncReadCallback(void* ctx, int bserrno);
++    virtual Status RequestRead(const RandomAccessCallback& cb,
++    uint64_t offset, size_t n, Slice* result, char* scratch) const override;
++
++};
++
++DpdkRandomAccessFile::~DpdkRandomAccessFile(void)
++{
++	spdk_file_close(mFile, mSpdkFsCh);
++}
++
++Status
++DpdkRandomAccessFile::Read(uint64_t offset, size_t n, Slice *result, char *scratch) const
++{
++	int64_t rc;
++
++	rc = spdk_file_read(mFile, mSpdkFsCh, scratch, offset, n);
++	if (rc >= 0) {
++		*result = Slice(scratch, n);
++		return Status::OK();
++	} else {
++		errno = -rc;
++		return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++	}
++}
++
++Status
++DpdkRandomAccessFile::RequestRead(const RandomAccessCallback& cb,
++    uint64_t offset, size_t n, Slice* result, char* scratch) const {
++    Status s;
++    static int cnt = 0;
++
++    DpdkRandomAccessFileContext * ctx =
++        new DpdkRandomAccessFileContext(cb, mFile, offset, scratch, n);
++    spdk_file_read_async2(mFile, mSpdkFsCh, scratch, offset, n,
++        AsyncReadCallback, (void *)ctx);
++
++    return Status::IOPending();
++}
++
++void
++DpdkRandomAccessFile::AsyncReadCallback(void* ctx, int bserrno){
++    struct DpdkRandomAccessFileContext * spdk_ctx =
++        (struct DpdkRandomAccessFileContext *)ctx;
++    Status s;
++    Slice slice(spdk_ctx->buffer + (spdk_ctx->offset & 511), spdk_ctx->byte_read);
++    if(!bserrno)
++        s.async(true);
++
++    spdk_free_fs_request(spdk_ctx->data);
++    spdk_ctx->cb.Invoke(s, slice);
++
++    delete spdk_ctx;
++}
++
++Status
++DpdkRandomAccessFile::InvalidateCache(__attribute__((unused)) size_t offset,
++				      __attribute__((unused)) size_t length)
++{
++	return Status::OK();
++}
++
++class DssWritableFile : public WritableFile
++{
++	struct spdk_file *mFile;
++	struct spdk_fs_thread_ctx *mFsCh;
++	uint64_t mSize;
++
++public:
++	DssWritableFile(struct spdk_file *file, struct spdk_fs_thread_ctx *fs_ch) : mFile(file), mFsCh(fs_ch), mSize(0) {}
++	~DssWritableFile()
++	{
++		if (mFile != NULL) {
++			Close();
++		}
++	}
++
++	virtual void SetIOPriority(Env::IOPriority pri)
++	{
++		if (pri == Env::IO_HIGH) {
++			spdk_file_set_priority(mFile, SPDK_FILE_PRIORITY_HIGH);
++		}
++	}
++
++	virtual Status Truncate(uint64_t size) override
++	{
++		int rc;
++
++		rc = spdk_file_truncate(mFile, mFsCh, size);
++		if (!rc) {
++			mSize = size;
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++		}
++	}
++	virtual Status Close() override
++	{
++		spdk_file_close(mFile, mFsCh);
++		mFile = NULL;
++		return Status::OK();
++	}
++	virtual Status Append(const Slice &data) override;
++	virtual Status Flush() override
++	{
++		return Status::OK();
++	}
++	virtual Status Sync() override
++	{
++		int rc;
++
++		rc = spdk_file_sync(mFile, mFsCh);
++		if (!rc) {
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++		}
++	}
++	virtual Status Fsync() override
++	{
++		int rc;
++
++		rc = spdk_file_sync(mFile, mFsCh);
++		if (!rc) {
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++		}
++	}
++	virtual bool IsSyncThreadSafe() const override
++	{
++		return true;
++	}
++	virtual uint64_t GetFileSize() override
++	{
++		return mSize;
++	}
++	virtual Status InvalidateCache(__attribute__((unused)) size_t offset,
++				       __attribute__((unused)) size_t length) override
++	{
++		return Status::OK();
++	}
++	virtual Status Allocate(uint64_t offset, uint64_t len) override
++	{
++		int rc;
++
++		rc = spdk_file_truncate(mFile, mFsCh, offset + len);
++		if (!rc) {
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++		}
++	}
++	virtual Status RangeSync(__attribute__((unused)) uint64_t offset,
++				 __attribute__((unused)) uint64_t nbytes) override
++	{
++		int rc;
++
++		/*
++		 * SPDK BlobFS does not have a range sync operation yet, so just sync
++		 *  the whole file.
++		 */
++		rc = spdk_file_sync(mFile, mFsCh);
++		if (!rc) {
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++		}
++	}
++	virtual size_t GetUniqueId(char *id, size_t max_size) const override
++	{
++		int rc;
++
++		rc = spdk_file_get_id(mFile, id, max_size);
++		if (rc < 0) {
++			return 0;
++		} else {
++			return rc;
++		}
++	}
++};
++
++Status
++DssWritableFile::Append(const Slice &data)
++{
++	int64_t rc;
++
++	if(0 && data.size() > 0x100000){
++		printf("Append %s offset 0x%x size 0x%x\n", mFile->name, mSize, data.size());
++	}
++	rc = spdk_file_write(mFile, mFsCh, (void *)data.data(), mSize, data.size());
++	if (rc >= 0) {
++		mSize += data.size();
++		return Status::OK();
++	} else {
++		errno = -rc;
++		return Status::IOError(spdk_file_get_name(mFile), strerror(errno));
++	}
++}
++
++class DssDirectory : public Directory
++{
++public:
++	DssDirectory() {}
++	~DssDirectory() {}
++	Status Fsync() override
++	{
++		return Status::OK();
++	}
++};
++
++class DssEnv : public EnvWrapper
++{
++private:
++	//pthread_t mSpdkTid;
++	std::string mDirectory;
++	std::string mConfig;
++	std::string mBdev;
++	struct spdk_filesystem *mSpdkFS;
++	struct spdk_fs_thread_ctx *mSpdkFsCh;
++	uint32_t mCore;
++
++public:
++	DssEnv(Env *base_env, const std::string &dir,
++		const std::string &cpumask,  const std::string &conf,
++		const std::string &bdev, uint64_t cache_size_in_mb,
++		struct spdk_filesystem *spdk_fs, struct spdk_fs_thread_ctx *spdk_fs_ch, uint32_t run_core);
++
++	virtual ~DssEnv();
++
++	virtual Status NewSequentialFile(const std::string &fname,
++					 unique_ptr<SequentialFile> *result,
++					 const EnvOptions &options) override
++	{
++		if (fname.compare(0, mDirectory.length(), mDirectory) == 0) {
++			struct spdk_file *file;
++			int rc;
++
++			std::string name = dss_sanitize_path(fname, mDirectory);
++			rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh,
++					       name.c_str(), 0, &file);
++			if (rc == 0) {
++				result->reset(new DssSequentialFile(file, mSpdkFsCh));
++				return Status::OK();
++			} else {
++				/* Myrocks engine uses errno(ENOENT) as one
++				 * special condition, for the purpose to
++				 * support MySQL, set the errno to right value.
++				 */
++				errno = -rc;
++				return Status::IOError(name, strerror(errno));
++			}
++		} else {
++			return EnvWrapper::NewSequentialFile(fname, result, options);
++		}
++	}
++
++	virtual Status NewRandomAccessFile(const std::string &fname,
++					   unique_ptr<RandomAccessFile> *result,
++					   const EnvOptions &options) override
++	{
++		if (fname.compare(0, mDirectory.length(), mDirectory) == 0) {
++			std::string name = dss_sanitize_path(fname, mDirectory);
++			struct spdk_file *file;
++			int rc;
++
++			printf("name %s --> %s\n", fname.c_str(), name.c_str());
++			rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh,
++					       name.c_str(), 0, &file);
++			if (rc == 0) {
++				result->reset(new DpdkRandomAccessFile(file, mSpdkFsCh));
++				return Status::OK();
++			} else {
++				errno = -rc;
++				return Status::IOError(name, strerror(errno));
++			}
++		} else {
++			return EnvWrapper::NewRandomAccessFile(fname, result, options);
++		}
++	}
++
++	virtual Status NewWritableFile(const std::string &fname,
++				       unique_ptr<WritableFile> *result,
++				       const EnvOptions &options) override
++	{
++		if (fname.compare(0, mDirectory.length(), mDirectory) == 0) {
++			std::string name = dss_sanitize_path(fname, mDirectory);
++			struct spdk_file *file;
++			int rc;
++
++			rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh, name.c_str(),
++					       SPDK_BLOBFS_OPEN_CREATE, &file);
++			if (rc == 0) {
++				result->reset(new DssWritableFile(file, mSpdkFsCh));
++				return Status::OK();
++			} else {
++				errno = -rc;
++				return Status::IOError(name, strerror(errno));
++			}
++		} else {
++			return EnvWrapper::NewWritableFile(fname, result, options);
++		}
++	}
++
++	virtual Status ReuseWritableFile(const std::string &fname,
++					 const std::string &old_fname,
++					 unique_ptr<WritableFile> *result,
++					 const EnvOptions &options) override
++	{
++		return EnvWrapper::ReuseWritableFile(fname, old_fname, result, options);
++	}
++
++	virtual Status NewDirectory(__attribute__((unused)) const std::string &name,
++				    unique_ptr<Directory> *result) override
++	{
++		result->reset(new DssDirectory());
++		return Status::OK();
++	}
++	virtual Status FileExists(const std::string &fname) override
++	{
++		struct spdk_file_stat stat;
++		int rc;
++		std::string name = dss_sanitize_path(fname, mDirectory);
++
++		rc = spdk_fs_file_stat(mSpdkFS, mSpdkFsCh, name.c_str(), &stat);
++		if (rc == 0) {
++			return Status::OK();
++		}
++		return EnvWrapper::FileExists(fname);
++	}
++	virtual Status RenameFile(const std::string &src, const std::string &t) override
++	{
++		int rc;
++		std::string src_name = dss_sanitize_path(src, mDirectory);
++		std::string target_name = dss_sanitize_path(t, mDirectory);
++
++		rc = spdk_fs_rename_file(mSpdkFS, mSpdkFsCh,
++					 src_name.c_str(), target_name.c_str());
++		if (rc == -ENOENT) {
++			return EnvWrapper::RenameFile(src, t);
++		}
++		return Status::OK();
++	}
++	virtual Status LinkFile(__attribute__((unused)) const std::string &src,
++				__attribute__((unused)) const std::string &t) override
++	{
++		return Status::NotSupported("DssEnv does not support LinkFile");
++	}
++	virtual Status GetFileSize(const std::string &fname, uint64_t *size) override
++	{
++		struct spdk_file_stat stat;
++		int rc;
++		std::string name = dss_sanitize_path(fname, mDirectory);
++
++		rc = spdk_fs_file_stat(mSpdkFS, mSpdkFsCh, name.c_str(), &stat);
++		if (rc == -ENOENT) {
++			return EnvWrapper::GetFileSize(fname, size);
++		}
++		*size = stat.size;
++		return Status::OK();
++	}
++	virtual Status DeleteFile(const std::string &fname) override
++	{
++		int rc;
++		std::string name = dss_sanitize_path(fname, mDirectory);
++
++		rc = spdk_fs_delete_file(mSpdkFS, mSpdkFsCh, name.c_str());
++		if (rc == -ENOENT) {
++			return EnvWrapper::DeleteFile(fname);
++		}
++		return Status::OK();
++	}
++	virtual Status LockFile(const std::string &fname, FileLock **lock) override
++	{
++		std::string name = dss_sanitize_path(fname, mDirectory);
++		int64_t rc;
++
++		rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh, name.c_str(),
++				       SPDK_BLOBFS_OPEN_CREATE, (struct spdk_file **)lock);
++		if (!rc) {
++			return Status::OK();
++		} else {
++			errno = -rc;
++			return Status::IOError(name, strerror(errno));
++		}
++	}
++	virtual Status UnlockFile(FileLock *lock) override
++	{
++		spdk_file_close((struct spdk_file *)lock, mSpdkFsCh);
++		return Status::OK();
++	}
++	virtual Status GetChildren(const std::string &dir,
++				   std::vector<std::string> *result) override
++	{
++		std::string::size_type pos;
++		std::set<std::string> dir_and_file_set;
++		std::string full_path;
++		std::string filename;
++		std::string dir_name;
++
++		if (dir.find("archive") != std::string::npos) {
++			return Status::OK();
++		}
++		if (dir.compare(0, mDirectory.length(), mDirectory) == 0) {
++			spdk_fs_iter iter;
++			struct spdk_file *file;
++			dir_name = dss_sanitize_path(dir, mDirectory);
++
++			iter = spdk_fs_iter_first(mSpdkFS);
++			while (iter != NULL) {
++				file = spdk_fs_iter_get_file(iter);
++				full_path = spdk_file_get_name(file);
++				if (strncmp(dir_name.c_str(), full_path.c_str(), dir_name.length())) {
++					iter = spdk_fs_iter_next(iter);
++					continue;
++				}
++				pos = full_path.find("/", dir_name.length() + 1);
++
++				if (pos != std::string::npos) {
++					filename = full_path.substr(dir_name.length() + 1, pos - dir_name.length() - 1);
++				} else {
++					filename = full_path.substr(dir_name.length() + 1);
++				}
++				dir_and_file_set.insert(filename);
++				iter = spdk_fs_iter_next(iter);
++			}
++
++			for (auto &s : dir_and_file_set) {
++				result->push_back(s);
++			}
++
++			result->push_back(".");
++			result->push_back("..");
++
++			return Status::OK();
++		}
++		return EnvWrapper::GetChildren(dir, result);
++	}
++};
++
++static void
++dss_fs_unload_cb(__attribute__((unused)) void *ctx,
++	     __attribute__((unused)) int fserrno)
++{
++	assert(fserrno == 0);
++}
++
++DssEnv::DssEnv(Env *base_env, const std::string &dir,
++        const std::string &cpumask, const std::string &conf,
++		 const std::string &bdev, uint64_t cache_size_in_mb,  struct spdk_filesystem *spdk_fs, struct spdk_fs_thread_ctx *spdk_fs_ch, uint32_t run_core)
++	: EnvWrapper(base_env), mDirectory(dir), mConfig(conf), mBdev(bdev), mSpdkFS(spdk_fs), mSpdkFsCh(spdk_fs_ch), mCore(run_core)
++{
++#ifndef RDB_SPDK_MEMPOOL
++#else
++	g_dss_rdb_mempool = spdk_mempool_create("rdb_mempool", 2048, 1048576 + 1024, \
++                                   SIZE_MAX,
++                                   SPDK_ENV_SOCKET_ID_ANY);
++#endif
++}
++
++DssEnv::~DssEnv()
++{
++#ifndef RDB_SPDK_MEMPOOL
++#else
++	if(g_dss_rdb_mempool)
++		spdk_mempool_free(g_dss_rdb_mempool);
++#endif
++
++}
++
++Env *NewDssEnv(Env *base_env, const std::string &dir,
++        const std::string & cpumask, const std::string &conf,
++		const std::string &bdev, uint64_t cache_size_in_mb,
++		void *spdk_fs, void *spdk_fs_ch, uint32_t run_core)
++{
++	try {
++		DssEnv *dss_env = new DssEnv(base_env, dir, cpumask, conf, bdev, cache_size_in_mb,(struct spdk_filesystem *) spdk_fs, (struct spdk_fs_thread_ctx *)spdk_fs_ch, run_core);
++		return dss_env;
++	} catch (...) {
++		SPDK_ERRLOG("NewDssEnv: default exception caught");
++		return NULL;
++	}
++}
++
++} // namespace rocksdb
+diff --git a/lib/rocksdb/spdk.rocksdb.mk b/lib/rocksdb/spdk.rocksdb.mk
+index 8f4f8fc..aaf72fa 100644
+--- a/lib/rocksdb/spdk.rocksdb.mk
++++ b/lib/rocksdb/spdk.rocksdb.mk
+@@ -37,7 +37,7 @@ include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
+ include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
+ include $(SPDK_ROOT_DIR)/mk/spdk.modules.mk
+ 
+-CXXFLAGS +=  -I$(SPDK_DIR)/include -Iinclude/
++CXXFLAGS +=  -I$(SPDK_DIR)/include -Iinclude/ -I$(SPDK_DIR)/lib/nvmf/
+ 
+ # The SPDK makefiles turn this on, but RocksDB won't compile with it.  So
+ #  turn it off after including the SPDK makefiles.
+diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
+index b7011bb..51a3c5b 100644
+--- a/mk/spdk.app.mk
++++ b/mk/spdk.app.mk
+@@ -48,7 +48,7 @@ endif
+ 
+ LIBS += $(SPDK_LIB_LINKER_ARGS)
+ 
+-SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldss_lat -ljudyL -ldssd -lstdc++
++SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldss_lat -ljudyL -ldssd -lstdc++  -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
+ 
+ CLEAN_FILES = $(APP)
+ 
+diff --git a/test/blobfs/mkfs/Makefile b/test/blobfs/mkfs/Makefile
+index 42eebd9..396c249 100644
+--- a/test/blobfs/mkfs/Makefile
++++ b/test/blobfs/mkfs/Makefile
+@@ -44,6 +44,8 @@ SPDK_LIB_LIST += $(EVENT_BDEV_SUBSYSTEM)
+ SPDK_LIB_LIST += bdev accel event thread util conf trace \
+ 		log jsonrpc json rpc sock notify blobfs_bdev
+ 
++SPDK_LIB_LIST += nvmf event_nvmf
++
+ # libfuse3 is required internally by blobfs_bdev
+ ifeq ($(CONFIG_FUSE),y)
+ LIBS+= -L/usr/local/lib -lfuse3
+-- 
+1.8.3.1
+

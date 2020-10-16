@@ -62,7 +62,7 @@ extern "C" {
 #include "df_dev.h"
 #include "df_req.h"
 #include "df_pool.h"
-#include "df_io_pool.h"
+#include "df_pool.h"
 #include "df_wal_pool.h"
 #include "df_wal.h"
 #include "df_fuse.h"
@@ -135,13 +135,35 @@ struct dfly_module_list_s {
 	struct dfly_module_s *dfly_list_module;
 };
 
+struct init_multi_dev_s {
+	pthread_mutex_t l;
+	int pending_count;
+	uint32_t src_core;
+	df_module_event_complete_cb cb;
+	void *cb_arg;
+	struct io_thread_ctx_s *io_thrd_ctx;
+	struct dfly_subsystem *ss;
+};
+
+struct rdb_dev_ctx_s {
+	const char *dev_name;
+	struct dfly_subsystem *ss;
+	struct spdk_filesystem *rdb_fs_handle;
+	struct spdk_bs_dev *rdb_bs_handle;
+	struct init_multi_dev_s *tmp_init_back_ptr;
+	struct spdk_fs_thread_ctx * dev_channel;
+	void *rdb_db_handle;
+};
+
 struct dfly_io_device_s {
 	struct spdk_nvmf_ns *ns;
 	uint32_t index;
 
 	int32_t numa_node;
+	uint32_t icore;
 	stat_kvio_t *stat_io;
 	stat_serial_t *stat_serial;
+	struct rdb_dev_ctx_s *rdb_handle;
 };
 
 typedef struct df_subsys_conf_s {
@@ -237,6 +259,7 @@ struct dragonfly {
 	struct dragonfly_core core[64]; /**< round robin core selection data from each core */
 
 	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
+	bool blk_map;//Rocksdb block translation
 	bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 
 	uint32_t num_sgroups; /**< number of pools */
@@ -407,6 +430,10 @@ void dfly_kv_submit_req(struct dfly_request *req, struct dfly_io_device_s *io_de
 			struct spdk_io_channel *ch);
 
 struct spdk_nvmf_tgt *dfly_get_g_nvmf_tgt(void);
+
+void _dev_init_done (void *cb_event);
+uint32_t dss_get_fs_ch_core( struct spdk_fs_request * req);
+void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core);
 
 #ifdef __cplusplus
 }
