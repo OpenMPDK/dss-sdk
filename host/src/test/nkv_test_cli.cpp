@@ -73,6 +73,7 @@ struct nkv_thread_args{
   int hex_dump;
   int is_mixed;
   int alignment;
+  void* app_ustat_ctx;
 };
 
 void memHexDump (void *addr, int len) {
@@ -237,6 +238,7 @@ void *iothread(void *args)
     sprintf(key_name, "%s_%d_%u", targs->key_prefix, targs->id, iter);
     uint32_t klen = targs->klen;//strlen (key_name);
     char* val = NULL;
+    
     if (!targs->alignment) {
       val   = (char*)nkv_zalloc(targs->vlen);
       //memset(val, 0, targs->vlen);
@@ -252,6 +254,13 @@ void *iothread(void *args)
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, targs->vlen, 0 };
     
+    if (targs->app_ustat_ctx) {
+      status = nkv_inc_to_counter(targs->nkv_handle, targs->app_ustat_ctx);
+      if (status != NKV_SUCCESS) {
+        smg_error(logger, "NKV stat inc api failed !, error = %u", status);
+      }
+    }
+
     switch(targs->op_type) {
       case 0: /*PUT*/
         {
@@ -677,6 +686,14 @@ void *iothread(void *args)
       nkv_free(key_name);
     if (val)
       nkv_free(val);
+
+    if (targs->app_ustat_ctx) {
+      status = nkv_dec_to_counter(targs->nkv_handle, targs->app_ustat_ctx);
+      if (status != NKV_SUCCESS) {
+        smg_error(logger, "NKV stat dec api failed !, error = %u", status);
+      }
+    }
+
     
   }
   if (cmpval)
@@ -712,6 +729,7 @@ void usage(char *program)
   printf("-l      multipath       :  0:disable 1:enable  \n");
   printf("-f      multipath policy:  0/1:RR 2:Failover 3:Least Queue Depth 4:Least Block Size  \n");
   printf("-j      alingned alloc  :  Alligned allocation for value size, give the desired alignment value here, works with multiple threads option only  \n");
+  printf("-z      application stat:  Application wants it's stat to be collected via NKV ustat  \n");
   printf("==============\n");
 }
 
@@ -738,6 +756,7 @@ int main(int argc, char *argv[]) {
   int is_mixed = 0;
   int hex_dump = 0;
   bool get_stat = false;
+  int app_ustat = 0;
   int multipath_lb = 0;
   int multipath_lb_policy = 0;
   int alignment = 0;
@@ -749,7 +768,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:z:")) != -1) {
     switch(c) {
 
     case 'c':
@@ -827,6 +846,10 @@ int main(int argc, char *argv[]) {
       feature_list.nic_load_balance_policy = multipath_lb_policy;
       break;
 
+    case 'z':
+      app_ustat = atoi(optarg);
+      break;
+
     default:
       usage(argv[0]);
       smg_release_logger(logger);
@@ -877,6 +900,19 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   smg_info(logger, "NKV open successful, instance uuid = %u, nkv handle = %u", instance_uuid, nkv_handle);
+  void* stat_ctx = NULL;
+  if (app_ustat) {
+    nkv_stat_counter cli_cnt;
+    cli_cnt.counter_name = "cli_qd";
+    cli_cnt.counter_type = STAT_TYPE_UINT64;
+  
+    status = nkv_register_stat_counter (nkv_handle, "test_cli", &cli_cnt, &stat_ctx);
+    if (status != NKV_SUCCESS) {
+      smg_error(logger, "NKV stat counter registration failed, counter_name = %s, error = %u", cli_cnt.counter_name, status);
+    } else {
+      smg_alert(logger, "## NKV stat counter registration successful, counter_name = %s, stat_ctx = 0x%x", cli_cnt.counter_name, stat_ctx);
+    }
+  }
 
 do {
   if (op_type == 5) {
@@ -1137,6 +1173,8 @@ do {
       args[i].hex_dump = hex_dump;
       args[i].is_mixed = is_mixed;
       args[i].alignment = alignment;
+      args[i].app_ustat_ctx = stat_ctx;
+    
 
       /*cpu_set_t cpus;
       pthread_attr_init(attr);

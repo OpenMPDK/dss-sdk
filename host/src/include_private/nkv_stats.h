@@ -89,6 +89,7 @@ typedef struct stat_io
 
 int nkv_ustats_init(void);
 
+ustat_struct_t* nkv_register_application_counter(const char* app_module_name, ustat_named_t* app_counter);
 // Reset operation 
 void nkv_ustat_reset_io_stat(stat_io_t* stat);
 

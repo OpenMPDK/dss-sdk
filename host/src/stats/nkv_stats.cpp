@@ -95,8 +95,23 @@ void nkv_ustat_delete(ustat_struct_t *s)
 }
 
 
+ustat_struct_t* nkv_register_application_counter(const char* app_module_name, ustat_named_t* app_counter) {
+
+  ustat_handle_t* ustat_handler = nkv_cnt_list->get_nkv_ustat_handle();
+
+  if(! ustat_handler ) {
+    smg_error(logger, "Received NULL ustat handler!");
+    return NULL;
+  }
+
+  return (ustat_insert(ustat_handler, app_module_name, STAT_GNAME_NAME,
+            &ustat_class_nkv, 1, app_counter, NULL));
+
+
+}
+
 // Initiate stats counters for IO path 
-stat_io_t* nkv_init_path_io_stats(string& device_name, bool cpu_stat, unsigned cpu_index=0)
+stat_io_t* nkv_init_path_io_stats(string& device_name, bool cpu_stat, unsigned cpu_index)
 {
   // Get ustat handle
   ustat_handle_t* ustat_handler = nkv_cnt_list->get_nkv_ustat_handle();

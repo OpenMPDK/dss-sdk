@@ -2456,7 +2456,7 @@ void NKVTarget::add_nkv_path_cpu_stat()
 }
 
 // ustat initialization for NKV
-void NKVContainerList::initiate_nkv_ustat(bool device=false, bool cpu=false)
+void NKVContainerList::initiate_nkv_ustat(bool device, bool cpu)
 {
   if( nkv_cnt_list->get_nkv_ustat_handle() ||  nkv_ustats_init() == 0 ) {
     for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
@@ -2528,7 +2528,7 @@ void NKVTarget::remove_path_cpu_stat()
   }
 }
 // Remove NKV Ustat for device path or cpu level of device level
-void NKVContainerList::remove_nkv_ustat(bool device=false, bool cpu=false)
+void NKVContainerList::remove_nkv_ustat(bool device, bool cpu)
 {
   for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
     NKVTarget* target_ptr = m_iter->second;

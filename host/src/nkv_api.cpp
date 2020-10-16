@@ -1037,3 +1037,201 @@ nkv_result nkv_set_supported_feature_list(uint64_t nkv_handle, nkv_feature_list 
   
   return NKV_SUCCESS;
 }
+
+nkv_result nkv_register_stat_counter(uint64_t nkv_handle, const char* module_name, nkv_stat_counter* stat_cnt, void **statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!module_name) {
+    smg_error(logger, "NULL module_name provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if (!stat_cnt) {
+    smg_error(logger, "NULL stat_cnt provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  if (*statctx) {
+    smg_error(logger, "Non-NULL statctx provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_WRONG_INPUT;
+  }
+
+  if (stat_cnt->counter_name == NULL) {
+    smg_error(logger, "NULL counter_name provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) malloc (sizeof(ustat_named_t));
+  assert(ustat_counter != NULL);
+  memset(ustat_counter, 0, sizeof(ustat_named_t));
+  ustat_counter->usn_name = (char*) malloc (strlen(stat_cnt->counter_name) + 1);
+  
+  strcpy((char*)ustat_counter->usn_name, stat_cnt->counter_name);
+  
+  switch (stat_cnt->counter_type) {
+
+    case STAT_TYPE_INT8:
+      ustat_counter->usn_type = USTAT_TYPE_INT8;
+      break;
+
+    case STAT_TYPE_INT16:
+      ustat_counter->usn_type = USTAT_TYPE_INT16;
+      break;
+
+    case STAT_TYPE_INT32:
+      ustat_counter->usn_type = USTAT_TYPE_INT32;
+      break;
+
+    case STAT_TYPE_INT64:
+      ustat_counter->usn_type = USTAT_TYPE_INT64;
+      break;
+
+    case STAT_TYPE_UINT8:
+      ustat_counter->usn_type = USTAT_TYPE_UINT8;
+      break;
+
+    case STAT_TYPE_UINT16:
+      ustat_counter->usn_type = USTAT_TYPE_UINT16;
+      break;
+
+    case STAT_TYPE_UINT32:
+      ustat_counter->usn_type = USTAT_TYPE_UINT32;
+      break;
+
+    case STAT_TYPE_UINT64:
+      ustat_counter->usn_type = USTAT_TYPE_UINT64;
+      break;
+
+    case STAT_TYPE_SIZE:
+      ustat_counter->usn_type = USTAT_TYPE_SIZE;
+      break;
+    
+    default:
+      free((void*)ustat_counter->usn_name);
+      free (ustat_counter);
+      smg_error(logger, "Non-NULL statctx provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+      return NKV_ERR_WRONG_INPUT;
+  }
+  
+  *statctx = nkv_register_application_counter(module_name, ustat_counter);
+  if (*statctx == NULL) {
+    smg_error(logger, "Getting NULL statctx, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    assert (0);
+  }
+  return NKV_SUCCESS; 
+}
+
+nkv_result nkv_unregister_stat_counter(uint64_t nkv_handle, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+  
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+  nkv_ustat_delete(ustat_counter);
+  return NKV_SUCCESS;
+}
+
+nkv_result nkv_set_stat_counter(uint64_t nkv_handle, uint64_t value, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_set_stat_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_set_stat_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+
+  nkv_ustat_atomic_set_u64(statctx, ustat_counter, value);
+  return NKV_SUCCESS;
+}
+
+nkv_result nkv_add_to_counter(uint64_t nkv_handle, uint64_t value, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_add_to_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_add_to_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+
+  nkv_ustat_atomic_add_u64(statctx, ustat_counter, value);
+  return NKV_SUCCESS;
+}
+
+nkv_result nkv_sub_from_counter(uint64_t nkv_handle, uint64_t value, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_sub_from_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_sub_from_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+
+  nkv_ustat_atomic_sub_u64(statctx, ustat_counter, value);
+  return NKV_SUCCESS;
+}
+
+nkv_result nkv_inc_to_counter(uint64_t nkv_handle, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_inc_to_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_inc_to_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+  nkv_ustat_atomic_inc_u64(statctx, ustat_counter);
+
+  return NKV_SUCCESS;
+}
+
+nkv_result nkv_dec_to_counter(uint64_t nkv_handle, void *statctx) {
+
+  if (nkv_handle != nkv_cnt_list->get_nkv_handle()) {
+    smg_error(logger, "Wrong nkv handle provided, aborting, given handle = %u, op = nkv_dec_to_counter !!", nkv_handle);
+    return NKV_ERR_HANDLE_INVALID;
+  }
+
+  if (!statctx) {
+    smg_error(logger, "NULL statctx provided, aborting, given handle = %u, op = nkv_dec_to_counter !!", nkv_handle);
+    return NKV_ERR_NULL_INPUT;
+  }
+
+  ustat_named_t* ustat_counter = (ustat_named_t*) statctx;
+
+  nkv_ustat_atomic_dec_u64(statctx, ustat_counter);
+  return NKV_SUCCESS;
+}
+
+
+
+

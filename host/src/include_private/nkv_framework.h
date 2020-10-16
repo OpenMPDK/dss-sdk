@@ -1506,9 +1506,9 @@
 
 
     // Code for ustat
-    void initiate_nkv_ustat(bool device=false, bool cpu=false);
+    void initiate_nkv_ustat(bool device, bool cpu=false);
     void reset_nkv_ustat();
-    void remove_nkv_ustat(bool device=false, bool cpu=false);
+    void remove_nkv_ustat(bool device, bool cpu=false);
     
 
     void wait_or_detach_thread (bool will_wait = true) {
