@@ -1065,6 +1065,11 @@ nkv_result nkv_register_stat_counter(uint64_t nkv_handle, const char* module_nam
     return NKV_ERR_NULL_INPUT;
   }
 
+  if( !get_path_stat_collection()) {
+    smg_error(logger, "NKV side stat collection is not enabled, aborting, given handle = %u, op = nkv_register_stat_counter !!", nkv_handle);
+    return NKV_ERR_INTERNAL;  
+  }
+
   ustat_named_t* ustat_counter = (ustat_named_t*) malloc (sizeof(ustat_named_t));
   assert(ustat_counter != NULL);
   memset(ustat_counter, 0, sizeof(ustat_named_t));

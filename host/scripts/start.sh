@@ -5,9 +5,11 @@ export MINIO_NKV_CONFIG=../conf/nkv_config.json
 export MINIO_ACCESS_KEY=minio
 export MINIO_SECRET_KEY=minio123
 export MINIO_STORAGE_CLASS_STANDARD=EC:2
-export MINIO_NKV_MAX_VALUE_SIZE=2097152
+export MINIO_NKV_MAX_VALUE_SIZE=1048576
 export MINIO_NKV_TIMEOUT=20
 export MINIO_NKV_SYNC=1
+export MINIO_NKV_SHARED_SYNC_INTERVAL=2
+#export MINIO_ENABLE_STATS=1
 #export MINIO_NKV_CHECKSUM=1
 # Following two switches are required for distributed Minio.
 if [[ $1 == "remote" ]]; then
