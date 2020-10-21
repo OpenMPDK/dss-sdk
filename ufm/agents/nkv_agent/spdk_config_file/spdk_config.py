@@ -45,6 +45,8 @@ class SPDKConfig:
                     if line.startswith(str.encode("Listen")):
                         key = line.split()[1]
                         value = line.split()[2]
+                        if key in arr[idx][section]:
+                            value = arr[idx][section][key] + "," + value
                     elif line.startswith(str.encode("Namespace")):
                         key = line
                         value = ""
@@ -56,7 +58,7 @@ class SPDKConfig:
         return arr
 
     def read_local_config(self, path):
-        """ 
+        """
         Read configuration file and convert to in-memory array.
         :param path: Path where configuration file is located.
         :return:
