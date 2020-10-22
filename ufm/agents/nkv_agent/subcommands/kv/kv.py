@@ -444,7 +444,7 @@ class KVManager:
 
         for d in arr:
             for v in d.values():
-                devices = list(v['SN'])
+                devices = [v['SN']]
                 nqn = v['NQN']
                 ip_addresses = list(v[tr_type.upper()].split(","))
 
