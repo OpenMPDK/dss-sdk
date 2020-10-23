@@ -44,12 +44,16 @@ class SPDKConfig:
                 try:
                     if line.startswith(str.encode("Listen")):
                         key = line.split()[1]
-                        value = line.split()[2]
+                        value = list(line.split()[2].split(","))
                         if key in arr[idx][section]:
-                            value = arr[idx][section][key] + "," + value
+                            arr[idx][section][key].extend(value)
+                            value = list(set(arr[idx][section][key]))
                     elif line.startswith(str.encode("Namespace")):
-                        key = line
-                        value = ""
+                        key = "Devices"
+                        value = [((line.split()[1]).replace('"', "")).rsplit('n', 1)[0]]
+                        if key in arr[idx][section]:
+                            arr[idx][section][key].extend(value)
+                            value = list(set(arr[idx][section][key]))
                     else:
                         key, value = line.split(str.encode(' '), 1)
                     arr[idx][section][key] = value
