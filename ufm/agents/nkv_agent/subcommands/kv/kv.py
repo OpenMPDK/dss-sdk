@@ -28,6 +28,7 @@ from spdk_config_file.spdk_config import SPDKConfig
 
 SPDK_NVMF_NQN_MAX_LEN = 223
 SPDK_DOMAIN_LABEL_MAX_LEN = 63
+STORE_SUBSYS_CMD = "store_nvmf_subsystem"
 
 
 class KVManager:
@@ -354,14 +355,14 @@ class KVManager:
                 sys.exit(-1)
 
             if "config" in kv_attributes:
-                if nqn in kv_subsystems:
+                if nqn in kv_subsystems and cmd != STORE_SUBSYS_CMD:
                     KVL.kvprint(KVL.ERROR, "NQN(%s) is already in-use" % nqn)
                     sys.exit(-1)
 
                 # Validate if storage device is already used
                 for obj_dev in kv_subsystems.values():
                     for ns in namespaces:
-                        if ns[0] in obj_dev["namespaces"]:
+                        if cmd != STORE_SUBSYS_CMD and ns[0] in obj_dev["namespaces"]:
                             KVL.kvprint(KVL.ERROR, "Device S/N (%s) is already in-use" % str(ns[0]))
                             sys.exit(-1)
 
@@ -458,7 +459,7 @@ class KVManager:
                 # self.create_subsystem(server_uuid, devices, nqn, ip_addresses, asynchronous, tr_type, core_id)
                 self.create_subsystem_cmd(server_uuid, devices, nqn, ip_addresses,
                                           asynchronous, tr_type,
-                                          "store_nvmf_subsystem", core_id)
+                                          STORE_SUBSYS_CMD, core_id)
 
     def delete_subsystem(self, server_uuid, nqn, asynchronous):
         """
