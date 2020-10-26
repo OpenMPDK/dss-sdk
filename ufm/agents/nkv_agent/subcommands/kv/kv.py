@@ -344,7 +344,7 @@ class KVManager:
                 KVL.kvprint(KVL.ERROR, "Domain label must end with letter or number.")
                 sys.exit(-1)
 
-            domain_m = re.search(r"^[a-zA-Z][a-zA-Z0-9]+?[a-zA-Z0-9]$", m.group(1))
+            domain_m = re.search(r"^[a-zA-Z][a-zA-Z0-9]*?[a-zA-Z0-9]$", m.group(1))
             if not domain_m:
                 KVL.kvprint(KVL.ERROR, "Domain label may only use letters, numbers, and hyphens.")
                 sys.exit(-1)
