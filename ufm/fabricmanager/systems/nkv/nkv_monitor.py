@@ -4,7 +4,7 @@ import time
 import json
 from uuid import uuid1
 
-from netifaces import interfaces, ifaddresses, AF_INET
+from netifaces import interfaces, ifaddresses, AF_INET, gateways
 
 from common.events import event_constants
 from common.events.event_notification import EventNotification
@@ -150,13 +150,15 @@ class NkvMonitor(object):
          Return the first valid nic ip
          else return (127.0.0.1)
         '''
-        for ifaceName in interfaces():
-            addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}])]
-            if ifaceName != 'lo':
-                # print('{}: {}'.format(ifaceName, ', '.join(addresses)) )
-                return addresses[0]
-
-        return "127.0.0.1"
+        # for ifaceName in interfaces():
+        #     addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}])]
+        #     if ifaceName != 'lo':
+        #         # print('{}: {}'.format(ifaceName, ', '.join(addresses)) )
+        #         return addresses[0]
+        #
+        # return "127.0.0.1"
+        gways = gateways()
+        return gways['default'][AF_INET][0]
 
     def get_host_ip(self):
         try:
@@ -198,7 +200,7 @@ class NkvMonitor(object):
         else:
             vip_address = self.get_ip_of_nic()
 
-        if not vip_address:
+        if not vip_address or vip_address == 'No IP addr':
             self.log.error('Could not find VIP address of cluster. Exiting')
             sys.exit(-1)
 
