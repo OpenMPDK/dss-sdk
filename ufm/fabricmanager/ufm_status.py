@@ -44,7 +44,7 @@ class UfmStatus(UfmThread):
         out, err = pipe.communicate()
         if out:
             for line in out.decode('utf-8').splitlines():
-                if 'cluster is healthy' in line:
+                if 'cluster is healthy' in line or 'cluster is degraded' in line:
                     self.__setHealthy()
                     return
 
