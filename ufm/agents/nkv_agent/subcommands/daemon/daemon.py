@@ -40,6 +40,7 @@ from utils import log_setup
 logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
+from minio_stats import MinioStats
 import constants
 import graphite
 import server_info.server_attributes_aggregator as ServerAttr
@@ -578,6 +579,8 @@ class OSMDaemon:
             subsystems = self.backend.get_json_prefix(self.SERVER_CONFIG_KEY_PREFIX)
             tuples = []
             for subsystem in subsystems.values():
+                if 'namespaces' not in subsystem:
+                    continue
                 for ns in subsystem["namespaces"]:
                     serial = subsystem["namespaces"][ns]["Serial"]
                     try:
@@ -603,7 +606,7 @@ class OSMDaemon:
 
                     subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
 
-                    metric_path = "disk.freespacepercent.cluster_id_%s.target_id_%s.target_nqn_id_%s.disk_id_%s" % \
+                    metric_path = "cluster_id_%s.target_id_%s.target_nqn_id_%s.disk.freespacepercent.disk_id_%s" % \
                                   (self.CLUSTER_ID, self.SERVER_UUID, subsystem_uuid, serial)
 
                     timestamp = time.time()
@@ -635,6 +638,8 @@ class OSMDaemon:
                 logger.exception('Exception in getting the data from DB for %s', self.SERVER_CONFIG_KEY_PREFIX)
                 all_config = {}
             for dev in all_config.values():
+                if 'Command' not in dev:
+                    continue
                 config_cmd = dev["Command"]
                 config_status = dev["cmd_status"]
                 subsystem_path = self.SERVER_UUID + "_" + dev["NQN"]
@@ -649,8 +654,7 @@ class OSMDaemon:
                     self.sync_count_inc()
                     self.q.append((subsystem_lock, dev))
                 else:
-                    logger.error("Unknown command found in etcd for %s" % dev[
-                        "NQN"])
+                    logger.error("Unknown command found in etcd for %s" % dev["NQN"])
 
             if self.synchronize_etcd:
                 logger.info("Waiting for catch-up queue to empty")
@@ -1618,6 +1622,13 @@ def start_target_only(internal_flag=False):
     return True
 
 
+def start_minio_stats_collector(osm_daemon_obj):
+    minio_stats_obj = MinioStats(osm_daemon_obj.CLUSTER_ID, osm_daemon_obj.SERVER_UUID,
+                                 statsdb_obj=osm_daemon_obj.stats_obj)
+    minio_stats_obj.get_device_subsystem_map()
+    minio_stats_obj.run_stats_collector()
+
+
 def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
                              performance_poll=1, stats=0,
                              endpoint="localhost", port=23790):
@@ -1640,6 +1651,7 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
     global g_daemon_obj
     global g_nvmf_pid
     global g_thread_arr
+
 
     if 'attribute_poll' in g_input_args:
         attribute_poll = g_input_args['attribute_poll']
@@ -1786,6 +1798,9 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         logger.info("'%s' starting" % thread[0])
         thread[1].start()
         logger.info("'%s' running" % thread[0])
+
+    # Start MINIO Stats collection
+    start_minio_stats_collector(daemon_obj)
 
     # Watches etcd for configuration changes pertaining to this server
     daemon_obj.subsystem_config_watcher()
