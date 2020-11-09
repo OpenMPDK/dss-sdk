@@ -1,7 +1,7 @@
-From 7279b821dddd74e5a1f1c3b310b77f31c31b0b17 Mon Sep 17 00:00:00 2001
+From 0da5192b2383fc66f9c77a2432210aafd8eb4f21 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 29 Sep 2020 02:02:29 -0700
-Subject: [PATCH 5/7] Ustat Counters for block device
+Subject: [PATCH 5/9] Ustat Counters for block device
 
 ---
  include/spdk/bdev_module.h   | 2 ++

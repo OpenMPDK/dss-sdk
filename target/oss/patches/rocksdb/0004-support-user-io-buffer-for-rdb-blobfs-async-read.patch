@@ -1,7 +1,7 @@
-From 62496f7f945dfd77a641a988e9246bf3ba5d2233 Mon Sep 17 00:00:00 2001
+From 2c5101604aefd3086b768034d71648cc42cb5a7b Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:52:34 -0700
-Subject: [PATCH 4/5] * support user io buffer for rdb/blobfs async read
+Subject: [PATCH 4/7] * support user io buffer for rdb/blobfs async read
 
 ---
  async/async_status_capture.h       |  12 +++-

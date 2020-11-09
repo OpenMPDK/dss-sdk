@@ -1,0 +1,179 @@
+From ef10215f7bad4a91a3369f3c1b515e97ab0dd000 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 9 Nov 2020 15:18:53 -0800
+Subject: [PATCH 7/7] Use get buffer from target
+
+    * Fix queue issues in caching read context
+---
+ db/dss_kv2blk_c.cc             | 63 +++++++++++++++++++++++++-----------------
+ include/rocksdb/dss_kv2blk_c.h |  2 +-
+ 2 files changed, 38 insertions(+), 27 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index bf43c00..a7a668e 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -77,7 +77,7 @@ uint32_t max_queue_depth = 1024;
+ namespace rocksdb {
+ struct RandomReadContext;
+ struct AsyncRdQueue_s{
+-    std::queue<struct RandomReadContext *>* queue;
++    std::queue<struct RandomReadContext *> queue;
+     pthread_mutex_t mutex;
+ };
+ struct RandomReadContext : public async::AsyncStatusCapture {
+@@ -91,7 +91,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+     }
+ 
+     void SetKey(Slice& key){key_ = key;}
+-    void SetValP(void *val){val_ = val;}
++    void SetValP(void *val){val_buffer_ = val;}
+     void SetValLen(uint32_t vlen){vlen_ = vlen;}
+     void SetCb(void *cb){_cb = cb;}
+     void SetArgs(void *args){_cb_arg = args;}
+@@ -105,6 +105,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 
+     Status OnReadComplete(const Status& status) {
+       async(status.async());
++      user_buffer(status);
+       struct spdk_nvmf_request *req = (struct spdk_nvmf_request *)_cb_arg;
+ 	  struct spdk_nvme_cpl        *response = &req->rsp->nvme_cpl;
+ 
+@@ -118,14 +119,23 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 		response->status.sct = SPDK_NVME_SCT_GENERIC;
+ 		response->cdw0 = pinnable_val_.size();
+ 
+-		if(response->cdw0 <= vlen_) {
+-			//printf("Copied full value len %d\n", response->cdw0);
+-			memcpy(val_, pinnable_val_.data(), response->cdw0);
+-		} else {
+-			//printf("Copied partial value len %d of %d\n", vlen_, response->cdw0);
+-			memcpy(val_, pinnable_val_.data(), vlen_);
+-		}
+-        //found
++		  if(user_buffer()){
++			assert(offset_ == 0);
++			offset_ = (uint64_t)(pinnable_val_.data()) - (uint64_t)val_buffer_;
++			//printf("Got offset %d\n", offset_);
++			assert(req->dreq->req_value.offset == 0);
++			assert(offset_ < 4096);
++			req->dreq->req_value.offset = offset_;
++		  } else {
++			if(response->cdw0 <= vlen_) {
++				//printf("Copied full value len %d\n", response->cdw0);
++				memcpy(val_buffer_, pinnable_val_.data(), response->cdw0);
++			} else {
++				//printf("Copied partial value len %d of %d\n", vlen_, response->cdw0);
++				memcpy(val_buffer_, pinnable_val_.data(), vlen_);
++			}
++		  }
++			//found
+         //printf("OnReadComplete key=%s val=%s async=%d\n", key_.ToString(true).c_str(),
+         //    pinnable_val_.ToString().c_str(), async());
+       } else if (!status.IsNotFound()) {
+@@ -149,9 +159,9 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 		//printf("rocksdb async get done\n");
+ 	 }
+ 
+-     pthread_mutex_lock(&ctx_queue_->mutex);
+-     ctx_queue_->queue->push(this);
+-     pthread_mutex_unlock(&ctx_queue_->mutex);
++     //pthread_mutex_lock(&ctx_queue_->mutex);
++     ctx_queue_->queue.push(this);
++     //pthread_mutex_unlock(&ctx_queue_->mutex);
+ 
+      return status;
+     }
+@@ -162,8 +172,9 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+     int                   idx_;
+ 	void				  *_cb_arg;
+ 	void				  *_cb;
+-	void				  *val_;
++	void				  *val_buffer_;
+ 	uint32_t			  vlen_;
++	uint64_t              offset_;
+     struct AsyncRdQueue_s * ctx_queue_;
+ };
+ }
+@@ -205,7 +216,7 @@ void *_dss_rocksdb_open(void *arg)
+     options.num_levels = 2;
+     options.compression = rocksdb::kNoCompression;
+     options.target_file_size_base = 1073741824; // 1GB
+-    //options.disable_auto_compactions = true;
++    options.disable_auto_compactions = false;
+     rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
+     if (!s.ok()) {
+         printf("open %s failed\n", s.ToString().c_str());
+@@ -260,7 +271,7 @@ int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t v
+ 
+ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+ 							void *key, size_t klen,
+-							void *value, uint32_t vlen,
++							void *value, uint32_t vbuf_len,
+ 							void *cb, void *cb_arg)
+ {
+ 	    rocksdb::DB* db = (rocksdb::DB*)rdb_ctx;
+@@ -272,37 +283,37 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+         //async read
+         if(!RdCtxQueue){
+             RdCtxQueue = new struct rocksdb::AsyncRdQueue_s();
+-            pthread_mutex_init(&RdCtxQueue->mutex);
+-            RdCtxQueue->queue = new std::queue<rocksdb::RandomReadContext *>(max_queue_depth, NULL);
++            pthread_mutex_init(&RdCtxQueue->mutex, NULL);
++            //RdCtxQueue->queue = new std::queue<rocksdb::RandomReadContext *>(max_queue_depth, NULL);
+             for(int idx = 0; idx <max_queue_depth; idx ++){
+-                RdCtxQueue->queue->push(new rocksdb::RandomReadContext(idx, NULL, NULL));
++                RdCtxQueue->queue.push(new rocksdb::RandomReadContext(idx, NULL, NULL));
+             }
+             inst->private_data = RdCtxQueue;
+         }
+         rocksdb::Slice key_async_get((const char *)key, klen);
+         rocksdb::RandomReadContext *RdCtx = nullptr;
+-        pthread_mutex_lock(&RdCtxQueue->mutex);
+-        if(!RdCtxQueue->empty()){
+-            RdCtx = RdCtxQueue->front();
++        //pthread_mutex_lock(&RdCtxQueue->mutex);
++        if(!RdCtxQueue->queue.empty()){
++            RdCtx = RdCtxQueue->queue.front();
+             assert(RdCtx);
+-            RdCtxQueue->pop();
++            RdCtxQueue->queue.pop();
+             //printf("get RdCtx %p idx %d core %d\n", RdCtx, RdCtx->idx_, sched_getcpu());
+         }else{
+             //printf("RdCtxQueue is Empty\n");
+             assert(false);
+         }
+-        pthread_mutex_unlock(&RdCtxQueue->mutex);
++        //pthread_mutex_unlock(&RdCtxQueue->mutex);
+         //rocksdb::RandomReadContext *RdCtx = new rocksdb::RandomReadContext(0, cb, cb_arg);
+                 //pickup available ctx (no async pending io ...) TBD
+         RdCtx->SetKey(key_async_get);
+         RdCtx->SetValP(value);
+-        RdCtx->SetValLen(vlen);
++        RdCtx->SetValLen(vbuf_len);
+         RdCtx->SetCb(cb);
+         RdCtx->SetArgs(cb_arg);
+         RdCtx->SetCtxQueue(RdCtxQueue);
+         s.async(false);
+         s = rocksdb::async::DBImplGetContext::RequestGet(RdCtx->GetCallback(), db, read_options,
+-            db->DefaultColumnFamily(), RdCtx->key_, &RdCtx->pinnable_val_, nullptr);
++            db->DefaultColumnFamily(), RdCtx->key_, &RdCtx->pinnable_val_, nullptr, value, vbuf_len);
+         if (s.IsIOPending()) {
+             //printf("rocksdb async get submitted\n");
+             s.async(true);
+diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
+index 7484f2a..30ad1e8 100644
+--- a/include/rocksdb/dss_kv2blk_c.h
++++ b/include/rocksdb/dss_kv2blk_c.h
+@@ -11,7 +11,7 @@ extern "C" {
+ extern void* dss_rocksdb_open(struct dfly_io_device_s *dss_dev);
+ extern void dss_rocksdb_close(void* db);
+ extern int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen);
+-extern void dss_rocksdb_get_async(void *ctx, void *key, size_t klen, void *value, uint32_t vlen, void *cb, void *cb_arg);
++extern void dss_rocksdb_get_async(void * inst_ctx, void *ctx, void *key, size_t klen, void *value, uint32_t vbuf_len, void *cb, void *cb_arg);
+ extern int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen);
+ 
+ #ifdef __cplusplus
+-- 
+1.8.3.1
+

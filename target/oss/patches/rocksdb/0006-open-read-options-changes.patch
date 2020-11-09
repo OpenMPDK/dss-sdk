@@ -1,15 +1,15 @@
-From 902952596d5799cc5aab34ed933617410e58d146 Mon Sep 17 00:00:00 2001
+From 148f3ac1aa490ef6adb2f37eb933bbd2fa039bcb Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 2 Nov 2020 15:30:28 -0800
-Subject: [PATCH 6/6] * open/read options changes * rd context queue per dfly
+Subject: [PATCH 6/7] * open/read options changes * rd context queue per dfly
  instance
 
 ---
- db/dss_kv2blk_c.cc | 109 ++++++++++++++++++++++++++++++++++++-----------------
- 1 file changed, 74 insertions(+), 35 deletions(-)
+ db/dss_kv2blk_c.cc | 107 ++++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 73 insertions(+), 34 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 338a0a0..a935747 100644
+index 338a0a0..bf43c00 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -7,6 +7,7 @@
@@ -62,7 +62,7 @@ index 338a0a0..a935747 100644
 +     pthread_mutex_lock(&ctx_queue_->mutex);
 +     ctx_queue_->queue->push(this);
 +     pthread_mutex_unlock(&ctx_queue_->mutex);
-+     
++
       return status;
      }
  
@@ -74,13 +74,11 @@ index 338a0a0..a935747 100644
  };
  }
  
-@@ -167,8 +180,8 @@ void *_dss_rocksdb_open(void *arg)
-     std::string nvme_conf = "/usr/local/etc/spdk/nvme0.conf";
+@@ -168,7 +181,7 @@ void *_dss_rocksdb_open(void *arg)
      std::string spdk_bdev;
      uint64_t cache_size_in_mb = 8192;
--
+ 
 -	spdk_bdev += dss_dev->rdb_handle->dev_name;
-+	
 +    spdk_bdev += dss_dev->rdb_handle->dev_name;
  
  	//printf("Creating new dss ennv\n");
