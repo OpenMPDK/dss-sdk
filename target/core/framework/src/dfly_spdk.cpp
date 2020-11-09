@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <sched.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -152,7 +151,6 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
 
-	//printf("_dfly_nvmf_ctrlr_process_io_cmd opc %d icore %d\n", cmd->opc, sched_getcpu());
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation
 		switch (cmd->opc) {
@@ -175,7 +173,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				break;
 			case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
 				//SPDK_NOTICELOG("Rocksdb get started\n");
-				dss_rocksdb_get_async(thrd_inst, io_device->rdb_handle->rdb_db_handle,
+				dss_rocksdb_get_async(io_device->rdb_handle->rdb_db_handle,
 										req->dreq->req_key.key, req->dreq->req_key.length,
 										req->dreq->req_value.value, req->dreq->req_value.length,
 										NULL, req);

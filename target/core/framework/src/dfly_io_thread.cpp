@@ -43,8 +43,6 @@ extern "C" {
 #include "spdk/blob_bdev.h"
 }
 
-int32_t g_fs_channel_icore = -1; 
-
 #define MAX_STRING_LEN (256)
 static int
 df_get_file_int_value(char *path)
@@ -223,8 +221,6 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	if(g_dragonfly->blk_map) {
 		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i+=io_mod_ctx->num_threads) {
 			dfly_subsystem->devices[i].icore = spdk_env_get_current_core();
-			printf("dfly_io_thread_instance_init num_io_devices %d i %d icore %d\n", 
-				 io_mod_ctx->dfly_subsys->num_io_devices, i, dfly_subsystem->devices[i].icore);
 		}
 	} else {
 		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
@@ -256,33 +252,13 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 	return;
 }
 
-void *dfly_io_find_thread_instance(struct dfly_request *request){
-
-    struct dfly_module_s *module = request->req_dfly_ss->mlist.dfly_io_module;
-    struct dfly_module_poller_instance_s *m_inst = NULL;
-
-    int core = spdk_env_get_current_core();
-    int thread_index = 0;
-
-    assert(core < MAX_CPU);
-    thread_index = module->thread_index_arr[core];
-
-    module->thread_index_arr[core]++;
-    module->thread_index_arr[core] %= (module->num_threads - 1);
-    m_inst = module->active_thread_arr[thread_index];
-    
-    //printf("dfly_io_find_thread_instance: %s num_threads %d thread_index %d m_inst icore %d \n",
-    //    module->name, module->num_threads, thread_index, m_inst->icore);
-    return (m_inst);
-}
-
 struct dfly_module_ops io_module_ops {
 	.module_init_instance_context = dfly_io_thread_instance_init,
 	.module_rpoll = dfly_io_req_process,
 	//.module_cpoll = dfly_io_request_complete,
 	.module_cpoll = NULL,
 	.module_gpoll = NULL,
-	.find_instance_context = dfly_io_find_thread_instance,
+	.find_instance_context = NULL,
 	.module_instance_destroy = dfly_io_thread_instance_destroy,
 };
 
@@ -488,13 +464,8 @@ __send_request_dss(fs_request_fn fn, void *arg)
 {
 	struct spdk_event *event;
 	struct spdk_fs_request *req = arg;
-    int32_t icore = g_fs_channel_icore;
-    if(icore == -1){
-        icore = dss_get_fs_ch_core(req);
-        DFLY_NOTICELOG("__send_request_dss to icore %d\n", icore);
-    }
-    
-   	event = spdk_event_allocate(icore, __call_fn_dss, (void *)fn, arg);
+
+	event = spdk_event_allocate(dss_get_fs_ch_core(req), __call_fn_dss, (void *)fn, arg);
 	spdk_event_call(event);
 }
 
@@ -511,10 +482,8 @@ dss_rdb_fs_load_cb(void *ctx,
 	dss_dev->rdb_handle->dev_channel = spdk_fs_alloc_thread_ctx(dss_dev->rdb_handle->rdb_fs_handle);
 	dss_set_fs_ch_core(dss_dev->rdb_handle->dev_channel, dss_dev->rdb_handle->rdb_bs_handle->icore);
 
-	DFLY_NOTICELOG("Opening rocksdb handle %d in core %d channel core %d\n", 
-		dss_dev->index, spdk_env_get_current_core(), dss_dev->rdb_handle->rdb_bs_handle->icore);
-    g_fs_channel_icore = dss_dev->rdb_handle->rdb_bs_handle->icore;
-    dss_rocksdb_open(dss_dev);//Completes asynchronusly
+	DFLY_NOTICELOG("Opening rocksdb handle %d in core %d\n", dss_dev->index, spdk_env_get_current_core());
+	dss_rocksdb_open(dss_dev);//Completes asynchronusly
 }
 
 void _dev_init(void *device, void *cb_event)
@@ -551,7 +520,7 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_complete_cb cb, void *cb_arg, struct io_thread_ctx_s *io_thrd_ctx)
 {
 	struct init_multi_dev_s *event_ctx = calloc(1, sizeof(struct init_multi_dev_s));
-	uint64_t cache_size_in_mb = 8192;
+	uint64_t cache_size_in_mb = 512;
 
 	DFLY_ASSERT(event_ctx);
 	pthread_mutex_init(&event_ctx->l, NULL);

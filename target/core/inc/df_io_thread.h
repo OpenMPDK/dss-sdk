@@ -55,7 +55,6 @@ struct io_thread_inst_ctx_s {
 	void *module_inst_ctx;
 	int   module_inst_index;
 	struct spdk_io_channel *io_chann_parr[0];
-	void * private_data;
 };
 
 int dfly_io_req_process(struct dfly_request *req);
