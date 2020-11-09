@@ -465,7 +465,7 @@ __send_request_dss(fs_request_fn fn, void *arg)
 	struct spdk_event *event;
 	struct spdk_fs_request *req = arg;
 
-	event = spdk_event_allocate(dss_get_fs_ch_core(req), __call_fn_dss, (void *)fn, arg);
+	event = spdk_event_allocate(dfly_get_master_core(), __call_fn_dss, (void *)fn, arg);
 	spdk_event_call(event);
 }
 
@@ -480,7 +480,8 @@ dss_rdb_fs_load_cb(void *ctx,
 	}
 
 	dss_dev->rdb_handle->dev_channel = spdk_fs_alloc_thread_ctx(dss_dev->rdb_handle->rdb_fs_handle);
-	dss_set_fs_ch_core(dss_dev->rdb_handle->dev_channel, dss_dev->rdb_handle->rdb_bs_handle->icore);
+	dss_set_fs_ch_core(dss_dev->rdb_handle->dev_channel, dfly_get_master_core());
+	//dss_set_fs_ch_core(dss_dev->rdb_handle->dev_channel, dss_dev->rdb_handle->rdb_bs_handle->icore);
 
 	DFLY_NOTICELOG("Opening rocksdb handle %d in core %d\n", dss_dev->index, spdk_env_get_current_core());
 	dss_rocksdb_open(dss_dev);//Completes asynchronusly
@@ -511,7 +512,7 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 		//Event call device init on core
 		event_ctx->ss->devices[i].rdb_handle = calloc(1, sizeof(struct rdb_dev_ctx_s));
 		event_ctx->ss->devices[i].rdb_handle->ss = event_ctx->ss;
-		event = spdk_event_allocate(event_ctx->ss->devices[i].icore,_dev_init, &event_ctx->ss->devices[i], event_ctx);
+		event = spdk_event_allocate(dfly_get_master_core(),_dev_init, &event_ctx->ss->devices[i], event_ctx);
 		spdk_event_call(event);
 	}
 	pthread_mutex_unlock(&event_ctx->l);
@@ -520,7 +521,7 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_complete_cb cb, void *cb_arg, struct io_thread_ctx_s *io_thrd_ctx)
 {
 	struct init_multi_dev_s *event_ctx = calloc(1, sizeof(struct init_multi_dev_s));
-	uint64_t cache_size_in_mb = 512;
+	uint64_t cache_size_in_mb = 8192;
 
 	DFLY_ASSERT(event_ctx);
 	pthread_mutex_init(&event_ctx->l, NULL);

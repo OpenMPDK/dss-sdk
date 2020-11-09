@@ -54,6 +54,7 @@ struct io_thread_inst_ctx_s {
 	struct io_thread_ctx_s *module_ctx;
 	void *module_inst_ctx;
 	int   module_inst_index;
+	void *private_data;
 	struct spdk_io_channel *io_chann_parr[0];
 };
 
