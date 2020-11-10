@@ -99,7 +99,7 @@ class Node_Health(threading.Thread):
         field is not updated, then the agent will not update the new value on
         detection.
         Also if the machine is pingable and the heartbeat value is alive, then we
-        assume that the agent will update the NICs status.
+        assume that the agent will update status of the NICs.
         """
         self.log.info("Start {}".format(self.__class__.__name__))
 
