@@ -196,6 +196,7 @@ class OSMServerNetwork:
         else:
             return speed
 
+    # when the NIC is up/down, the operstate will always be in 'up' and not useful
     @staticmethod
     def get_nic_status(name):
         path = '/sys/class/net/' + name + '/operstate'
@@ -277,20 +278,28 @@ class OSMServerNetwork:
 
             iface_list = iface_filtered[mac_addr]['Interfaces']
             iface_list[iface] = {}
-            nic_status = self.get_nic_status(iface)
+            nic_status = 'down'
 
             # For now, only mark devices having IPv4 address as UP
             if netifaces.AF_INET in iface_info:
                 ipv4 = iface_info[netifaces.AF_INET][0]["addr"]
                 iface_list[iface]["IPv4"] = ipv4
+                nic_status = 'up'
             iface_list[iface]["Status"] = nic_status
             if netifaces.AF_INET6 in iface_info:
                 ipv6 = iface_info[netifaces.AF_INET6][0]["addr"].split(
                     '%')[0]
                 iface_list[iface]["IPv6"] = ipv6
-                iface_list[iface]["Status"] = nic_status
-            if phys_interface == iface:
+                iface_list[iface]["Status"] = 'up'
+
+            # Check Status present or not. For first loop of interfaces, we need to initialize
+            if 'Status' not in iface_filtered[mac_addr]:
                 iface_filtered[mac_addr]['Status'] = nic_status
+            elif iface_filtered[mac_addr]['Status'] != 'up':
+                # In case of Virtual interfaces for physical NIC, then carry the nic_status to the parent in
+                # case the vlan is 'up'
+                iface_filtered[mac_addr]['Status'] = nic_status
+
             iface_filtered[mac_addr]['Interfaces'] = iface_list
             iface_filtered[mac_addr]["CRC"] = zlib.crc32(
                 json.dumps(iface_filtered[mac_addr], sort_keys=True).encode())

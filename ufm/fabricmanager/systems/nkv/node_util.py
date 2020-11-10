@@ -17,7 +17,7 @@ def get_clustername(db):
     return cluster_name
 
 
-def get_network_ipv4_address(db, node_uuid, mac_address):
+def get_network_ipv4_address(db, node_uuid, mac_address, iface_name):
     """
     This function is suppose to get IPv4 address of the NIC
     params:
@@ -25,10 +25,12 @@ def get_network_ipv4_address(db, node_uuid, mac_address):
     mac_address:<string> , Contains mac address of NIC
     Return: <string> , IPv4 address
     """
-    key = "/object_storage/servers/{}/server_attributes/network/interfaces/{}/IPv4".format(node_uuid, mac_address)
+    key = "/object_storage/servers/{}/server_attributes/network/interfaces/{}/Interfaces/{}/IPv4".format(
+        node_uuid, mac_address, iface_name)
 
     try:
         ipv4_address, _ = db.get(key)
+        print("====KEY, VALUE", key, ipv4_address)
     except Exception:
         return None
 
@@ -153,18 +155,19 @@ def format_event(event, db, clustername, servers_out, key, val=None):
             node_name = get_node_name_from_uuid(db, servers_out, key_list[3])
             if not node_name:
                 return False
+            if 'Interfaces' not in key_list:
+                return False
 
             mac = key_list[7]
             state = 'NETWORK_DOWN'
-            ipv4_address = get_network_ipv4_address(db, key_list[3], mac)
+            ipv4_address = get_network_ipv4_address(db, key_list[3], mac, key_list[9])
             if not ipv4_address:
                 ipv4_address = "0.0.0.0"
             else:
                 if val:
                     if val == b'up':
                         state = 'NETWORK_UP'
-
-                    if val == b'down':
+                    else:
                         state = 'NETWORK_DOWN'
 
             event['node'] = node_name
