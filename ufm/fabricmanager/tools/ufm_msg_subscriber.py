@@ -5,6 +5,7 @@ import time
 import sys
 import argparse
 
+
 def subscribe(ip, port):
     connect_str = "tcp://" + ip + ":" + port
     fqdn = socket.getfqdn(ip)
@@ -22,6 +23,7 @@ def subscribe(ip, port):
         else:
             break
 
+
 def main(argv):
     host_help_msg = "Hostname or IP Address of host running Zero MQ publisher"
     port_help_msg = "Zero MQ publisher port number"
@@ -34,6 +36,7 @@ def main(argv):
     args = parser.parse_args()
 
     subscribe(socket.gethostbyname(args.host), args.port)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
