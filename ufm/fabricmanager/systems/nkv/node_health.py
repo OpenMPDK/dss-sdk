@@ -29,7 +29,7 @@ class Node_Health(threading.Thread):
     def _check_interfaces(self, ifaces, kv_dict, server):
         """
         The previous update of heartbeat for the server is more than
-        twice the HB interval. Lets ping the IP address and see if
+        twice the HB interval. Let's ping the IP address and see if
         there is any issue with the node
         """
         ipaddr_dict = {}
