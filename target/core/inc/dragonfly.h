@@ -435,6 +435,7 @@ void _dev_init_done (void *cb_event);
 uint32_t dss_get_fs_ch_core( struct spdk_fs_request * req);
 void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core);
 
+int dfly_ustat_init_bdev_stat(const char *dev_name);
 #ifdef __cplusplus
 }
 #endif

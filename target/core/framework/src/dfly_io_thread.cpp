@@ -490,13 +490,16 @@ dss_rdb_fs_load_cb(void *ctx,
 void _dev_init(void *device, void *cb_event)
 {
 	struct dfly_io_device_s *dss_dev = device;
-	DFLY_NOTICELOG("Initializing device %d in core %d\n", dss_dev->index, spdk_env_get_current_core());
 
 	dss_dev->rdb_handle->dev_name = spdk_bdev_get_name(dss_dev->ns->bdev);
 	dss_dev->rdb_handle->tmp_init_back_ptr = cb_event;
 
 	dss_dev->rdb_handle->rdb_bs_handle = spdk_bdev_create_bs_dev(dss_dev->ns->bdev, NULL, NULL);
 	dss_dev->rdb_handle->rdb_bs_handle->icore = dss_dev->icore;
+	dfly_ustat_init_bdev_stat(dss_dev->rdb_handle->dev_name);//Initialize ustat
+
+	DFLY_NOTICELOG("Initializing device %s %d in core %d\n",dss_dev->rdb_handle->dev_name, dss_dev->index, spdk_env_get_current_core());
+
 	spdk_fs_load(dss_dev->rdb_handle->rdb_bs_handle, __send_request_dss, dss_rdb_fs_load_cb, dss_dev);
 
 }
