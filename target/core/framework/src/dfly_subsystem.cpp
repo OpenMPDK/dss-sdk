@@ -208,7 +208,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/);
 //Array indices should match enum for module
 static struct df_ss_mod_init_s module_initializers[DF_MODULE_END + 1] = {
 	{NULL,NULL, NULL, NULL, false},
-	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_LOCK
+	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LOCK
 	{fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
 	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_IO
 	{dfly_list_module_init, dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
