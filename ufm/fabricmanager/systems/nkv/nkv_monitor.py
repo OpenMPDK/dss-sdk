@@ -235,7 +235,7 @@ class NkvMonitor(object):
         # The watch callback must be set after the event processor is initialize
         self.log.info("======> Configure DB key watcher <=========")
         try:
-            self.watch_id = self.db.watch_callback('/', self.key_watcher_cb)
+            self.watch_id = self.db.watch_callback('/', self.key_watcher_cb, prev_kv=True)
 
             self.log.info('==> Watch id: {}'.format(self.watch_id))
         except Exception as ex:
