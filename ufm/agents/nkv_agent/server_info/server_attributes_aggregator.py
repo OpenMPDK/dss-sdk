@@ -196,6 +196,16 @@ class OSMServerNetwork:
         else:
             return speed
 
+    # when the NIC is up/down, the operstate will always be in 'up' and not useful
+    @staticmethod
+    def get_nic_status(name):
+        path = '/sys/class/net/' + name + '/operstate'
+        status = read_linux_file(path)
+        if status is None:
+            return None
+        else:
+            return status
+
     @staticmethod
     def get_device_id(name):
         path = '/sys/class/net/' + name + '/device/device'
@@ -237,49 +247,60 @@ class OSMServerNetwork:
     def identify_networkinterfaces(self):
         interfaces = netifaces.interfaces()
         iface_filtered = {}
-        for interface in interfaces:
-            iface_info = netifaces.ifaddresses(interface)
-            vendor, device = self.get_vendor_device(interface)
+        for iface in interfaces:
+            iface_info = netifaces.ifaddresses(iface)
+            # For VLAN interfaces, the name of the interface can be <physical iface name>.<identifier>
+            # To get the driver, vendor and other interface details, we need physical iface name
+            phys_interface = iface.split('.', 1)[0]
+            vendor, device = self.get_vendor_device(phys_interface)
             if vendor == "Unknown" or device == "Unknown":
                 continue
 
-            driver_name = self.get_driver_name(interface)
+            driver_name = self.get_driver_name(phys_interface)
             # if not driver_name.startswith("mlx5_"):
             #    continue
-            '''
-            try:
-                with open('/sys/class/net/' + interface +
-                          '/operstate') as f:
-                    nic_status = f.readline().strip()
-            except Exception:
-                nic_status = 'down'
-            '''
-            nic_status = 'down'
 
             mac_addr = iface_info[netifaces.AF_LINK][0]["addr"]
-            iface_filtered[mac_addr] = {}
+            if mac_addr not in iface_filtered:
+                iface_filtered[mac_addr] = {}
+                iface_filtered[mac_addr]["NUMANode"] = self.get_numa(phys_interface)
+                iface_filtered[mac_addr]["Duplex"] = self.get_duplex(phys_interface)
+                iface_filtered[mac_addr]["Speed"] = self.get_speed(phys_interface)
+                iface_filtered[mac_addr]["MACAddress"] = mac_addr
+                iface_filtered[mac_addr]["InterfaceName"] = iface
+                iface_filtered[mac_addr]["Vendor"] = vendor
+                iface_filtered[mac_addr]["Device"] = device
+                iface_filtered[mac_addr]["PCIAddress"] = self.get_pci_address(phys_interface)
+                iface_filtered[mac_addr]["Driver"] = driver_name
+                iface_filtered[mac_addr]["DriverVersion"] = \
+                    self.get_driver_version(driver_name)
+                iface_filtered[mac_addr]["Interfaces"] = {}
+
+            iface_list = iface_filtered[mac_addr]['Interfaces']
+            iface_list[iface] = {}
+            nic_status = 'down'
 
             # For now, only mark devices having IPv4 address as UP
             if netifaces.AF_INET in iface_info:
                 ipv4 = iface_info[netifaces.AF_INET][0]["addr"]
-                iface_filtered[mac_addr]["IPv4"] = ipv4
+                iface_list[iface]["IPv4"] = ipv4
                 nic_status = 'up'
+            iface_list[iface]["Status"] = nic_status
             if netifaces.AF_INET6 in iface_info:
                 ipv6 = iface_info[netifaces.AF_INET6][0]["addr"].split(
                     '%')[0]
-                iface_filtered[mac_addr]["IPv6"] = ipv6
-            iface_filtered[mac_addr]["NUMANode"] = self.get_numa(interface)
-            iface_filtered[mac_addr]["Duplex"] = self.get_duplex(interface)
-            iface_filtered[mac_addr]["Speed"] = self.get_speed(interface)
-            iface_filtered[mac_addr]["MACAddress"] = mac_addr
-            iface_filtered[mac_addr]["InterfaceName"] = interface
-            iface_filtered[mac_addr]["Vendor"] = vendor
-            iface_filtered[mac_addr]["Device"] = device
-            iface_filtered[mac_addr]["Status"] = nic_status
-            iface_filtered[mac_addr]["PCIAddress"] = self.get_pci_address(interface)
-            iface_filtered[mac_addr]["Driver"] = driver_name
-            iface_filtered[mac_addr]["DriverVersion"] = \
-                self.get_driver_version(driver_name)
+                iface_list[iface]["IPv6"] = ipv6
+                iface_list[iface]["Status"] = 'up'
+
+            # Check Status present or not. For first loop of interfaces, we need to initialize
+            if 'Status' not in iface_filtered[mac_addr]:
+                iface_filtered[mac_addr]['Status'] = nic_status
+            elif iface_filtered[mac_addr]['Status'] != 'up':
+                # In case of Virtual interfaces for physical NIC, then carry the nic_status to the parent in
+                # case the vlan is 'up'
+                iface_filtered[mac_addr]['Status'] = nic_status
+
+            iface_filtered[mac_addr]['Interfaces'] = iface_list
             iface_filtered[mac_addr]["CRC"] = zlib.crc32(
                 json.dumps(iface_filtered[mac_addr], sort_keys=True).encode())
         return iface_filtered
