@@ -122,6 +122,12 @@ int dfly_io_request_complete(void *ctx, struct dfly_request *req)
 
 }
 
+int dfly_io_request_complete2(void *ctx, struct dfly_request *req)
+{
+	struct io_thread_inst_ctx_s *thrd_inst = (struct io_thread_inst_ctx_s *)ctx;
+	dfly_handle_request(req);
+}
+
 extern wal_conf_t g_wal_conf;
 
 void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
@@ -255,8 +261,8 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 struct dfly_module_ops io_module_ops {
 	.module_init_instance_context = dfly_io_thread_instance_init,
 	.module_rpoll = dfly_io_req_process,
-	//.module_cpoll = dfly_io_request_complete,
-	.module_cpoll = NULL,
+	.module_cpoll = dfly_io_request_complete2,
+	//.module_cpoll = NULL,
 	.module_gpoll = NULL,
 	.find_instance_context = NULL,
 	.module_instance_destroy = dfly_io_thread_instance_destroy,
