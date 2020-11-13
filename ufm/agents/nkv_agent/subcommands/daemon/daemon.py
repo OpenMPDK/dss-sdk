@@ -49,6 +49,7 @@ import utils.key_prefix_constants as key_cons
 import utils.usr_signal as usr_signal
 from device_driver_setup.driver_setup import DriverSetup
 from spdk_config_file.spdk_config import SPDKConfig
+from server_info.server_hardware import collect_system_info
 from utils.jsonrpc import SPDKJSONRPC
 from utils.utils import find_process_pid
 from utils.utils import pidfile_is_running
@@ -2044,6 +2045,11 @@ def daemon(endpoint="localhost", port=23790):
     if status:
         logger.info("Agent is already running.")
         sys.exit(0)
+
+    try:
+        collect_system_info()
+    except:
+        logger.exception('Error in collecting system info')
 
     try:
         s_uuid = ServerAttr.OSMServerIdentity().server_identity_helper()['UUID']
