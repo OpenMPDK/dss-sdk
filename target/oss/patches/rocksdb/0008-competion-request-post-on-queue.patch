@@ -1,0 +1,65 @@
+From 6371dea882f16f1acb6754ecf49bab36834edf9a Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 13 Nov 2020 14:50:05 -0800
+Subject: [PATCH 08/10]  - competion request post on queue  - tuning rdb write
+ buffer and background thread for write performance.
+
+---
+ db/dss_kv2blk_c.cc        | 8 ++++++--
+ include/rocksdb/options.h | 2 +-
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index a7a668e..15b5cde 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -154,8 +154,10 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 
+ 		req->dreq->state = DFLY_REQ_IO_COMPLETED_FROM_DEVICE;
+ 		req->dreq->next_action = DFLY_COMPLETE_IO;
++		struct dfly_subsystem *ss  = dfly_get_subsystem_no_lock(req->dreq->req_ssid);
++        	dfly_module_complete_request(ss->mlist.dfly_io_module, req->dreq);
+ 
+-		dfly_handle_request(req->dreq);
++		//dfly_handle_request(req->dreq);
+ 		//printf("rocksdb async get done\n");
+ 	 }
+ 
+@@ -203,6 +205,7 @@ void *_dss_rocksdb_open(void *arg)
+ 		(void *)dss_dev->rdb_handle->dev_channel,
+ 		dss_dev->icore);
+ 
++    dss_env->SetBackgroundThreads(2);
+ 	//printf("Created new dss ennv\n");
+     options.env = dss_env;
+     options.create_if_missing = true;
+@@ -212,11 +215,12 @@ void *_dss_rocksdb_open(void *arg)
+     options.enable_write_thread_adaptive_yield = false;
+     */
+ 
+-    options.max_write_buffer_number = 10;
++    options.max_write_buffer_number = 40;
+     options.num_levels = 2;
+     options.compression = rocksdb::kNoCompression;
+     options.target_file_size_base = 1073741824; // 1GB
+     options.disable_auto_compactions = false;
++    options.min_write_buffer_number_to_merge = 4;
+     rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
+     if (!s.ok()) {
+         printf("open %s failed\n", s.ToString().c_str());
+diff --git a/include/rocksdb/options.h b/include/rocksdb/options.h
+index 869685f..ebec75c 100644
+--- a/include/rocksdb/options.h
++++ b/include/rocksdb/options.h
+@@ -468,7 +468,7 @@ struct DBOptions {
+   uint64_t delete_obsolete_files_period_micros = 6ULL * 60 * 60 * 1000000;
+ 
+   // Maximum number of concurrent background jobs (compactions and flushes).
+-  int max_background_jobs = 2;
++  int max_background_jobs = 8;
+ 
+   // NOT SUPPORTED ANYMORE: RocksDB automatically decides this based on the
+   // value of max_background_jobs. This option is ignored.
+-- 
+1.8.3.1
+

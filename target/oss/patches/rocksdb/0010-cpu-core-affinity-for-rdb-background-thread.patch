@@ -1,0 +1,62 @@
+From 6342826a2d1e36b816ed27f2e2896203f917d84b Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 13 Nov 2020 14:54:17 -0800
+Subject: [PATCH 10/10] - cpu core affinity for rdb background thread.
+
+---
+ util/threadpool_imp.cc | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
+index 07f9345..9b50e89 100644
+--- a/util/threadpool_imp.cc
++++ b/util/threadpool_imp.cc
+@@ -20,6 +20,7 @@
+ #  include <sys/syscall.h>
+ #endif
+ 
++#include <sched.h>
+ #include <algorithm>
+ #include <atomic>
+ #include <condition_variable>
+@@ -171,6 +172,7 @@ void ThreadPoolImpl::Impl::LowerIOPriority() {
+ 
+ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
+   bool low_io_priority = false;
++  printf("BGThread thread_id %d icore %d\n", thread_id, sched_getcpu());
+   while (true) {
+ // Wait until there is an item that is ready to run
+     std::unique_lock<std::mutex> lock(mu_);
+@@ -286,6 +288,16 @@ int ThreadPoolImpl::Impl::GetBackgroundThreads() {
+   return total_threads_limit_;
+ }
+ 
++int stick_this_thread_to_core(pthread_t th_h, int core_id) {
++   cpu_set_t cpuset;
++   CPU_ZERO(&cpuset);
++   CPU_SET(core_id, &cpuset);
++
++   return pthread_setaffinity_np(th_h, sizeof(cpu_set_t), &cpuset);
++}
++
++uint32_t g_bg_coreid = 40; //configurable TBD
++
+ void ThreadPoolImpl::Impl::StartBGThreads() {
+   // Start background thread if necessary
+   while ((int)bgthreads_.size() < total_threads_limit_) {
+@@ -302,6 +314,12 @@ void ThreadPoolImpl::Impl::StartBGThreads() {
+              bgthreads_.size());
+     name_buf[sizeof name_buf - 1] = '\0';
+     pthread_setname_np(th_handle, name_buf);
++    if(stick_this_thread_to_core(th_handle, g_bg_coreid++)){
++	printf("bg thread fail on setaffinity on core %d\n", g_bg_coreid - 1);
++    }else{
++	//printf("bg thread setaffinity on core %d\n", bg_coreid - 1);
++    }
++    
+ #endif
+ #endif
+     bgthreads_.push_back(std::move(p_t));
+-- 
+1.8.3.1
+

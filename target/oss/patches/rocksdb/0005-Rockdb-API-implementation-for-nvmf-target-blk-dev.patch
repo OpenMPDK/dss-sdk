@@ -1,7 +1,7 @@
-From 9a7549dd29464ce78331999e1d237b8697552c72 Mon Sep 17 00:00:00 2001
+From 9d15dd3e961a26966d80f4ed1e0e687556ac0701 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 16 Oct 2020 14:02:21 -0700
-Subject: [PATCH 5/7] Rockdb API implementation for nvmf target blk dev
+Subject: [PATCH 05/10] Rockdb API implementation for nvmf target blk dev
 
 ---
  db/dss_kv2blk_c.cc             | 295 +++++++++++++++++++++++++++++++++++++++++

@@ -1,0 +1,26 @@
+From 83224ac2f7b53ad9cc6b058225962bce391281cc Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 13 Nov 2020 15:04:05 -0800
+Subject: [PATCH 11/11]  - commen the data offset check on object size in case
+ of small object.
+
+---
+ lib/nvmf/rdma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index f77b2bd..b910245 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -879,7 +879,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
+ 	data_offset = dfly_req->req_value.offset;
+ 	switch(rdma_req->req.cmd->nvme_cmd.opc) {
+ 		case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+-			assert(rdma_req->data.wr.sg_list[sge_index].length > data_offset);
++		//assert(rdma_req->data.wr.sg_list[sge_index].length > data_offset); //jian: data_offset could be larger than for small object size
+ 			while(rem_data_length && (sge_index < rdma_req->data.wr.num_sge)) {
+ 				sge_len = rdma_req->data.wr.sg_list[sge_index].length;
+ 				if(data_offset > 0) {
+-- 
+1.8.3.1
+
