@@ -103,6 +103,8 @@ g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
 g_kv_ssc = 1
+g_2mb_hugepages = "8192"
+g_1gb_hugepages = "40"
 
 
 def random_with_N_digits(n):
@@ -482,14 +484,15 @@ def setup_hugepage():
     """
     hugepage setup
     """
-    setenv("NRHUGE", "8192")
+    global g_2mb_hugepages, g_1gb_hugepages
+    setenv("NRHUGE", g_2mb_hugepages)
 
     sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
     if not os.path.exists(sys_hugepage_path):
         with open(sys_hugepage_path, "w") as file:
-            file.write("40")
+            file.write(g_1gb_hugepages)
     else:
-        ret, out, err = exec_cmd("echo 40 > " + sys_hugepage_path)
+        ret, out, err = exec_cmd("echo " + g_1gb_hugepages + " > " + sys_hugepage_path)
         if ret != 0:
             return ret
 
@@ -659,10 +662,16 @@ The most commonly used dss target commands are:
             required=False,
             help="number of KV sub systems to create",
         )
+        parser.add_argument(
+            "-2m_pgs", "--two_mb_hugepages", type=str, required=False, help="Number of 2 MB Hugepages to create"
+        )
+        parser.add_argument(
+            "-1g_pgs", "--one_gb_hugepages", type=str, required=False, help="Number of 1 GB Hugepages to create"
+        )
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -677,6 +686,10 @@ The most commonly used dss target commands are:
             g_rdma = args.rdma
         if args.kv_ssc:
             g_kv_ssc = args.kv_ssc
+        if args.two_mb_hugepages:
+            g_2mb_hugepages = args.two_mb_hugepages
+        if args.one_gb_hugepages:
+            g_1gb_hugepages = args.one_gb_hugepages
         if args.ip_addresses:
             g_ip_addrs = args.ip_addresses
         elif args.vlan_ids:
