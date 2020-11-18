@@ -519,6 +519,17 @@ class OSMServerStorage:
                 drive_info = {}
                 sys_block_path = "/sys/block/" + drive_name
                 drive_info["DeviceNode"] = "/dev/" + drive_name
+
+                if dev_type == self.NVME:
+                    real_path = realpath(sys_block_path)
+                    if 'pci' not in real_path:
+                        continue
+                    m = re.match(r"^.+?([0-9A-Fa-f]{4}(?::[0-9A-Fa-f]{2}){2}\.0)/nvme/nvme\d+/nvme\d+n\d+$",
+                                 real_path)
+                    if not m:
+                        continue
+                    drive_info["PCIAddress"] = m.group(1)
+
                 try:
                     drive_info["Model"] = str(open(sys_block_path + "/device/model").read().rstrip('\r\n'))
                 except IOError:
@@ -537,9 +548,6 @@ class OSMServerStorage:
 
                 serial = None
                 if dev_type == self.NVME:
-                    m = re.match(r"^.+?([0-9A-Fa-f]{4}(?::[0-9A-Fa-f]{2}){2}\.0)/nvme/nvme\d+/nvme\d+n\d+$",
-                                 realpath(sys_block_path))
-                    drive_info["PCIAddress"] = m.group(1)
                     drive_info["NUMANode"] = self.get_pci_numa(drive_info["PCIAddress"])
                     self.get_identify_ctrlr_details("/dev/" + drive_name, drive_info, 0)
                     serial = drive_info["Serial"]
