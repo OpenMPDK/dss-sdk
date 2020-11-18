@@ -45,7 +45,7 @@ typedef enum {
   //NKV Errors starting from > 1000 err code
   NKV_ERR_UNREACHABLE = 0x001, // Not able to communicate with NKV-FM
   NKV_ERR_CONFIG = 0x002,    // Error parsing nkv config file
-  NKV_ERR_NULL_INPUT= 0x003,  // config_file or app_uuid is NULL
+  NKV_ERR_NULL_INPUT= 0x003,  // config_file, app_uuid or any other required input param is NULL
   NKV_ERR_INTERNAL = 0x004,    // Error parsing nkv config file
   NKV_ERR_COMMUNICATION = 0x005, // Error communicating with devices/Paths, path open failed ?
   NKV_ERR_ALREADY_INITIALIZED = 0x006,

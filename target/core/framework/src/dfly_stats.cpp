@@ -78,6 +78,7 @@ const stat_kvio_t stat_dev_io_table = {
 	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_kvio_t stat_subsys_io_table = {
@@ -102,6 +103,7 @@ const stat_kvio_t stat_subsys_io_table = {
 	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
+	{ "pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_rqpair_t stat_rqpair_io_table = {

@@ -40,7 +40,7 @@
 #include "nvmf_internal.h"
 
 #define DFLY_MM_LARGE_KEY_POOL_SIZE (1024)
-#define DFLY_MM_IO_BUFF_POOL_SIZE (1024 * 32)
+#define DFLY_MM_IO_BUFF_POOL_SIZE (1024)
 
 typedef union dfly_spdk_request_u {
 	struct spdk_nvmf_request nvmf_req;

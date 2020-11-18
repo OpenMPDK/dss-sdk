@@ -62,8 +62,8 @@ int32_t nkv_listing_wait_till_cache_init  = 1;
 int32_t nkv_listing_need_cache_stat  = 1;
 int32_t nkv_listing_cache_num_shards = 1024;
 int32_t nkv_dynamic_logging = 0;
-int32_t path_stat_collection = 1;
-int32_t path_stat_detailed = 0;
+std::atomic<int32_t> path_stat_collection(0);
+std::atomic<int32_t> path_stat_detailed(0);
 int32_t nkv_use_read_cache = 0;
 int32_t nkv_use_data_cache = 0;
 int32_t nkv_read_cache_size = 1024;
@@ -73,7 +73,6 @@ int32_t nkv_remote_listing = 0;
 uint32_t nkv_max_key_length = 0;
 uint32_t nkv_max_value_length = 0;
 int32_t nkv_in_memory_exec = 0;
-
 std::mutex mtx_global;
 
 std::atomic<uint32_t> nic_load_balance (0);
@@ -548,7 +547,7 @@ void NKVTargetPath::populate_value_cache(std::string& key_str, nkv_value* n_valu
     data_cache[shard_id].erase(data_iter);
   }
   data_cache[shard_id].insert (std::make_pair<std::string, nkv_value_wrapper*> (std::move(key_str), std::move(nkvvalue)));
-  if (path_stat_collection) {
+  if (get_path_stat_collection()) {
     nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
   }
   r = pthread_rwlock_unlock(&data_rw_lock_list[shard_id]);
@@ -620,7 +619,7 @@ void NKVTargetPath::delete_from_value_cache(std::string& key_str) {
     assert (r == 0);
   }
 
-  if (path_stat_collection && count) {
+  if (get_path_stat_collection() && count) {
     nkv_num_dc_keys.fetch_add(1, std::memory_order_relaxed);
   }
   if (nkvvalue)
@@ -2407,9 +2406,156 @@ uint64_t NKVTarget::load_balance_get_path(std::unordered_set<uint64_t> &visited,
   return selected_path;
 }
 
+// Ustat initialization for each IO devices.
+void NKVTarget::add_nkv_path_stat()
+{
+  smg_alert(logger, "Ustat initialization of IO stata for the devices ... ");
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      // Device path = /dev/nvme1n1, device_name= nvme1n1
+      string device_name = (one_path->dev_path).substr(5, (one_path->dev_path).size());
+      // Device path stat initialization
+      if( get_path_stat_collection() && one_path->device_stat == NULL) {
+        one_path->device_stat = nkv_init_path_io_stats(device_name, false);
+        if (one_path->device_stat == NULL){
+          smg_error(logger, "IO stat initialization is failed for device - %s", one_path->dev_path.c_str());
+        }
+      }
+    }
+  }
+}
 
-// NKV ContainerList
+// Ustat initialization for each CPU for each IO devices.
+void NKVTarget::add_nkv_path_cpu_stat()
+{
+  smg_alert(logger, "Ustat initialization of CPU level IO stats for the devices ... ");
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      // Device path = /dev/nvme1n1, device_name= nvme1n1
+      string device_name = (one_path->dev_path).substr(5, (one_path->dev_path).size());
 
+      // stats from each cpu core for each device.
+      if(one_path->get_cpu_stat_initialized() == false ) {
+        unsigned num_cpus = std::thread::hardware_concurrency();
+        if (num_cpus > MAX_CPU_CORE_COUNT) {
+          num_cpus = MAX_CPU_CORE_COUNT;
+        }
+        for (unsigned iter = 0; iter < num_cpus; iter++) {
+          (one_path->cpu_stats).push_back(nkv_init_path_io_stats(device_name, true, iter));
+
+          if (one_path->cpu_stats[iter] == NULL){
+            smg_error(logger, "IO stat initialization is failed for device - %s , cpu - %d", (one_path->dev_path).c_str(), iter);
+          }
+        }
+        one_path->set_cpu_stat_initialized(true);
+      }
+    }
+  }
+}
+
+// ustat initialization for NKV
+void NKVContainerList::initiate_nkv_ustat(bool device, bool cpu)
+{
+  if( nkv_cnt_list->get_nkv_ustat_handle() ||  nkv_ustats_init() == 0 ) {
+    for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+      NKVTarget* target_ptr = m_iter->second;
+      if( device ) {
+        target_ptr->add_nkv_path_stat();
+      }
+      if( cpu ) {
+        target_ptr->add_nkv_path_cpu_stat();
+      }
+    }
+  }
+}
+
+// Reset ustat counters for NKV 
+void NKVContainerList::reset_nkv_ustat()
+{
+  for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+    NKVTarget* target_ptr = m_iter->second;
+    target_ptr->reset_path_stat();
+  }
+}
+
+// Reset device path stats
+void NKVTarget::reset_path_stat()
+{
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      // Reset device path stats.
+      nkv_ustat_reset_io_stat(one_path->device_stat);
+      // Reset cpu level stats for device 
+      if(get_path_stat_detailed()) {
+        for(auto stat: one_path->cpu_stats ) {
+          nkv_ustat_reset_io_stat(stat);
+        }
+      }
+    }
+  }
+}
+
+
+// Remove device path stats
+void NKVTarget::remove_path_stat()
+{
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      nkv_ustat_delete(one_path->device_stat);
+      one_path->device_stat = NULL;
+      smg_alert(logger, "Removed ustat info from device - %s", (one_path->dev_path).c_str());
+    }
+  }
+}
+// Remove cpu level device path stats
+void NKVTarget::remove_path_cpu_stat()
+{
+  for (auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+    NKVTargetPath* one_path = p_iter->second;
+    if (one_path) {
+      one_path->set_cpu_stat_initialized(false); 
+      // Remove CPU level device path stats.
+      for(auto stat :  one_path->cpu_stats ) {
+        nkv_ustat_delete(stat);
+      }
+      smg_alert(logger, "Removed CPU level ustat functionality from device - %s", (one_path->dev_path).c_str());
+      (one_path->cpu_stats).clear();
+    }
+  }
+}
+// Remove NKV Ustat for device path or cpu level of device level
+void NKVContainerList::remove_nkv_ustat(bool device, bool cpu)
+{
+  for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+    NKVTarget* target_ptr = m_iter->second;
+    if( device ) {
+      target_ptr->remove_path_stat();
+    }
+    if( cpu ) {
+      target_ptr->remove_path_cpu_stat();
+    }
+  }
+}
+
+int32_t get_path_stat_collection() {
+  return path_stat_collection.load(std::memory_order_relaxed);
+}
+
+void set_path_stat_collection(int32_t path_stat) {
+  path_stat_collection.store(path_stat, std::memory_order_relaxed);
+}
+
+int32_t get_path_stat_detailed() {
+  return path_stat_detailed.load(std::memory_order_relaxed);
+}
+
+void set_path_stat_detailed(int32_t path_stat) {
+  path_stat_detailed.store(path_stat, std::memory_order_relaxed);
+}
 
 /* Function Name: update_container
  * Params       : <string> -Address of Remote Mount Path

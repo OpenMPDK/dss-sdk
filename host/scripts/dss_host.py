@@ -35,7 +35,7 @@ gl_nkv_config = """
   "nkv_listing_with_cached_keys" : 1,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_stat_thread_polling_interval_in_sec": 30,
-  "nkv_need_path_stat" : 0,
+  "nkv_need_path_stat" : 1,
   "nkv_need_detailed_path_stat" : 0,
   "nkv_enable_debugging": 0,
   "nkv_listing_cache_num_shards" : 32,
