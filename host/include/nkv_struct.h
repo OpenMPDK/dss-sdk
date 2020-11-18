@@ -246,6 +246,27 @@ typedef struct {
   
 } nkv_postprocess_function;
 
+
+typedef enum stat_type {
+        STAT_TYPE_INT8,
+        STAT_TYPE_INT16,
+        STAT_TYPE_INT32,
+        STAT_TYPE_INT64,
+        STAT_TYPE_UINT8,
+        STAT_TYPE_UINT16,
+        STAT_TYPE_UINT32,
+        STAT_TYPE_UINT64,
+        STAT_TYPE_SIZE, /* uint64_t regardless of word size */
+        STAT_TYPE_MAX
+} nkv_stat_type_t;
+
+
+typedef struct {
+        const char *counter_name;
+        nkv_stat_type_t counter_type;
+} nkv_stat_counter;
+
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

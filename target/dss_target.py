@@ -63,10 +63,11 @@ g_nvme_global_text = """
 [Nvme]
 """
 
-g_nvme_pcie_text = """  TransportID \"trtype:PCIe traddr:%(pcie_addr)s\" %(num)s
+g_nvme_pcie_text = """  TransportID \"trtype:PCIe traddr:%(pcie_addr)s\" "%(num)s"
 """
 
 g_subsystem_common_text = """
+
 [Subsystem%(subsys_num)d]
   KV_PoolEnabled %(pool)s
   NQN %(nqn_text)s
@@ -79,7 +80,8 @@ g_subsystem_listen_text = """
 
 
 g_subsystem_namespace_text = """
-  Namespace  Nvme%(num)dn1 %(nsid)d"""
+  Namespace  "%(num)sn1" %(nsid)d"""
+#  Namespace  Nvme%(num)sn1 %(nsid)d"""
 
 
 g_kv_firmware = ["ETA41KBU"]
@@ -101,6 +103,8 @@ g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
 g_kv_ssc = 1
+g_2mb_hugepages = "8192"
+g_1gb_hugepages = "40"
 
 
 def random_with_N_digits(n):
@@ -188,6 +192,30 @@ def get_pcie_address_firmware_mapping():
                     address_block_firmware[pcie_address] = fw_revision
     return address_kv_firmware, address_block_firmware
 
+def get_pcie_address_serial_mapping(list_of_pci_dev):
+    """
+    Filterout KV firmware and map with pcie address.
+    return: <dict> , a dictionary of pcie and serial number mapping.
+    """
+    address_serial = {}
+    #pcie = dict.keys(list_of_pci_dev)
+    #for item in pcie:
+         #signature = "cat /sys/class/pci_bus/0000:{}/device/*/nvme/nvme*/serial".format(item)
+    signature = "ls /sys/class/pci_bus/0000:*/device/*/nvme/nvme*/serial"
+    ret, serial_files, err = exec_cmd(signature)
+    #    serial = serial.strip()
+    #    address_serial[item] = serial
+    serial_files = serial_files.split("\n")
+    global g_kv_firmware, g_block_firmware
+    if serial_files:
+        for sr_file in serial_files:
+            dirs = sr_file.split("/")
+            pcie_address = dirs[-4]
+            with open(sr_file, "r") as SR:
+                serial = SR.readline().strip()
+                address_serial[pcie_address] = serial
+
+    return address_serial
 
 def get_nvme_list_numa():
     """
@@ -197,24 +225,20 @@ def get_nvme_list_numa():
     """
     # lspci_cmd = "lspci -v | grep NVM | awk '{print $1}'"
     lspci_cmd = "lspci -mm -n -D | grep 0108 | awk -F ' ' '{print $1}'"
-    numa0_drives = []
-    numa1_drives = []
+    drives = []
 
     ret, out, err = exec_cmd(lspci_cmd)
     if not out:
-        return numa0_drives, numa1_drives
+        return drives
     out = out.split("\n")
 
     for p in out:
         h, i, j = p.split(":")
         i = "0x" + i
         # TODO: 0x7f (decimal 127) is approximate number chosen for dividing NUMA.
-        if int(i, 16) < int("0x7f", 16):
-            numa0_drives.append(p)
-        else:
-            numa1_drives.append(p)
+        drives.append(p)
 
-    return numa0_drives, numa1_drives
+    return drives
 
 
 def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_address):
@@ -223,13 +247,12 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     the subsystems and appropriate numa and NVMe PCIe IDs.
     """
     # Get NVMe drives and their PCIe IDs.
-    n0, n1 = get_nvme_list_numa()
-    if not n0 and not n1:
+    list_of_drives = get_nvme_list_numa()
+    if not list_of_drives:
         print ("No NVMe drives found")
         return -1
 
-    # print n0
-    # print n1
+    # print list_of_drives
     # print kv_pcie_address
     # print block_pcie_address
 
@@ -265,23 +288,27 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     block_list = []
     bad_index = []
 
-    if n0:
-        subtext += "#adding NUMA0 Drives to the list\n"
-        for i, pcie in enumerate(n0):
+    kv_pc_ad = get_pcie_address_serial_mapping(kv_pcie_address)
+    bl_pc_ad = get_pcie_address_serial_mapping(block_pcie_address)
+    if list_of_drives:
+        for i, pcie in enumerate(list_of_drives):
             if pcie in kv_pcie_address:
                 subtext += "#KV Drive\n"
                 subtext += g_nvme_pcie_text % {
                     "pcie_addr": pcie,
-                    "num": "Nvme" + str(drive_count),
+                    #"num": "Nvme" + str(drive_count),
+                    "num": kv_pc_ad[pcie],
                 }
                 kv_drive_count = kv_drive_count + 1
-                kv_list.append(drive_count)
+                #kv_list.append(drive_count)
+                kv_list.append(kv_pc_ad[pcie])
             elif pcie in block_pcie_address:
                 subtext += "#Block Drive\n"
                 if g_wal > wal_drive_count:
                     subtext += g_nvme_pcie_text % {
                         "pcie_addr": pcie,
-                        "num": "walbdev-" + str(wal_drive_count),
+                        #"num": "walbdev-" + str(wal_drive_count),
+                        "num": bl_pc_ad[pcie],
                     }
                     g_conf_global_text += g_dfly_wal_log_dev_name % {
                         "num": str(wal_drive_count)
@@ -290,42 +317,12 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 else:
                     subtext += g_nvme_pcie_text % {
                         "pcie_addr": pcie,
-                        "num": "Nvme" + str(drive_count),
+                        #"num": "Nvme" + str(drive_count),
+                        "num": bl_pc_ad[pcie],
                     }
                     block_drive_count = block_drive_count + 1
-                    block_list.append(drive_count)
-            else:
-                bad_index.append(drive_count)
-            drive_count = drive_count + 1
-    if n1:
-        subtext += "#adding NUMA1 Drives to the list\n"
-        for i, pcie in enumerate(n1):
-            if pcie in kv_pcie_address:
-                subtext += "#KV Drive\n"
-                subtext += g_nvme_pcie_text % {
-                    "pcie_addr": pcie,
-                    "num": "Nvme" + str(drive_count),
-                }
-                kv_drive_count = kv_drive_count + 1
-                kv_list.append(drive_count)
-            elif pcie in block_pcie_address:
-                subtext += "#Block Drive\n"
-                if g_wal > wal_drive_count:
-                    subtext += g_nvme_pcie_text % {
-                        "pcie_addr": pcie,
-                        "num": "walbdev-" + str(wal_drive_count),
-                    }
-                    g_conf_global_text += g_dfly_wal_log_dev_name % {
-                        "num": str(wal_drive_count)
-                    }
-                    wal_drive_count = wal_drive_count + 1
-                else:
-                    subtext += g_nvme_pcie_text % {
-                        "pcie_addr": pcie,
-                        "num": "Nvme" + str(drive_count),
-                    }
-                    block_drive_count = block_drive_count + 1
-                    block_list.append(drive_count)
+                    #block_list.append(drive_count)
+                    block_list.append(bl_pc_ad[pcie])
             else:
                 bad_index.append(drive_count)
             drive_count = drive_count + 1
@@ -348,7 +345,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         kv_ss_drive_count = 1
 
     nvme_index = 1
-    for drive_count_index in range(len(kv_list)):
+    #for drive_count_index in range(len(kv_list)):
+    for i in kv_list:
         if nvme_index == 1:
             subsystem_text += g_subsystem_common_text % {
                 "subsys_num": ss_number,
@@ -371,7 +369,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                     }
 
         subsystem_text += g_subsystem_namespace_text % {
-            "num": kv_list[drive_count_index],
+            #"num": kv_list[drive_count_index],
+            "num": i,
             "nsid": nvme_index,
         }
         if kv_ss_drive_count == nvme_index:
@@ -382,8 +381,9 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         if ss_number > g_kv_ssc:
             break
 
-    ss_number = ss_number + 1
-    for i in range(block_drive_count):
+    #ss_number = ss_number + 1
+    #for i in range(block_drive_count):
+    for i in block_list:
         subsystem_text += g_subsystem_common_text % {
             "subsys_num": ss_number,
             "pool": "No",
@@ -406,7 +406,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 }
         nvme_index = 1
         subsystem_text += g_subsystem_namespace_text % {
-            "num": block_list[i],
+            #"num": block_list[i],
+            "num": i,
             "nsid": nvme_index,
         }
 
@@ -483,14 +484,15 @@ def setup_hugepage():
     """
     hugepage setup
     """
-    setenv("NRHUGE", "8192")
+    global g_2mb_hugepages, g_1gb_hugepages
+    setenv("NRHUGE", g_2mb_hugepages)
 
     sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
     if not os.path.exists(sys_hugepage_path):
         with open(sys_hugepage_path, "w") as file:
-            file.write("40")
+            file.write(g_1gb_hugepages)
     else:
-        ret, out, err = exec_cmd("echo 40 > " + sys_hugepage_path)
+        ret, out, err = exec_cmd("echo " + g_1gb_hugepages + " > " + sys_hugepage_path)
         if ret != 0:
             return ret
 
@@ -629,7 +631,7 @@ The most commonly used dss target commands are:
             "--kv_firmware",
             type=str,
             nargs="+",
-            required=True,
+            required=False,
             help="Use the deivce(s) which has this KV formware to form KV pool sub-system",
         )
         parser.add_argument(
@@ -660,10 +662,16 @@ The most commonly used dss target commands are:
             required=False,
             help="number of KV sub systems to create",
         )
+        parser.add_argument(
+            "-2m_pgs", "--two_mb_hugepages", type=str, required=False, help="Number of 2 MB Hugepages to create"
+        )
+        parser.add_argument(
+            "-1g_pgs", "--one_gb_hugepages", type=str, required=False, help="Number of 1 GB Hugepages to create"
+        )
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -678,6 +686,10 @@ The most commonly used dss target commands are:
             g_rdma = args.rdma
         if args.kv_ssc:
             g_kv_ssc = args.kv_ssc
+        if args.two_mb_hugepages:
+            g_2mb_hugepages = args.two_mb_hugepages
+        if args.one_gb_hugepages:
+            g_1gb_hugepages = args.one_gb_hugepages
         if args.ip_addresses:
             g_ip_addrs = args.ip_addresses
         elif args.vlan_ids:
