@@ -52,7 +52,7 @@ const ustat_class_t ustat_class_blk = {
 };
 
 
-typedef struct stat_blk_io {
+struct stat_blk_io {
 	ustat_named_t write;
 	ustat_named_t read;
 	ustat_named_t write_bw;
@@ -71,7 +71,7 @@ typedef struct stat_blk_io {
 	ustat_named_t read_256KB_1MB;
 	ustat_named_t read_1MB_2MB;
 	ustat_named_t read_large_2MB;
-} stat_block_io_t;
+};
 
 const stat_block_io_t stat_bdev_io_table = {
 	{ "write", USTAT_TYPE_UINT64, 0, NULL },
@@ -124,6 +124,36 @@ dfly_ustat_init_bdev_stat(const char *dev_name)
 	bdev->io_stats = st_io;
 
 	return (0);
+}
+
+/*
+ * Does not guarantee accuracy if IOs are still going on
+ */
+void dfly_ustat_reset_block_stat(stat_block_io_t *stat)
+{
+
+       if(!stat) return;
+
+       dfly_ustat_set_u64(stat, &stat->write,           0);
+       dfly_ustat_set_u64(stat, &stat->read,           0);
+       dfly_ustat_set_u64(stat, &stat->write_bw,   0);
+       dfly_ustat_set_u64(stat, &stat->read_bw,   0);
+       dfly_ustat_set_u64(stat, &stat->write_less_4KB,   0);
+       dfly_ustat_set_u64(stat, &stat->write_4KB_16KB,   0);
+       dfly_ustat_set_u64(stat, &stat->write_16KB_64KB,  0);
+       dfly_ustat_set_u64(stat, &stat->write_64KB_256KB, 0);
+       dfly_ustat_set_u64(stat, &stat->write_256KB_1MB,  0);
+       dfly_ustat_set_u64(stat, &stat->write_1MB_2MB,    0);
+       dfly_ustat_set_u64(stat, &stat->write_large_2MB,  0);
+       dfly_ustat_set_u64(stat, &stat->read_less_4KB,   0);
+       dfly_ustat_set_u64(stat, &stat->read_4KB_16KB,   0);
+       dfly_ustat_set_u64(stat, &stat->read_16KB_64KB,  0);
+       dfly_ustat_set_u64(stat, &stat->read_64KB_256KB, 0);
+       dfly_ustat_set_u64(stat, &stat->read_256KB_1MB,  0);
+       dfly_ustat_set_u64(stat, &stat->read_1MB_2MB,    0);
+       dfly_ustat_set_u64(stat, &stat->read_large_2MB,  0);
+
+       return;
 }
 
 void

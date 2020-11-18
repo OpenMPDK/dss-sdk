@@ -238,11 +238,37 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	return thread_instance;
 }
 
+static void
+rdb_blobfs_unload_cb(__attribute__((unused)) void *ctx,
+            __attribute__((unused)) int fserrno)
+{
+       return;
+}
+void dfly_rdb_close_blobfs(void *ctx, void *arg2)
+{
+       spdk_fs_unload((struct spdk_filesystem *)ctx,rdb_blobfs_unload_cb, NULL);
+}
+
 void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 {
 	struct io_thread_ctx_s *io_mod_ctx = (struct io_thread_ctx_s *)mctx;
 	struct io_thread_inst_ctx_s *thread_instance = inst_ctx;
 	int i;
+
+   if(g_dragonfly->blk_map) {
+       for (i = thread_instance->module_inst_index; i < io_mod_ctx->dfly_subsys->num_io_devices; i+=io_mod_ctx->num_threads) {
+           struct spdk_event *event;
+
+           DFLY_NOTICELOG("Closing %d device in thread %d\n", i, thread_instance->module_inst_index);
+           dss_rocksdb_close(io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_db_handle, \
+							 io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_env);
+		   spdk_fs_free_thread_ctx(io_mod_ctx->dfly_subsys->devices[i].rdb_handle->dev_channel);
+           event = spdk_event_allocate(0, dfly_rdb_close_blobfs, (void *)io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_fs_handle, NULL);
+           assert(event != NULL);
+           spdk_event_call(event);
+       }
+       return;
+   }
 
 	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
 		DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
@@ -409,9 +435,6 @@ int dfly_io_module_deinit_spdk_devices(struct dfly_subsystem *subsystem)
 
 	for (i = 0; i < subsystem->num_io_devices; i++) {
 		dfly_ustat_remove_dev_stat(&subsystem->devices[i]);
-		if(g_dragonfly->blk_map) {
-			dss_rocksdb_close(subsystem->devices[i].rdb_handle->rdb_db_handle);
-		}
 	}
 
 	free(subsystem->devices);

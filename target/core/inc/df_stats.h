@@ -125,6 +125,8 @@ typedef struct stat_thread {
 	ustat_named_t reqs_max;
 } stat_thread_t;
 
+typedef struct stat_blk_io stat_block_io_t;
+
 extern const ustat_class_t ustat_class_test;
 
 extern const stat_serial_t stat_dev_serial_table;
@@ -161,6 +163,7 @@ void dfly_ustat_set_string(ustat_struct_t *s, ustat_named_t *n, const char *str)
 
 void dfly_ustat_reset_kvio_stat(stat_kvio_t *stat);
 void dfly_qp_reset_counters(stat_rqpair_t *stats);
+void dfly_ustat_reset_block_stat(stat_block_io_t *stat);
 
 #ifdef  __cplusplus
 }

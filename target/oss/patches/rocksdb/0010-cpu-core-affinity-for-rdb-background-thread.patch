@@ -1,14 +1,14 @@
-From 6342826a2d1e36b816ed27f2e2896203f917d84b Mon Sep 17 00:00:00 2001
+From a4a768f50362e2a02e54fd4793b2d5af4281c90d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:54:17 -0800
-Subject: [PATCH 10/10] - cpu core affinity for rdb background thread.
+Subject: [PATCH 10/11] - cpu core affinity for rdb background thread.
 
 ---
  util/threadpool_imp.cc | 18 ++++++++++++++++++
  1 file changed, 18 insertions(+)
 
 diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
-index 07f9345..9b50e89 100644
+index 07f9345..9ad8c05 100644
 --- a/util/threadpool_imp.cc
 +++ b/util/threadpool_imp.cc
 @@ -20,6 +20,7 @@
@@ -53,7 +53,7 @@ index 07f9345..9b50e89 100644
 +    }else{
 +	//printf("bg thread setaffinity on core %d\n", bg_coreid - 1);
 +    }
-+    
++
  #endif
  #endif
      bgthreads_.push_back(std::move(p_t));

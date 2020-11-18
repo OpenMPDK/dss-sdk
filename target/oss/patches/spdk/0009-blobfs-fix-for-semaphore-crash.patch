@@ -1,14 +1,14 @@
-From 856a5a853ddeb34bb1e374d6afeaeaccda86a0fe Mon Sep 17 00:00:00 2001
+From c23490a940130d63b53bd61d5277bc7143f7425a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 9 Nov 2020 15:34:18 -0800
-Subject: [PATCH 09/11] blobfs fix for semaphore crash
+Subject: [PATCH 09/12] blobfs fix for semaphore crash
 
 ---
- lib/blobfs/blobfs.c | 142 ++++++++++++++++++++++++++++++++++------------------
- 1 file changed, 94 insertions(+), 48 deletions(-)
+ lib/blobfs/blobfs.c | 132 +++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 89 insertions(+), 43 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index be46001..0b93bf1 100644
+index be46001..fbc02ee 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -65,7 +65,7 @@ static struct spdk_thread *g_cache_pool_thread;
@@ -36,11 +36,10 @@ index be46001..0b93bf1 100644
  	pthread_spinlock_t		lock;
  };
  
-@@ -462,7 +463,14 @@ spdk_free_fs_request(void *data)
+@@ -462,6 +463,13 @@ spdk_free_fs_request(void *data)
      free_fs_request((struct spdk_fs_request *)data);
  }
  
--
 +sem_t * fs_channel_get_sem(struct spdk_fs_channel *channel){
 +    pthread_spin_lock(&channel->lock);
 +    channel->sem_idx = (++channel->sem_idx) % CHANNEL_SEM_MAX;
@@ -48,10 +47,9 @@ index be46001..0b93bf1 100644
 +    //printf("fs_channel_get_sem[%d] %p\n", channel->sem_idx, &channel->sem[channel->sem_idx]);
 +    return &channel->sem[channel->sem_idx];
 +}
-+    
+ 
  static int
  fs_channel_create(struct spdk_filesystem *fs, struct spdk_fs_channel *channel,
- 		  uint32_t max_ops)
 @@ -476,8 +484,10 @@ fs_channel_create(struct spdk_filesystem *fs, struct spdk_fs_channel *channel,
  
  	channel->outstanding_reqs = 0;
@@ -77,7 +75,7 @@ index be46001..0b93bf1 100644
  	req->args.fn.stat_op = __copy_stat;
  	req->args.arg = stat;
 -	req->args.sem = &channel->sem;
-+    psem = fs_channel_get_sem(channel); 
++    psem = fs_channel_get_sem(channel);
 +    req->args.sem = psem;
  	channel->send_request(__file_stat, req);
 -	sem_wait(&channel->sem);
@@ -163,7 +161,7 @@ index be46001..0b93bf1 100644
  	args->op.rename.new_name = new_name;
 -	args->sem = &channel->sem;
 +    psem = fs_channel_get_sem(channel);
-+	args->sem = psem; 
++	args->sem = psem;
  	fs->send_request(__fs_rename_file, req);
 -	sem_wait(&channel->sem);
 +	sem_wait(psem);
@@ -215,12 +213,11 @@ index be46001..0b93bf1 100644
  	args->op.truncate.length = length;
  	args->fn.file_op = __wake_caller;
 -	args->sem = &channel->sem;
--
 +    psem = fs_channel_get_sem(channel);
 +	args->sem = psem;
-+	//printf("spdk_file_truncate spdk_get_core %d icore %d channel core %d\n", 
++	//printf("spdk_file_truncate spdk_get_core %d icore %d channel core %d\n",
 +	        //spdk_env_get_current_core(), sched_getcpu(), channel->icore);
-+    
+ 
  	channel->send_request(__truncate, req);
 -	sem_wait(&channel->sem);
 +	sem_wait(psem);
@@ -235,12 +232,10 @@ index be46001..0b93bf1 100644
  		return -EPERM;
  	}
  
-@@ -2322,7 +2349,8 @@ __file_flush_done(void *ctx, int bserrno)
- 	struct spdk_fs_cb_args *args = &req->args;
+@@ -2323,6 +2350,7 @@ __file_flush_done(void *ctx, int bserrno)
  	struct spdk_file *file = args->file;
  	struct cache_buffer *next = args->op.flush.cache_buffer;
--
-+	
+ 
 +	//printf("__file_flush_done core %d errno %d\n", sched_getcpu(), bserrno);
  	BLOBFS_TRACE(file, "length=%jx\n", args->op.flush.length);
  	pthread_spin_lock(&file->lock);
@@ -253,15 +248,6 @@ index be46001..0b93bf1 100644
  	spdk_blob_io_write(file->blob, file->fs->sync_target.sync_fs_channel->bs_channel,
  			   next->buf + (start_lba * lba_size) - next->offset,
  			   start_lba, num_lba, __file_flush_done, req);
-@@ -2446,7 +2475,7 @@ __file_extend_blob(void *_args)
- {
- 	struct spdk_fs_cb_args *args = _args;
- 	struct spdk_file *file = args->file;
--
-+    
- 	spdk_blob_resize(file->blob, args->op.resize.num_clusters, __file_extend_resize_cb, args);
- }
- 
 @@ -2489,9 +2518,10 @@ __rw_from_file2(void *ctx)
  				     args->op.rw.offset, (uint64_t)args->iovs[0].iov_len,
  				     args->fn.file_op, args->arg);
@@ -358,7 +344,7 @@ index be46001..0b93bf1 100644
  		extend_args.file = file;
  		BLOBFS_TRACE(file, "start resize to %u clusters\n", extend_args.op.resize.num_clusters);
  		pthread_spin_unlock(&file->lock);
-+        
++
 +		//printf("spdk_file_write send_request for file_extend on core %d\n", sched_getcpu());
  		file->fs->send_request(__file_extend_blob, &extend_args);
 -		sem_wait(&channel->sem);
@@ -395,7 +381,7 @@ index be46001..0b93bf1 100644
 -	 int64_t rc = __send_rw_from_file_async(file, payload, offset, length, true, channel, cb_fn, cb_arg);
 -
 -	 return rc;
-+      //printf("spdk_file_read_async2 core %d channel core %d\n", 
++      //printf("spdk_file_read_async2 core %d channel core %d\n",
 +        //	spdk_env_get_current_core(), channel->icore);
 +	 return  __send_rw_from_file_async(file, payload, offset, length, true, channel, cb_fn, cb_arg);
  }
@@ -447,16 +433,14 @@ index be46001..0b93bf1 100644
  
  	return args.rc;
  }
-@@ -3049,7 +3093,8 @@ spdk_file_close(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx)
+@@ -3049,6 +3093,7 @@ spdk_file_close(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx)
  	struct spdk_fs_channel *channel = (struct spdk_fs_channel *)ctx;
  	struct spdk_fs_request *req;
  	struct spdk_fs_cb_args *args;
--
 +    sem_t * psem = NULL;
-+    
+ 
  	req = alloc_fs_request(channel);
  	if (req == NULL) {
- 		SPDK_ERRLOG("Cannot allocate close req for file=%s\n", file->name);
 @@ -3062,12 +3107,13 @@ spdk_file_close(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx)
  	spdk_file_sync(file, ctx);
  	BLOBFS_TRACE(file, "name=%s\n", file->name);

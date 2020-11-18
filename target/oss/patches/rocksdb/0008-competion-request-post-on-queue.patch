@@ -1,7 +1,7 @@
-From 6371dea882f16f1acb6754ecf49bab36834edf9a Mon Sep 17 00:00:00 2001
+From 923e9bbec6d8a582f64d20a56d735f569ed3b7f3 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:50:05 -0800
-Subject: [PATCH 08/10]  - competion request post on queue  - tuning rdb write
+Subject: [PATCH 08/11] - competion request post on queue - tuning rdb write
  buffer and background thread for write performance.
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH 08/10]  - competion request post on queue  - tuning rdb write
  2 files changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index a7a668e..15b5cde 100644
+index a7a668e..66bb8bf 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -154,8 +154,10 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -18,7 +18,7 @@ index a7a668e..15b5cde 100644
  		req->dreq->state = DFLY_REQ_IO_COMPLETED_FROM_DEVICE;
  		req->dreq->next_action = DFLY_COMPLETE_IO;
 +		struct dfly_subsystem *ss  = dfly_get_subsystem_no_lock(req->dreq->req_ssid);
-+        	dfly_module_complete_request(ss->mlist.dfly_io_module, req->dreq);
++		dfly_module_complete_request(ss->mlist.dfly_io_module, req->dreq);
  
 -		dfly_handle_request(req->dreq);
 +		//dfly_handle_request(req->dreq);

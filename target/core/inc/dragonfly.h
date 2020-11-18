@@ -122,6 +122,8 @@ extern "C" {
 
 #define MAX_STRING_LEN (256)
 
+extern struct spdk_nvmf_tgt *g_spdk_nvmf_tgt;
+
 struct dragonfly_core {
 	uint32_t nvmf_core; /**< this core number */
 	uint32_t current_core; /**< round robin next core */
@@ -153,6 +155,7 @@ struct rdb_dev_ctx_s {
 	struct init_multi_dev_s *tmp_init_back_ptr;
 	struct spdk_fs_thread_ctx * dev_channel;
 	void *rdb_db_handle;
+	void* rdb_env;
 };
 
 struct dfly_io_device_s {
@@ -436,6 +439,7 @@ uint32_t dss_get_fs_ch_core( struct spdk_fs_request * req);
 void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core);
 
 int dfly_ustat_init_bdev_stat(const char *dev_name);
+stat_block_io_t *dfly_bdev_get_ustat_p(struct spdk_bdev *bdev);
 #ifdef __cplusplus
 }
 #endif

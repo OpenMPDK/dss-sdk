@@ -171,6 +171,7 @@ void dfly_counters_reset(struct dfly_subsystem *subsystem)
 
 	for (i=0; i< subsystem->num_io_devices;i++) {
 		dfly_ustat_reset_kvio_stat(subsystem->devices[i].stat_io);
+		dfly_ustat_reset_block_stat(dfly_bdev_get_ustat_p(subsystem->devices[i].ns->bdev));
 	}
 
 	pthread_mutex_lock(&subsystem->ctrl_lock);//Lock Begin
