@@ -10,7 +10,7 @@ Samsung Inc
 
 
 
-## Directory structure 
+## Directory structure
 ```
 .
 ├── fabricmanager
@@ -24,12 +24,9 @@ Samsung Inc
 │   │       ├── monitor
 │   │       └── poller
 │   └── systems
-│       ├── ebof
-│       ├── essd
 │       ├── nkv
-│       ├── smart
 │       └── switch
 └── systemd_files
 
-``` 
+```
 

@@ -1,8 +1,6 @@
 import socket
 from enum import Enum
 from subprocess import PIPE, Popen
-from common.ufmdb import ufmdb
-from common.ufmlog import ufmlog
 from ufm_thread import UfmThread
 
 
@@ -27,7 +25,8 @@ class UfmStatus(UfmThread):
         self.onLeaderChangeCb = onLeaderChangeCb
         self.onLeaderChangeCbArgs = onLeaderChangeCbArgs
 
-        self.dbclient = ufmdb.client(db_type='etcd')
+        self.dbclient = self.onHealthChangeCbArgs.db
+        self.log = self.onHealthChangeCbArgs.log
         super(UfmStatus, self).__init__()
 
     def __del__(self):
@@ -45,7 +44,7 @@ class UfmStatus(UfmThread):
         out, err = pipe.communicate()
         if out:
             for line in out.decode('utf-8').splitlines():
-                if 'cluster is healthy' in line:
+                if 'cluster is healthy' in line or 'cluster is degraded' in line:
                     self.__setHealthy()
                     return
 
@@ -54,7 +53,9 @@ class UfmStatus(UfmThread):
     def __updateLeader(self):
         status = self.dbclient.status()
         leadername = status.leader.name.lower()
+        leadername = leadername.split('.')[0]
         hostname = socket.gethostname().lower()
+        hostname = hostname.split('.')[0]
         self.__setLeader((hostname == leadername or leadername == "default"))
 
     def __monitor(self, cbArgs):

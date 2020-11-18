@@ -18,7 +18,6 @@ UFM_COLLECTOR  = 0x00040000
 UFM_POLLER     = 0x00080000
 UFM_NKV        = 0x00100000
 UFM_SWITCH     = 0x00200000
-UFM_ESSD       = 0x00400000
 
 # All modules defined above must also be registered below
 UfmModuleRegistry = { "UFM_MAIN":UFM_MAIN,
@@ -31,7 +30,6 @@ UfmModuleRegistry = { "UFM_MAIN":UFM_MAIN,
     "UFM_POLLER": UFM_POLLER,
     "UFM_NKV": UFM_NKV,
     "UFM_SWITCH": UFM_SWITCH,
-    "UFM_ESSD": UFM_ESSD,
 }
 
 

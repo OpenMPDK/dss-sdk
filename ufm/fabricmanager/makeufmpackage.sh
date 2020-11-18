@@ -3,7 +3,7 @@
 #
 #
 WORKING_DIR="$(cd $(dirname $0) && pwd)"
-SCRIPT_VERSION="1.00.02.00"
+SCRIPT_VERSION="1.00.03.00"
 
 
 die()
@@ -101,8 +101,7 @@ buildPackage()
     cp -aR tools/     ${dir_share}/
     cp -aR rest_api/  ${dir_share}/
     cp -aR systems/   ${dir_share}/
-    cp -aR templates/ ${dir_share}/    
-    cp tools/gunicorn.sh ${dir_share}/gunicorn.sh
+    cp -aR templates/ ${dir_share}/
     cp ufm.yaml       ${dir_share}/
     cp ../requirements.txt ${dir_share}/
 

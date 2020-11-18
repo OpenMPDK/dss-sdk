@@ -35,7 +35,7 @@ gl_nkv_config = """
   "nkv_listing_with_cached_keys" : 1,
   "nkv_num_path_per_container_to_iterate" : 0,
   "nkv_stat_thread_polling_interval_in_sec": 30,
-  "nkv_need_path_stat" : 0,
+  "nkv_need_path_stat" : 1,
   "nkv_need_detailed_path_stat" : 0,
   "nkv_enable_debugging": 0,
   "nkv_listing_cache_num_shards" : 32,
@@ -78,7 +78,7 @@ ulimit -c unlimited
 ./minio server --address %(IP)s:%(PORT)s """
 
 gl_minio_standalone = "/dev/nvme%(devnum)s""n1"
-gl_minio_dist_node = "http://dssminio%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
+gl_minio_dist_node = "http://%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
 g_mini_ec = 0
 
 g_etc_hosts = """
@@ -558,6 +558,14 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     return ret
 
 
+def is_ipv4(string):
+    try:
+        socket.inet_aton(string)
+        return True
+    except socket.error:
+        return False
+
+
 def config_minio_dist(node_details, ec):
     print("node details ec %d %s" %(ec, node_details))
     node_count = 0
@@ -570,7 +578,7 @@ def config_minio_dist(node_details, ec):
         while (j < len(node_details)):
             ip,port,dev_start,dev_end = node_details[j:j+4]
             node_count += 1
-            minio_dist_node += gl_minio_dist_node % {"node":node_count, "port":port, "start":dev_start, "end":dev_end} +" "
+            minio_dist_node += gl_minio_dist_node % {"node":ip, "port":port, "start":dev_start, "end":dev_end} +" "
             j += 4
         ip,port,dev_start, dev = node_details[i:i+4]
         i += 4
@@ -585,10 +593,13 @@ def config_minio_dist(node_details, ec):
         os.chmod(minio_startup, 0o755)
 
         print("Successfully created MINIO startup script %s" %(minio_startup))
-        etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
-    with open("etc_hosts", 'w') as f:
-        f.write(etc_hosts_map)
-    print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
+        if is_ipv4(ip):
+            etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
+
+    if etc_hosts_map:
+        with open("etc_hosts", 'w') as f:
+            f.write(etc_hosts_map)
+        print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
 
 def config_minio(dist, sa, ec):
     if(sa):

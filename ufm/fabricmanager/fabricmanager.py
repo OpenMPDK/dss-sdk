@@ -17,21 +17,16 @@ import yaml
 # Flask Imports
 from flask import Flask, make_response, render_template
 from flask_restful import Api, Resource
-# from flask_restful import reqparse
-# from flask import request
 
 # REST API Imports
 from rest_api.redfish.JsonSchemas import JsonSchemas
 from rest_api.resource_manager import ResourceManager
-# from rest_api.redfish.System_api import UfmdbSystemAPI
+
 
 # Internal Imports
 import config
 from common.ufmlog import ufmlog
 from common.ufmdb import ufmdb
-
-# Depricated library
-from common.clusterlib import lib
 
 from ufm_status import UfmStatus
 from ufm_status import UfmLeaderStatus
@@ -86,14 +81,6 @@ from systems.ufmarg import UfmArg
 from systems.switch.switch import EthSwitch
 from systems.switch.switch_arg import SwitchArg
 
-from systems.smart.smart import Smart
-
-from systems.essd import essd_constants
-
-from systems.essd.essd import Essd
-
-from systems.ebof.ebof import Ebof
-
 from systems.nkv.nkv import Nkv
 
 
@@ -129,7 +116,7 @@ api = Api(app)
 connect_to_single_db_node = False
 
 # Time between each check of which FM is the lead
-MASTER_CHECK_INTERVAL = 1
+MASTER_CHECK_INTERVAL = 20
 
 CLUSTER_TIMEOUT = (3 * 60)
 
@@ -228,8 +215,7 @@ def call_populate(local_path):
 # For any other RESTful requests, navigate them to RedfishAPI object
 # Note: <path:path> specifies any path
 if (MODE is not None and MODE.lower() == 'db'):
-    api.add_resource(ServiceRoot, REST_BASE,
-                     resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(ServiceRoot, REST_BASE, resource_class_kwargs={'rest_base': REST_BASE})
     api.add_resource(JsonSchemas, REST_BASE + 'JSONSchemas')
     api.add_resource(SystemCollectionAPI, REST_BASE + 'Systems')
     api.add_resource(SystemAPI, REST_BASE + 'Systems/<string:ident>')
@@ -237,7 +223,7 @@ if (MODE is not None and MODE.lower() == 'db'):
     api.add_resource(EthernetInterfaceAPI, REST_BASE + 'Systems/<string:sys_id>/EthernetInterfaces/<string:eth_id>')
     api.add_resource(StorageCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage')
     api.add_resource(StorageAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
-    api.add_resource(DriveCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>')
+    api.add_resource(DriveCollectionAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>/Drives')
     api.add_resource(DriveAPI, REST_BASE + 'Systems/<string:sys_id>/Storage/<string:storage_id>/Drives/<string:drive_id>')
     # api.add_resource(UfmdbSystemAPI, '/<path:path>')
 
@@ -256,8 +242,7 @@ if (MODE is not None and MODE.lower() == 'db'):
 
 
 elif (MODE is not None and MODE.lower() == 'local'):
-    api.add_resource(ServiceRoot, REST_BASE,
-                     resource_class_kwargs={'rest_base': REST_BASE})
+    api.add_resource(ServiceRoot, REST_BASE, resource_class_kwargs={'rest_base': REST_BASE})
     api.add_resource(SystemCollectionEmulationAPI, REST_BASE + 'Systems')
     api.add_resource(SystemEmulationAPI, REST_BASE + 'Systems/<string:ident>')
     api.add_resource(StorageCollectionEmulationAPI, REST_BASE + 'Systems/<string:ident>/Storage',
@@ -290,8 +275,7 @@ elif (MODE is not None and MODE.lower() == 'local'):
 
     call_populate(local_path)
 else:
-    api.add_resource(RedfishAPI, REST_BASE,
-                     REST_BASE + '<path:path>')
+    api.add_resource(RedfishAPI, REST_BASE, REST_BASE + '<path:path>')
     try:
         resource_manager = ResourceManager(REST_BASE, MODE)
     except Exception:
@@ -310,30 +294,6 @@ def startSubSystems(sub_systems):
 def stopSubSystems(sub_systems):
     for sub in reversed(sub_systems):
         sub.stop()
-
-
-def insertEssdUrls(db, essdUrls):
-    listOfDrives = list()
-    try:
-        tmpString, _ = db.get(essd_constants.ESSDURLS_KEY)
-
-        if tmpString:
-            listOfDrives = json.loads(tmpString.decode('utf-8'))
-    except Exception:
-        pass
-
-    for d in essdUrls:
-        listOfDrives.append(d)
-
-    # remove duplicates from list
-    res = []
-    for i in listOfDrives:
-        if i not in res:
-            res.append(i)
-    res.sort()
-
-    jsonString = json.dumps(res, indent=4, sort_keys=True)
-    db.put(essd_constants.ESSDURLS_KEY, jsonString)
 
 
 def readConfigDataFromFile(filename):
@@ -369,24 +329,6 @@ def parseUfmConfig(ufmArg=None, ufmMetadata=None):
         ufmArg.nkvConfig['enable'] = False
 
     try:
-        ufmArg.essdConfig = ufmMetadata['essd']
-        ufmArg.ufmPorts.append(ufmArg.essdConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.essdConfig['enable'] = False
-
-    try:
-        ufmArg.ebofConfig = ufmMetadata['ebof']
-        ufmArg.ufmPorts.append(ufmArg.ebofConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.ebofConfig['enable'] = False
-
-    try:
-        ufmArg.smartConfig = ufmMetadata['smart']
-        ufmArg.ufmPorts.append(ufmArg.smartConfig['messageQueuePort'])
-    except Exception:
-        ufmArg.smartConfig['enable'] = False
-
-    try:
         ufmArg.switchConfig = ufmMetadata['switch']
         # ufmArg.ufmPorts.append(ufmArg.switchConfig['messageQueuePort'])
     except Exception:
@@ -401,40 +343,7 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
 
     try:
         if ufmArg.nkvConfig['enable']:
-            subSystems.append(
-                Nkv(ufmArg=ufmArg,
-                    hostname=ufmArg.hostname,
-                    db=ufmArg.deprecatedDb)
-            )
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.essdConfig['enable']:
-            subSystems.append(Essd(ufmArg))
-
-            try:
-                # Urls of the essd in the config file is optional
-                if ufmArg.essdConfig['essdDrives']:
-                    insertEssdUrls(db=ufmArg.db,
-                                   essdUrls=ufmArg.essdConfig['essdDrives'])
-            except Exception:
-                pass
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.ebofConfig['enable']:
-            subSystems.append(Ebof())
-    except Exception as e:
-        log.exception(e)
-        pass
-
-    try:
-        if ufmArg.smartConfig['enable']:
-            subSystems.append(Smart())
+            subSystems.append(Nkv(ufmArg=ufmArg))
     except Exception as e:
         log.exception(e)
         pass
@@ -456,14 +365,15 @@ def initializeSubSystems(subSystems=None, ufmArg=None, ufmMetadata=None):
 
 
 class StatusChangeCbArg(object):
-    def __init__(self, subsystems, target, kwargs, ufmArg, log):
+    def __init__(self, subsystems, target, kwargs, ufmArg):
         self.subsystems = subsystems
         self.target = target
         self.kwargs = kwargs
         self.ufmArg = ufmArg
         self.apiServer = None
         self.isRunning = False
-        self.log = log
+        self.db = ufmArg.db
+        self.log = ufmArg.log
 
 
 def setMasterInDb(ufmArg):
@@ -486,9 +396,14 @@ def serverStateChange(startup, cbArgs):
         cbArgs.isRunning = True
     elif startup is not True and cbArgs.isRunning is True:
         cbArgs.log.info('serverStateChange: Shutting down UFM')
-        cbArgs.server.terminate()
-        cbArgs.server.join()
         stopSubSystems(cbArgs.subsystems)
+        pid = cbArgs.server.pid
+        cbArgs.log.info("Process ID={}".format(pid))
+        # Added kill, because flask does not have a app.stop()
+        # to stop its process
+        os.kill(pid, signal.SIGKILL)
+        # cbArgs.server.terminate()
+        # cbArgs.server.join()
         cbArgs.isRunning = False
 
 
@@ -524,7 +439,7 @@ def main():
 
     log.detail('main: Setting up signal handler')
     signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     log.detail('main: Parsing args')
     parser = argparse.ArgumentParser(
@@ -563,7 +478,7 @@ def main():
 
     try:
         dbType = ufmArg.ufmConfig['dbType']
-        dbAddress = ufmArg.ufmConfig['dbIp']
+        # dbAddress = ufmArg.ufmConfig['dbIp']
         ufmMessageQueuePort = ufmArg.ufmConfig['messageQueuePort']
     except Exception:
         log.error("Failed to read ufm configuration file.")
@@ -575,12 +490,7 @@ def main():
         log.error("Failed to connect to database.")
         sys.exit(-1)
 
-    # Connect to db with deprecated library.
-    try:
-        deprecatedDb = lib.create_db_connection(ip_address=dbAddress, log=log)
-    except Exception:
-        log.error("Failed to connect to deprecated DB.")
-        sys.exit(-1)
+    log.info("Database version: {}".format(db.status().version))
 
     config.rest_base = REST_BASE
 
@@ -593,7 +503,6 @@ def main():
                uuid=uuid.getnode(),
                ufmMainEvent=ufmMainEvent,
                publisher=Publisher(ufmMessageQueuePort))
-    ufmArg.deprecatedDb = deprecatedDb
 
     subSystems = list()
     initializeSubSystems(
@@ -608,8 +517,7 @@ def main():
     status_cb_arg = StatusChangeCbArg(subsystems=subSystems,
                                       target=app.run,
                                       kwargs=kwargs,
-                                      ufmArg=ufmArg,
-                                      log=log)
+                                      ufmArg=ufmArg)
 
     ufm_status = UfmStatus(onHealthChangeCb=onHealthChange,
                            onHealthChangeCbArgs=status_cb_arg,
@@ -620,10 +528,14 @@ def main():
     ufm_status.start()
 
     while not ufmMainEvent.is_set():
-        time.sleep(MASTER_CHECK_INTERVAL)
+        ufmMainEvent.wait(MASTER_CHECK_INTERVAL)
 
+    log.info(" ===> send a STOP signal to UFM <===")
     ufm_status.stop()
 
+    # this sleep is here just so we can see the final
+    # log messages
+    time.sleep(MASTER_CHECK_INTERVAL)
     log.info(" ===> UFM is Stopped! <===")
 
 

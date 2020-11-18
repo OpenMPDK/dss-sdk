@@ -1,4 +1,3 @@
-
 # ufmadm_sys.py
 
 from ufmmenu import UfmMenu
@@ -30,19 +29,15 @@ class FabricsMenu(UfmMenu):
 
             count = count + 1
 
-        return
-
     def _back_action(self, menu, item):
         from ufmadm_main import MainMenu
 
         main_menu = MainMenu()
         self.set_menu(main_menu)
-        return
 
     def _menu_action(self, menu, item):
         fab_menu = FabricMenu(fab=item.priv)
         self.set_menu(fab_menu)
-        return
 
 
 class FabricMenu(UfmMenu):
@@ -64,16 +59,14 @@ class FabricMenu(UfmMenu):
                           desc="Switches")
 
         self.fab = fab
-        return
 
     def _back_action(self, menu, item):
         fabrics_menu = FabricsMenu()
+
         self.set_menu(fabrics_menu)
-        return
 
     def _switches_action(self, menu, item):
         from ufmadm_switches import SwitchesMenu
 
         sw_menu = SwitchesMenu(fab=self.fab)
         self.set_menu(sw_menu)
-        return

@@ -40,6 +40,7 @@ from utils import log_setup
 logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
+from minio_stats import MinioStats
 import constants
 import graphite
 import server_info.server_attributes_aggregator as ServerAttr
@@ -49,6 +50,7 @@ import utils.key_prefix_constants as key_cons
 import utils.usr_signal as usr_signal
 from device_driver_setup.driver_setup import DriverSetup
 from spdk_config_file.spdk_config import SPDKConfig
+from server_info.server_hardware import collect_system_info
 from utils.jsonrpc import SPDKJSONRPC
 from utils.utils import find_process_pid
 from utils.utils import pidfile_is_running
@@ -548,17 +550,15 @@ class OSMDaemon:
                                     tx_bytes_kb = int("".join(tx_bytes))/1024
                             if rx_bytes_kb:
                                 metric = \
-                                    'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s;ip_address=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac,
-                                     iface['IPv4'])
+                                    'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
+                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(rx_bytes_kb))))
 
                             if tx_bytes_kb:
                                 metric = \
-                                    'tx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s;ip_address=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac,
-                                     iface['IPv4'])
+                                    'tx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
+                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(tx_bytes_kb))))
                             logger.debug('Mellanox NIC metrics %s',
@@ -580,6 +580,8 @@ class OSMDaemon:
             subsystems = self.backend.get_json_prefix(self.SERVER_CONFIG_KEY_PREFIX)
             tuples = []
             for subsystem in subsystems.values():
+                if 'namespaces' not in subsystem:
+                    continue
                 for ns in subsystem["namespaces"]:
                     serial = subsystem["namespaces"][ns]["Serial"]
                     try:
@@ -605,7 +607,7 @@ class OSMDaemon:
 
                     subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
 
-                    metric_path = "disk.freespacepercent.cluster_id_%s.target_id_%s.target_nqn_id_%s.disk_id_%s" % \
+                    metric_path = "cluster_id_%s.target_id_%s.target_nqn_id_%s.disk.freespacepercent.disk_id_%s" % \
                                   (self.CLUSTER_ID, self.SERVER_UUID, subsystem_uuid, serial)
 
                     timestamp = time.time()
@@ -637,6 +639,8 @@ class OSMDaemon:
                 logger.exception('Exception in getting the data from DB for %s', self.SERVER_CONFIG_KEY_PREFIX)
                 all_config = {}
             for dev in all_config.values():
+                if 'Command' not in dev:
+                    continue
                 config_cmd = dev["Command"]
                 config_status = dev["cmd_status"]
                 subsystem_path = self.SERVER_UUID + "_" + dev["NQN"]
@@ -651,8 +655,7 @@ class OSMDaemon:
                     self.sync_count_inc()
                     self.q.append((subsystem_lock, dev))
                 else:
-                    logger.error("Unknown command found in etcd for %s" % dev[
-                        "NQN"])
+                    logger.error("Unknown command found in etcd for %s" % dev["NQN"])
 
             if self.synchronize_etcd:
                 logger.info("Waiting for catch-up queue to empty")
@@ -808,6 +811,55 @@ class OSMDaemon:
         :return:
         """
         global g_restart_monitor_threads
+
+        def execute_subsystem_rpc():
+            spdk_namespaces = self.get_namespaces()
+            for nsid in namespaces:
+                pci_addr = namespaces[nsid]["PCIAddress"]
+                found = 0
+                for ns in spdk_namespaces:
+                    try:
+                        spdk_pci_addr = ns["driver_specific"]["nvme"]["trid"]["traddr"]
+                        if pci_addr == spdk_pci_addr:
+                            found = 1
+                            break
+                    except Exception:
+                        continue
+                if found:
+                    continue
+                else:
+                    # Build the SPDK RPC req for the command
+                    # construct_nvme_bdev and execute it.
+                    self.create_namespaces(namespaces[nsid])
+
+            rpc_req = SPDKJSONRPC.build_payload(command, rpc_args)
+            # logger.info(json.dumps(rpc_req, indent=2))
+            subsystem_lock.refresh()
+            logger.info("Sending JSON RPC call for nqn %s", nqn)
+            results = SPDKJSONRPC.call(rpc_req, self.jsonrpc_recv_size, self.default_spdk_rpc)
+            subsystem_lock.refresh()
+            logger.info("Sending JSON RPC call complete for nqn %s", nqn)
+            # logger.info("Results: \n" + json.dumps(results, indent=2))
+            return results
+
+        def get_numa_alignment(build_rpc=True):
+            numa_aligned = 1
+            numa_node = None
+            for nsid in namespaces:
+                sn = namespaces[nsid]["Serial"]
+                if build_rpc:
+                    rpc_args["namespaces"].append({"bdev_name": "%sn1" % sn,
+                                                    "nsid": int(nsid), })
+
+                # NUMA Alignment check for storage devices
+                if numa_aligned:
+                    cur_numa_node = self.etcd_server_attributes["storage"]["nvme"]["devices"][sn]["NUMANode"]
+                    if numa_node is None:
+                        numa_node = cur_numa_node
+                    elif cur_numa_node != numa_node:
+                        numa_aligned = 0
+            return numa_aligned
+
         while not stopper_event.is_set():
             # If the etcd server attributes are not initialized, then wait
             # till it gets initialized. Otherwise the nvmf subsystem calls fail
@@ -878,57 +930,10 @@ class OSMDaemon:
                         interface_speed = self.etcd_server_attributes["network"]["interfaces"][mac]["Speed"]
                         d["transport_addresses"] = {mac: {"interface_speed": interface_speed, }, }
 
-                    numa_aligned = 1
-                    numa_node = None
-                    for nsid in namespaces:
-                        sn = namespaces[nsid]["Serial"]
-                        rpc_args["namespaces"].append({"bdev_name": "%sn1" % sn,
-                                                       "nsid": int(nsid), })
-
-                        # NUMA Alignment check for storage devices
-                        if numa_aligned:
-                            cur_numa_node = self.etcd_server_attributes["storage"]["nvme"]["devices"][sn]["NUMANode"]
-                            if numa_node is None:
-                                numa_node = cur_numa_node
-                            elif cur_numa_node != numa_node:
-                                numa_aligned = 0
+                    numa_aligned = get_numa_alignment()
 
                     self.spdk_conf.add_subsystem_temp_local_config(config_dict)
-                elif command == "delete_nvmf_subsystem":
-                    self.remove_device_config(subsystem_lock, nqn)
-                    self.spdk_conf.delete_subsystem_temp_local_config(config_dict)
-                    rpc_args = {"nqn": nqn, }
-                else:
-                    logger.info("Unknown command [%s]. Exiting the system", command)
-                    sys.exit(-1)
-
-                spdk_namespaces = self.get_namespaces()
-                for nsid in namespaces:
-                    pci_addr = namespaces[nsid]["PCIAddress"]
-                    found = 0
-                    for ns in spdk_namespaces:
-                        try:
-                            spdk_pci_addr = ns["driver_specific"]["nvme"]["trid"]["traddr"]
-                            if pci_addr == spdk_pci_addr:
-                                found = 1
-                                break
-                        except Exception:
-                            continue
-                    if found:
-                        continue
-                    else:
-                        self.create_namespaces(namespaces[nsid])
-
-                rpc_req = SPDKJSONRPC.build_payload(command, rpc_args)
-                # logger.info(json.dumps(rpc_req, indent=2))
-                subsystem_lock.refresh()
-                logger.info("Sending JSON RPC call for nqn %s", nqn)
-                results = SPDKJSONRPC.call(rpc_req, self.jsonrpc_recv_size, self.default_spdk_rpc)
-                subsystem_lock.refresh()
-                logger.info("Sending JSON RPC call complete for nqn %s", nqn)
-                # logger.info("Results: \n" + json.dumps(results, indent=2))
-
-                if command == "construct_nvmf_subsystem":
+                    results = execute_subsystem_rpc()
                     if "error" in results:
                         logger.info("==== construct_nvmf_subsystem [%s] failed ====", nqn)
                         self.subsystem_fail(command, subsystem_lock, nqn, namespaces)
@@ -948,6 +953,10 @@ class OSMDaemon:
                                         'because of target restart')
                             g_restart_monitor_threads += 1
                 elif command == "delete_nvmf_subsystem":
+                    self.remove_device_config(subsystem_lock, nqn)
+                    self.spdk_conf.delete_subsystem_temp_local_config(config_dict)
+                    rpc_args = {"nqn": nqn, }
+                    results = execute_subsystem_rpc()
                     if "error" in results:
                         logger.info("==== delete_nvmf_subsystem [%s] failed ====", nqn)
                         self.subsystem_fail(command, subsystem_lock, nqn, namespaces)
@@ -965,8 +974,26 @@ class OSMDaemon:
                             logger.info('Restarting the monitoring threads '
                                         'because of target restart')
                             g_restart_monitor_threads += 1
+                elif command == "store_nvmf_subsystem":
+                    for mac in transport_addresses:
+                        interface_speed = self.etcd_server_attributes["network"]["interfaces"][mac]["Speed"]
+                        d["transport_addresses"] = {mac: {"interface_speed": interface_speed, }, }
+
+                    numa_aligned = get_numa_alignment(build_rpc=False)
+                    d["numa_aligned"] = numa_aligned
+                    self.nqn_uuid_map[nqn] = str(uuid.uuid4())
+                    d["UUID"] = self.nqn_uuid_map[nqn]
+                    d["time_created"] = time.time()
+                    self.backend.write_dict_to_etcd(d, self.SERVER_CONFIG_KEY_PREFIX + nqn + '/')
+                    self.set_device_config_status(subsystem_lock, nqn, "success")
+                    logger.info("==== store_nvmf_subsystem [%s] completed ====", nqn)
+                elif command == "erase_nvmf_subsystem":
+                    self.remove_device_config(subsystem_lock, nqn)
+                    self.removed_nqn_q.append(nqn)
+                    self.nqn_uuid_map.pop(nqn, None)
+                    logger.info("==== erase_nvmf_subsystem [%s] completed ====", nqn)
                 else:
-                    logger.error('Unknown command to handle %s', command)
+                    logger.info("Unknown command [%s]. Exiting the system", command)
                     sys.exit(-1)
 
                 if self.synchronize_etcd:
@@ -1121,25 +1148,25 @@ class OSMDaemon:
                                                                                             self.nqn_uuid_map))
             return
 
-        for drive in subsystem:
-            if drive.startswith('drive'):
+        for element in subsystem:
+            if element.startswith('drive'):
                 try:
                     # TODO The serial number coming from ustat is the
                     # TODO device name in nmaepsace. The proper serial
                     # TODO number should be sent by the ustat command.
                     # TODO For now, just strip the last two characters which is
                     # TODO more of the form <dev_serial> + "n1" to just serial
-                    serial = subsystem[drive]["id"]["serial"][:-2]
+                    serial = subsystem[element]["id"]["serial"][:-2]
                 except Exception:
                     logger.exception('ID or Serial not found for drive %s',
-                                     drive)
+                                     element)
                     continue
                 if serial not in prev_counters:
                     prev_counters[serial] = {}
 
-                if 'kvio' in subsystem[drive]:
+                if 'kvio' in subsystem[element]:
                     counters = {}
-                    self.statistics_helper(subsystem[drive]["kvio"].iteritems(),
+                    self.statistics_helper(subsystem[element]["kvio"].iteritems(),
                                            prev_counters[serial], counters, 0)
                     for counter in counters:
                         metric_path = "cluster_id_%s.target_id_%s.%s.disk.%s" % \
@@ -1147,22 +1174,22 @@ class OSMDaemon:
                                        "target_nqn_id_%s.disk_id_%s" % (subsystem_uuid, serial), counter)
                         value = str(counters[counter])
                         message_tuples.append((metric_path, (timestamp, value)))
-            elif drive.startswith('kvio'):
+            elif element.startswith('kvio'):
                 # Gather subsystem level statistics
                 if subsystem_uuid not in prev_counters:
                     prev_counters[subsystem_uuid] = {}
 
                 counters = {}
-                self.statistics_helper(subsystem[drive].iteritems(),
+                self.statistics_helper(subsystem[element].iteritems(),
                                        prev_counters[subsystem_uuid],
                                        counters,
                                        0)
-                for bw_element in ['getBandwidth', 'putBandwidth']:
+                for counter in counters:
                     metric_path = "cluster_id_%s.target_id_%s.%s.subsystem.%s" % \
                                       (self.CLUSTER_ID,
                                        self.SERVER_UUID,
-                                       "subsystem_id_%s" % (subsystem_uuid), bw_element)
-                    value = str(counters.get(bw_element, 0))
+                                       "subsystem_id_%s" % (subsystem_uuid), counter)
+                    value = str(counters[counter])
                     message_tuples.append((metric_path, (timestamp, value)))
 
     def session_statistics_to_message(self,
@@ -1620,6 +1647,13 @@ def start_target_only(internal_flag=False):
     return True
 
 
+def start_minio_stats_collector(osm_daemon_obj):
+    minio_stats_obj = MinioStats(osm_daemon_obj.CLUSTER_ID, osm_daemon_obj.SERVER_UUID,
+                                 statsdb_obj=osm_daemon_obj.stats_obj)
+    minio_stats_obj.get_device_subsystem_map()
+    minio_stats_obj.run_stats_collector()
+
+
 def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
                              performance_poll=1, stats=0,
                              endpoint="localhost", port=23790):
@@ -1642,6 +1676,7 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
     global g_daemon_obj
     global g_nvmf_pid
     global g_thread_arr
+
 
     if 'attribute_poll' in g_input_args:
         attribute_poll = g_input_args['attribute_poll']
@@ -1788,6 +1823,9 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         logger.info("'%s' starting" % thread[0])
         thread[1].start()
         logger.info("'%s' running" % thread[0])
+
+    # Start MINIO Stats collection
+    start_minio_stats_collector(daemon_obj)
 
     # Watches etcd for configuration changes pertaining to this server
     daemon_obj.subsystem_config_watcher()
@@ -2046,6 +2084,11 @@ def daemon(endpoint="localhost", port=23790):
     if status:
         logger.info("Agent is already running.")
         sys.exit(0)
+
+    try:
+        collect_system_info()
+    except:
+        logger.exception('Error in collecting system info')
 
     try:
         s_uuid = ServerAttr.OSMServerIdentity().server_identity_helper()['UUID']

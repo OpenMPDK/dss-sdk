@@ -40,6 +40,15 @@ int dfly_req_fini(struct dfly_request *req)
 {
 
 	void *key_data_buf = req->key_data_buf;//Still valid after fini
+	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(req->req_ssid);
+
+	if(req->dqpair) {
+		dfly_ustat_update_rqpair_stat(req->dqpair ,1);
+	}
+
+	if(ss->initialized == true) {
+		dfly_ustat_atomic_dec_u64(ss->stat_kvio, &ss->stat_kvio->pending_reqs);
+	}
 
 	if (req->req_fuse_data) {
 		dfly_fuse_release(req);
@@ -132,6 +141,9 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(req->req_ssid);
 	dfly_qp_counters_inc_io_count(nvmf_req->qpair->dqpair->stat_qpair, cmd->opc);
 	dfly_counters_increment_io_count(ss->stat_kvio, cmd->opc);
+	if(ss->initialized == true) {
+		dfly_ustat_atomic_inc_u64(ss->stat_kvio, &ss->stat_kvio->pending_reqs);
+	}
 	if (cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE) {
 		dfly_counters_size_count(ss->stat_kvio, nvmf_req, cmd->opc);
 		dfly_counters_bandwidth_cal(ss->stat_kvio, nvmf_req, cmd->opc);

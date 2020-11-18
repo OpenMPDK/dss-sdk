@@ -12,6 +12,7 @@ class UfmMonitor(UfmThread):
 
         self.log = self.ufmArg.log
         self.db = self.ufmArg.db
+        self.log.info("Init {}".format(self.__class__.__name__))
 
         self.msgListner = Subscriber(event=self.event,
                                      ports=(self.ufmArg.ufmPorts),
@@ -54,17 +55,15 @@ class UfmMonitor(UfmThread):
                                       repeatIntervalSecs=7.0)
 
         try:
-            self.watch_id = self.db.add_watch_callback(ufm_constants.UFM_PREFIX, self._ufmMonitorCallback)
+            self.watch_id = self.db.watch_callback(ufm_constants.UFM_PREFIX, self._ufmMonitorCallback)
         except Exception as e:
-            self.log.error('UFM: Could not set callback (key={}) (id={})'.format(ufm_constants.UFM_PREFIX,
-                                                                                 str(e)))
+            self.log.error('UFM: Could not set callback (key={}) (id={})'.format(ufm_constants.UFM_PREFIX, e))
             self.watch_id = None
 
         self.log.info("====> UFM: Done Configure DB key watch'er <====")
 
     def stop(self):
         super(UfmMonitor, self).stop()
-        self.log.info("Stop {}".format(self.__class__.__name__))
         self.msgListner.stop()
         self.msgListner.join()
 
@@ -77,6 +76,8 @@ class UfmMonitor(UfmThread):
                 self.log.error("UFM module: invalid watch ID")
             else:
                 self.db.cancel_watch(self.watch_id)
+
+        self.log.info("Stop {}".format(self.__class__.__name__))
 
     def is_running(self):
         return self._running

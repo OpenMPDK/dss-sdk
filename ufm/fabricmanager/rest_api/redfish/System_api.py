@@ -1,18 +1,26 @@
 # External imports
 import copy
-import sys
 import traceback
 
 # Flask imports
-from flask import Flask, request, make_response, render_template
-from flask_restful import reqparse, Api, Resource
+from flask import request
+# from flask import Flask
+# from flask import make_response
+# from flask import render_template
+
+from flask_restful import Resource
+# from flask_restful import reqparse
+# from flask_restful import Api
+
 from os.path import basename
 
 from common.ufmdb.redfish.redfish_ufmdb import RedfishUfmdb
 from common.ufmlog import ufmlog
-from common.ufmdb.redfish import ufmdb_redfish_resource
-from common.ufmdb.redfish.redfish_system_backend import RedfishSystemBackend, RedfishSystemCollectionBackend, \
-    RedfishCollectionBackend
+
+# from common.ufmdb.redfish import ufmdb_redfish_resource
+from common.ufmdb.redfish.redfish_system_backend import RedfishSystemBackend
+# from common.ufmdb.redfish.redfish_system_backend import RedfishSystemCollectionBackend
+from common.ufmdb.redfish.redfish_system_backend import RedfishCollectionBackend
 
 # Internal imports
 from rest_api.redfish.redfish_error_response import RedfishErrorResponse
@@ -47,8 +55,9 @@ class UfmdbSystemAPI(Resource):
 
         except Exception as e:
             self.log.exception(e)
-            #traceback.print_exc()
-            response = { "Status": 500, "Message": "Internal Server Error" }
+            # traceback.print_exc()
+            response = {"Status": 500,
+                        "Message": "Internal Server Error"}
 
         return response
 
@@ -60,11 +69,15 @@ class UfmdbSystemAPI(Resource):
             path = path.strip('/')
             path = "/" + path
             response = self.rfdb.get(path, "{}")
+            # payload = request.get_json(force=True)
+            # response = self.rfdb.get(path, payload)
+            self.log.error("="*40)
 
         except Exception as e:
             self.log.exception(e)
-            #traceback.print_exc()
-            response = { "Status": 500, "Message": "Internal Server Error" }
+            # traceback.print_exc()
+            response = {"Status": 500,
+                        "Message": "Internal Server Error"}
 
         return response
 
@@ -86,7 +99,7 @@ class SystemAPI(Resource):
             payload = request.get_json(force=True)
             redfish_backend = RedfishSystemBackend.create_instance(ident)
             response = redfish_backend.put(payload)
-        except NotImplementedError as e:
+        except NotImplementedError:
             response = self.rf_err_resp.get_method_not_allowed_response('System: ' + ident)
         except Exception as e:
             response = self.rf_err_resp.get_server_error_response(e)

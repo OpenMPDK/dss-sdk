@@ -38,11 +38,11 @@ class UfmController(UfmThread):
 
     def stop(self):
         # super(UfmController, self).stop()
-        self.ufmArg.log.info("Stop {}".format(self.__class__.__name__))
         self.msgListner.stop()
         self.msgListner.join()
 
         self._running = False
+        self.ufmArg.log.info("Stop {}".format(self.__class__.__name__))
 
     def is_running(self):
         return self._running
@@ -55,6 +55,5 @@ class UfmController(UfmThread):
         msg = {'module': 'ufm',
                'service': 'controller',
                'commandcompleted': True}
-
 
         self.ufmArg.publisher.send('ufmmonitor', msg)

@@ -161,3 +161,23 @@ int dfly_counters_increment_io_count(stat_kvio_t *stats, int opc)
 	return 0;
 }
 
+void dfly_counters_reset(struct dfly_subsystem *subsystem)
+{
+	int i;
+	dfly_ctrl_t *ctrl;
+	struct dfly_qpair_s *dqpair;
+
+	dfly_ustat_reset_kvio_stat(subsystem->stat_kvio);
+
+	for (i=0; i< subsystem->num_io_devices;i++) {
+		dfly_ustat_reset_kvio_stat(subsystem->devices[i].stat_io);
+	}
+
+	pthread_mutex_lock(&subsystem->ctrl_lock);//Lock Begin
+	TAILQ_FOREACH(ctrl, &subsystem->df_ctrlrs, ct_link) {
+		TAILQ_FOREACH(dqpair, &ctrl->df_qpairs, qp_link) {
+			dfly_qp_reset_counters(dqpair->stat_qpair);
+		}
+	}
+	pthread_mutex_unlock(&subsystem->ctrl_lock);//Release Lock
+}

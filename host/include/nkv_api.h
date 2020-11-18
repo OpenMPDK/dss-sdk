@@ -381,6 +381,102 @@ nkv_result nkv_get_supported_feature_list(uint64_t nkv_handle, nkv_feature_list 
 
 nkv_result nkv_set_supported_feature_list(uint64_t nkv_handle, nkv_feature_list *features);
 
+/*! Register application stat counter to NKV
+ *  
+ *  Application will use this API to register it's stat counter to NKV for centralized
+ *  lightweight stat collection via ustat. One register call per counter.
+ *
+ *  IN  nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *  IN  module_name – Application module name will be prepended with counter name
+ *  IN  stat_cnt - nkv_stat_counter structure having details of counter
+ *  OUT statctx - NKV will allocate and provide a stat io context for future communication.
+ *                This context will be deleted during unregister call.
+ *
+ */
+
+nkv_result nkv_register_stat_counter(uint64_t nkv_handle, const char* module_name, 
+                                      nkv_stat_counter* stat_cnt, void **statctx);
+
+/*! Unregister application stat counter from NKV
+ *  
+ *   Application will use this API to unregister it's stat counter from NKV
+ *    
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN statctx - stat io context for the corresponding counter application wants to unregister
+ *          
+ */
+
+nkv_result nkv_unregister_stat_counter(uint64_t nkv_handle, void *statctx);
+
+
+/*!  Application wants to set a value to one of it's stat counter
+ *  
+ *   Application will use this API to set its counter value
+ *   
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN value - A positive counter value application wants to set 
+ *   IN statctx - stat IO context for the counter application wants to set value to
+ *   
+ */
+
+nkv_result nkv_set_stat_counter(uint64_t nkv_handle, uint64_t value, void *statctx);
+
+
+/*!  Application wants to add a value to one of it's stat counter
+ *  
+ *   Application will use this API to add to its counter value
+ *  
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN value - A positive counter value application wants to add
+ *   IN statctx - stat IO context for the counter application wants to add value to
+ *  
+ */
+
+
+nkv_result nkv_add_to_counter(uint64_t nkv_handle, uint64_t value, void *statctx);
+
+
+/*!  Application wants to subtract a value from one of it's stat counter
+ *  
+ *   Application will use this API to subtract from its counter value
+ *   
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN value - A positive counter value application wants to subtract
+ *   IN statctx - stat IO context for the counter application wants to subtract value from
+ *   
+ */
+
+
+
+nkv_result nkv_sub_from_counter(uint64_t nkv_handle, uint64_t value, void *statctx);
+
+
+/*!  Application wants to increment a value by one to one of it's stat counter
+ *  
+ *   Application will use this API to increment its counter value by one
+ *   
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN statctx - stat IO context for the counter application wants to increment
+ *        
+ */
+
+
+nkv_result nkv_inc_to_counter(uint64_t nkv_handle, void *statctx);
+
+
+/*!  Application wants to decrement a value by one to one of it's stat counter
+ *  
+ *   Application will use this API to decrement its counter value by one
+ *    
+ *   IN nkv_handle - A positive unique id for combination of nkv and the application(not instance)
+ *   IN statctx - stat IO context for the counter application wants to decrement
+ *   
+ */
+
+
+
+nkv_result nkv_dec_to_counter(uint64_t nkv_handle, void *statctx);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

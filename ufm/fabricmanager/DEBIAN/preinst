@@ -37,7 +37,7 @@ grep ^NAME /etc/os-release | grep -i CentOS
 [[ $OS_TYPE -eq 2 ]] && centos_pip_install
 
 [[ -e /etc/systemd/system/ufm.service ]] && systemctl stop ufm
-[[ -e /etc/systemd/system/gunicorn.service ]] && systemctl stop gunicorn
+[[ -e /etc/systemd/system/ufm_api.service ]] && systemctl stop ufm_api
 
 # The exit is to ignore any error code from systemctl
 exit 0

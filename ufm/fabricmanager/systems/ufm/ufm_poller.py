@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 import threading
+import time
+from subprocess import PIPE, Popen
 
 from ufm_thread import UfmThread
 from systems.ufm import ufm_constants
@@ -28,19 +30,21 @@ class UfmPoller(UfmThread):
 
     def start(self):
         self.ufmArg.log.info("Start {}".format(self.__class__.__name__))
+        self.ufmArg.lastDatabaseIsUp = False
         self.startTime = datetime.now()
         self.ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, str(0))
+        self.ufmArg.db.put('/cluster/uptime_in_seconds', str(0))
 
         self.msgListner.start()
 
         self._running = True
-        super(UfmPoller, self).start(threadName='UfmPoller',
-                                     cb=self._poller,
-                                     cbArgs=self.ufmArg,
-                                     repeatIntervalSecs=6.0)
+        super(UfmPoller, self).start(threadName='UfmPoller', cb=self._poller,
+                                     cbArgs=self.ufmArg, repeatIntervalSecs=60.0)
 
     def stop(self):
+        self.event.set()
         super(UfmPoller, self).stop()
+        self.ufmArg.db.put('/cluster/uptime_in_seconds', str(0))
         self.msgListner.stop()
         self.msgListner.join()
 
@@ -50,22 +54,111 @@ class UfmPoller(UfmThread):
     def is_running(self):
         return self._running
 
-    def _poller(self, ufmArg):
-        # Save current uptime to DB
-        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY,
-                      str((datetime.now() - self.startTime).seconds))
+    def read_system_uptime(self):
+        uptime = 0
+        with open('/proc/uptime') as f:
+            out = f.read()
+            # Convert seconds to hours
+            uptime = int(float(out.split()[0]))/3600
 
-        # Read disk space of node and write it to db
+        return uptime
+
+    def read_node_capacity_in_kb(self):
+        df = os.statvfs('/')
+        if df.f_blocks > 0:
+            return df.f_blocks * 4
+        return 0
+
+    def read_avail_space_percent():
         df_struct = os.statvfs('/')
         if df_struct.f_blocks > 0:
-            df_out = df_struct.f_bfree * 100 / df_struct.f_blocks
-            if df_out:
-                ufmArg.db.put(ufm_constants.UFM_LOCAL_DISKSPACE, str(df_out))
+            return df_struct.f_bfree * 100 / df_struct.f_blocks
+        return 0
 
-            if df_out > 95.0:
-                diskSpaceMsg = dict()
-                diskSpaceMsg['status'] = "ok"
-                diskSpaceMsg['service'] = "UfmPoller"
-                diskSpaceMsg['local_disk_space'] = int(df_out)
+    def isDatabaseUp(self):
+        cmd = "ETCDCTL_API=3 etcdctl endpoint health"
 
-                self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE, diskSpaceMsg)
+        pipe = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+        out, err = pipe.communicate()
+        if out:
+            for line in out.decode('utf-8').splitlines():
+                if 'healthy' in line:
+                    return True
+
+        return False
+
+    def isDatabaseRunning(self, ufmArg):
+        databaseIsUp = self.isDatabaseUp()
+
+        if ufmArg.lastDatabaseIsUp != databaseIsUp:
+            ufmArg.lastDatabaseIsUp = databaseIsUp
+            statusKey = "/cluster/{}".format(ufmArg.hostname)
+            if databaseIsUp:
+                databaseState = 'up'
+            else:
+                databaseState = 'down'
+                # if database is down, do not try to write to it
+
+                databaseStateMsg = {'module': 'UfmPoller',
+                                    'service': 'poller',
+                                    'database_state': 'down'}
+
+                ufmArg.publisher.send(ufm_constants.UFM_DATABASE_STATE, databaseStateMsg)
+
+                return False
+
+            ufmArg.db.put(statusKey + "/status", databaseState)
+            ufmArg.db.put(statusKey + "/status_updated", str(int(time.time())))
+
+        try:
+            if not ufmArg.nodeStatusLease or ufmArg.nodeStatusLease.remaining_ttl < 0:
+                ufmArg.nodeStatusLease = ufmArg.db.lease(20)
+            else:
+                ufmArg.nodeStatusLease.refresh_lease()
+        except Exception:
+            ufmArg.log.exception('Failed to creating/renewing lease')
+
+        # Only leader and status have a lease
+        try:
+            dbStatus = ufmArg.db.status()
+
+            ufmArg.db.put("/cluster/leader", dbStatus.leader.name.lower(), lease=ufmArg.nodeStatusLease)
+        except Exception as ex:
+            ufmArg.log.error("Failed to update leader-name and database size: {}".format(ex))
+            return False
+
+        return True
+
+    def _poller(self, ufmArg):
+        if not self.isDatabaseRunning(ufmArg):
+            ufmArg.log.error("Database is down")
+            return
+
+        # Save current uptime to DB
+        uptimeString = str((datetime.now() - self.startTime).seconds)
+
+        ufmArg.db.put(ufm_constants.UFM_UPTIME_KEY, uptimeString)
+        ufmArg.db.put('/cluster/uptime_in_seconds', uptimeString)
+
+        hostname = ufmArg.hostname
+        uptime = self.read_system_uptime()
+        ufmArg.db.put("/cluster/{}/uptime".format(hostname), str(uptime))
+
+        node_capacity_Kb = self.read_node_capacity_in_kb()
+        if node_capacity_Kb:
+            ufmArg.db.put("/cluster/{}/total_capacity_in_kb".format(hostname), str(node_capacity_Kb))
+
+        avail_space_percent = self.read_avail_space_percent()
+        if avail_space_percent:
+            ufmArg.db.put(ufm_constants.UFM_LOCAL_DISKSPACE, str(avail_space_percent))
+
+            # NKV needs the disk space in this location of the db
+            ufmArg.db.put("/cluster/{}/space_avail_percent".format(hostname), str(avail_space_percent))
+
+        if avail_space_percent > 95.0:
+            diskSpaceMsg = dict()
+            diskSpaceMsg['status'] = "ok"
+            diskSpaceMsg['service'] = "UfmPoller"
+            diskSpaceMsg['local_disk_space'] = int(avail_space_percent)
+
+            self.ufmArg.publisher.send(ufm_constants.UFM_LOCAL_DISKSPACE, diskSpaceMsg)

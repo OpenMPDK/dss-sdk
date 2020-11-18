@@ -77,6 +77,7 @@ dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
 	uint32_t        cdw0;
 
 	struct dfly_request *dreq;
+	struct dfly_io_device_s *io_device;
 
 	spdk_bdev_io_get_nvme_status(bdev_io, &cdw0, &sct, &sc);
 	response->status.sc = sc;
@@ -88,6 +89,11 @@ dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
 	assert(dreq != NULL);
 
 	assert(dreq->state == DFLY_REQ_IO_SUBMITTED_TO_DEVICE);
+
+	io_device = (struct dfly_io_device_s *) req->dreq->io_device;
+	DFLY_ASSERT(io_device);
+
+	dfly_ustat_atomic_dec_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
 
 	dreq->status = success;
 
@@ -150,6 +156,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		dfly_counters_size_count(io_device->stat_io, req, cmd->opc);
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
+	dfly_ustat_atomic_inc_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
 
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation

@@ -1,2 +1,0 @@
-class EtcdConnectionFail(Exception):
-    pass

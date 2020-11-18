@@ -2149,7 +2149,7 @@ index 4011fd6..f79a2e9 100644
  	if (rc != 0) {
  		SPDK_ERRLOG("Subsystem %s: bdev %s cannot be opened, error=%d\n",
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index e615691..dbe2da1 100644
+index e615691..7fb6c3e 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -60,7 +60,7 @@
@@ -2789,11 +2789,11 @@ index e615691..dbe2da1 100644
  			spdk_nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_NEED_BUFFER);
 -			TAILQ_INSERT_TAIL(&tqpair->ch->pending_data_buf_queue, tcp_req, link);
 +			TAILQ_INSERT_TAIL(&tqpair->group->pending_data_buf_queue, tcp_req, link);
-+			break;
+ 			break;
 +		//SPDK_CONFIG_OSS_TARGET
 +		case TCP_REQUEST_STATE_TRANSFERRING_KEY_DATA:
 +			//External Code should kick this in??
- 			break;
++			break;
 +		//END - SPDK_CONFIG_OSS_TARGET
  		case TCP_REQUEST_STATE_NEED_BUFFER:
  			spdk_trace_record(TRACE_TCP_REQUEST_STATE_NEED_BUFFER, 0, 0, (uintptr_t)tcp_req, 0);
@@ -2855,17 +2855,7 @@ index e615691..dbe2da1 100644
  			break;
  		case TCP_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST:
  			spdk_trace_record(TRACE_TCP_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST, 0, 0,
-@@ -2582,6 +2897,9 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
- 			break;
- 		case TCP_REQUEST_STATE_COMPLETED:
- 			spdk_trace_record(TRACE_TCP_REQUEST_STATE_COMPLETED, 0, 0, (uintptr_t)tcp_req, 0);
-+			if(!spdk_nvmf_qpair_is_admin_queue(&tqpair->qpair)) {
-+				dfly_ustat_update_rqpair_stat((&tqpair->qpair)->dqpair ,1);
-+			}
- 			if (tcp_req->data_from_pool) {
- 				/* Put the buffer/s back in the pool */
- 				for (uint32_t i = 0; i < tcp_req->req.iovcnt; i++) {
-@@ -2594,6 +2912,16 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+@@ -2594,6 +2909,16 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
  			tcp_req->req.length = 0;
  			tcp_req->req.iovcnt = 0;
  			tcp_req->req.data = NULL;
@@ -2882,7 +2872,7 @@ index e615691..dbe2da1 100644
  			spdk_nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_FREE);
  			break;
  		case TCP_REQUEST_NUM_STATES:
-@@ -2611,21 +2939,6 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+@@ -2611,21 +2936,6 @@ spdk_nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
  }
  
  static void
@@ -2904,7 +2894,7 @@ index e615691..dbe2da1 100644
  spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock *sock)
  {
  	struct nvme_tcp_qpair *tqpair = arg;
-@@ -2639,7 +2952,6 @@ spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock
+@@ -2639,7 +2949,6 @@ spdk_nvmf_tcp_sock_cb(void *arg, struct spdk_sock_group *group, struct spdk_sock
  	}
  
  	ttransport = SPDK_CONTAINEROF(tqpair->qpair.transport, struct spdk_nvmf_tcp_transport, transport);
@@ -2912,7 +2902,7 @@ index e615691..dbe2da1 100644
  	rc = spdk_nvmf_tcp_sock_process(tqpair);
  	if (rc < 0) {
  		tqpair->state = NVME_TCP_QPAIR_STATE_EXITED;
-@@ -2690,6 +3002,7 @@ spdk_nvmf_tcp_poll_group_add(struct spdk_nvmf_transport_poll_group *group,
+@@ -2690,6 +2999,7 @@ spdk_nvmf_tcp_poll_group_add(struct spdk_nvmf_transport_poll_group *group,
  		return -1;
  	}
  
@@ -2920,7 +2910,7 @@ index e615691..dbe2da1 100644
  	tqpair->state = NVME_TCP_QPAIR_STATE_INVALID;
  	tqpair->timeout = SPDK_NVME_TCP_QPAIR_EXIT_TIMEOUT;
  	tqpair->last_pdu_time = spdk_get_ticks();
-@@ -2709,6 +3022,9 @@ spdk_nvmf_tcp_poll_group_remove(struct spdk_nvmf_transport_poll_group *group,
+@@ -2709,6 +3019,9 @@ spdk_nvmf_tcp_poll_group_remove(struct spdk_nvmf_transport_poll_group *group,
  	tgroup = SPDK_CONTAINEROF(group, struct spdk_nvmf_tcp_poll_group, group);
  	tqpair = SPDK_CONTAINEROF(qpair, struct nvme_tcp_qpair, qpair);
  
@@ -2930,7 +2920,7 @@ index e615691..dbe2da1 100644
  	SPDK_DEBUGLOG(SPDK_LOG_NVMF_TCP, "remove tqpair=%p from the tgroup=%p\n", tqpair, tgroup);
  	TAILQ_REMOVE(&tgroup->qpairs, tqpair, link);
  	rc = spdk_sock_group_remove_sock(tgroup->sock_group, tqpair->sock);
-@@ -2748,6 +3064,9 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
+@@ -2748,6 +3061,9 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
  {
  	struct spdk_nvmf_tcp_poll_group *tgroup;
  	int rc;
@@ -2940,7 +2930,7 @@ index e615691..dbe2da1 100644
  
  	tgroup = SPDK_CONTAINEROF(group, struct spdk_nvmf_tcp_poll_group, group);
  
-@@ -2755,12 +3074,22 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
+@@ -2755,12 +3071,22 @@ spdk_nvmf_tcp_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
  		return 0;
  	}
  
@@ -2963,7 +2953,7 @@ index e615691..dbe2da1 100644
  	return 0;
  }
  
-@@ -2838,6 +3167,11 @@ spdk_nvmf_tcp_qpair_set_sq_size(struct spdk_nvmf_qpair *qpair)
+@@ -2838,6 +3164,11 @@ spdk_nvmf_tcp_qpair_set_sq_size(struct spdk_nvmf_qpair *qpair)
  	rc = spdk_nvmf_tcp_qpair_init_mem_resource(tqpair, tqpair->qpair.sq_head_max);
  	if (!rc) {
  		tqpair->max_queue_depth += tqpair->qpair.sq_head_max;
@@ -2989,7 +2979,7 @@ index beba2f5..53367f6 100644
  clean :
  	$(CLEAN_C) $(APP)
 diff --git a/mk/spdk.common.mk b/mk/spdk.common.mk
-index 2812e20..1d2853b 100644
+index 2812e20..814f35b 100644
 --- a/mk/spdk.common.mk
 +++ b/mk/spdk.common.mk
 @@ -73,7 +73,7 @@ endif
@@ -3032,10 +3022,10 @@ index 2812e20..1d2853b 100644
  # Link $(OBJS) and $(LIBS) into $@ (app)
 diff --git a/scripts/dss_get_latency_profile.py b/scripts/dss_get_latency_profile.py
 new file mode 100755
-index 0000000..1cdb063
+index 0000000..1c57d65
 --- /dev/null
 +++ b/scripts/dss_get_latency_profile.py
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,62 @@
 +#!/usr/bin/env python3
 +
 +from rpc.client import print_dict, JSONRPCException
@@ -3081,6 +3071,14 @@ index 0000000..1cdb063
 +    p.add_argument('-q', '--qid', help='NVMe-oF target subnqn controller qpair ID', type=int)
 +    p.set_defaults(func=get_qpair_latency_profile)
 +
++    def reset_ustat_counters(args):
++        print_dict(rpc.latency_profile.reset_ustat_counters(args.client,
++                                                      nqn=args.nqn))
++
++    p = subparsers.add_parser('reset_ustat_counters', help='Reset ustat counters for NVMEoF subsystem')
++    p.add_argument('-n', '--nqn', help='NVMe-oF target nqn')
++    p.set_defaults(func=reset_ustat_counters)
++
 +    args = parser.parse_args()
 +
 +    try:
@@ -3104,10 +3102,10 @@ index f7e92f7..141893e 100644
  def start_subsystem_init(client):
 diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
 new file mode 100644
-index 0000000..c3bd942
+index 0000000..e041406
 --- /dev/null
 +++ b/scripts/rpc/latency_profile.py
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,31 @@
 +def get_qpair_latency_profile(client, nqn, cid, qid):
 +    """Get latency profile information for an NVMe-oF subsystem/
 +
@@ -3125,6 +3123,20 @@ index 0000000..c3bd942
 +              'qid': qid}
 +
 +    return client.call('dss_get_latency_profile', params)
++
++def reset_ustat_counters(client, nqn):
++	"""Reset ustat counters for an NVMEoF subsystem
++
++	Args:
++		nqn: Subsystem NQN
++
++	Returns:
++		true when reset is done
++	"""
++
++	params = {'nqn': nqn}
++
++	return client.call('dss_reset_ustat_counters', params)
 diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
 index 18037dc..4fd14df 100644
 --- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c

@@ -12,6 +12,7 @@ LimitNOFILE=40000
 TimeoutStartSec=0
 
 ExecStart=/usr/bin/etcd \
+    --auto-compaction-retention=1 --quota-backend-bytes=8589934592 \
     --name {{ inventory_hostname_short }} \
     --data-dir /var/lib/etcd \
     --listen-client-urls http://{{ ansible_default_ipv4.address }}:{{ ufm_etcd_client_port }},http://127.0.0.1:{{ ufm_etcd_client_port }} \

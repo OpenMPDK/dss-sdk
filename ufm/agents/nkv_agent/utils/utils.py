@@ -149,26 +149,26 @@ def find_process_pid(pname_regex, cmds):
     :param cmds: Process cmd regex to match.
     :return: Running PID otherwise 0.
     """
-    p_name_found = cmds_match = False
     # Ignore finding this process
     cur_pid = os.getpid()
     # Ignore finding the parent of this process
     par_pid = os.getppid()
+    pid_list = []
     for proc in psutil.process_iter(attrs=['ppid', 'pid', 'name']):
         if cur_pid == proc.info["pid"] or \
            par_pid == proc.info["pid"]:
             continue
 
+        p_name_found = cmds_match = False
         m = re.match(pname_regex, proc.info["name"])
         if m is not None:
             p_name_found = True
             cmds_match = match_cmds_with_process(cmds, proc.cmdline(), 1)
 
         if p_name_found and cmds_match:
-            return proc.info["pid"]
-        else:
-            p_name_found = cmds_match = False
-    return 0
+            pid_list.append(proc.info["pid"])
+
+    return pid_list
 
 
 def check_spdk_running(nvmf_tgt_pidfile='nvmf_tgt.pid'):
@@ -183,9 +183,11 @@ def check_spdk_running(nvmf_tgt_pidfile='nvmf_tgt.pid'):
         process_running = 1
     else:
         cmds = ["nvmf_tgt", ]
-        pid = find_process_pid(proc_name, cmds)
-        if pid > 0:
-            process_running = 1
+        pid_list = find_process_pid(proc_name, cmds)
+        if pid_list:
+            pid = pid_list[0]
+            if pid > 0:
+                process_running = 1
     return pid, process_running
 
 

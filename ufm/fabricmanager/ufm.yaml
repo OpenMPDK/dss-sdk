@@ -7,32 +7,10 @@ ufm:
     brokerPort: 6000
     brokerIpFromDb: False
 
-essd:
-    enable: False
-    start: False
-    messageQueuePort: 5511
-
-    # essdDrive is optional
-    essdDrives:
-        - "http://172.22.4.58:32860"
-        - "http://172.22.4.58:32852"
-        - "http://172.22.4.58:32851"
-        - "http://172.22.4.58:32826"
-
 nkv:
     enable: True
     start: True
     messageQueuePort: 5512
-
-ebof:
-    enable: False
-    start: False
-    messageQueuePort: 5513
-
-smart:
-    enable: False
-    start: False
-    messageQueuePort: 5514
 
 switch:
 
@@ -67,7 +45,4 @@ switch:
         usrname: xxxx
         pwd: xxxx
         messageQueuePort: xxxx
-
-
-
 

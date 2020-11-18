@@ -94,6 +94,7 @@ typedef struct stat_kvio {
 	ustat_named_t get_256KB_1MB;
 	ustat_named_t get_1MB_2MB;
 	ustat_named_t get_large_2MB;
+	ustat_named_t pending_reqs;
 } stat_kvio_t;
 
 typedef struct stat_rqpair {
@@ -157,6 +158,9 @@ void dfly_ustat_atomic_add_u64(ustat_struct_t *s, ustat_named_t *n, uint64_t v);
 uint64_t dfly_ustat_get_u64(ustat_struct_t *s, ustat_named_t *n);
 void dfly_ustat_set_u64(ustat_struct_t *s, ustat_named_t *n, uint64_t v);
 void dfly_ustat_set_string(ustat_struct_t *s, ustat_named_t *n, const char *str);
+
+void dfly_ustat_reset_kvio_stat(stat_kvio_t *stat);
+void dfly_qp_reset_counters(stat_rqpair_t *stats);
 
 #ifdef  __cplusplus
 }

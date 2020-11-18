@@ -45,19 +45,15 @@ class VlansMenu(UfmMenu):
                           desc=crt["description"])
             self.crt = crt
 
-        return
-
     def _back_action(self, menu, item):
         from ufmadm_switches import SwitchMenu
 
         switch_menu = SwitchMenu(fab=self.fab, sw=self.sw)
         self.set_menu(switch_menu)
-        return
 
     def _menu_action(self, menu, item):
         vlan_menu = VlanMenu(fab=self.fab, sw=self.sw, vlan=item.priv)
         self.set_menu(vlan_menu)
-        return
 
     def _create_action(self, menu, item):
         argv = item.argv
@@ -78,8 +74,6 @@ class VlansMenu(UfmMenu):
                                                'Failed to create VLAN')
         if succeeded:
             self._refresh()
-
-        return
 
 
 class VlanMenu(UfmMenu):
@@ -103,7 +97,6 @@ class VlanMenu(UfmMenu):
         self.vlan = vlan
 
         self._refresh()
-        return
 
     def _refresh(self):
         rsp = ufmapi.redfish_get(
@@ -165,19 +158,15 @@ class VlanMenu(UfmMenu):
 
                     count = count + 1
 
-        return
-
     def _back_action(self, menu, item):
         switches_menu = VlansMenu(fab=self.fab, sw=self.sw)
         self.set_menu(switches_menu)
-        return
 
     def _menu_action(self, menu, item):
         from ufmadm_ports import PortMenu
 
         port_menu = PortMenu(fab=self.fab, sw=self.sw, pt=item.priv)
         self.set_menu(port_menu)
-        return
 
     def _delete_vlan_action(self, menu, item):
         rsp = ufmapi.redfish_post(self.dlt["target"])
@@ -188,8 +177,6 @@ class VlanMenu(UfmMenu):
                                                'Failed to delete VLAN')
         if succeeded:
             self._back_action(menu, item)
-
-        return
 
     def _name_vlan_action(self, menu, item):
         argv = item.argv
@@ -211,4 +198,3 @@ class VlanMenu(UfmMenu):
                                                'Failed to name VLAN')
         if succeeded:
             self._refresh()
-        return

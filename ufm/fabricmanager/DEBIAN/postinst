@@ -25,22 +25,32 @@ then
   chmod 666 /var/log/ufm
 fi
 
+# Create service's temp directory
+# Need to be created before service starts
+if [[ ! -e /usr/share/${SERVICE}/ufm_tmp ]]
+then
+  mkdir -p /usr/share/${SERVICE}/ufm_tmp
+  chmod 666 /usr/share/${SERVICE}/ufm_tmp
+fi
+
+/usr/bin/env python3 -m pip install --upgrade pip
+
 /usr/bin/env python3 -m pip install -r /usr/share/${SERVICE}/requirements.txt
 [[ $? -ne 0 ]] && die "ERR: Failed to install requirements.txt "
 
 [[ ! -e ${SERVICE_PATH}/${SERVICE}.service ]] && die "ERR: Failed to create service file for ${SERVICE}"
-[[ ! -e ${SERVICE_PATH}/gunicorn.service ]] && die "ERR: Failed to copy gunicorn service file"
+[[ ! -e ${SERVICE_PATH}/ufm_api.service ]] && die "ERR: Failed to copy ufm_api service file"
 
 cp ${SERVICE_PATH}/${SERVICE}.service /etc/systemd/system/
-cp ${SERVICE_PATH}/gunicorn.service /etc/systemd/system/
+cp ${SERVICE_PATH}/ufm_api.service /etc/systemd/system/
 
 systemctl daemon-reload
 
-systemctl enable gunicorn
-systemctl start gunicorn
-
 systemctl enable ${SERVICE}
 systemctl start ${SERVICE}
+
+systemctl enable ufm_api
+systemctl start ufm_api
 
 exit 0
 
