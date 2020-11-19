@@ -50,6 +50,7 @@ import utils.backend_layer as backend_layer
 import utils.key_prefix_constants as key_cons
 import utils.usr_signal as usr_signal
 from device_driver_setup.driver_setup import DriverSetup
+from diamond_conf import DiamondConf
 from spdk_config_file.spdk_config import SPDKConfig
 from server_info.server_hardware import collect_system_info
 from utils.jsonrpc import SPDKJSONRPC
@@ -132,6 +133,7 @@ class OSMDaemon:
         self.backend = backend_layer.BackendLayer(endpoint, port)
         self.client = self.backend.client
         self.db_handle = self.backend.db_handle
+        self.diamond_conf = DiamondConf()
 
         # Key-Value Database Key Prefixes
         system_identity = self.identity_fn()
@@ -276,6 +278,14 @@ class OSMDaemon:
                          "graphite/statsd")
             sys.exit(-1)
 
+        try:
+            self.diamond_conf.update_diamond_conf(self.stats_mode, self.stats_server,
+                                                  self.stats_port,
+                                                  "cluster_id_" + self.CLUSTER_ID,
+                                                  "target_id_" + self.SERVER_UUID)
+        except:
+            logger.exception('Exception in updating diamond configuration')
+            
     @staticmethod
     def find_set_delta(set_a, set_b):
         delta_arr = []
