@@ -526,6 +526,8 @@ void _dev_init(void *device, void *cb_event)
 	dss_dev->rdb_handle->rdb_bs_handle = spdk_bdev_create_bs_dev(dss_dev->ns->bdev, NULL, NULL);
 	dss_dev->rdb_handle->rdb_bs_handle->icore = dss_dev->icore;
 	dfly_ustat_init_bdev_stat(dss_dev->rdb_handle->dev_name);//Initialize ustat
+	dss_dev->rdb_handle->compaction_in_progress = false;
+	pthread_mutex_init(&dss_dev->rdb_handle->rdb_lock, NULL);
 
 	DFLY_NOTICELOG("Initializing device %s %d in core %d\n",dss_dev->rdb_handle->dev_name, dss_dev->index, spdk_env_get_current_core());
 

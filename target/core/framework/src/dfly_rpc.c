@@ -805,3 +805,84 @@ invalid:
 	return;
 }
 SPDK_RPC_REGISTER("dss_reset_ustat_counters", dss_rpc_reset_ustat_counters, SPDK_RPC_RUNTIME)
+
+struct dss_rpc_nqn_req_s {
+	char *nqn;
+};
+
+static const struct spdk_json_object_decoder dss_rpc_nqn_decoder[] = {
+	{"nqn", offsetof(struct dss_rpc_nqn_req_s, nqn), spdk_json_decode_string},
+};
+
+static  struct dfly_subsystem * dss_rpc_decode_nqn_param(const struct spdk_json_val *params,
+					struct dss_rpc_nqn_req_s *nqn_req)
+{
+	struct spdk_nvmf_subsystem *subsystem;
+	struct dfly_subsystem *df_subsys;
+
+	if (spdk_json_decode_object(params, dss_rpc_nqn_decoder,
+				    SPDK_COUNTOF(dss_rpc_nqn_decoder),
+				    nqn_req)) {
+		DFLY_ERRLOG("spdk_json_decode_object failed\n");
+		return NULL;
+	}
+
+	subsystem = spdk_nvmf_tgt_find_subsystem(g_spdk_nvmf_tgt, nqn_req->nqn);
+	if (!subsystem) {
+		DFLY_ERRLOG("Subsystem not found\n");
+		return NULL;
+	}
+
+	df_subsys = dfly_get_subsystem_no_lock(dfly_get_nvmf_ssid(subsystem));
+
+	if(df_subsys && df_subsys->initialized == true) {
+		return df_subsys;
+	} else {
+		DFLY_ERRLOG("Subsystem not initialized\n");
+		return NULL;
+	}
+
+}
+
+void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req)
+{
+	free(req->nqn);
+}
+
+static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
+		const struct spdk_json_val *params)
+{
+	struct dss_rpc_nqn_req_s req = {};
+	struct dfly_subsystem *df_subsys;
+	struct spdk_json_write_ctx *w;
+	int i;
+
+	if((df_subsys = dss_rpc_decode_nqn_param(params, &req)) == NULL) {
+		goto invalid;
+	}
+
+	for(i=0; i < df_subsys->num_io_devices; i++) {
+		dss_rocksdb_compaction(&df_subsys->devices[i]);
+	}
+
+	w = spdk_jsonrpc_begin_result(request);
+	if (w == NULL) {
+		return;
+	}
+
+	spdk_json_write_object_begin(w);
+
+	spdk_json_write_name(w, "result");
+	spdk_json_write_bool(w, true);
+
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_result(request, w);
+	free_rpc_latency_profile(&req);
+	return;
+
+invalid:
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
+	free_rpc_nqn_req(&req);
+}
+SPDK_RPC_REGISTER("dss_rdb_compact", dss_rpc_rdb_compact, SPDK_RPC_RUNTIME)

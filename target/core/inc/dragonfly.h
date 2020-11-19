@@ -156,6 +156,8 @@ struct rdb_dev_ctx_s {
 	struct spdk_fs_thread_ctx * dev_channel;
 	void *rdb_db_handle;
 	void* rdb_env;
+	bool compaction_in_progress;
+	pthread_mutex_t rdb_lock;
 };
 
 struct dfly_io_device_s {
