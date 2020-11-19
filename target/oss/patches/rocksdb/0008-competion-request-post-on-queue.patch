@@ -1,7 +1,7 @@
-From 923e9bbec6d8a582f64d20a56d735f569ed3b7f3 Mon Sep 17 00:00:00 2001
+From 4097a7dd88f7caeefa4531734d50d4b67398ed8c Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:50:05 -0800
-Subject: [PATCH 08/11] - competion request post on queue - tuning rdb write
+Subject: [PATCH 08/12] - competion request post on queue - tuning rdb write
  buffer and background thread for write performance.
 
 ---
