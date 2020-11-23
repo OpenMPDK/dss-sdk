@@ -715,17 +715,20 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     }
 
     if (nkv_use_read_cache) {
-      std::size_t found = key_str.find(iter_prefix);
-      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->length <= (uint32_t)nkv_data_cache_size_threshold)) {
+      std::size_t found_sys_meta = key_str.find(".minio.sys"); 
+      if (found_sys_meta == std::string::npos) {
+        std::size_t found = key_str.find(iter_prefix);
+        if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->length <= (uint32_t)nkv_data_cache_size_threshold)) {
 
-        std::size_t key_prefix = std::hash<std::string>{}(key_str);
-        int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
-        void* c_buffer = malloc(n_value->length);
-        memcpy(c_buffer, n_value->value, n_value->length);
-        nkv_value_wrapper nkvvalue (c_buffer, n_value->length, n_value->length);
-        /*smg_warn(logger, "Cache put, path_hash = %u, shard_id = %d, key = %s, nkvvalue = %s, nkvlength = %u, value = %s, length = %u",
+          std::size_t key_prefix = std::hash<std::string>{}(key_str);
+          int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
+          void* c_buffer = malloc(n_value->length);
+          memcpy(c_buffer, n_value->value, n_value->length);
+          nkv_value_wrapper nkvvalue (c_buffer, n_value->length, n_value->length);
+          /*smg_warn(logger, "Cache put, path_hash = %u, shard_id = %d, key = %s, nkvvalue = %s, nkvlength = %u, value = %s, length = %u",
                   container_path_hash, shard_id, key_str.c_str(), (char*)nkvvalue.value, nkvvalue.actual_length, (char*)value->value, value->actual_length);*/
-        cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+          cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+        }
       }
     }
 
@@ -840,28 +843,32 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
   int32_t shard_id = -1;
   std::string key_str ((char*) n_key->key, n_key->length);
   if (nkv_use_read_cache) {
-    std::size_t found = key_str.find(iter_prefix);
-    if ((found != std::string::npos && found == 0) || (nkv_use_data_cache)) {
-      bool cache_hit = false;
-      std::size_t key_prefix = std::hash<std::string>{}(key_str);
-      shard_id = key_prefix % nkv_read_cache_shard_size;
-      const nkv_value_wrapper& nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
-      if (cache_hit) {
-        if (nkvvalue.actual_length != 0) {
-          memcpy(n_value->value, nkvvalue.value, nkvvalue.actual_length);
-          n_value->length = nkvvalue.length;
-          n_value->actual_length = nkvvalue.actual_length;
-          /*smg_warn(logger, "Cache get, shard_id = %d, key = %s, dev_path = %s, ip = %s",
+    std::size_t found_sys_meta = key_str.find(".minio.sys");
+    if (found_sys_meta == std::string::npos) {
+
+      std::size_t found = key_str.find(iter_prefix);
+      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache)) {
+        bool cache_hit = false;
+        std::size_t key_prefix = std::hash<std::string>{}(key_str);
+        shard_id = key_prefix % nkv_read_cache_shard_size;
+        const nkv_value_wrapper& nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
+        if (cache_hit) {
+          if (nkvvalue.actual_length != 0) {
+            memcpy(n_value->value, nkvvalue.value, nkvvalue.actual_length);
+            n_value->length = nkvvalue.length;
+            n_value->actual_length = nkvvalue.actual_length;
+            /*smg_warn(logger, "Cache get, shard_id = %d, key = %s, dev_path = %s, ip = %s",
                     shard_id, key_str.c_str(), dev_path.c_str(), path_ip.c_str());*/
-          return NKV_SUCCESS;
+            return NKV_SUCCESS;
+          } else {
+            return map_kvs_err_code_to_nkv_err_code(KVS_ERR_KEY_NOT_EXIST);
+          }  
         } else {
-          return map_kvs_err_code_to_nkv_err_code(KVS_ERR_KEY_NOT_EXIST);
-        }  
+          smg_warn(logger, "Cache miss !! key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+        }
       } else {
-        smg_warn(logger, "Cache miss !! key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+        smg_warn(logger, "Cache miss, data key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
       }
-    } else {
-      smg_warn(logger, "Cache miss, data key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
     }
   }
 
@@ -974,21 +981,24 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
       }
     }
     if (nkv_use_read_cache && n_value->actual_length > 0) {
-      std::size_t found = key_str.find(iter_prefix);
-      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->actual_length <= (uint32_t)nkv_data_cache_size_threshold)) {
-      //if (found != std::string::npos && found == 0) {n
-        void* c_buffer = malloc(n_value->actual_length);
-        memcpy(c_buffer, n_value->value, n_value->actual_length);
+      std::size_t found_sys_meta = key_str.find(".minio.sys");
+      if (found_sys_meta == std::string::npos) {
 
-        nkv_value_wrapper nkvvalue (c_buffer, n_value->actual_length, n_value->actual_length);
-        smg_info(logger, "Cache put after get, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
-        cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
-      } else {
-        smg_warn(logger, "data key = %s, length = %u, dev_path = %s, ip = %s", key_str.c_str(), n_value->actual_length, dev_path.c_str(), path_ip.c_str());
+        std::size_t found = key_str.find(iter_prefix);
+        if ((found != std::string::npos && found == 0) || (nkv_use_data_cache && n_value->actual_length <= (uint32_t)nkv_data_cache_size_threshold)) {
+          void* c_buffer = malloc(n_value->actual_length);
+          memcpy(c_buffer, n_value->value, n_value->actual_length);
+
+          nkv_value_wrapper nkvvalue (c_buffer, n_value->actual_length, n_value->actual_length);
+          smg_info(logger, "Cache put after get, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
+          cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+        } else {
+          smg_warn(logger, "data key = %s, length = %u, dev_path = %s, ip = %s", key_str.c_str(), n_value->actual_length, dev_path.c_str(), path_ip.c_str());
+        }
       }
-    }
     
-    assert(NULL != n_value->value);
+      assert(NULL != n_value->value);
+    }
   } else {//Async
     #ifdef SAMSUNG_API
       while (nkv_async_path_cur_qd > nkv_async_path_max_qd) {
@@ -1241,14 +1251,18 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
     }
 
     if (nkv_use_read_cache) {
-      std::size_t found = key_str.find(iter_prefix);
-      if ((found != std::string::npos && found == 0) || (nkv_use_data_cache )) {
+      std::size_t found_sys_meta = key_str.find(".minio.sys");
+      if (found_sys_meta == std::string::npos) {
+
+        std::size_t found = key_str.find(iter_prefix);
+        if ((found != std::string::npos && found == 0) || (nkv_use_data_cache )) {
       
-        std::size_t key_prefix = std::hash<std::string>{}(key_str);
-        int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
-        /*smg_warn(logger, "Cache delete, shard_id = %d, key = %s, dev_path = %s, ip = %s",
-                  shard_id, key_str.c_str(), dev_path.c_str(), path_ip.c_str());*/
-        cnt_cache[shard_id].del(key_str);
+          std::size_t key_prefix = std::hash<std::string>{}(key_str);
+          int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
+          /*smg_warn(logger, "Cache delete, shard_id = %d, key = %s, dev_path = %s, ip = %s",
+                    shard_id, key_str.c_str(), dev_path.c_str(), path_ip.c_str());*/
+          cnt_cache[shard_id].del(key_str);
+        }
       }
     }
  

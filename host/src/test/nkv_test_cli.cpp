@@ -378,6 +378,23 @@ void *iothread(void *args)
             } else {
               smg_info(logger, "NKV Delete meta2 successful, key = %s", (char*) nkvkeymeta2.key);
             }
+            if (meta_key_1)
+              nkv_free(meta_key_1);
+            if (meta_key_2)
+              nkv_free(meta_key_2);
+            if (meta_key_3)
+              nkv_free(meta_key_3);
+            if (meta_key_4)
+              nkv_free(meta_key_4);
+
+            if (meta_val_1)
+              nkv_free(meta_val_1);
+            if (meta_val_2)
+              nkv_free(meta_val_2);
+            if (meta_val_3)
+              nkv_free(meta_val_3);
+            if (meta_val_4)
+              nkv_free(meta_val_4);
 
           } else {
 
@@ -432,6 +449,16 @@ void *iothread(void *args)
               smg_info(logger, "NKV Retrieve meta4 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
                       (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
             }
+
+            if (meta_key_3)
+              nkv_free(meta_key_3);
+            if (meta_key_4)
+              nkv_free(meta_key_4);
+
+            if (meta_val_3)
+              nkv_free(meta_val_3);
+            if (meta_val_4)
+              nkv_free(meta_val_4);
             
           }
 
@@ -565,6 +592,24 @@ void *iothread(void *args)
             } else {
               smg_info(logger, "NKV Delete meta2 successful, key = %s", (char*) nkvkeymeta2.key);
             }
+
+            if (meta_key_1)
+              nkv_free(meta_key_1);
+            if (meta_key_2)
+              nkv_free(meta_key_2);
+            if (meta_key_3)
+              nkv_free(meta_key_3);
+            if (meta_key_4)
+              nkv_free(meta_key_4);
+
+            if (meta_val_1)
+              nkv_free(meta_val_1);
+            if (meta_val_2)
+              nkv_free(meta_val_2);
+            if (meta_val_3)
+              nkv_free(meta_val_3);
+            if (meta_val_4)
+              nkv_free(meta_val_4);
 
 
           } else {
