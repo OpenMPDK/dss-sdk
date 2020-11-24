@@ -40,6 +40,7 @@ int _dfly_spdk_get_ifaddr_numa_node(char *if_addr)
 	struct sockaddr_in addr, addr_in;
 	char path[MAX_STRING_LEN + 1];
 	int numa_node = -1;
+	char *delim = NULL;
 
 	addr_in.sin_addr.s_addr = inet_addr(if_addr);
 	if (addr_in.sin_addr.s_addr == INADDR_NONE) {
@@ -56,6 +57,10 @@ int _dfly_spdk_get_ifaddr_numa_node(char *if_addr)
 		if ((uint32_t)addr_in.sin_addr.s_addr != (uint32_t)addr.sin_addr.s_addr) {
 			continue;
 		}
+        delim = strchr(ifa->ifa_name, '.');
+        if(delim) {
+            *delim = '\0';
+        }
 		snprintf(path, MAX_STRING_LEN, "/sys/class/net/%s/device/numa_node", ifa->ifa_name);
 		numa_node = dfly_spdk_get_numa_node_value(path);
 		break;
