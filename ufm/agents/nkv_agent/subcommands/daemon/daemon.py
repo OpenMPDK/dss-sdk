@@ -133,7 +133,9 @@ class OSMDaemon:
         self.db_handle = self.backend.db_handle
 
         # Key-Value Database Key Prefixes
-        self.SERVER_UUID = self.identity_fn()["UUID"]
+        system_identity = self.identity_fn()
+        self.SERVER_UUID = system_identity["UUID"]
+        self.SERVER_NAME = system_identity['Hostname']
         self.SERVER_BASE_KEY_PREFIX = (self.backend.ETCD_SRV_BASE +
                                        self.SERVER_UUID + '/')
         self.SERVER_ATTR_KEY_PREFIX = (self.SERVER_BASE_KEY_PREFIX +
@@ -551,14 +553,14 @@ class OSMDaemon:
                             if rx_bytes_kb:
                                 metric = \
                                     'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
+                                    (g_cluster_name, self.SERVER_NAME, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(rx_bytes_kb))))
 
                             if tx_bytes_kb:
                                 metric = \
                                     'tx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
-                                    (self.CLUSTER_ID, self.SERVER_UUID, mac)
+                                    (g_cluster_name, self.SERVER_NAME, mac)
                                 mlnx_perf_metrics.append((metric, (timestamp,
                                                                    str(tx_bytes_kb))))
                             logger.debug('Mellanox NIC metrics %s',
@@ -605,10 +607,12 @@ class OSMDaemon:
                     if subsystem["NQN"] not in self.nqn_uuid_map:
                         continue
 
-                    subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
+                    # subsystem_uuid = self.nqn_uuid_map[subsystem["NQN"]]
 
-                    metric_path = "cluster_id_%s.target_id_%s.target_nqn_id_%s.disk.freespacepercent.disk_id_%s" % \
-                                  (self.CLUSTER_ID, self.SERVER_UUID, subsystem_uuid, serial)
+                    nqn_name = subsystem["NQN"].replace('.', '-')
+
+                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.disk.disk_id_%s.freespacepercent" % \
+                                  (g_cluster_name, self.SERVER_NAME, nqn_name, serial)
 
                     timestamp = time.time()
                     value = str(1.0 - diskUsage)
@@ -1144,10 +1148,11 @@ class OSMDaemon:
         if subsystem_nqn in self.nqn_uuid_map:
             subsystem_uuid = self.nqn_uuid_map[subsystem_nqn]
         else:
-            logger.error("Subsystem NQN -{} is not preent in NQN UUID mapping - {} ".format(subsystem_nqn,
+            logger.error("Subsystem NQN -{} is not present in NQN UUID mapping - {} ".format(subsystem_nqn,
                                                                                             self.nqn_uuid_map))
             return
 
+        nqn_name = subsystem_nqn.replace('.', '-')
         for element in subsystem:
             if element.startswith('drive'):
                 try:
@@ -1169,9 +1174,9 @@ class OSMDaemon:
                     self.statistics_helper(subsystem[element]["kvio"].iteritems(),
                                            prev_counters[serial], counters, 0)
                     for counter in counters:
-                        metric_path = "cluster_id_%s.target_id_%s.%s.disk.%s" % \
-                                      (self.CLUSTER_ID, self.SERVER_UUID,
-                                       "target_nqn_id_%s.disk_id_%s" % (subsystem_uuid, serial), counter)
+                        metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.disk.disk_id_%s.%s" % \
+                                      (g_cluster_name, self.SERVER_NAME,
+                                       nqn_name, serial, counter)
                         value = str(counters[counter])
                         message_tuples.append((metric_path, (timestamp, value)))
             elif element.startswith('kvio'):
@@ -1185,12 +1190,31 @@ class OSMDaemon:
                                        counters,
                                        0)
                 for counter in counters:
-                    metric_path = "cluster_id_%s.target_id_%s.%s.subsystem.%s" % \
-                                      (self.CLUSTER_ID,
-                                       self.SERVER_UUID,
-                                       "subsystem_id_%s" % (subsystem_uuid), counter)
+                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.subsystem.%s" % \
+                                      (g_cluster_name, self.SERVER_NAME,
+                                       nqn_name, counter)
                     value = str(counters[counter])
                     message_tuples.append((metric_path, (timestamp, value)))
+            else:
+                counters = subsystem[element]
+                for counter in counters:
+                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.%s.%s" % \
+                                  (g_cluster_name, self.SERVER_NAME, nqn_name, element, counter)
+                    value = str(counters[counter])
+                    message_tuples.append((metric_path, (timestamp, value)))
+            '''
+            elif element.startswith('ctrlr'):
+                counters = subsystem[element]
+                if 'host_id' in counters:
+                    host_id = counters['host_id']
+                    for counter in counters:
+                        metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.host_id_%s.%s" % \
+                                      (g_cluster_name, self.SERVER_NAME,
+                                       nqn_name, host_id, counter)
+                        value = str(counters[counter])
+                        message_tuples.append((metric_path, (timestamp, value)))
+            '''
+
 
     def session_statistics_to_message(self,
                                       timestamp,
@@ -1199,8 +1223,7 @@ class OSMDaemon:
         for session_ip in session_aggregate_counters:
             for counter in session_aggregate_counters[session_ip]:
                 metric_path = "cluster_id_%s.target_id_%s.%s.client_%s" % \
-                              (self.CLUSTER_ID,
-                               self.SERVER_UUID,
+                              (g_cluster_name, self.SERVER_NAME,
                                "client_id=%s" % session_ip, counter)
                 value = str(session_aggregate_counters[session_ip][counter])
                 message_tuples.append((metric_path, (timestamp, value)))
@@ -1316,8 +1339,7 @@ class OSMDaemon:
                                 for k in session:
                                     if k.startswith('ctrl') and (k[-1] != '0' or k[-2].isdigit()):
                                         metric_path = "cluster_id_%s.target_id_%s.%s.client_%s.qd_reqs" % \
-                                                       (self.CLUSTER_ID,
-                                                        self.SERVER_UUID,
+                                                       (g_cluster_name, self.SERVER_NAME,
                                                         "client_id_%s" % session_ip, k)
                                         for k_req in session[k]:
                                             if k_req == 'reqs':
@@ -1648,7 +1670,7 @@ def start_target_only(internal_flag=False):
 
 
 def start_minio_stats_collector(osm_daemon_obj):
-    minio_stats_obj = MinioStats(osm_daemon_obj.CLUSTER_ID, osm_daemon_obj.SERVER_UUID,
+    minio_stats_obj = MinioStats(g_cluster_name, osm_daemon_obj.SERVER_NAME,
                                  statsdb_obj=osm_daemon_obj.stats_obj)
     minio_stats_obj.get_device_subsystem_map()
     minio_stats_obj.run_stats_collector()
