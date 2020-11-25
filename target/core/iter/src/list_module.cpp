@@ -280,6 +280,8 @@ struct dfly_module_ops list_module_ops = {
 extern dfly_io_module_handler_t g_list_io_handlers;
 
 int list_init_load_by_iter(struct dfly_subsystem *pool);
+int list_init_load_by_blk_iter(struct dfly_subsystem *pool);
+
 //Assumes subsystems are initialized one by one
 struct list_started_cb_event_s {
 	df_module_event_complete_cb df_ss_cb;
@@ -291,7 +293,11 @@ struct list_started_cb_event_s {
 void list_module_started_cb(struct dfly_subsystem *pool, void *arg);
 void list_module_started_cb(struct dfly_subsystem *pool, void *arg)
 {
-	list_init_load_by_iter(pool);
+    if(g_dragonfly->blk_map){
+        list_init_load_by_blk_iter(pool);
+    }else{
+	    list_init_load_by_iter(pool);
+    }
 }
 
 void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
@@ -308,7 +314,7 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 	DFLY_ASSERT(list_cb_event.df_ss_cb);
 	DFLY_ASSERT(list_cb_event.df_ss_cb_arg);
 
-	list_log("List load for pool %s, completed in %d micro seconds", pool->name, load_time);
+	printf("List load for pool %s, completed in %d micro seconds", pool->name, load_time);
 	//Call cb started event;
 	if (icore == list_cb_event.src_core) {
 		list_cb_event.df_ss_cb(list_cb_event.df_ss_cb_arg, NULL);
@@ -321,6 +327,17 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 	//Reset list cb event
 	list_cb_event.df_ss_cb = NULL;
 	list_cb_event.df_ss_cb_arg = NULL;
+}
+
+void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
+{
+    static int nr_device_list_init_done = 0;
+    if(rc == LIST_INIT_DONE){
+        if(++nr_device_list_init_done == pool->num_io_devices){
+            pool->list_init_status = LIST_INIT_DONE;
+            list_module_load_done_cb(pool, nullptr);
+        }
+    }
 }
 
 //int dfly_list_module_init(int ssid, int nr_cores, void *cb, void *cb_arg)

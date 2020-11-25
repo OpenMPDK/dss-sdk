@@ -286,10 +286,9 @@ dfly_config_read(struct spdk_conf_section *sp)
 		snprintf(g_list_conf.list_prefix_head, strlen(str) + 1, "%s", str);
 		g_list_prefix_head_size = strlen(str);
 	} else {
-		snprintf(g_list_conf.list_prefix_head, 4, "meta");
+		snprintf(g_list_conf.list_prefix_head, 5, "meta");
 		g_list_conf.list_prefix_head[4] = 0;
 		g_list_prefix_head_size = 4;
-
 	}
 
 	g_list_conf.list_enabled = spdk_conf_section_get_boolval(sp, "list_enabled", true);

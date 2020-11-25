@@ -53,9 +53,12 @@
 #include <df_io_module.h>
 #include <module_hash.h>
 #include <list_lib.h>
+#include "rocksdb/dss_kv2blk_c.h"
+
 #include <map>
 #include <vector>
 #include <unordered_map>
+
 
 char key_default_delim = '/';
 std::string key_default_delimlist = "/";
@@ -593,8 +596,9 @@ int list_key_update_helper(struct dfly_subsystem *pool, const char *key_str, siz
 		return -1;
 
 	if (g_list_conf.list_prefix_head[0]) {
-		if (memcmp(g_list_conf.list_prefix_head, key_str, g_list_prefix_head_size))
+		if (memcmp(g_list_conf.list_prefix_head, key_str, g_list_prefix_head_size)){
 			return -1;
+		}
 	}
 
 	if (!pool) {
@@ -767,6 +771,28 @@ int list_init_load_by_iter(struct dfly_subsystem *pool)
 	if (rc == DFLY_ITER_IO_PENDING)
 		rc = LIST_INIT_PENDING;
 
+	return rc;
+}
+
+void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc);
+typedef void (*list_done_cb)(void * ctx, int rc);
+int dss_rocksdb_list_key(void *ctx, void * pool, void * prefix, size_t prefix_size, list_done_cb list_cb);
+int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
+{
+    int rc = LIST_INIT_PENDING;
+    char prefix[SAMSUNG_KV_MAX_KEY_SIZE] = {0};
+    size_t prefix_size = SAMSUNG_KV_MAX_KEY_SIZE;
+    if(g_list_prefix_head_size && g_list_prefix_head_size< prefix_size && 
+        g_list_conf.list_prefix_head){
+        memcpy(prefix, g_list_conf.list_prefix_head, g_list_prefix_head_size);
+        prefix_size = g_list_prefix_head_size;
+    } 
+    for(int i = 0; i< pool->num_io_devices; i++){
+     printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
+     rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, list_module_load_done_blk_cb);
+     printf("list_init_load_by_blk_iter [%d] rc = %d\n", i, rc);
+    }
+    
 	return rc;
 }
 
