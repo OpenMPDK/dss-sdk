@@ -1,0 +1,199 @@
+From 157d64331fccec022596afedd51d2347299e53f3 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Wed, 25 Nov 2020 14:46:58 -0800
+Subject: [PATCH 13/13]  * prefix iter support for list cache population.
+
+---
+ db/dss_kv2blk_c.cc             | 133 +++++++++++++++++++++++++++++++++++++++++
+ include/rocksdb/dss_kv2blk_c.h |   6 +-
+ 2 files changed, 138 insertions(+), 1 deletion(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 81459be..49c331e 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -74,6 +74,15 @@ using rocksdb::Options;
+ using rocksdb::DBOptions;
+ uint32_t max_queue_depth = 1024;
+ 
++int dss_rocksdb_iter_start(void *ctx, void ** piter, 
++            void * prefix, size_t prefix_size);
++
++int dss_rocksdb_iter_read(void * ctx, void ** piter, 
++    int key_list_requested,
++    rocksdb::Slice key_upbound);
++
++int dss_rocksdb_iter_end(void *ctx, void * iter);
++
+ namespace rocksdb {
+ struct RandomReadContext;
+ struct AsyncRdQueue_s{
+@@ -234,6 +243,7 @@ void *_dss_rocksdb_open(void *arg)
+ 	_dev_init_done(dss_dev->rdb_handle->tmp_init_back_ptr);
+ 	dss_dev->rdb_handle->tmp_init_back_ptr = NULL;
+ 
++    //printf("_dss_rocksdb_open dev %p db=%p\n", dss_dev, db);
+ 	return NULL;
+ }
+ 
+@@ -300,6 +310,75 @@ void dss_rocksdb_compaction(void *ctx)
+ 	pthread_create(&th, &attr, &_dss_rocksdb_compaction, ctx);
+ }
+ 
++typedef struct rocksdb_list_key_ctx_s{
++    rocksdb::DB* db;
++    struct dfly_subsystem * pool;
++    list_done_cb cb;
++    char prefix[SAMSUNG_KV_MAX_KEY_SIZE];
++    size_t prefix_size;
++} list_key_ctx_t;
++
++void * _dss_rocksdb_list_key(void *ctx)
++{    
++    list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
++    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_KEY_SIZE);
++    
++    void * iter = nullptr;
++	uint32_t nr_key_iter = 0;
++	uint32_t nr_key_total = 0;
++    
++    char key[SAMSUNG_KV_MAX_KEY_SIZE]={(char)0xff};
++    //memcpy(key, prefix, prefix_size);
++    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_KEY_SIZE);
++        
++    printf("dss_iter_start on db %p...\n", list_ctx->db);
++    if(!dss_rocksdb_iter_start(list_ctx->db, &iter, list_ctx->prefix, list_ctx->prefix_size)){
++        assert(iter);
++        int key_list_requested = 10000;
++        while(nr_key_iter = dss_rocksdb_iter_read(ctx, &iter, 
++            key_list_requested,key_upbound)){ 
++	        nr_key_total += nr_key_iter;
++            printf("list_key updated %d\n", nr_key_total);
++        }
++        assert(!dss_rocksdb_iter_end(ctx, iter));
++        iter = nullptr;
++    }
++    
++    printf("dss_iter_end  %d keys found\n", nr_key_total);
++    if(list_ctx->cb){
++        struct dfly_subsystem * pool = list_ctx->pool;
++        list_ctx->cb(pool, LIST_INIT_DONE);
++    }
++    
++    delete list_ctx;
++    //printf("_dss_rocksdb_list_key done\n");
++    return NULL;
++
++}
++
++//void list_module_load_done_blk_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
++int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done_cb list_cb)
++{
++    pthread_t th;
++    pthread_attr_t attr;
++    list_key_ctx_t * list_ctx = new list_key_ctx_t(); 
++
++    struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)ctx;
++	rocksdb::DB* db = (rocksdb::DB*)dss_dev->rdb_handle->rdb_db_handle;
++    
++    list_ctx->db = (rocksdb::DB*)db;
++    list_ctx->pool = (struct dfly_subsystem *)dss_dev->rdb_handle->ss;
++    list_ctx->cb = list_cb;
++    memset(list_ctx->prefix, 0, SAMSUNG_KV_MAX_KEY_SIZE);
++    memcpy(list_ctx->prefix, prefix, prefix_size);
++    list_ctx->prefix_size = prefix_size;
++
++	pthread_attr_init(&attr);
++	pthread_create(&th, &attr, &_dss_rocksdb_list_key, list_ctx);
++
++    return LIST_INIT_PENDING;
++}
++
+ int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen)
+ {
+ 	    rocksdb::DB* db = (rocksdb::DB *)ctx;
+@@ -390,4 +469,58 @@ int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen)
+ 		}
+ 		return 0;
+ }
++
++int dss_rocksdb_iter_start(void *ctx, void ** piter, 
++    void * prefix, size_t prefix_size)
++{
++    assert(prefix_size <= MAX_KEY_SIZE);
++        
++    rocksdb::DB* db = (rocksdb::DB *)ctx;
++    rocksdb::ReadOptions options(false, true);
++    options.tailing = false;
++    options.prefix_same_as_start = true;
++    bool use_prefix_iter = true;
++    
++    rocksdb::Iterator* iter = db->NewIterator(options);
++
++    char key_buf[SAMSUNG_KV_MAX_KEY_SIZE]={0}; 
++    memcpy(key_buf, prefix, prefix_size);
++    rocksdb::Slice key_prefix(key_buf, prefix_size);
++
++    if(use_prefix_iter){
++        iter->Seek(key_prefix);
++    }else{
++        iter->SeekToFirst();
++    }
++
++    *piter = iter;
++    return 0;
++     
++}
++int dss_rocksdb_iter_read(void * ctx, void ** piter, 
++    int key_list_requested,
++    rocksdb::Slice key_upbound){
++
++    list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
++    rocksdb::Iterator* iter = (rocksdb::Iterator *)*piter;
++
++    int nr_keys = 0;
++    for (; key_list_requested-- > 0 
++           && iter->Valid() 
++           && iter->key().compare(key_upbound) < 0; 
++          iter->Next()) {
++        list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
++        //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());
++        nr_keys ++;
++
++    }
++    //printf("dss_rocksdb_iter_read find %d keys\n", nr_keys);
++    return nr_keys;
++}
++
++int dss_rocksdb_iter_end(void *ctx, void * iter){
++    assert(iter);
++    delete iter;
++    return 0;
++}
+ #endif
+diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
+index 7c9ddd1..bec6650 100644
+--- a/include/rocksdb/dss_kv2blk_c.h
++++ b/include/rocksdb/dss_kv2blk_c.h
+@@ -8,13 +8,17 @@
+ extern "C" {
+ #endif
+ 
++
+ extern void* dss_rocksdb_open(struct dfly_io_device_s *dss_dev);
+ extern void dss_rocksdb_close(void* db, void *rdb_env);
+ extern int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen);
+ extern void dss_rocksdb_get_async(void * inst_ctx, void *ctx, void *key, size_t klen, void *value, uint32_t vbuf_len, void *cb, void *cb_arg);
+ extern int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen);
+-
+ extern void dss_rocksdb_compaction(void *ctx);
++
++typedef void (*list_done_cb)(void * ctx, int rc);
++extern int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done_cb list_cb);
++
+ #ifdef __cplusplus
+ }  /* end extern "C" */
+ #endif
+-- 
+1.8.3.1
+
