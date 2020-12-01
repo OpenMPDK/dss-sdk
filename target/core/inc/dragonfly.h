@@ -265,7 +265,10 @@ struct dragonfly {
 
 	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
 	bool blk_map;//Rocksdb block translation
-	bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
+    uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
+    uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
+
+    bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 
 	uint32_t num_sgroups; /**< number of pools */
 

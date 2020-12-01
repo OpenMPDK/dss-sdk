@@ -206,6 +206,8 @@ dfly_config_read(struct spdk_conf_section *sp)
 	char *str = NULL;
 	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", false);
 	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", false);
+    	g_dragonfly->rdb_bg_core_start = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_core_start", 40);
+    	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 2);
 	g_dragonfly->test_nic_bw  = spdk_conf_section_get_boolval(sp, "test_nic_bw", false);
 
 	g_wal_conf.wal_cache_enabled = spdk_conf_section_get_boolval(sp, "wal_cache_enabled", false);
