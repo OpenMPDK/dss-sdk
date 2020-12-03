@@ -81,6 +81,9 @@ exit 0
 /usr/dss/nkv-target/bin/ustat
 /usr/dss/nkv-target/scripts/setup.sh
 /usr/dss/nkv-target/scripts/common.sh
+/usr/dss/nkv-target/scripts/rpc.py
+/usr/dss/nkv-target/scripts/dss_rpc.py
+/usr/dss/nkv-target/scripts/rpc/
 
 /etc/rsyslog.d/dfly.conf
 /usr/dss/nkv-target/include/spdk/pci_ids.h
@@ -214,4 +217,3 @@ pushd "${build_dir}"
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
 
 popd
-

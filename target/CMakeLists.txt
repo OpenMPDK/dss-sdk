@@ -65,7 +65,7 @@ SET(KD_HEADERS
 )
 
 SET(KV_CMD_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/nvme_samsung_kv_cmd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/nvme_samsung_kv_cmd.c
 )
 #
 # QOS library build rules (shared)
@@ -231,8 +231,8 @@ add_custom_command(
         TARGET oss POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
         COMMAND cp liboss.a ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
-  		COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/
-  		COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/liboss.a ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/libspdk_oss.a
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/liboss.a ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/libspdk_oss.a
         COMMAND export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CMAKE_BINARY_DIR}/nkv-target/lib
 )
 
@@ -264,15 +264,15 @@ target_compile_options(dss_lat PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/s
 add_dependencies(dss_lat judyL)
 add_custom_command(
         TARGET dss_lat PRE_BUILD
-		COMMENT ${CMAKE_SOURCE_DIR}
+        COMMENT ${CMAKE_SOURCE_DIR}
         COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
 )
 
 ADD_CUSTOM_TARGET(test_latency_counter
-	COMMENT "Buiulding test latency counter"
-	WORKING_DIRECTORY test/test_latency_counter
-	COMMAND make
-	DEPENDS dss_lat
+    COMMENT "Building test latency counter"
+    WORKING_DIRECTORY test/test_latency_counter
+    COMMAND make
+    DEPENDS dss_lat
 )
 
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -286,11 +286,14 @@ add_custom_command(
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/dss_rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk/
-	COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-	COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
+        COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
 )
 
 ADD_CUSTOM_TARGET(rocksdb
