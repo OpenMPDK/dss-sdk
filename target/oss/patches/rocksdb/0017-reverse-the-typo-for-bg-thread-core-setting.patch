@@ -1,0 +1,41 @@
+From f2870c3d0916c4480311fd03d31a7e4193ba4428 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Mon, 7 Dec 2020 15:07:21 -0800
+Subject: [PATCH 17/17] * reverse the typo for bg thread core setting.
+
+---
+ util/threadpool_imp.cc | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
+index e3d6af3..7253438 100644
+--- a/util/threadpool_imp.cc
++++ b/util/threadpool_imp.cc
+@@ -296,7 +296,7 @@ int stick_this_thread_to_core(pthread_t th_h, int core_id) {
+    return pthread_setaffinity_np(th_h, sizeof(cpu_set_t), &cpuset);
+ }
+ 
+-//uint32_t g_th_bg_coreid = 40; //configurable TBD
++extern uint32_t g_bg_coreid ; //configurable TBD
+ 
+ void ThreadPoolImpl::Impl::StartBGThreads() {
+   // Start background thread if necessary
+@@ -314,11 +314,11 @@ void ThreadPoolImpl::Impl::StartBGThreads() {
+              bgthreads_.size());
+     name_buf[sizeof name_buf - 1] = '\0';
+     pthread_setname_np(th_handle, name_buf);
+-    //if(stick_this_thread_to_core(th_handle, g_bg_coreid++)){
+-	//printf("bg thread fail on setaffinity on core %d\n", g_bg_coreid - 1);
+-    //}else{
++    if(stick_this_thread_to_core(th_handle, g_bg_coreid++)){
++	printf("bg thread fail on setaffinity on core %d\n", g_bg_coreid - 1);
++    }else{
+ 	//printf("bg thread setaffinity on core %d\n", bg_coreid - 1);
+-    //}
++    }
+ 
+ #endif
+ #endif
+-- 
+1.8.3.1
+
