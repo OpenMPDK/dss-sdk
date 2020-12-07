@@ -1,7 +1,7 @@
-From 157d64331fccec022596afedd51d2347299e53f3 Mon Sep 17 00:00:00 2001
+From 3a84f7c448bd17de46b0614f176c8d3c5bbf5c39 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 25 Nov 2020 14:46:58 -0800
-Subject: [PATCH 13/15]  * prefix iter support for list cache population.
+Subject: [PATCH 13/16] * prefix iter support for list cache population.
 
 ---
  db/dss_kv2blk_c.cc             | 133 +++++++++++++++++++++++++++++++++++++++++
@@ -9,17 +9,17 @@ Subject: [PATCH 13/15]  * prefix iter support for list cache population.
  2 files changed, 138 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 81459be..49c331e 100644
+index 81459be..9096b48 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -74,6 +74,15 @@ using rocksdb::Options;
  using rocksdb::DBOptions;
  uint32_t max_queue_depth = 1024;
  
-+int dss_rocksdb_iter_start(void *ctx, void ** piter, 
++int dss_rocksdb_iter_start(void *ctx, void ** piter,
 +            void * prefix, size_t prefix_size);
 +
-+int dss_rocksdb_iter_read(void * ctx, void ** piter, 
++int dss_rocksdb_iter_read(void * ctx, void ** piter,
 +    int key_list_requested,
 +    rocksdb::Slice key_upbound);
 +
@@ -49,37 +49,37 @@ index 81459be..49c331e 100644
 +} list_key_ctx_t;
 +
 +void * _dss_rocksdb_list_key(void *ctx)
-+{    
++{
 +    list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
 +    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_KEY_SIZE);
-+    
++
 +    void * iter = nullptr;
 +	uint32_t nr_key_iter = 0;
 +	uint32_t nr_key_total = 0;
-+    
++
 +    char key[SAMSUNG_KV_MAX_KEY_SIZE]={(char)0xff};
 +    //memcpy(key, prefix, prefix_size);
 +    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_KEY_SIZE);
-+        
++
 +    printf("dss_iter_start on db %p...\n", list_ctx->db);
 +    if(!dss_rocksdb_iter_start(list_ctx->db, &iter, list_ctx->prefix, list_ctx->prefix_size)){
 +        assert(iter);
 +        int key_list_requested = 10000;
-+        while(nr_key_iter = dss_rocksdb_iter_read(ctx, &iter, 
-+            key_list_requested,key_upbound)){ 
++        while(nr_key_iter = dss_rocksdb_iter_read(ctx, &iter,
++            key_list_requested,key_upbound)){
 +	        nr_key_total += nr_key_iter;
 +            printf("list_key updated %d\n", nr_key_total);
 +        }
 +        assert(!dss_rocksdb_iter_end(ctx, iter));
 +        iter = nullptr;
 +    }
-+    
++
 +    printf("dss_iter_end  %d keys found\n", nr_key_total);
 +    if(list_ctx->cb){
 +        struct dfly_subsystem * pool = list_ctx->pool;
 +        list_ctx->cb(pool, LIST_INIT_DONE);
 +    }
-+    
++
 +    delete list_ctx;
 +    //printf("_dss_rocksdb_list_key done\n");
 +    return NULL;
@@ -91,11 +91,11 @@ index 81459be..49c331e 100644
 +{
 +    pthread_t th;
 +    pthread_attr_t attr;
-+    list_key_ctx_t * list_ctx = new list_key_ctx_t(); 
++    list_key_ctx_t * list_ctx = new list_key_ctx_t();
 +
 +    struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)ctx;
 +	rocksdb::DB* db = (rocksdb::DB*)dss_dev->rdb_handle->rdb_db_handle;
-+    
++
 +    list_ctx->db = (rocksdb::DB*)db;
 +    list_ctx->pool = (struct dfly_subsystem *)dss_dev->rdb_handle->ss;
 +    list_ctx->cb = list_cb;
@@ -117,20 +117,20 @@ index 81459be..49c331e 100644
  		return 0;
  }
 +
-+int dss_rocksdb_iter_start(void *ctx, void ** piter, 
++int dss_rocksdb_iter_start(void *ctx, void ** piter,
 +    void * prefix, size_t prefix_size)
 +{
 +    assert(prefix_size <= MAX_KEY_SIZE);
-+        
++
 +    rocksdb::DB* db = (rocksdb::DB *)ctx;
 +    rocksdb::ReadOptions options(false, true);
 +    options.tailing = false;
 +    options.prefix_same_as_start = true;
 +    bool use_prefix_iter = true;
-+    
++
 +    rocksdb::Iterator* iter = db->NewIterator(options);
 +
-+    char key_buf[SAMSUNG_KV_MAX_KEY_SIZE]={0}; 
++    char key_buf[SAMSUNG_KV_MAX_KEY_SIZE]={0};
 +    memcpy(key_buf, prefix, prefix_size);
 +    rocksdb::Slice key_prefix(key_buf, prefix_size);
 +
@@ -142,9 +142,9 @@ index 81459be..49c331e 100644
 +
 +    *piter = iter;
 +    return 0;
-+     
++
 +}
-+int dss_rocksdb_iter_read(void * ctx, void ** piter, 
++int dss_rocksdb_iter_read(void * ctx, void ** piter,
 +    int key_list_requested,
 +    rocksdb::Slice key_upbound){
 +
@@ -152,9 +152,9 @@ index 81459be..49c331e 100644
 +    rocksdb::Iterator* iter = (rocksdb::Iterator *)*piter;
 +
 +    int nr_keys = 0;
-+    for (; key_list_requested-- > 0 
-+           && iter->Valid() 
-+           && iter->key().compare(key_upbound) < 0; 
++    for (; key_list_requested-- > 0
++           && iter->Valid()
++           && iter->key().compare(key_upbound) < 0;
 +          iter->Next()) {
 +        list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
 +        //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());

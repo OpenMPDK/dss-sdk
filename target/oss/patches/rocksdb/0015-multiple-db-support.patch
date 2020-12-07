@@ -1,14 +1,14 @@
-From e2b4fa4790fe38513699792ed78f40a891d46057 Mon Sep 17 00:00:00 2001
+From 17e73ad1f4e98e232b24a72d5f498bc3dfe43078 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 1 Dec 2020 11:20:03 -0800
-Subject: [PATCH 15/15] * multiple db support * bg job core config setting.
+Subject: [PATCH 15/16] * multiple db support * bg job core config setting.
 
 ---
- db/dss_kv2blk_c.cc | 23 ++++++++++++++++-------
- 1 file changed, 16 insertions(+), 7 deletions(-)
+ db/dss_kv2blk_c.cc | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 0422347..9cef955 100644
+index 56394c0..5eb95f5 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -84,6 +84,9 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
@@ -33,12 +33,11 @@ index 0422347..9cef955 100644
 +    std::string nvme_conf = "/usr/local/etc/spdk/nvme5.conf";
 +    std::string spdk_bdev="";
      uint64_t cache_size_in_mb = 8192;
--
-+   
+ 
 +    if(!rocksdb::g_bg_coreid){
-+        rocksdb::g_bg_coreid = g_dragonfly->rdb_bg_core_start; 
++        rocksdb::g_bg_coreid = g_dragonfly->rdb_bg_core_start;
 +    }
-+     
++
      spdk_bdev += dss_dev->rdb_handle->dev_name;
 +    dbname += spdk_bdev;
  
