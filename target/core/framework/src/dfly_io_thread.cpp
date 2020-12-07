@@ -586,7 +586,7 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 	io_thrd_ctx->dfly_subsys = subsystem;
 	io_thrd_ctx->io_ops = io_ops;
-	io_thrd_ctx->num_threads = 4;
+	io_thrd_ctx->num_threads = 1;
 
 	rc = dfly_io_module_init_spdk_devices(subsystem,
 					      (struct spdk_nvmf_subsystem *)subsystem->parent_ctx);
