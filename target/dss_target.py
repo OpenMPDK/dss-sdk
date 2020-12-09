@@ -38,6 +38,17 @@ g_conf_global_text = """[Global]
   list_enabled Yes
 """
 
+g_dfly_kvblock_vm_mode = """   block_translation_enabled Yes #vm mode
+  block_translation_bg_core_start 4 #vm mode
+  block_translation_bg_job_cnt 4 #vm mode
+
+  io_threads_per_ss 1 #vm mode
+  poll_threads_per_nic 1 #vm mode
+  mm_buff_count 1024 #vm mode
+
+  block_translation_blobfs_cache_size 4096
+"""
+
 g_dfly_wal_log_dev_name = """  wal_log_dev_name \"walbdev-%(num)sn1\"
 """
 
@@ -58,6 +69,8 @@ g_rdma_transport = """
   MaxIOSize 2097152
   IOUnitSize 2097152
   MaxQueuesPerSession 64
+"""
+g_transport_vmmode = """  NumSharedBuffers 1024
 """
 g_nvme_global_text = """
 [Nvme]
@@ -103,8 +116,9 @@ g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
 g_kv_ssc = 1
-g_2mb_hugepages = "8192"
+g_2mb_hugepages = "12288"
 g_1gb_hugepages = "40"
+g_kvblock_vmmode = False
 
 
 def random_with_N_digits(n):
@@ -165,6 +179,17 @@ def generate_core_mask(core_count, dedicate_core_percent):
     reserve_mask = mask >> (mask_count - reserve_cores)
     global g_core_mask
     g_core_mask = "{0:#x}".format((mask & ~(reserve_mask << core_half)) & avail_mask)
+    return 0
+
+def generate_core_mask_vmmode(core_count):
+    mask_count = 8
+    mask = 0xFF
+    if core_count < mask_count:
+		mask_count = core_count
+		mask = mask >> (mask_count - core_count)
+
+    global g_core_mask
+    g_core_mask = "{0:#x}".format(mask)
     return 0
 
 
@@ -278,7 +303,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subtext += g_nvme_global_text
 
-    global g_conf_global_text, g_wal, g_rdma, g_tcp
+    global g_conf_global_text, g_dfly_kvblock_vm_mode, g_wal, g_rdma, g_tcp
 
     drive_count = 0
     kv_drive_count = 0
@@ -288,12 +313,15 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     block_list = []
     bad_index = []
 
+    if g_kvblock_vmmode == True:
+        g_conf_global_text += g_dfly_kvblock_vm_mode
+
     kv_pc_ad = get_pcie_address_serial_mapping(kv_pcie_address)
     bl_pc_ad = get_pcie_address_serial_mapping(block_pcie_address)
     if list_of_drives:
         for i, pcie in enumerate(list_of_drives):
             if pcie in kv_pcie_address:
-                subtext += "#KV Drive\n"
+                subtext += "#KV Subsys Drive\n"
                 subtext += g_nvme_pcie_text % {
                     "pcie_addr": pcie,
                     #"num": "Nvme" + str(drive_count),
@@ -303,7 +331,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 #kv_list.append(drive_count)
                 kv_list.append(kv_pc_ad[pcie])
             elif pcie in block_pcie_address:
-                subtext += "#Block Drive\n"
+                subtext += "#Block Subsys Drive\n"
                 if g_wal > wal_drive_count:
                     subtext += g_nvme_pcie_text % {
                         "pcie_addr": pcie,
@@ -336,13 +364,24 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     if g_tcp:
         g_conf_global_text += g_tcp_transport
+    if g_kvblock_vmmode == True:
+        g_conf_global_text += g_transport_vmmode
 
     if g_rdma:
         g_conf_global_text += g_rdma_transport
+    if g_kvblock_vmmode == True:
+        g_conf_global_text += g_transport_vmmode
 
-    kv_ss_drive_count = kv_drive_count / g_kv_ssc
-    if kv_ss_drive_count == 0:
-        kv_ss_drive_count = 1
+    if g_kvblock_vmmode == True:
+        if kv_drive_count > 4:
+            kv_ss_drive_count = 4
+        else:
+            kv_ss_drive_count = kv_drive_count
+        g_kv_ssc = 1
+    else:
+        kv_ss_drive_count = kv_drive_count / g_kv_ssc
+        if kv_ss_drive_count == 0:
+            kv_ss_drive_count = 1
 
     nvme_index = 1
     #for drive_count_index in range(len(kv_list)):
@@ -473,7 +512,7 @@ def buildtgt():
     Build the executable
     """
     if os.path.exists("build.sh"):
-        ret, out, err = exec_cmd("sh build.sh")
+        ret, out, err = exec_cmd("build.sh")
         print (out)
         return ret
     else:
@@ -487,28 +526,30 @@ def setup_hugepage():
     global g_2mb_hugepages, g_1gb_hugepages
     setenv("NRHUGE", g_2mb_hugepages)
 
-    sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
-    if not os.path.exists(sys_hugepage_path):
-        with open(sys_hugepage_path, "w") as file:
-            file.write(g_1gb_hugepages)
-    else:
-        ret, out, err = exec_cmd("echo " + g_1gb_hugepages + " > " + sys_hugepage_path)
+    if not g_kvblock_vmmode:
+        sys_hugepage_path = "/sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages"
+        if not os.path.exists(sys_hugepage_path):
+            with open(sys_hugepage_path, "w") as file:
+                file.write(g_1gb_hugepages)
+        else:
+            ret, out, err = exec_cmd("echo " + g_1gb_hugepages + " > " + sys_hugepage_path)
+            if ret != 0:
+                return ret
+
+        if not os.path.exists("/dev/hugepages1G"):
+            ret, out, err = exec_cmd("mkdir /dev/hugepages1G")
+            if ret != 0:
+                return ret
+        if not os.path.ismount("/dev/hugepages1G"):
+            ret, out, err = exec_cmd(
+                "mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G"
+            )
+        else:
+            print ("/dev/hugepages1G already exists and is mounted")
         if ret != 0:
             return ret
-
-    if not os.path.exists("/dev/hugepages1G"):
-        ret, out, err = exec_cmd("mkdir /dev/hugepages1G")
-        if ret != 0:
-            return ret
-    if not os.path.ismount("/dev/hugepages1G"):
-        ret, out, err = exec_cmd(
-            "mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G"
-        )
     else:
-        print ("/dev/hugepages1G already exists and is mounted")
-    if ret != 0:
-        return ret
-
+        print ("No 1G hugepage setup done for vmmode")
     print ("****** hugepage setup is done ******")
     return 0
 
@@ -517,7 +558,7 @@ def setup_drive():
     """
     Bring all drives to the userspace"
     """
-    cmd = "sh " + g_path + "/../scripts/setup.sh"
+    cmd = g_path + "/../scripts/setup.sh"
     print "Executing: " + cmd + "..."
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
@@ -532,7 +573,7 @@ def reset_drive():
     """
     Bring back drives to system"
     """
-    cmd = "sh " + g_path + "/../scripts/setup.sh reset"
+    cmd = g_path + "/../scripts/setup.sh reset"
     print "Executing: " + cmd + "..."
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
@@ -668,10 +709,17 @@ The most commonly used dss target commands are:
         parser.add_argument(
             "-1g_pgs", "--one_gb_hugepages", type=str, required=False, help="Number of 1 GB Hugepages to create"
         )
+        parser.add_argument(
+            "-kvblock_vmmode",
+            "--kvblock_vmmode",
+            required=False,
+            action='store_true',
+            help="Vmmode configurations for kv2block. This supports reduced resuorce allocations."
+		)
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -690,6 +738,8 @@ The most commonly used dss target commands are:
             g_2mb_hugepages = args.two_mb_hugepages
         if args.one_gb_hugepages:
             g_1gb_hugepages = args.one_gb_hugepages
+        if args.kvblock_vmmode is not None:
+            g_kvblock_vmmode = args.kvblock_vmmode
         if args.ip_addresses:
             g_ip_addrs = args.ip_addresses
         elif args.vlan_ids:
@@ -723,7 +773,10 @@ The most commonly used dss target commands are:
         )
         if ret != 0:
             print ("*** ERROR: Creating configuration file ***")
-        generate_core_mask(mp.cpu_count(), 0.50)
+        if g_kvblock_vmmode == True:
+            generate_core_mask_vmmode(mp.cpu_count)
+        else:
+            generate_core_mask(mp.cpu_count(), 0.50)
         setup_hugepage()
         ret = setup_drive()
         print (

@@ -555,7 +555,6 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_complete_cb cb, void *cb_arg, struct io_thread_ctx_s *io_thrd_ctx)
 {
 	struct init_multi_dev_s *event_ctx = calloc(1, sizeof(struct init_multi_dev_s));
-	uint64_t cache_size_in_mb = 8192;
 
 	DFLY_ASSERT(event_ctx);
 	pthread_mutex_init(&event_ctx->l, NULL);
@@ -566,7 +565,7 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 	event_ctx->io_thrd_ctx = io_thrd_ctx;
 	event_ctx->ss = subsystem;
 
-	spdk_fs_set_cache_size(cache_size_in_mb);
+	spdk_fs_set_cache_size(g_dragonfly->rdb_blobfs_cache_sz_mb);
 
 	_dfly_io_module_subsystem_start(subsystem, io_thrd_ctx->io_ops, _dfly_rdb_init_devices, event_ctx, io_thrd_ctx);
 }
@@ -586,7 +585,7 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 	io_thrd_ctx->dfly_subsys = subsystem;
 	io_thrd_ctx->io_ops = io_ops;
-	io_thrd_ctx->num_threads = 1;
+	io_thrd_ctx->num_threads = g_dragonfly->num_io_threads;
 
 	rc = dfly_io_module_init_spdk_devices(subsystem,
 					      (struct spdk_nvmf_subsystem *)subsystem->parent_ctx);

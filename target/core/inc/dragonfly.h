@@ -267,6 +267,12 @@ struct dragonfly {
 	bool blk_map;//Rocksdb block translation
     uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
     uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
+    uint32_t rdb_blobfs_cache_sz_mb; /**<rdb blobs global cache size*/
+
+	uint32_t num_io_threads;
+	uint32_t num_nw_threads;
+
+	uint32_t mm_buff_count;
 
     bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 

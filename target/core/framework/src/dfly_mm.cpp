@@ -40,7 +40,6 @@
 #include "nvmf_internal.h"
 
 #define DFLY_MM_LARGE_KEY_POOL_SIZE (1024)
-#define DFLY_MM_IO_BUFF_POOL_SIZE (1024 * 32)
 
 typedef union dfly_spdk_request_u {
 	struct spdk_nvmf_request nvmf_req;
@@ -82,10 +81,10 @@ void *dfly_mm_init(void)
 {
 	int cache_size;
 
-	cache_size = DFLY_MM_IO_BUFF_POOL_SIZE / (2 * spdk_env_get_core_count());
+	cache_size = g_dragonfly->mm_buff_count / (2 * spdk_env_get_core_count());
 
 	g_mm_ctx.mm_io_buff_pool = spdk_mempool_create("dfly_mm_io_buff_pool",
-				   DFLY_MM_IO_BUFF_POOL_SIZE,
+				   g_dragonfly->mm_buff_count,
 				   DFLY_BDEV_BUF_MAX_SIZE + 512,
 				   cache_size,
 				   SPDK_ENV_SOCKET_ID_ANY);
@@ -95,7 +94,7 @@ void *dfly_mm_init(void)
 	}
 
 	g_mm_ctx.mm_req_pool = spdk_mempool_create("dfly_mm_pool",
-			       DFLY_MM_IO_BUFF_POOL_SIZE,
+			       g_dragonfly->mm_buff_count,
 			       sizeof(struct dfly_request) + sizeof(dfly_spdk_request_t),
 			       cache_size,
 			       SPDK_ENV_SOCKET_ID_ANY);
@@ -132,10 +131,10 @@ void *dfly_mm_init(void)
 void dfly_mm_deinit(void)
 {
 
-	if (spdk_mempool_count(g_mm_ctx.mm_io_buff_pool) != DFLY_MM_IO_BUFF_POOL_SIZE) {
+	if (spdk_mempool_count(g_mm_ctx.mm_io_buff_pool) != g_dragonfly->mm_buff_count) {
 		DFLY_ERRLOG("DFLY IO  buffer pool count is %zu but should be %u\n",
 			    spdk_mempool_count(g_mm_ctx.mm_io_buff_pool),
-			    DFLY_MM_IO_BUFF_POOL_SIZE);
+			    g_dragonfly->mm_buff_count);
 		assert(false);
 	}
 
@@ -143,10 +142,10 @@ void dfly_mm_deinit(void)
 
 	g_mm_ctx.mm_io_buff_pool = NULL;
 
-	if (spdk_mempool_count(g_mm_ctx.mm_req_pool) != DFLY_MM_IO_BUFF_POOL_SIZE) {
+	if (spdk_mempool_count(g_mm_ctx.mm_req_pool) != g_dragonfly->mm_buff_count) {
 		DFLY_ERRLOG("DFLY IO  buffer pool count is %zu but should be %u\n",
 			    spdk_mempool_count(g_mm_ctx.mm_req_pool),
-			    DFLY_MM_IO_BUFF_POOL_SIZE);
+			    g_dragonfly->mm_buff_count);
 		assert(false);
 	}
 

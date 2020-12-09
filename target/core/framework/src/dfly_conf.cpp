@@ -208,6 +208,12 @@ dfly_config_read(struct spdk_conf_section *sp)
 	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", false);
     	g_dragonfly->rdb_bg_core_start = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_core_start", 40);
     	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 2);
+    	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 8192);
+    	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 1);
+    	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
+
+   	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);
+
 	g_dragonfly->test_nic_bw  = spdk_conf_section_get_boolval(sp, "test_nic_bw", false);
 
 	g_wal_conf.wal_cache_enabled = spdk_conf_section_get_boolval(sp, "wal_cache_enabled", false);
