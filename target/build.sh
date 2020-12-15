@@ -77,6 +77,7 @@ exit 0
 %defattr(-,root,root,-)
 %dir /usr/dss/nkv-target
 /usr/dss/nkv-target/bin/nvmf_tgt
+/usr/dss/nkv-target/bin/mkfs_blobfs
 /usr/dss/nkv-target/bin/dss_target.py
 /usr/dss/nkv-target/bin/ustat
 /usr/dss/nkv-target/scripts/setup.sh

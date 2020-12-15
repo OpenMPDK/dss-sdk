@@ -248,6 +248,7 @@ ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
   COMMAND make V=2 -j16
+  COMMAND make -C test/blobfs/mkfs
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
   DEPENDS oss
@@ -284,6 +285,7 @@ add_custom_command(
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/

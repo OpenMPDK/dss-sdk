@@ -38,7 +38,12 @@ g_conf_global_text = """[Global]
   list_enabled Yes
 """
 
-g_dfly_kvblock_vm_mode = """   block_translation_enabled Yes #vm mode
+g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
+  block_translation_bg_core_start 4
+  block_translation_bg_job_cnt 4
+"""
+
+g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
   block_translation_bg_core_start 4 #vm mode
   block_translation_bg_job_cnt 4 #vm mode
 
@@ -70,6 +75,9 @@ g_rdma_transport = """
   IOUnitSize 2097152
   MaxQueuesPerSession 64
 """
+g_transport_perfmode = """  NumSharedBuffers 4096
+"""
+
 g_transport_vmmode = """  NumSharedBuffers 1024
 """
 g_nvme_global_text = """
@@ -119,6 +127,7 @@ g_kv_ssc = 1
 g_2mb_hugepages = "12288"
 g_1gb_hugepages = "40"
 g_kvblock_vmmode = False
+g_config_mode = 'kv'
 
 
 def random_with_N_digits(n):
@@ -303,7 +312,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subtext += g_nvme_global_text
 
-    global g_conf_global_text, g_dfly_kvblock_vm_mode, g_wal, g_rdma, g_tcp
+    global g_conf_global_text, g_dfly_kvblock_vm_mode, g_dfly_kvblock_perf_mode, g_wal, g_rdma, g_tcp, g_kv_ssc
 
     drive_count = 0
     kv_drive_count = 0
@@ -313,8 +322,10 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     block_list = []
     bad_index = []
 
-    if g_kvblock_vmmode == True:
+    if g_config_mode == 'kv_block_vm':
         g_conf_global_text += g_dfly_kvblock_vm_mode
+    elif g_config_mode == 'kv_block_perf':
+        g_conf_global_text += g_dfly_kvblock_perf_mode
 
     kv_pc_ad = get_pcie_address_serial_mapping(kv_pcie_address)
     bl_pc_ad = get_pcie_address_serial_mapping(block_pcie_address)
@@ -364,13 +375,17 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     if g_tcp:
         g_conf_global_text += g_tcp_transport
-    if g_kvblock_vmmode == True:
-        g_conf_global_text += g_transport_vmmode
+        if g_kvblock_vmmode == True:
+            g_conf_global_text += g_transport_vmmode
+        else:
+            g_conf_global_text += g_transport_perfmode
 
     if g_rdma:
         g_conf_global_text += g_rdma_transport
-    if g_kvblock_vmmode == True:
-        g_conf_global_text += g_transport_vmmode
+        if g_kvblock_vmmode == True:
+            g_conf_global_text += g_transport_vmmode
+        else:
+            g_conf_global_text += g_transport_perfmode
 
     if g_kvblock_vmmode == True:
         if kv_drive_count > 4:
@@ -710,16 +725,18 @@ The most commonly used dss target commands are:
             "-1g_pgs", "--one_gb_hugepages", type=str, required=False, help="Number of 1 GB Hugepages to create"
         )
         parser.add_argument(
-            "-kvblock_vmmode",
-            "--kvblock_vmmode",
-            required=False,
-            action='store_true',
-            help="Vmmode configurations for kv2block. This supports reduced resuorce allocations."
+            "-mode",
+            "--mode",
+            choices=['kv', 'kv_block_vm', 'kv_block_perf', 'block'],
+            default='kv',
+            const='kv',
+            nargs='?',
+            help="Configurations [kv - Key Value, kv_block_vm - kv with block translation with vm compatible, kv_block_perf - kv with block translation with performance optimizations, block - direct block access to drives]"
 		)
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -738,8 +755,10 @@ The most commonly used dss target commands are:
             g_2mb_hugepages = args.two_mb_hugepages
         if args.one_gb_hugepages:
             g_1gb_hugepages = args.one_gb_hugepages
-        if args.kvblock_vmmode is not None:
-            g_kvblock_vmmode = args.kvblock_vmmode
+        if args.mode:
+            g_config_mode = args.mode
+        if g_config_mode == 'kv_block_vm':
+            g_kvblock_vmmode = True
         if args.ip_addresses:
             g_ip_addrs = args.ip_addresses
         elif args.vlan_ids:
