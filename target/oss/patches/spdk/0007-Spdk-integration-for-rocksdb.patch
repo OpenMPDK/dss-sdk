@@ -1,7 +1,7 @@
-From d9c5145f61a58a44a6ba19cdd104b22274d4a20e Mon Sep 17 00:00:00 2001
+From a077125411f577dce51e61d780b5c2ee0a08a0a7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 16 Oct 2020 14:04:02 -0700
-Subject: [PATCH 07/14] Spdk integration for rocksdb
+Subject: [PATCH 07/16] Spdk integration for rocksdb
 
     * Channel core to route requests
     * Don't claim module for rocksdb

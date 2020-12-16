@@ -1,7 +1,7 @@
-From 07aad5a00194967c895523c1d29cd44fd9fca13b Mon Sep 17 00:00:00 2001
+From c38336f1dcab5caa02b4d61c3e23a36b80dc7fa1 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 7 Dec 2020 10:28:35 -0800
-Subject: [PATCH 16/17] Comment debug print and g_bg_coreid
+Subject: [PATCH 16/18] Comment debug print and g_bg_coreid
 
 ---
  db/dss_kv2blk_c.cc     |  2 +-

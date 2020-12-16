@@ -1,0 +1,173 @@
+From 73bbca6ddc3dae5b248de73784ca25835fd7d39b Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Tue, 15 Dec 2020 20:28:22 -0800
+Subject: [PATCH 18/18] * spdk_bdev blocksize support
+
+---
+ include/rocksdb/env.h           |  2 ++
+ table/format_request_context.cc |  3 +--
+ util/file_reader_writer.h       |  3 +++
+ util/random_read_context.h      | 36 ++++++++++++++++++++----------------
+ 4 files changed, 26 insertions(+), 18 deletions(-)
+
+diff --git a/include/rocksdb/env.h b/include/rocksdb/env.h
+index 759efe2..78a6989 100644
+--- a/include/rocksdb/env.h
++++ b/include/rocksdb/env.h
+@@ -261,6 +261,8 @@ class Env {
+   // Store the size of fname in *file_size.
+   virtual Status GetFileSize(const std::string& fname, uint64_t* file_size) = 0;
+ 
++  virtual uint32_t GetFileSystemBlockSize(){ return 512; }
++
+   // Store the last modification time of fname in *file_mtime.
+   virtual Status GetFileModificationTime(const std::string& fname,
+                                          uint64_t* file_mtime) = 0;
+diff --git a/table/format_request_context.cc b/table/format_request_context.cc
+index 8908902..e2182af 100644
+--- a/table/format_request_context.cc
++++ b/table/format_request_context.cc
+@@ -170,9 +170,8 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
+   // then raw_slice is same as a result
+   const Slice& slice = result_;
+   size_t n = GetN();
+-#define SPDK_BLOBSTORE_IO_UNIT_SIZE_MASK (512 - 1)
++#define SPDK_BLOBSTORE_IO_UNIT_SIZE_MASK (dss_fs_io_unit_size_ - 1)
+   off_t buff_offset =  (handle_.offset() & SPDK_BLOBSTORE_IO_UNIT_SIZE_MASK);
+-
+   // We only allocate heap_buf_ if necessary
+   char* used_buf = (heap_buf_) ? heap_buf_.get() : inclass_buf_;
+   assert(used_buf != nullptr);
+diff --git a/util/file_reader_writer.h b/util/file_reader_writer.h
+index b24f98b..12d626a 100644
+--- a/util/file_reader_writer.h
++++ b/util/file_reader_writer.h
+@@ -110,6 +110,9 @@ class RandomAccessFileReader {
+     return{ env_, stats_, file_read_hist_, hist_type_ };
+   }
+ 
++  uint32_t GetFileBlockSize()const {
++    return env_->GetFileSystemBlockSize();
++    }
+ 
+   Status Prefetch(uint64_t offset, size_t n) const {
+     return file_->Prefetch(offset, n);
+diff --git a/util/random_read_context.h b/util/random_read_context.h
+index be1f87d..c9f71cc 100644
+--- a/util/random_read_context.h
++++ b/util/random_read_context.h
+@@ -338,6 +338,7 @@ class ReadBlockContext : protected RandomReadContext {
+     verify_checksums_(verify_check_sum) {
+   }
+ 
++
+   // Expose protected members for the benefit of containing classes
+   Status Read() {
+     PERF_METER_START(block_read_time);
+@@ -425,7 +426,8 @@ class ReadBlockContentsContext {
+     const ImmutableCFOptions &ioptions,
+     bool decompression_requested,
+     const Slice& compression_dict,
+-    const PersistentCacheOptions& cache_options) :
++    const PersistentCacheOptions& cache_options,
++    const uint32_t fs_io_unit_size):
+     client_cb_(client_cb),
+     footer_(&footer),
+     read_options_(&read_options),
+@@ -435,9 +437,9 @@ class ReadBlockContentsContext {
+     compression_dict_(compression_dict),
+     cache_options_(&cache_options),
+     contents_(contents),
++    dss_fs_io_unit_size_(fs_io_unit_size),
+     is_read_block_(false),
+     is_user_buffer_(false){
+-    //printf("ReadBlockContentsContext %p created\n", this);
+   }
+ 
+   ~ReadBlockContentsContext() {
+@@ -467,7 +469,7 @@ class ReadBlockContentsContext {
+     std::unique_ptr<ReadBlockContentsContext> context(new ReadBlockContentsContext(
+           client_cb_, footer,
+           read_options, handle, contents, ioptions, decompression_requested,
+-          compression_dict, cache_options));
++          compression_dict, cache_options, file->GetFileBlockSize()));
+     bool need_decompression = false;
+     Status status = context->CheckPersistentCache(need_decompression);
+ 
+@@ -499,8 +501,7 @@ class ReadBlockContentsContext {
+ 
+     ReadBlockContentsContext context(ReadBlockContCallback(), footer, read_options,
+                                      handle, contents, ioptions, decompression_requested,
+-                                     compression_dict, cache_options);
+-
++                                     compression_dict, cache_options, file->GetFileBlockSize());
+     bool need_decompression = false;
+     Status status = context.CheckPersistentCache(need_decompression);
+     if (status.ok()) {
+@@ -545,7 +546,7 @@ class ReadBlockContentsContext {
+     return reinterpret_cast<ReadBlockContext*>(&read_block_);
+   }
+ 
+-#define SPDK_BLOBSTORE_IO_UNIT_SIZE 512
++//#define SPDK_BLOBSTORE_IO_UNIT_SIZE 4096
+ 
+   void ConstructReadBlockContext(RandomAccessFileReader* reader, GetContext * get_context = NULL) {
+ 
+@@ -554,11 +555,12 @@ class ReadBlockContentsContext {
+     void * buf = nullptr;
+     size_t n = GetN();
+     static int max_buf_size = 0;
++    int lba_size = dss_fs_io_unit_size_; //reader->GetFileBlockSize(); //SPDK_BLOBSTORE_IO_UNIT_SIZE;
+     if (decompression_requested_ &&
+         n + kBlockTrailerSize < DefaultStackBufferSize) {
+       used_buf = inclass_buf_;
+     } else {
+-        int lba_size = SPDK_BLOBSTORE_IO_UNIT_SIZE;
++        
+         int spdk_buffer_size = (((n + kBlockTrailerSize + lba_size - 1) / lba_size) + 1) * lba_size;
+ 
+         if(get_context && get_context->GetBuffer()){
+@@ -588,7 +590,7 @@ class ReadBlockContentsContext {
+ 
+             #else
+             if(client_cb_)
+-                buf = spdk_malloc( spdk_buffer_size, SPDK_BLOBSTORE_IO_UNIT_SIZE, NULL,
++                buf = spdk_malloc( spdk_buffer_size, lba_size, NULL,
+ 							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
+             else
+                 buf = new char[n + kBlockTrailerSize];
+@@ -603,14 +605,15 @@ class ReadBlockContentsContext {
+ 
+         }else{
+               if(client_cb_){
+-		#ifndef RDB_SPDK_MEMPOOL
+-		  buf = spdk_malloc( spdk_buffer_size, SPDK_BLOBSTORE_IO_UNIT_SIZE, NULL,
+-							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
+-		#else
+-                  buf = spdk_mempool_get(g_rdb_mempool);
+-		#endif
+-                  //void * prev_buf = heap_buf_.get();
+-		  if(!buf){
++        		#ifndef RDB_SPDK_MEMPOOL
++        		            buf = spdk_malloc( spdk_buffer_size, lba_size, NULL,
++        							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
++                            printf("ConstructReadBlockContext spdk_malloc %p size %d\n", buf, spdk_buffer_size);
++        		#else
++                          buf = spdk_mempool_get(g_rdb_mempool);
++        		#endif
++                      //void * prev_buf = heap_buf_.get();
++		        if(!buf){
+                     printf("ConstructReadBlockContext spdk memory alloc failed!\n");
+                     buf = new char[n + kBlockTrailerSize];
+                     if(!buf){
+@@ -682,6 +685,7 @@ class ReadBlockContentsContext {
+   bool                          is_user_buffer_;
+   // Construct this only if needed
+   std::aligned_storage<sizeof(ReadBlockContext)>::type read_block_;
++  uint32_t                      dss_fs_io_unit_size_;
+ };
+ 
+ } // namespace async
+-- 
+1.8.3.1
+

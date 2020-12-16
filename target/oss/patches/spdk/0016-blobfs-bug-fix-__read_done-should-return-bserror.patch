@@ -1,0 +1,25 @@
+From 8405615c5fbe0aba754ac46a981cf19d33c473c9 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Wed, 16 Dec 2020 09:47:02 -0800
+Subject: [PATCH 16/16] * blobfs bug fix: __read_done should return bserror
+
+---
+ lib/blobfs/blobfs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 9952eb5..6dc46ca 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -1859,7 +1859,7 @@ __read_done(void *ctx, int bserrno)
+ 	        if(args->fn.file_op == __rw_from_file_done){
+ 			_copy_buf_to_iovs(args->iovs, args->iovcnt, buf, args->op.rw.length);
+ 		}
+-		__rw_done(req, 0);
++		__rw_done(req, bserrno);
+ 	} else {
+ 		_copy_iovs_to_buf(buf, args->op.rw.length, args->iovs, args->iovcnt);
+ 		spdk_blob_io_write(args->file->blob, args->op.rw.channel,
+-- 
+1.8.3.1
+

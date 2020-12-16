@@ -1,0 +1,200 @@
+From 669f03f729d73b10a37e49811b788b9bddbc3d3b Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Tue, 15 Dec 2020 20:25:47 -0800
+Subject: [PATCH 15/16] * bdev blocksize support * increment nr of the
+ blobstore request to 4k
+
+---
+ include/spdk/blobfs.h  |  2 ++
+ lib/blob/blobstore.h   |  2 +-
+ lib/blobfs/blobfs.c    | 30 ++++++++++++++++++------------
+ lib/rocksdb/env_dss.cc | 12 +++++++++---
+ 4 files changed, 30 insertions(+), 16 deletions(-)
+
+diff --git a/include/spdk/blobfs.h b/include/spdk/blobfs.h
+index 9a67d62..c83ced0 100644
+--- a/include/spdk/blobfs.h
++++ b/include/spdk/blobfs.h
+@@ -369,6 +369,8 @@ int64_t spdk_file_read_async2(struct spdk_file *file, struct spdk_fs_thread_ctx
+ 
+ void spdk_free_fs_request(void *data);
+ 
++uint32_t spdk_fs_get_lba_size(struct spdk_filesystem *fs);
++
+ 
+ /**
+  * Set cache size for the blobstore filesystem.
+diff --git a/lib/blob/blobstore.h b/lib/blob/blobstore.h
+index 5e93bd6..4556467 100644
+--- a/lib/blob/blobstore.h
++++ b/lib/blob/blobstore.h
+@@ -49,7 +49,7 @@
+ #define SPDK_BLOB_OPTS_CLUSTER_SZ (1024 * 1024)
+ #define SPDK_BLOB_OPTS_NUM_MD_PAGES UINT32_MAX
+ #define SPDK_BLOB_OPTS_MAX_MD_OPS 32
+-#define SPDK_BLOB_OPTS_DEFAULT_CHANNEL_OPS 512
++#define SPDK_BLOB_OPTS_DEFAULT_CHANNEL_OPS 4096
+ #define SPDK_BLOB_BLOBID_HIGH_BIT (1ULL << 32)
+ 
+ struct spdk_xattr {
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 0cb219c..9952eb5 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -470,7 +470,7 @@ sem_t * fs_channel_get_sem(struct spdk_fs_channel *channel){
+     //printf("fs_channel_get_sem[%d] %p\n", channel->sem_idx, &channel->sem[channel->sem_idx]);
+     return &channel->sem[channel->sem_idx];
+ }
+-
++    
+ static int
+ fs_channel_create(struct spdk_filesystem *fs, struct spdk_fs_channel *channel,
+ 		  uint32_t max_ops)
+@@ -1060,7 +1060,7 @@ spdk_fs_file_stat(struct spdk_filesystem *fs, struct spdk_fs_thread_ctx *ctx,
+ 	req->args.op.stat.name = name;
+ 	req->args.fn.stat_op = __copy_stat;
+ 	req->args.arg = stat;
+-    psem = fs_channel_get_sem(channel);
++    psem = fs_channel_get_sem(channel); 
+     req->args.sem = psem;
+ 	channel->send_request(__file_stat, req);
+ 	sem_wait(psem);
+@@ -1520,7 +1520,7 @@ spdk_fs_rename_file(struct spdk_filesystem *fs, struct spdk_fs_thread_ctx *ctx,
+ 	args->op.rename.old_name = old_name;
+ 	args->op.rename.new_name = new_name;
+     psem = fs_channel_get_sem(channel);
+-	args->sem = psem;
++	args->sem = psem; 
+ 	fs->send_request(__fs_rename_file, req);
+ 	sem_wait(psem);
+ 	rc = args->rc;
+@@ -1791,9 +1791,9 @@ spdk_file_truncate(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	args->fn.file_op = __wake_caller;
+     psem = fs_channel_get_sem(channel);
+ 	args->sem = psem;
+-	//printf("spdk_file_truncate spdk_get_core %d icore %d channel core %d\n",
++	//printf("spdk_file_truncate spdk_get_core %d icore %d channel core %d\n", 
+ 	        //spdk_env_get_current_core(), sched_getcpu(), channel->icore);
+-
++    
+ 	channel->send_request(__truncate, req);
+ 	sem_wait(psem);
+ 	rc = args->rc;
+@@ -1854,8 +1854,9 @@ __read_done(void *ctx, int bserrno)
+ 
+ 	assert(req != NULL);
+ 	buf = (void *)((uintptr_t)args->op.rw.pin_buf + (args->op.rw.offset & (args->op.rw.blocklen - 1)));
+-        if (args->op.rw.is_read) {
+-		if(args->fn.file_op == __rw_from_file_done){
++    
++       if (args->op.rw.is_read) {
++	        if(args->fn.file_op == __rw_from_file_done){
+ 			_copy_buf_to_iovs(args->iovs, args->iovcnt, buf, args->op.rw.length);
+ 		}
+ 		__rw_done(req, 0);
+@@ -2124,6 +2125,11 @@ spdk_fs_get_cache_size(void)
+ 	return g_fs_cache_size / (1024 * 1024);
+ }
+ 
++uint32_t spdk_fs_get_lba_size(struct spdk_filesystem *fs)
++{
++    return spdk_bs_get_io_unit_size(fs->bs);
++}
++
+ static void __file_flush(void *ctx);
+ 
+ /* Try to free some cache buffers from this file.
+@@ -2349,7 +2355,7 @@ __file_flush_done(void *ctx, int bserrno)
+ 	struct spdk_fs_cb_args *args = &req->args;
+ 	struct spdk_file *file = args->file;
+ 	struct cache_buffer *next = args->op.flush.cache_buffer;
+-
++	
+ 	//printf("__file_flush_done core %d errno %d\n", sched_getcpu(), bserrno);
+ 	BLOBFS_TRACE(file, "length=%jx\n", args->op.flush.length);
+ 	pthread_spin_lock(&file->lock);
+@@ -2475,7 +2481,7 @@ __file_extend_blob(void *_args)
+ {
+ 	struct spdk_fs_cb_args *args = _args;
+ 	struct spdk_file *file = args->file;
+-
++    
+ 	spdk_blob_resize(file->blob, args->op.resize.num_clusters, __file_extend_resize_cb, args);
+ }
+ 
+@@ -2642,7 +2648,7 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 		extend_args.file = file;
+ 		BLOBFS_TRACE(file, "start resize to %u clusters\n", extend_args.op.resize.num_clusters);
+ 		pthread_spin_unlock(&file->lock);
+-
++        
+ 		//printf("spdk_file_write send_request for file_extend on core %d\n", sched_getcpu());
+ 		file->fs->send_request(__file_extend_blob, &extend_args);
+ 		sem_wait(psem);
+@@ -2813,7 +2819,7 @@ int64_t
+ spdk_file_read_async2(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	       void *payload, uint64_t offset, uint64_t length, spdk_file_op_complete cb_fn, void *cb_arg){
+ 	 struct spdk_fs_channel *channel = (struct spdk_fs_channel *)ctx;
+-      //printf("spdk_file_read_async2 core %d channel core %d\n",
++      //printf("spdk_file_read_async2 core %d channel core %d\n", 
+         //	spdk_env_get_current_core(), channel->icore);
+ 	 return  __send_rw_from_file_async(file, payload, offset, length, true, channel, cb_fn, cb_arg);
+ }
+@@ -3094,7 +3100,7 @@ spdk_file_close(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx)
+ 	struct spdk_fs_request *req;
+ 	struct spdk_fs_cb_args *args;
+     sem_t * psem = NULL;
+-
++    
+ 	req = alloc_fs_request(channel);
+ 	if (req == NULL) {
+ 		SPDK_ERRLOG("Cannot allocate close req for file=%s\n", file->name);
+diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
+index 91279d7..2d1f14c 100644
+--- a/lib/rocksdb/env_dss.cc
++++ b/lib/rocksdb/env_dss.cc
+@@ -216,10 +216,10 @@ DpdkRandomAccessFile::AsyncReadCallback(void* ctx, int bserrno){
+     struct DpdkRandomAccessFileContext * spdk_ctx =
+         (struct DpdkRandomAccessFileContext *)ctx;
+     Status s;
+-    Slice slice(spdk_ctx->buffer + (spdk_ctx->offset & 511), spdk_ctx->byte_read);
++    uint32_t lba_size = spdk_fs_get_lba_size(spdk_ctx->file->fs);
++    Slice slice(spdk_ctx->buffer + (spdk_ctx->offset & (lba_size - 1)), spdk_ctx->byte_read);
+     if(!bserrno)
+         s.async(true);
+-
+     spdk_free_fs_request(spdk_ctx->data);
+     spdk_ctx->cb.Invoke(s, slice);
+ 
+@@ -397,6 +397,7 @@ private:
+ 	struct spdk_filesystem *mSpdkFS;
+ 	struct spdk_fs_thread_ctx *mSpdkFsCh;
+ 	uint32_t mCore;
++    uint32_t mFsIoUnitSize;
+ 
+ public:
+ 	DssEnv(Env *base_env, const std::string &dir,
+@@ -442,7 +443,7 @@ public:
+ 			struct spdk_file *file;
+ 			int rc;
+ 
+-			//printf("name %s --> %s\n", fname.c_str(), name.c_str());
++			printf("name %s --> %s\n", fname.c_str(), name.c_str());
+ 			rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh,
+ 					       name.c_str(), 0, &file);
+ 			if (rc == 0) {
+@@ -524,6 +525,11 @@ public:
+ 	{
+ 		return Status::NotSupported("DssEnv does not support LinkFile");
+ 	}
++
++    virtual uint32_t GetFileSystemBlockSize(void)
++    {
++        return spdk_fs_get_lba_size(mSpdkFS);
++    }
+ 	virtual Status GetFileSize(const std::string &fname, uint64_t *size) override
+ 	{
+ 		struct spdk_file_stat stat;
+-- 
+1.8.3.1
+
