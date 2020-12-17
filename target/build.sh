@@ -230,5 +230,5 @@ popd
 
 # Restore default GCC paths
 if test -f "$GCCRESTORE"; then
-    $GCCRESTORE
+    source $GCCRESTORE
 fi
