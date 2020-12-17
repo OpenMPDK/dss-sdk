@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
-#
+# shellcheck disable=SC1090
 #
 # set -o xtrace
+
+# Build/install GCC 5.1.0 RPM from gcc-builder: https://github.com/BobSteagall/gcc-builder
+GCCSETENV=/usr/local/bin/setenv-for-gcc510.sh
+GCCRESTORE=/usr/local/bin/restore-default-paths-gcc510.sh
+
+# Load GCC 5.1.0 paths
+if test -f "$GCCSETENV"; then
+    source $GCCSETENV
+fi
 
 target_dir=$(readlink -f "$(dirname "$0")")
 build_dir="${target_dir}/../df_out"
@@ -218,3 +227,8 @@ pushd "${build_dir}"
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
 
 popd
+
+# Restore default GCC paths
+if test -f "$GCCRESTORE"; then
+    $GCCRESTORE
+fi
