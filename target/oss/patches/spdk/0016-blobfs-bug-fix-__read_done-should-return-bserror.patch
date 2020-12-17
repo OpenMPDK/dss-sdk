@@ -1,14 +1,14 @@
-From 8405615c5fbe0aba754ac46a981cf19d33c473c9 Mon Sep 17 00:00:00 2001
+From 0ef89f270198da18639c8b56513237763d57bd4d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 16 Dec 2020 09:47:02 -0800
-Subject: [PATCH 16/16] * blobfs bug fix: __read_done should return bserror
+Subject: [PATCH 16/17] * blobfs bug fix: __read_done should return bserror
 
 ---
  lib/blobfs/blobfs.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 9952eb5..6dc46ca 100644
+index 536f374..e427784 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -1859,7 +1859,7 @@ __read_done(void *ctx, int bserrno)

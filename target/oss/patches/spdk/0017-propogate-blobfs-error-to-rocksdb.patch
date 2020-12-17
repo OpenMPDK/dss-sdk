@@ -1,0 +1,32 @@
+From d7343e84548cb9b1a812121a2e1ed8bdc48572de Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 16 Dec 2020 21:01:51 -0800
+Subject: [PATCH 17/17] propogate blobfs error to rocksdb
+
+---
+ lib/rocksdb/env_dss.cc | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
+index 2d1f14c..bc0c1b9 100644
+--- a/lib/rocksdb/env_dss.cc
++++ b/lib/rocksdb/env_dss.cc
+@@ -220,6 +220,16 @@ DpdkRandomAccessFile::AsyncReadCallback(void* ctx, int bserrno){
+     Slice slice(spdk_ctx->buffer + (spdk_ctx->offset & (lba_size - 1)), spdk_ctx->byte_read);
+     if(!bserrno)
+         s.async(true);
++
++	if(bserrno)
++	{
++		if(bserrno == -ENOMEM) {
++			s = Status::MemoryLimit();
++		} else {
++			s = Status::IOError("DpdkRandomAccessFile read failed", strerror(bserrno));
++		}
++	}
++
+     spdk_free_fs_request(spdk_ctx->data);
+     spdk_ctx->cb.Invoke(s, slice);
+
+--
+1.8.3.1
