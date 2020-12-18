@@ -534,7 +534,7 @@ uint32_t dfly_get_next_conn_core(char *conn, int num_cpu, char *peer_addr)
 	cpu_info = dfly_get_next_available_cpu(cpu_group, peer_addr);
 	assert(cpu_info);
 
-	DFLY_INFOLOG(DFLY_LOG_NUMA, "Allocating Core %d\n", cpu_info->cpu_id);
+	DFLY_INFOLOG(DFLY_LOG_NUMA, "Allocating Core %d for conn %s for peer %s\n", cpu_info->cpu_id, conn, peer_addr?peer_addr:"not provided");
 	pthread_mutex_unlock(&cpu_group->group_lock);//LOCK END
 
 	return cpu_info->cpu_id;
@@ -614,7 +614,7 @@ uint32_t dfly_put_conn_core(char *conn, uint32_t core, char *peer_addr)
 
 	pthread_mutex_lock(&grp_info->group->group_lock);//LOCK BEGIN
 
-	DFLY_INFOLOG(DFLY_LOG_NUMA, "De-Allocating Core %d\n", core);
+	DFLY_INFOLOG(DFLY_LOG_NUMA, "De-Allocating Core %d on conn %s for peer %s\n", core, conn, peer_addr?peer_addr:"not provided");
 	//Lookup and update usage max count
 	dfly_update_conn_usage(grp_info->group, core, peer_addr);
 
