@@ -565,8 +565,6 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 	event_ctx->io_thrd_ctx = io_thrd_ctx;
 	event_ctx->ss = subsystem;
 
-	spdk_fs_set_cache_size(g_dragonfly->rdb_blobfs_cache_sz_mb);
-
 	_dfly_io_module_subsystem_start(subsystem, io_thrd_ctx->io_ops, _dfly_rdb_init_devices, event_ctx, io_thrd_ctx);
 }
 
