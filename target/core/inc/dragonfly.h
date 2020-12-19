@@ -199,6 +199,7 @@ struct dfly_subsystem {
 	bool initialized;
 	int wal_init_status;
 	int list_init_status;
+	int list_initialized_nbdev;
 	void (*wal_init_cb)(void *subsystem, int status);
 	void (*list_init_cb)(void *subsystem, int status);
 

@@ -331,9 +331,8 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 
 void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
 {
-    static int nr_device_list_init_done = 0;
     if(rc == LIST_INIT_DONE){
-        if(++nr_device_list_init_done == pool->num_io_devices){
+        if(++pool->list_initialized_nbdev == pool->num_io_devices){
             pool->list_init_status = LIST_INIT_DONE;
             list_module_load_done_cb(pool, nullptr);
         }

@@ -313,6 +313,8 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 
 	dfly_ustat_init_subsys_stat(dfly_subsystem, spdk_nvmf_ss->subnqn);
 
+	dfly_subsystem->list_initialized_nbdev = 0;
+
 	TAILQ_INIT(&dfly_subsystem->df_ctrlrs);
 	pthread_mutex_init(&dfly_subsystem->ctrl_lock, NULL);
 
