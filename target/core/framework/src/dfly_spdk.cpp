@@ -96,7 +96,7 @@ dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
 	io_device = (struct dfly_io_device_s *) req->dreq->io_device;
 	DFLY_ASSERT(io_device);
 
-	dfly_ustat_atomic_dec_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
+	dfly_ustat_atomic_dec_u64(io_device->stat_io, &io_device->stat_io->i_pending_reqs);
 
 	dreq->status = success;
 
@@ -159,7 +159,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		dfly_counters_size_count(io_device->stat_io, req, cmd->opc);
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
-	dfly_ustat_atomic_inc_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
+	dfly_ustat_atomic_inc_u64(io_device->stat_io, &io_device->stat_io->i_pending_reqs);
 
 	switch (cmd->opc) {
 	case SPDK_NVME_OPC_READ:

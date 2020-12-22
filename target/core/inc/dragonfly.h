@@ -245,6 +245,8 @@ struct dragonfly {
 		subsystems[MAX_SS]; /**< currently there will be only two subsystems (data and meta-data pool) */
 	struct dragonfly_wal_ops *wal_ops; /**< exported services from WAL */
 	ustat_handle_t              *s_handle;
+	stat_counter_types_t        *ustat_counter_types;
+	
 	bool				df_qos_enable;
 	TAILQ_HEAD(, dfly_prof)   	df_profs;
 	TAILQ_HEAD(, dfly_session)      df_sessions;

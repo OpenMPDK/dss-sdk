@@ -64,6 +64,13 @@ extern "C" {
 #define STAT_GNAME_NAME	"id"
 #define STAT_GNAME_RDMA "rdma"
 
+#define STAT_GNAME_COUNTERS "counters"
+
+typedef struct stat_counter_types_s {
+	ustat_named_t icounters;
+	ustat_named_t ccounters;
+} stat_counter_types_t;
+
 typedef struct stat_serial {
 	ustat_named_t name;
 } stat_serial_t;
@@ -94,21 +101,21 @@ typedef struct stat_kvio {
 	ustat_named_t get_256KB_1MB;
 	ustat_named_t get_1MB_2MB;
 	ustat_named_t get_large_2MB;
-	ustat_named_t pending_reqs;
+	ustat_named_t i_pending_reqs;
 } stat_kvio_t;
 
 typedef struct stat_rqpair {
-	ustat_named_t reqs;
-	ustat_named_t reqs_max;
-	ustat_named_t max_qd;
+	ustat_named_t i_reqs;
+	ustat_named_t i_reqs_max;
+	ustat_named_t c_max_qd;
 	ustat_named_t puts;
 	ustat_named_t gets;
 	ustat_named_t dels;
 } stat_rqpair_t;
 
 typedef struct stat_module {
-	ustat_named_t reqs;
-	ustat_named_t reqs_max;
+	ustat_named_t i_reqs;
+	ustat_named_t i_reqs_max;
 } stat_module_t;
 
 typedef struct stat_rdma {
@@ -121,8 +128,8 @@ typedef struct stat_rdma {
 } stat_rdma_t;
 
 typedef struct stat_thread {
-	ustat_named_t reqs;
-	ustat_named_t reqs_max;
+	ustat_named_t i_reqs;
+	ustat_named_t i_reqs_max;
 } stat_thread_t;
 
 extern const ustat_class_t ustat_class_test;
