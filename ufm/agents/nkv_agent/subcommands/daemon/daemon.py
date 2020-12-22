@@ -41,6 +41,7 @@ logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGE
 logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
 from minio_stats import MinioStats
+from sflow_collector import SFlowStatsCollector
 import constants
 import graphite
 import server_info.server_attributes_aggregator as ServerAttr
@@ -1676,6 +1677,12 @@ def start_minio_stats_collector(osm_daemon_obj):
     minio_stats_obj.run_stats_collector()
 
 
+def start_sflow_stats_collector(osm_daemon_obj):
+    sflow_stats_obj = SFlowStatsCollector(g_cluster_name, osm_daemon_obj.SERVER_NAME,
+                                          osm_daemon_obj.stats_obj, logger)
+    sflow_stats_obj.run_stats_collector()
+
+
 def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
                              performance_poll=1, stats=0,
                              endpoint="localhost", port=23790):
@@ -1848,6 +1855,7 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
 
     # Start MINIO Stats collection
     start_minio_stats_collector(daemon_obj)
+    start_sflow_stats_collector(daemon_obj)
 
     # Watches etcd for configuration changes pertaining to this server
     daemon_obj.subsystem_config_watcher()
