@@ -356,6 +356,7 @@ void _dfly_init_numa(void)
 void dfly_init_numa(void)
 {
 	_dfly_init_numa();
+
 	return;
 }
 
@@ -446,7 +447,8 @@ dfly_cpu_info_t *dfly_get_next_available_cpu(dfly_cpu_group_context_t *cpu_group
 	dfly_cpu_info_t *cpu_info = NULL;
 	dfly_cpu_info_t *tmp_cpu_info = NULL;
 
-	int i;
+	int i, j;
+	bool inc_peer_cpu_usage = true;
 
 	if(peer_addr) {
 		struct dfly_peer_alloc_s *peer_grp, *tmp_peer_grp;
@@ -473,11 +475,22 @@ dfly_cpu_info_t *dfly_get_next_available_cpu(dfly_cpu_group_context_t *cpu_group
 		//Select from peer group
 		for(i=0; i < cpu_group->num_cpus; i++) {
 			if(peer_grp->peer_cpu_usage[i] <= peer_grp->current_usage) {
+				DFLY_ASSERT(peer_grp->peer_cpu_usage[i] == peer_grp->current_usage);
 				peer_grp->peer_cpu_usage[i]++;
 				dest_cpu_index = i;
+				for(j=i+1; j < cpu_group->num_cpus; j++) {
+					if(peer_grp->peer_cpu_usage[j] == peer_grp->current_usage) {
+						inc_peer_cpu_usage = false;
+						break;
+					}
+				}
+				if(inc_peer_cpu_usage == true) {
+					cpu_group->max_usage++;
+					peer_grp->current_usage++;
+				}
 				break;
 			}
-			DFLY_ASSERT(peer_grp->peer_cpu_usage[i] == peer_grp->current_usage + 1);
+			DFLY_ASSERT(peer_grp->peer_cpu_usage[i] > peer_grp->current_usage);
 		}
 
 		if(i == cpu_group->num_cpus) {
