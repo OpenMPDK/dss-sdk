@@ -100,11 +100,20 @@ void dfly_req_init_nvme_info(struct dfly_request *req)
 std::map<std::string, uint8_t> pref2hd;
 
 
+struct kv_cdw11 {
+	uint8_t cdwb1;
+	uint8_t cdwb2;
+	uint8_t inval_bytes:2;
+	uint8_t rsvd:6;
+	uint8_t cdwb4;
+};
 extern uint8_t __dfly_iter_next_handle ;
 void dfly_req_init_nvmf_info(struct dfly_request *req)
 {
 	struct spdk_nvmf_request *nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
 	struct spdk_nvme_cmd *cmd = &((*nvmf_req->cmd).nvme_cmd);
+
+	struct kv_cdw11 *cdw11;
 
 	req->req_key.key = &cmd->cdw12; //Key
 	req->req_key.length = (cmd->cdw11 + 1) & 0xFF; //Key length
@@ -115,7 +124,9 @@ void dfly_req_init_nvmf_info(struct dfly_request *req)
 		req->list_data.options = (cmd->rsvd2 & 0x3);
 	}
 
+	cdw11 =(struct kv_cdw11 *)&cmd->cdw11;
 	req->req_value.length = (cmd->cdw10 << 2);//Value length
+	req->req_value.length -= cdw11->inval_bytes;
 	req->req_value.value = nvmf_req->data;//Value
 	req->req_value.offset = cmd->mptr >> 2;//Value offset
 
@@ -132,8 +143,11 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 {
 	struct spdk_nvmf_request *nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
 	struct spdk_nvme_cmd *cmd = &((*nvmf_req->cmd).nvme_cmd);
+	struct kv_cdw11 *cdw11;
 
+	cdw11 =(struct kv_cdw11*)&cmd->cdw11;
 	req->req_value.length = (cmd->cdw10 << 2);//Value length
+	req->req_value.length -= cdw11->inval_bytes;
 
 	req->req_value.value = nvmf_req->data;//Value
 	req->req_value.offset = cmd->mptr >> 2;//Value offset
