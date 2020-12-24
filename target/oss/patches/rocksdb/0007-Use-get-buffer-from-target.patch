@@ -1,7 +1,7 @@
-From a948a40ccd37884784e5edaff0dd9ecc91620279 Mon Sep 17 00:00:00 2001
+From 8b65a8e00bb796f37a2ddf9aac5ec01e5c355a0c Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 9 Nov 2020 15:18:53 -0800
-Subject: [PATCH 07/18] Use get buffer from target
+Subject: [PATCH 07/20] Use get buffer from target
 
     * Fix queue issues in caching read context
 ---
