@@ -210,7 +210,11 @@ dfly_config_read(struct spdk_conf_section *sp)
     	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 2);
     	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 8192);
     	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 1);
-    	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
+    	g_dragonfly->rdb_wal_enable = spdk_conf_section_get_boolval(sp, "rdb_wal_enable", true);
+        g_dragonfly->rdb_sync_enable = spdk_conf_section_get_boolval(sp, "rdb_sync_enable", true);
+        g_dragonfly->rdb_auto_compaction_enable = spdk_conf_section_get_boolval(sp, "rdb_auto_compaction_enable", false);
+    
+        g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
 
    	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);
 

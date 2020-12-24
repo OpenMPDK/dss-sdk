@@ -269,6 +269,9 @@ struct dragonfly {
     uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
     uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
     uint32_t rdb_blobfs_cache_sz_mb; /**<rdb blobs global cache size*/
+	bool rdb_auto_compaction_enable;
+        bool rdb_wal_enable;
+        bool rdb_sync_enable;
 
 	uint32_t num_io_threads;
 	uint32_t num_nw_threads;
