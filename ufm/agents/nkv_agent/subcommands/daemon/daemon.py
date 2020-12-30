@@ -41,7 +41,7 @@ logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGE
 logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
 from minio_stats import MinioStats
-from sflow_collector import SFlowStatsCollector
+from sflow_collection import SFlowStatsCollector
 import constants
 import graphite
 import server_info.server_attributes_aggregator as ServerAttr

@@ -167,7 +167,7 @@ class SFlowStatsCollector(object):
     def poll_statistics(self, stopper_event):
         cmd = self.sflowtool_path + ' -j '
         try:
-            proc = pexpect.spawn(cmd, timeout=120)
+            proc = pexpect.spawn(cmd, timeout=None)
         except Exception:
             self.log.exception('Caught exception while running sflowtool')
             return
