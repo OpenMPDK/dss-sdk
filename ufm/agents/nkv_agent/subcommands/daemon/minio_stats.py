@@ -10,7 +10,8 @@ from utils.utils import find_process_pid
 
 
 class MinioStats(object):
-    def __init__(self, cluster_id, target_id, ustat_path='/usr/dss/nkv-target/bin/ustat', statsdb_obj=None):
+    def __init__(self, cluster_id, target_id, ustat_path='/usr/dss/nkv-target/bin/ustat', statsdb_obj=None,
+                 metrics_blacklist_regex=None):
         """
         :param cluster_id: Cluster ID
         :param target_id:  Target ID
@@ -24,6 +25,7 @@ class MinioStats(object):
         self.target_id = target_id
         self.ustat_path = ustat_path
         self.device_subsystem_map = {}
+        self.metrics_blacklist_regex = metrics_blacklist_regex
         self.statsdb_obj = statsdb_obj
 
     def get_device_subsystem_map(self):
@@ -66,14 +68,17 @@ class MinioStats(object):
         for counter in nkv_drive_io_dict:
             val = nkv_drive_io_dict[counter]
             if cpu_id:
-                metric_path = "cluster_id_%s.target_id_%s.minio_id_%s.disk_id_%s.cpu_id_%s.io.%s" % \
-                              (self.cluster_id, self.target_id, minio_uuid,
-                               dsk_id, cpu_id, counter)
+                metric_path = "nkv.%s;cluster_id=%s;target_id=%s;minio_id=%s;disk_id=%s;cpu_id=%s;type=nkv" % \
+                              (counter, self.cluster_id, self.target_id, minio_uuid,
+                               dsk_id, cpu_id)
+                if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                    continue
                 tuples.append((metric_path, (timestamp, val)))
             else:
-                metric_path = "cluster_id_%s.target_id_%s.minio_id_%s.disk_id_%s.io.%s" % \
-                              (self.cluster_id, self.target_id, minio_uuid,
-                               dsk_id, counter)
+                metric_path = "nkv.%s;cluster_id=%s;target_id=%s;minio_id=%s;disk_id=%s;type=nkv" % \
+                              (counter, self.cluster_id, self.target_id, minio_uuid, dsk_id)
+                if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                    continue
                 tuples.append((metric_path, (timestamp, val)))
         return tuples
 
@@ -138,8 +143,10 @@ class MinioStats(object):
                 # Push all the metrics other than nkv.device.nvme into graphite DB AS-IS
                 for k, v in stats_output.iteritems():
                     if not k.startswith('nkv.device.nvme'):
-                        metric_path = "cluster_id_%s.target_id_%s.minio_id_%s.%s" % \
-                                      (self.cluster_id, self.target_id, minio_uuid, k)
+                        metric_path = "%s;cluster_id=%s;target_id;%s;minio_id=%s;type=nkv" % \
+                                      (k, self.cluster_id, self.target_id, minio_uuid)
+                        if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                            continue
                         tuples.append((metric_path, (timestamp, v)))
 
                 if tuples:
