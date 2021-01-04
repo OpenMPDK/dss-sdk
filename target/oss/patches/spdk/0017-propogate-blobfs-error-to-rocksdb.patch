@@ -1,7 +1,7 @@
-From d7343e84548cb9b1a812121a2e1ed8bdc48572de Mon Sep 17 00:00:00 2001
+From 421264388fd38ab2755e972a4c3e7c80623d24cc Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 16 Dec 2020 21:01:51 -0800
-Subject: [PATCH 17/17] propogate blobfs error to rocksdb
+Subject: [PATCH 17/18] propogate blobfs error to rocksdb
 
 ---
  lib/rocksdb/env_dss.cc | 10 ++++++++++
@@ -27,6 +27,7 @@ index 2d1f14c..bc0c1b9 100644
 +
      spdk_free_fs_request(spdk_ctx->data);
      spdk_ctx->cb.Invoke(s, slice);
-
---
+ 
+-- 
 1.8.3.1
+

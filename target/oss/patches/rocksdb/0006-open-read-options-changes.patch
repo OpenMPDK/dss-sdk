@@ -1,7 +1,7 @@
-From b87a15bfc0bb221c8cc6e59a6134ee5322abbe8c Mon Sep 17 00:00:00 2001
+From 1be93b4ce471385425880955b335e8221f93a581 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 2 Nov 2020 15:30:28 -0800
-Subject: [PATCH 06/20] * open/read options changes * rd context queue per dfly
+Subject: [PATCH 06/21] * open/read options changes * rd context queue per dfly
  instance
 
 ---

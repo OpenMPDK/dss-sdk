@@ -1,0 +1,61 @@
+From 70afcfed01085c06c53c112c158ceea3c9c1fbdb Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Mon, 4 Jan 2021 12:39:25 -0800
+Subject: [PATCH 21/21] * apply blobfs cache_size_in_mb for fs init.
+
+---
+ db/dss_kv2blk_c.cc | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index f10dc39..f2b4c43 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -73,6 +73,7 @@ using rocksdb::DBOptions;
+ using rocksdb::Options;
+ using rocksdb::DBOptions;
+ uint32_t max_queue_depth = 1024;
++pthread_mutex_t list_init_mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+ int dss_rocksdb_iter_start(void *ctx, void ** piter,
+             void * prefix, size_t prefix_size);
+@@ -204,7 +205,7 @@ void *_dss_rocksdb_open(void *arg)
+     std::string cpumask = "0x1";  //for core 0
+     std::string nvme_conf = "/usr/local/etc/spdk/nvme5.conf";
+     std::string spdk_bdev="";
+-    uint64_t cache_size_in_mb = 8192;
++    uint64_t cache_size_in_mb = g_dragonfly->rdb_blobfs_cache_sz_mb;
+ 
+     if(!rocksdb::g_bg_coreid){
+         rocksdb::g_bg_coreid = g_dragonfly->rdb_bg_core_start;
+@@ -293,13 +294,16 @@ void *_dss_rocksdb_compaction(void *ctx)
+ 	}
+ 
+ 	pthread_mutex_unlock(&dss_dev->rdb_handle->rdb_lock);
++        time_t st, et;
++        time(&st);
+ 	printf("Compaction started for device %s\n", dss_dev->rdb_handle->dev_name);
+ 	//Syncronous compaction (Blocking)
+ 	s = db->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
+ 	if (!s.ok()) {
+ 		printf("Compaction failed %s\n", s.ToString().c_str());
+ 	}
+-	printf("Compaction done for device %s\n", dss_dev->rdb_handle->dev_name);
++	time(&et);
++	printf("Compaction done for device %s for %d sec\n", dss_dev->rdb_handle->dev_name, et - st);
+ 
+ 	pthread_mutex_lock(&dss_dev->rdb_handle->rdb_lock);
+ 	dss_dev->rdb_handle->compaction_in_progress = false;
+@@ -520,7 +524,9 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+            && iter->Valid()
+            && iter->key().compare(key_upbound) <= 0;
+           iter->Next()) {
++	pthread_mutex_lock(&list_init_mutex);
+         list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
++	pthread_mutex_unlock(&list_init_mutex);
+         //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());
+         nr_keys ++;
+ 
+-- 
+1.8.3.1
+
