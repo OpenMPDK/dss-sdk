@@ -209,9 +209,14 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				}
 				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
 				break;
-			default:
+			case SPDK_NVME_OPC_READ:
 				req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
-				req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+				req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_SUCCESS;
+				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
+			default:
+				DFLY_ERRLOG("Failing request with opcode %d\n", cmd->opc);
+				req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
+				req->rsp->nvme_cpl.status.sc = SPDK_NVME_SC_INVALID_OPCODE;
 				return SPDK_NVMF_REQUEST_EXEC_STATUS_COMPLETE;
 				break;
 		}
