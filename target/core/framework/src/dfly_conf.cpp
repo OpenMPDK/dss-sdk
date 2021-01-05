@@ -207,9 +207,9 @@ dfly_config_read(struct spdk_conf_section *sp)
 	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", false);
 	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", false);
     	g_dragonfly->rdb_bg_core_start = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_core_start", 40);
-    	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 2);
-    	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 8192);
-    	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 1);
+    	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 24);
+    	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 20480);
+    	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 8);
     	g_dragonfly->rdb_wal_enable = spdk_conf_section_get_boolval(sp, "rdb_wal_enable", true);
         g_dragonfly->rdb_sync_enable = spdk_conf_section_get_boolval(sp, "rdb_sync_enable", true);
         g_dragonfly->rdb_auto_compaction_enable = spdk_conf_section_get_boolval(sp, "rdb_auto_compaction_enable", false);
