@@ -1,23 +1,22 @@
-From 2b70bfd76bddbbe157d089506e845de4fa0f8743 Mon Sep 17 00:00:00 2001
+From e708706c1f892cd30a3302cb1517fb5c3708581e Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
-Date: Fri, 13 Nov 2020 15:03:13 -0800
-Subject: [PATCH 10/19] - increase nr of fs channel mutex in case of more
- threading io.
+Date: Mon, 4 Jan 2021 22:12:41 -0800
+Subject: [PATCH 19/19] * increase fs channel sem for more parallel io
 
 ---
  lib/blobfs/blobfs.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index fbc02ee..0cb219c 100644
+index 8c96e4d..231bd0f 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -65,7 +65,7 @@ static struct spdk_thread *g_cache_pool_thread;
  #define BLOBFS_CACHE_POOL_POLL_PERIOD_IN_US 1000ULL
  static int g_fs_count = 0;
  static pthread_mutex_t g_cache_init_lock = PTHREAD_MUTEX_INITIALIZER;
--#define CHANNEL_SEM_MAX 10
-+#define CHANNEL_SEM_MAX 1024
+-#define CHANNEL_SEM_MAX 1024
++#define CHANNEL_SEM_MAX 4096
  #define TRACE_GROUP_BLOBFS	0x7
  #define TRACE_BLOBFS_XATTR_START	SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x0)
  #define TRACE_BLOBFS_XATTR_END		SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x1)

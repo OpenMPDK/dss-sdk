@@ -1,7 +1,7 @@
 From 917b55c5a42638b31dcfd5a8aaf7e5941908d3da Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 11:44:00 -0800
-Subject: [PATCH 12/18] Fix bdev counters and rdma transport deadlock
+Subject: [PATCH 12/19] Fix bdev counters and rdma transport deadlock
 
 ---
  app/nvmf_tgt/Makefile | 2 +-
