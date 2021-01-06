@@ -646,7 +646,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
   }
  
   if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
-    smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
+    smg_error(logger, "Wrong value length, supplied length = %u, max supported = %u !!", n_value->length, nkv_max_value_length);
     return NKV_ERR_VALUE_LENGTH;
   }
   if (nkv_dynamic_logging == 2) {
