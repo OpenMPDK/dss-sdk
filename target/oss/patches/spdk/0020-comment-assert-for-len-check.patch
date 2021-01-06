@@ -1,0 +1,25 @@
+From 1df9fef3872a9766de488e5e510e12831921f0e0 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Wed, 6 Jan 2021 13:05:00 -0800
+Subject: [PATCH 20/20] * comment assert for len check
+
+---
+ lib/nvmf/rdma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 33386a0..f9713d3 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -819,7 +819,7 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 				rdma_req->key.wr.wr.rdma.rkey = key_sgl->keyed.key;
+ 				rdma_req->key.wr.wr.rdma.remote_addr = key_sgl->address;
+ 
+-				assert(translation_len >= key_len);
++				//assert(translation_len >= key_len);
+ 				assert(rdma_req->key.wr.imm_data == 0);
+ 				assert(rdma_req->key.wr.num_sge == 1);
+ 				assert(rdma_req->key.wr.sg_list[0].addr == rdma_req->req.dreq->key_data_buf);
+-- 
+1.8.3.1
+
