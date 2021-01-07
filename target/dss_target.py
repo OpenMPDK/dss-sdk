@@ -39,8 +39,8 @@ g_conf_global_text = """[Global]
 """
 
 g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
-  block_translation_bg_core_start 4
-  block_translation_bg_job_cnt 4
+  #block_translation_bg_core_start 4
+  #block_translation_bg_job_cnt 4
 """
 
 g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
