@@ -273,6 +273,7 @@ struct dfly_qpair_s {
 
 	uint32_t curr_qd;
 	stat_rqpair_t *stat_qpair;
+	stat_initiator_ip_t *stat_iip;
 
 	uint32_t max_pending_lock_reqs;
 	uint32_t npending_lock_reqs;

@@ -79,6 +79,10 @@ typedef struct stat_subsys {
 	ustat_named_t   name;
 } stat_subsys_t;
 
+typedef struct stat_initiator_ip {
+	ustat_named_t   name;
+} stat_initiator_ip_t;
+
 typedef struct stat_kvio {
 	ustat_named_t puts;
 	ustat_named_t gets;
