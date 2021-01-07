@@ -1,7 +1,7 @@
-From c37ba32e558f1c6febfac8d25e4b9966f3c1c48c Mon Sep 17 00:00:00 2001
+From 454da7a8713429c622971ba4255c9596e53c6fe9 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 15 Dec 2020 20:28:22 -0800
-Subject: [PATCH 18/22] * spdk_bdev blocksize support
+Subject: [PATCH 18/23] * spdk_bdev blocksize support
 
 ---
  include/rocksdb/env.h           |  2 ++
@@ -53,7 +53,7 @@ index b24f98b..12d626a 100644
    Status Prefetch(uint64_t offset, size_t n) const {
      return file_->Prefetch(offset, n);
 diff --git a/util/random_read_context.h b/util/random_read_context.h
-index be1f87d..c9f71cc 100644
+index be1f87d..8ba37f3 100644
 --- a/util/random_read_context.h
 +++ b/util/random_read_context.h
 @@ -338,6 +338,7 @@ class ReadBlockContext : protected RandomReadContext {
@@ -123,7 +123,7 @@ index be1f87d..c9f71cc 100644
        used_buf = inclass_buf_;
      } else {
 -        int lba_size = SPDK_BLOBSTORE_IO_UNIT_SIZE;
-+        
++
          int spdk_buffer_size = (((n + kBlockTrailerSize + lba_size - 1) / lba_size) + 1) * lba_size;
  
          if(get_context && get_context->GetBuffer()){
@@ -148,13 +148,13 @@ index be1f87d..c9f71cc 100644
 -		#endif
 -                  //void * prev_buf = heap_buf_.get();
 -		  if(!buf){
-+        		#ifndef RDB_SPDK_MEMPOOL
-+        		            buf = spdk_malloc( spdk_buffer_size, lba_size, NULL,
-+        							  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
++			#ifndef RDB_SPDK_MEMPOOL
++			            buf = spdk_malloc( spdk_buffer_size, lba_size, NULL,
++								  SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA|SPDK_MALLOC_SHARE);
 +                            printf("ConstructReadBlockContext spdk_malloc %p size %d\n", buf, spdk_buffer_size);
-+        		#else
++			#else
 +                          buf = spdk_mempool_get(g_rdb_mempool);
-+        		#endif
++			#endif
 +                      //void * prev_buf = heap_buf_.get();
 +		        if(!buf){
                      printf("ConstructReadBlockContext spdk memory alloc failed!\n");

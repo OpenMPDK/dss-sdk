@@ -1,0 +1,37 @@
+From fee8278ba50d76088d551866de34f971f124c9e2 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 7 Jan 2021 13:52:09 -0800
+Subject: [PATCH 21/21] Remove debug print and avoid multi fs cache init
+
+---
+ lib/rocksdb/env_dss.cc | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
+index e27d392..35427f4 100644
+--- a/lib/rocksdb/env_dss.cc
++++ b/lib/rocksdb/env_dss.cc
+@@ -453,7 +453,7 @@ public:
+ 			struct spdk_file *file;
+ 			int rc;
+ 
+-			printf("name %s --> %s\n", fname.c_str(), name.c_str());
++			//printf("name %s --> %s\n", fname.c_str(), name.c_str());
+ 			rc = spdk_fs_open_file(mSpdkFS, mSpdkFsCh,
+ 					       name.c_str(), 0, &file);
+ 			if (rc == 0) {
+@@ -650,8 +650,9 @@ DssEnv::DssEnv(Env *base_env, const std::string &dir,
+                                    SIZE_MAX,
+                                    SPDK_ENV_SOCKET_ID_ANY);
+ #endif
+-	printf("spdk_fs_set_cache_size: cache_size_in_mb %d\n", cache_size_in_mb);
+-	spdk_fs_set_cache_size(cache_size_in_mb);
++	//printf("spdk_fs_set_cache_size: cache_size_in_mb %d\n", cache_size_in_mb);
++	//Note:Set during dfly_init -- global needs to be initialized only once
++	//spdk_fs_set_cache_size(cache_size_in_mb);
+ }
+ 
+ DssEnv::~DssEnv()
+-- 
+1.8.3.1
+
