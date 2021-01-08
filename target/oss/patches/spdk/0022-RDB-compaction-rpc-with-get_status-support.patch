@@ -1,0 +1,59 @@
+From 0d27e292bdfc1c7d346f8278055a141a11f4bbdc Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 8 Jan 2021 00:27:30 -0800
+Subject: [PATCH 22/22] RDB compaction rpc with get_status support
+
+---
+ scripts/dss_rpc.py             | 6 ++++--
+ scripts/rpc/latency_profile.py | 8 +++++---
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
+index 46ee951..5e1a58b 100755
+--- a/scripts/dss_rpc.py
++++ b/scripts/dss_rpc.py
+@@ -60,11 +60,13 @@ if __name__ == "__main__":
+ 
+     def dss_rdb_compact(args):
+         print_dict(rpc.latency_profile.dss_rdb_compact(args.client,
+-                                                      nqn=args.nqn))
++                                                      nqn=args.nqn,
++                                                      get_status=args.get_status))
+ 
+     p = subparsers.add_parser('rdb_compact', help='Compact rdb block devices for NVMEoF subsystem')
+     p.add_argument('-n', '--nqn', help='NVMe-oF target nqn')
+-    p.set_defaults(func=dss_rdb_compact)
++    p.add_argument('-s', '--get_status', help="Get only compaction status", action='store_true')
++    p.set_defaults(func=dss_rdb_compact, get_status=False)
+ 
+     args = parser.parse_args()
+ 
+diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
+index 9f82ee3..c1d91f6 100644
+--- a/scripts/rpc/latency_profile.py
++++ b/scripts/rpc/latency_profile.py
+@@ -30,16 +30,18 @@ def reset_ustat_counters(client, nqn):
+ 
+ 	return client.call('dss_reset_ustat_counters', params)
+ 
+-def dss_rdb_compact(client, nqn):
+-	"""Do compaction for rdb block devices in an NVMEoF subsystem
++def dss_rdb_compact(client, nqn, get_status=False):
++	"""Initialte or get status of compaction for rdb block devices in an NVMEoF subsystem
+ 
+ 	Args:
+ 		nqn: Subsystem NQN
++        get_status: Get only current status (True) or try to start compaction (False)
+ 
+ 	Returns:
+ 		true compaction is started
+ 	"""
+ 
+-	params = {'nqn': nqn}
++	params = {'nqn': nqn,
++              'get_status': get_status}
+ 
+ 	return client.call('dss_rdb_compact', params)
+-- 
+1.8.3.1
+
