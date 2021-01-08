@@ -287,6 +287,86 @@ class ServerHardware(object):
         return ifaces
 
 
+class MellanoxInfo(object):
+    def __init__(self):
+        pass
+
+    def get_mellanox_qos(self, ifaces):
+        qos_details = {}
+        for mac in ifaces:
+            iface = ifaces[mac]
+            iface_name = iface['InterfaceName']
+            if 'Mellanox' in iface['Vendor']:
+                cmd = 'mlnx_qos -i ' + iface_name
+                try:
+                    proc = Popen(cmd.split(), stdout=PIPE, stderr=PIPE)
+                    out, err = proc.communicate()
+                except Exception as e:
+                    print('Exception in running cmd %s, exception %s' % (cmd, str(e)))
+                    continue
+
+                if err:
+                    print('Error in getting details for cmd %s' % cmd)
+                    continue
+
+                qos_details[iface_name] = {}
+                lineiter = iter(out.splitlines())
+                for line in lineiter:
+                    line = line.decode('utf-8')
+                    if 'WARNING' in line:
+                        continue
+                    if 'PFC configuration' in line:
+                        if 'pfc' not in qos_details[iface_name]:
+                            qos_details[iface_name]['pfc'] = {}
+                        for i in range(3):
+                            line = next(lineiter)
+                            line = line.decode('utf-8')
+                            line = line.strip('\t')
+                            v = str(line).split(None, 1)
+                            qos_details[iface_name]['pfc'][v[0]] = v[1]
+                    if 'tc' in line:
+                        if 'tc' not in qos_details[iface_name]:
+                            qos_details[iface_name]['tc'] = {}
+                        line = str(line)
+                        v = line.split(' ', 2)
+                        qos_details[iface_name]['tc'][v[1]] = v[2]
+                        next(lineiter)
+
+        return qos_details
+
+    def get_mellanox_config(self):
+        mlnx_config = {}
+        sys_class_path = '/sys/class/infiniband'
+        for root, dirs, _ in os.walk(sys_class_path):
+            for d in dirs:
+                cmd = 'mlxconfig -d ' + d + ' q'
+                try:
+                    proc = Popen(cmd.split(), stdout=PIPE, stderr=PIPE)
+                    out, err = proc.communicate()
+                except Exception as e:
+                    print('Exception in running cmd %s, exception %s' % (cmd, str(e)))
+                    continue
+
+                if err:
+                    print('Error in getting details for cmd %s' % cmd)
+                    continue
+
+                mlnx_config[d] = {}
+                config_str_found = False
+                lineiter = iter(out.splitlines())
+                for line in lineiter:
+                    line = line.decode('utf-8')
+                    if 'Configurations' in line:
+                        config_str_found = True
+
+                    if not config_str_found:
+                        continue
+                    v = str(line).split()
+                    mlnx_config[d][v[0]] = v[1]
+
+        return mlnx_config
+
+
 def collect_system_info(system_info_file=default_filename):
     system_info = {}
     sh = ServerHardware()
@@ -302,6 +382,9 @@ def collect_system_info(system_info_file=default_filename):
     system_info['NUMA Info'] = numa_info
     net_ifaces = sh.get_network_info()
     system_info['Network'] = net_ifaces
+    mlnx_info = MellanoxInfo()
+    system_info['NIC QOS'] = mlnx_info.get_mellanox_qos(net_ifaces)
+    system_info['NIC Configuration'] = mlnx_info.get_mellanox_config()
 
     with open(system_info_file, 'w') as f:
         yaml.dump(system_info, f, default_flow_style=False)

@@ -201,7 +201,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
         smg_alert(logger, "## NKV debugging is OFF ##");
     }
     catch (std::exception& e) {
-      smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
+      smg_error(logger, "%s%s", "Error reading config file property, Error = %s", e.what());
     }
     if (nkv_dynamic_logging) {
       smg_alert(logger, "Cache based listing = %d, number of cache shards = %d, Num PUTs = %u, Num GETs = %u, Num LISTs = %u, Num DELs = %u, Num Misses = %u", 
@@ -231,7 +231,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   logger = smg_acquire_logger("libnkv");  
   assert(logger != NULL);
 
-  if (is_kvs_initialized) {
+  if (is_kvs_initialized.load()) {
     smg_info(logger, "NKV already intialized for app = %s", app_uuid);
     return NKV_ERR_ALREADY_INITIALIZED;  
   }
@@ -263,7 +263,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     boost::property_tree::read_json(config_path, pt);
   }
   catch (std::exception& e) {
-    smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = ", e.what()); 
+    smg_error(logger, "%s%s", "Error reading config file and building ptree! Error = %s", e.what()); 
     return NKV_ERR_CONFIG;
   }
 
@@ -349,7 +349,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
   }
   catch (std::exception& e) {
-    smg_error(logger, "%s%s", "Error reading config file property, Error = ", e.what());
+    smg_error(logger, "%s%s", "Error reading config file property, Error = %s", e.what());
     return NKV_ERR_CONFIG;
   }
   smg_alert(logger,"contact_fm = %d, nkv_transport = %d, min_container_required = %d, min_container_path_required = %d, container_path_qd = %d, is_local = %d", 
@@ -482,44 +482,56 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
   }
   smg_info(logger, "NKV open is successful for app = %s", app_uuid);
   pt.clear();
-  is_kvs_initialized = true;
+  is_kvs_initialized.store(true);
   return NKV_SUCCESS;
 
 }
 
+std::atomic<bool> is_kvs_closed (false);
 /* nkv_close API definition */
 nkv_result nkv_close (uint64_t nkv_handle, uint64_t instance_uuid) {
 
   smg_info(logger, "nkv_close invoked for nkv_handle = %u", nkv_handle);
+  if (is_kvs_closed.load()) {
+    smg_warn(logger,  "nkv_close already invoked for nkv_handle = %u", nkv_handle);
+    return NKV_SUCCESS;
+  }
+  is_kvs_closed.store(true); 
   nkv_stopping = true;
-  if (nkv_stat_thread_needed || nkv_event_handler) {
-    cv_global.notify_all();
-    nkv_thread.join();
-  }
-  if (nkv_event_handler) {
-    nkv_event_thread.join();
-  }
-  while (nkv_pending_calls) {
-    usleep(SLEEP_FOR_MICRO_SEC);
-  }
-  assert(nkv_pending_calls == 0);
+  try {
+    if (nkv_stat_thread_needed || nkv_event_handler) {
+      cv_global.notify_all();
+      nkv_thread.join();
+    }
+    if (nkv_event_handler) {
+      nkv_event_thread.join();
+    }
+    while (nkv_pending_calls) {
+      usleep(SLEEP_FOR_MICRO_SEC);
+    }
+    assert(nkv_pending_calls == 0);
 
-  if (nkv_cnt_list) {
-    delete nkv_cnt_list;
-    nkv_cnt_list = NULL;
-  }
+    if (nkv_cnt_list) {
+      delete nkv_cnt_list;
+      nkv_cnt_list = NULL;
+    }
 
-  if ( fm ) {
-    delete fm;
-    fm = NULL;
-  }
+    if ( fm ) {
+      delete fm;
+      fm = NULL;
+    }
  
-  #ifdef SAMSUNG_API 
-    kvs_exit_env();
-  #endif
+    #ifdef SAMSUNG_API 
+      kvs_exit_env();
+    #endif
 
-  if (logger)
-    smg_release_logger(logger);
+    if (logger)
+      smg_release_logger(logger);
+  }
+  catch (std::exception& e) {
+    smg_error(logger, "%s%s", "Error during nkv_close, nkv_handle = %u, Error = %s", e.what());
+    return NKV_ERR_INTERNAL;
+  }
 
   return NKV_SUCCESS;
 }

@@ -42,7 +42,7 @@ int _dfly_spdk_get_ifaddr_numa_node(char *if_addr)
 	struct sockaddr_in addr, addr_in;
 	char path[MAX_STRING_LEN + 1];
 	int numa_node = -1;
-	char *delim;
+	char *delim = NULL;
 
 	addr_in.sin_addr.s_addr = inet_addr(if_addr);
 	if (addr_in.sin_addr.s_addr == INADDR_NONE) {
@@ -100,7 +100,7 @@ dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
 	io_device = (struct dfly_io_device_s *) req->dreq->io_device;
 	DFLY_ASSERT(io_device);
 
-	dfly_ustat_atomic_dec_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
+	dfly_ustat_atomic_dec_u64(io_device->stat_io, &io_device->stat_io->i_pending_reqs);
 
 	dreq->status = success;
 
@@ -163,7 +163,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 		dfly_counters_size_count(io_device->stat_io, req, cmd->opc);
 		dfly_counters_bandwidth_cal(io_device->stat_io, req, cmd->opc);
 	}
-	dfly_ustat_atomic_inc_u64(io_device->stat_io, &io_device->stat_io->pending_reqs);
+	dfly_ustat_atomic_inc_u64(io_device->stat_io, &io_device->stat_io->i_pending_reqs);
 
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation

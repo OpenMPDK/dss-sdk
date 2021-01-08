@@ -3,6 +3,7 @@ etcd3==0.7.0
 futures==3.3.0
 grpcio==1.28.1
 click==6.7
+diamond==4.0.515
 docopt==0.6.2
 Flask==0.12.2
 itsdangerous==0.24

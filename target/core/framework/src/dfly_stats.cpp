@@ -48,12 +48,21 @@ const ustat_class_t ustat_class_test = {
 	.usc_bson = NULL,
 };
 
+const stat_counter_types_t stat_counter_types_table {
+	{ "instantaneous", USTAT_TYPE_STRING, 260, NULL },
+	{ "constant", USTAT_TYPE_STRING, 260, NULL },
+};
+
 const stat_serial_t stat_dev_serial_table = {
-	{ "serial", USTAT_TYPE_STRING, 260, NULL },
+	{ "c_serial", USTAT_TYPE_STRING, 260, NULL },
 };
 
 const stat_subsys_t stat_subsys_nqn_table = {
-	{ "nqn", USTAT_TYPE_STRING, 260, NULL },
+	{ "c_nqn", USTAT_TYPE_STRING, 260, NULL },
+};
+
+const stat_initiator_ip_t stat_initiator_ip_table = {
+	{ "c_initiator_ip", USTAT_TYPE_STRING, INET6_ADDRSTRLEN, NULL },
 };
 
 const stat_kvio_t stat_dev_io_table = {
@@ -78,7 +87,7 @@ const stat_kvio_t stat_dev_io_table = {
 	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
+	{ "i_pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_kvio_t stat_subsys_io_table = {
@@ -103,21 +112,21 @@ const stat_kvio_t stat_subsys_io_table = {
 	{ "get_256KB_1MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_1MB_2MB", USTAT_TYPE_UINT64, 0, NULL},
 	{ "get_large_2MB", USTAT_TYPE_UINT64, 0, NULL},
-	{ "pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
+	{ "i_pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 const stat_rqpair_t stat_rqpair_io_table = {
-	{"reqs", USTAT_TYPE_UINT64, 0, NULL},
-	{"reqs_max", USTAT_TYPE_UINT64, 0, NULL},
-	{"max_qd", USTAT_TYPE_UINT64, 0, NULL},
+	{"i_reqs", USTAT_TYPE_UINT64, 0, NULL},
+	{"i_reqs_max", USTAT_TYPE_UINT64, 0, NULL},
+	{"c_max_qd", USTAT_TYPE_UINT64, 0, NULL},
 	{"puts", USTAT_TYPE_UINT64, 0, NULL },
 	{"gets", USTAT_TYPE_UINT64, 0, NULL },
 	{"dels", USTAT_TYPE_UINT64, 0, NULL },
 };
 
 const stat_module_t stat_module_req_table = {
-	{"reqs", USTAT_TYPE_UINT64, 0, NULL},
-	{"reqs_max", USTAT_TYPE_UINT64, 0, NULL},
+	{"i_reqs", USTAT_TYPE_UINT64, 0, NULL},
+	{"i_reqs_max", USTAT_TYPE_UINT64, 0, NULL},
 };
 
 void dfly_ustat_insert_stat_thread_table(ustat_struct_t **s, int id, const stat_module_t *table,
@@ -157,6 +166,20 @@ dfly_ustats_init()
 	}
 
 	g_dragonfly->s_handle = h;
+
+	stat_counter_types_t *counter_types = NULL;
+
+	counter_types = (stat_counter_types_t *)ustat_insert(h, "target", STAT_GNAME_COUNTERS,
+			&ustat_class_test,
+			sizeof(stat_counter_types_table) / sizeof(ustat_named_t),
+			&stat_counter_types_table, NULL);
+	if (!counter_types) {
+		DFLY_ERRLOG("Failed to initialize counter types ustat entry\n");
+		return (-1);
+	}
+
+	dfly_ustat_set_string(counter_types, &counter_types->icounters, "[i_pending_reqs, i_reqs, i_reqs_max]");
+	dfly_ustat_set_string(counter_types, &counter_types->ccounters, "[c_serial, c_nqn, c_max_qd, c_initiator_ip]");
 
 	return (0);
 }
@@ -240,6 +263,7 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 	return (0);
 }
 
+
 /*
  * Does not guarantee accuracy if IOs are still going on
  */
@@ -279,6 +303,10 @@ dfly_ustat_remove_subsys_stat(void *subsys)
 	dfly_ustat_delete(subsystem->stat_kvio);
 }
 
+void
+dfly_ustat_insert_iip(struct dfly_qpair_s *dqpair, int id,
+				     const char *name, char *ip);
+
 int
 dfly_ustat_init_qpair_stat(void *qpair)
 {
@@ -296,8 +324,13 @@ dfly_ustat_init_qpair_stat(void *qpair)
 
 	stat_rqpair_t *st_rqpair;
 	char *gname = alloca(STAT_ENAME_LEN);
+	char *ctrl_gname = alloca(STAT_ENAME_LEN);
+
 	uint32_t cid = dqpair->parent_qpair->ctrlr->cntlid;
 	int id_num = dqpair->parent_qpair->ctrlr->subsys->id;
+
+	snprintf(ctrl_gname, STAT_ENAME_LEN, "ctrlr%u", cid);
+	dfly_ustat_insert_iip(dqpair, id_num, ctrl_gname, dqpair->peer_addr);
 
 	//TODO: add session information, make the naming as sessionx.subsystemx.ctrlrx_rpairx
 	snprintf(gname, STAT_ENAME_LEN, "ctrlr%u_rpair%u", cid, dqpair->parent_qpair->qid);
@@ -305,7 +338,7 @@ dfly_ustat_init_qpair_stat(void *qpair)
 	dfly_ustat_insert_stat_ses_rqp_table(&st_rqpair, id_num, &stat_rqpair_io_table, gname);
 	// Note: since when we initialize qpair. There are actually two initialize called. One is nreqs, another is 1
 	// Thus, the max qd is nreqs+1
-	dfly_ustat_set_u64(st_rqpair, &st_rqpair->max_qd, dqpair->nreqs + 1);
+	dfly_ustat_set_u64(st_rqpair, &st_rqpair->c_max_qd, dqpair->nreqs + 1);
 	assert(st_rqpair);
 	dqpair->stat_qpair = st_rqpair;
 
@@ -319,6 +352,10 @@ dfly_ustat_remove_qpair_stat(void *qpair)
 {
 	struct dfly_qpair_s *dqpair = (struct dfly_qpair_s *) qpair;
 	dfly_ustat_delete(dqpair->stat_qpair);
+	if(dqpair->stat_iip) {
+		dfly_ustat_delete(dqpair->stat_iip);
+		dqpair->stat_iip = NULL;
+	}
 }
 
 void
@@ -337,12 +374,12 @@ dfly_ustat_update_rqpair_stat(void *qpair, int ops)
 	}
 
 	uint32_t curr_qd = dqpair->curr_qd;
-	uint64_t curr_max = dfly_ustat_get_u64(dqpair->stat_qpair, &dqpair->stat_qpair->reqs_max);
+	uint64_t curr_max = dfly_ustat_get_u64(dqpair->stat_qpair, &dqpair->stat_qpair->i_reqs_max);
 	if (curr_qd > curr_max) {
-		dfly_ustat_set_u64(dqpair->stat_qpair, &dqpair->stat_qpair->reqs_max, (uint64_t)curr_qd);
+		dfly_ustat_set_u64(dqpair->stat_qpair, &dqpair->stat_qpair->i_reqs_max, (uint64_t)curr_qd);
 	}
 
-	dfly_ustat_set_u64(dqpair->stat_qpair, &dqpair->stat_qpair->reqs, (uint64_t)curr_qd);
+	dfly_ustat_set_u64(dqpair->stat_qpair, &dqpair->stat_qpair->i_reqs, (uint64_t)curr_qd);
 }
 
 int dfly_qp_counters_inc_io_count(stat_rqpair_t *stats, int opc)
@@ -374,8 +411,8 @@ void dfly_qp_reset_counters(stat_rqpair_t *stats)
 	dfly_ustat_set_u64(stats, &stats->puts,     0);
 	dfly_ustat_set_u64(stats, &stats->gets,     0);
 	dfly_ustat_set_u64(stats, &stats->dels,     0);
-	dfly_ustat_set_u64(stats, &stats->reqs,     0);
-	dfly_ustat_set_u64(stats, &stats->reqs_max, 0);
+	dfly_ustat_set_u64(stats, &stats->i_reqs,     0);
+	dfly_ustat_set_u64(stats, &stats->i_reqs_max, 0);
 	//Don't reset stats->max_qd. This is constant;
 
 	return;
@@ -409,15 +446,15 @@ dfly_ustat_update_module_inst_stat(void *poller_inst, int ops, uint64_t num_reqs
 			poller_inst;
 
 	if (ops == 0) {
-		dfly_ustat_atomic_add_u64(module_inst->stat_module, &module_inst->stat_module->reqs, num_reqs);
-		uint64_t curr_req = dfly_ustat_get_u64(module_inst->stat_module, &module_inst->stat_module->reqs);
+		dfly_ustat_atomic_add_u64(module_inst->stat_module, &module_inst->stat_module->i_reqs, num_reqs);
+		uint64_t curr_req = dfly_ustat_get_u64(module_inst->stat_module, &module_inst->stat_module->i_reqs);
 		uint64_t max_req = dfly_ustat_get_u64(module_inst->stat_module,
-						      &module_inst->stat_module->reqs_max);
+						      &module_inst->stat_module->i_reqs_max);
 		if (curr_req > max_req) {
-			dfly_ustat_set_u64(module_inst->stat_module, &module_inst->stat_module->reqs_max, curr_req);
+			dfly_ustat_set_u64(module_inst->stat_module, &module_inst->stat_module->i_reqs_max, curr_req);
 		}
 	} else {
-		dfly_ustat_atomic_sub_u64(module_inst->stat_module, &module_inst->stat_module->reqs, num_reqs);
+		dfly_ustat_atomic_sub_u64(module_inst->stat_module, &module_inst->stat_module->i_reqs, num_reqs);
 	}
 }
 
@@ -499,6 +536,32 @@ dfly_ustat_insert_stat_ses_rqp_table(ustat_struct_t **stat, int id, const stat_r
 						&ustat_class_test,
 						sizeof(*table) / sizeof(ustat_named_t),
 						table, NULL);
+
+	return;
+}
+
+void
+dfly_ustat_insert_iip(struct dfly_qpair_s *dqpair, int id,
+				     const char *name, char *ip)
+{
+	char *ename = alloca(STAT_ENAME_LEN);
+    ustat_struct_t *stat_handle = NULL;
+
+	(void) dfly_ustats_get_ename(STAT_ENAME_SUBSYS, id, ename, STAT_ENAME_LEN);
+	ustat_handle *h = dfly_ustats_get_handle();
+
+	stat_handle = ustat_lookup_struct(h, ename, name);
+	if(stat_handle) {
+		dqpair->stat_iip = NULL;
+	} else {
+		dqpair->stat_iip = (stat_initiator_ip_t *)ustat_insert(h, ename, name,
+						&ustat_class_test,
+						sizeof(stat_initiator_ip_table) / sizeof(ustat_named_t),
+						&stat_initiator_ip_table, NULL);
+
+		dfly_ustat_set_string(dqpair->stat_iip, &dqpair->stat_iip->name, ip);
+	}
+
 
 	return;
 }
