@@ -808,10 +808,12 @@ SPDK_RPC_REGISTER("dss_reset_ustat_counters", dss_rpc_reset_ustat_counters, SPDK
 
 struct dss_rpc_nqn_req_s {
 	char *nqn;
+	bool get_status;
 };
 
 static const struct spdk_json_object_decoder dss_rpc_nqn_decoder[] = {
 	{"nqn", offsetof(struct dss_rpc_nqn_req_s, nqn), spdk_json_decode_string},
+	{"get_status", offsetof(struct dss_rpc_nqn_req_s, get_status), spdk_json_decode_bool, true},
 };
 
 static  struct dfly_subsystem * dss_rpc_decode_nqn_param(const struct spdk_json_val *params,
@@ -849,6 +851,7 @@ void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req)
 	free(req->nqn);
 }
 
+
 static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
@@ -856,13 +859,39 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 	struct dfly_subsystem *df_subsys;
 	struct spdk_json_write_ctx *w;
 	int i;
+	char *result_str;
+	bool compact_in_progress = false;
+
+	req.get_status = false;
 
 	if((df_subsys = dss_rpc_decode_nqn_param(params, &req)) == NULL) {
 		goto invalid;
 	}
 
+	pthread_mutex_lock(&df_subsys->subsys_lock);
 	for(i=0; i < df_subsys->num_io_devices; i++) {
-		dss_rocksdb_compaction(&df_subsys->devices[i]);
+		if(df_subsys->devices[i].rdb_handle->compaction_in_progress == true) {
+			compact_in_progress = true;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&df_subsys->subsys_lock);//Release lock
+
+	if(req.get_status) {
+		if(compact_in_progress) {
+			result_str = "IN PROGRESS";
+		} else {
+			result_str = "IDLE";
+		}
+	} else {
+		if(!compact_in_progress) {
+			for(i=0; i < df_subsys->num_io_devices; i++) {
+				dss_rocksdb_compaction(&df_subsys->devices[i]);
+			}
+			result_str = "STARTED";
+		} else {
+			result_str = "RUNNING";
+		}
 	}
 
 	w = spdk_jsonrpc_begin_result(request);
@@ -873,7 +902,7 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 	spdk_json_write_object_begin(w);
 
 	spdk_json_write_name(w, "result");
-	spdk_json_write_bool(w, true);
+	spdk_json_write_string(w, result_str);
 
 	spdk_json_write_object_end(w);
 
