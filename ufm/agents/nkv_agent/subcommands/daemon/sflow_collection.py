@@ -11,6 +11,7 @@ import struct
 import threading
 import time
 
+
 def _set_logger(log_filename):
     log_dict = {
         'version': 1.0,
@@ -150,7 +151,7 @@ class _GraphiteDBManager:
 
 class SFlowStatsCollector(object):
     def __init__(self, cluster_id, target_id, statsdb_obj,
-                 logger, sflowtool_path='/usr/bin/sflowtool'):
+                 logger, metrics_blacklist_regex=None, sflowtool_path='/usr/bin/sflowtool'):
         """
         :param cluster_id: Cluster ID
         :param target_id:  Target ID
@@ -162,6 +163,7 @@ class SFlowStatsCollector(object):
         self.target_id = target_id
         self.statsdb_obj = statsdb_obj
         self.sflowtool_path = sflowtool_path
+        self.metrics_blacklist_regex = metrics_blacklist_regex
         self.log = logger
 
     def poll_statistics(self, stopper_event):
@@ -195,8 +197,10 @@ class SFlowStatsCollector(object):
                                 continue
                             if_index = element.pop('ifIndex')
                             for k, v in element.items():
-                                metric_path = "sflow_metrics.%s;switch_ip=%s;agent_id=%s;source_id=%s;if_index=%s" % \
+                                metric_path = "sflow_metrics.%s;switch_ip=%s;agent_id=%s;source_id=%s;if_index=%s;type=sflow" % \
                                               (k, switch_ip, agent_id, source_id, if_index)
+                                if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                                    continue
                                 tuples.append((metric_path, (int(timestamp), int(v))))
 
                     elif sample['sampleType'] == 'FLOWSAMPLE':
@@ -216,10 +220,12 @@ class SFlowStatsCollector(object):
 
                             metric_path = ("sflow_metrics.sampled_packet_size;switch_ip=%s;agent_id=%s;source_id=%s;"
                                            "if_index=%s;src_mac=%s;dst_mac=%s;src_ip=%s;dst_ip=%s;vlan=%s;"
-                                           "priority=%s;%s_src_port=%s;%s_dst_port=%s") % \
+                                           "priority=%s;%s_src_port=%s;%s_dst_port=%s;type=sflow") % \
                                           (switch_ip, agent_id, source_id, iface_port, e['srcMAC'], e['dstMAC'],
                                            e['srcIP'], e['dstIP'], e['decodedVLAN'], e['decodedPriority'],
                                            proto, src_port, proto, dst_port)
+                            if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                                continue
                             tuples.append((metric_path, (int(timestamp), int(e['sampledPacketSize']))))
 
                 if tuples:

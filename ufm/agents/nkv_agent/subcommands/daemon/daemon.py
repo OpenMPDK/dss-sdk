@@ -10,7 +10,7 @@ Options:
   --stats                      Enable stats poll and send threads.
   --attribute_poll=<period>    Poll per seconds [default: 60].
   --monitor_poll=<period>      Subsystem monitor per seconds [default: 50].
-  --performance_poll=<period>  Performance stats poll per seconds [default: 1].
+  --performance_poll=<period>  Performance stats poll per seconds [default: 10].
   --start_tgt                   Start the target
   --stop_tgt                    Stop the target
 """
@@ -96,7 +96,7 @@ class OSMDaemon:
     def __init__(self,
                  endpoint, port, fn_ptrs, ustat,
                  check_spdk, spdk_conf, driver_setup, stats_mode,
-                 stats_server, stats_port):
+                 stats_server, stats_port, metrics_blacklist_regex=None):
         self.jsonrpc_recv_size = constants.JSONRPC_RECV_PACKET_SIZE
         self.default_spdk_rpc = constants.DEFAULT_SPDK_SOCKET_PATH
         self.synchronize_etcd = 0
@@ -106,6 +106,7 @@ class OSMDaemon:
         self.driver_setup = driver_setup
         self.uptime_hr = 0
         self.default_etcd_ttl = 120
+        self.metrics_blacklist_regex = metrics_blacklist_regex
 
         self.ustat_path = ustat['ustat_binary_path']
         self.nvmf_pid = ustat['nvmf_pid']
@@ -281,8 +282,8 @@ class OSMDaemon:
         try:
             self.diamond_conf.update_diamond_conf(self.stats_mode, self.stats_server,
                                                   self.stats_port,
-                                                  "cluster_id_" + self.CLUSTER_ID,
-                                                  "target_id_" + self.SERVER_UUID)
+                                                  "cluster_id_" + g_cluster_name,
+                                                  "target_id_" + self.SERVER_NAME + ".system_stats")
         except:
             logger.exception('Exception in updating diamond configuration')
             
@@ -372,7 +373,7 @@ class OSMDaemon:
             try:
                 # Update the same device
                 if int(etcd_devices[dev]["CRC"]) != int(local_devices[dev]["CRC"]):
-                    logger.info("Mismatched CRC for '%s'" % dev)
+                    logger.debug("Mismatched CRC for '%s'" % dev)
                     try:
                         self.backend.write_dict_to_etcd(entry, self.SERVER_ATTR_KEY_PREFIX)
                     except Exception:
@@ -622,11 +623,13 @@ class OSMDaemon:
 
                     nqn_name = subsystem["NQN"].replace('.', '-')
 
-                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.disk.disk_id_%s.freespacepercent" % \
+                    metric_path = "freespacepercent;cluster_id=%s;target_id=%s;nqn_id=%s;disk_id=%s;type=disk" % \
                                   (g_cluster_name, self.SERVER_NAME, nqn_name, serial)
 
                     timestamp = time.time()
                     value = str(1.0 - diskUsage)
+                    if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                        continue
                     tuples.append((metric_path, (timestamp, value)))
             nw_tuples = self.get_mlnx_perf_metrics()
             tuples += nw_tuples
@@ -1125,9 +1128,16 @@ class OSMDaemon:
                                  'status to %s', target_status)
             stopper_event.wait(sec)
 
-    def statistics_helper(self, items, prev_counters, output, client):
+    def statistics_helper(self, items, prev_counters, output, client, non_cum_counters):
         for counter, value in items:
             counter_value = int(value)
+            try:
+                if non_cum_counters[counter]:
+                    output[counter] = counter_value
+                    continue
+            except:
+                pass
+
             if counter not in prev_counters:
                 prev_counters[counter] = counter_value
             else:
@@ -1147,15 +1157,13 @@ class OSMDaemon:
                 output[counter] = 0
             output[counter] += counter_value
 
-    def subsystem_statistics_to_message(self,
-                                        subsystem,
-                                        timestamp,
-                                        prev_counters,
+    def subsystem_statistics_to_message(self, subsystem, timestamp,
+                                        prev_counters, non_cum_counters,
                                         message_tuples):
-        if 'id' not in subsystem or 'nqn' not in subsystem['id']:
+        if 'id' not in subsystem or 'c_nqn' not in subsystem['id']:
             return
 
-        subsystem_nqn = subsystem["id"]["nqn"]
+        subsystem_nqn = subsystem["id"]["c_nqn"]
         if subsystem_nqn in self.nqn_uuid_map:
             subsystem_uuid = self.nqn_uuid_map[subsystem_nqn]
         else:
@@ -1172,7 +1180,7 @@ class OSMDaemon:
                     # TODO number should be sent by the ustat command.
                     # TODO For now, just strip the last two characters which is
                     # TODO more of the form <dev_serial> + "n1" to just serial
-                    serial = subsystem[element]["id"]["serial"][:-2]
+                    serial = subsystem[element]["id"]["c_serial"][:-2]
                 except Exception:
                     logger.exception('ID or Serial not found for drive %s',
                                      element)
@@ -1183,12 +1191,13 @@ class OSMDaemon:
                 if 'kvio' in subsystem[element]:
                     counters = {}
                     self.statistics_helper(subsystem[element]["kvio"].iteritems(),
-                                           prev_counters[serial], counters, 0)
+                                           prev_counters[serial], counters, 0, non_cum_counters)
                     for counter in counters:
-                        metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.disk.disk_id_%s.%s" % \
-                                      (g_cluster_name, self.SERVER_NAME,
-                                       nqn_name, serial, counter)
+                        metric_path = "%s;cluster_id=%s;target_id=%s;nqn_id=%s;disk_id=%s;type=subsystem" % \
+                                      (counter, g_cluster_name, self.SERVER_NAME, nqn_name, serial)
                         value = str(counters[counter])
+                        if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                            continue
                         message_tuples.append((metric_path, (timestamp, value)))
             elif element.startswith('kvio'):
                 # Gather subsystem level statistics
@@ -1199,44 +1208,44 @@ class OSMDaemon:
                 self.statistics_helper(subsystem[element].iteritems(),
                                        prev_counters[subsystem_uuid],
                                        counters,
-                                       0)
+                                       0, non_cum_counters)
                 for counter in counters:
-                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.subsystem.%s" % \
-                                      (g_cluster_name, self.SERVER_NAME,
-                                       nqn_name, counter)
+                    metric_path = "%s;cluster_id=%s;target_id=%s;nqn_id=%s;type=subsystem" % \
+                                      (counter, g_cluster_name, self.SERVER_NAME, nqn_name)
                     value = str(counters[counter])
+                    if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                        continue
                     message_tuples.append((metric_path, (timestamp, value)))
+            elif element.startswith('ctrlr'):
+                counters = subsystem[element]
+                if 'c_initiator_ip' in counters:
+                    host_id = counters.pop('c_initiator_ip')
+                    for counter in counters:
+                        metric_path = "%s;cluster_id=%s;target_id=%s;nqn_id=%s;host_id=%s;type=subsystem" % \
+                                      (counter, g_cluster_name, self.SERVER_NAME,
+                                       nqn_name, host_id)
+                        value = str(counters[counter])
+                        if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                            continue
+                        message_tuples.append((metric_path, (timestamp, value)))
             else:
                 counters = subsystem[element]
                 for counter in counters:
-                    metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.%s.%s" % \
-                                  (g_cluster_name, self.SERVER_NAME, nqn_name, element, counter)
+                    metric_path = "subsystem.%s.%s;cluster_id=%s;target_id=%s;nqn_id=%s;type=subsystem" % \
+                                  (element, counter, g_cluster_name, self.SERVER_NAME, nqn_name)
                     value = str(counters[counter])
+                    if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                        continue
                     message_tuples.append((metric_path, (timestamp, value)))
-            '''
-            elif element.startswith('ctrlr'):
-                counters = subsystem[element]
-                if 'host_id' in counters:
-                    host_id = counters['host_id']
-                    for counter in counters:
-                        metric_path = "cluster_id_%s.target_id_%s.nqn_id_%s.host_id_%s.%s" % \
-                                      (g_cluster_name, self.SERVER_NAME,
-                                       nqn_name, host_id, counter)
-                        value = str(counters[counter])
-                        message_tuples.append((metric_path, (timestamp, value)))
-            '''
 
-
-    def session_statistics_to_message(self,
-                                      timestamp,
-                                      session_aggregate_counters,
-                                      message_tuples):
+    def session_statistics_to_message(self, timestamp, session_aggregate_counters, message_tuples):
         for session_ip in session_aggregate_counters:
             for counter in session_aggregate_counters[session_ip]:
-                metric_path = "cluster_id_%s.target_id_%s.%s.client_%s" % \
-                              (g_cluster_name, self.SERVER_NAME,
-                               "client_id=%s" % session_ip, counter)
+                metric_path = "%s;cluster_id=%s;target_id=%s;client_ip=%s;type=session" % \
+                              (counter, g_cluster_name, self.SERVER_NAME, session_ip)
                 value = str(session_aggregate_counters[session_ip][counter])
+                if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
+                    continue
                 message_tuples.append((metric_path, (timestamp, value)))
 
     @staticmethod
@@ -1313,6 +1322,13 @@ class OSMDaemon:
                     valid_sessions = {}
                     tuples = []
 
+                    nc_ctrs = stats_json_dict.pop('counters', {})
+                    non_cumulative_counters = {}
+                    for c in nc_ctrs:
+                        nc_vals = nc_ctrs[c][1:-1].split(',')
+                        for v in nc_vals:
+                            non_cumulative_counters[v.strip()] = True
+
                     for key in stats_json_dict:
                         if key == 'subsystem0':
                             # Dummy subsystem for the initialization stats
@@ -1322,7 +1338,7 @@ class OSMDaemon:
                         if key.startswith('subsystem'):
                             subsystem = stats_json_dict[key]
                             self.subsystem_statistics_to_message(subsystem, timestamp,
-                                                                 prev_disk_counters, tuples)
+                                                                 prev_disk_counters, non_cumulative_counters, tuples)
                         elif key.startswith('session'):
                             session = stats_json_dict[key]
                             if 'id' in session and 'ip' in session['id']:
@@ -1346,7 +1362,8 @@ class OSMDaemon:
                                 if 'kvio' in session:
                                     self.statistics_helper(session['kvio'].iteritems(),
                                                            prev_session_counters[session_ip][session_uuid],
-                                                           session_aggregate_counters[session_ip], 1)
+                                                           session_aggregate_counters[session_ip], 1,
+                                                           non_cumulative_counters)
                                 for k in session:
                                     if k.startswith('ctrl') and (k[-1] != '0' or k[-2].isdigit()):
                                         metric_path = "cluster_id_%s.target_id_%s.%s.client_%s.qd_reqs" % \
@@ -1680,16 +1697,17 @@ def start_target_only(internal_flag=False):
     return True
 
 
-def start_minio_stats_collector(osm_daemon_obj):
+def start_minio_stats_collector(osm_daemon_obj, metrics_blacklist_regex):
     minio_stats_obj = MinioStats(g_cluster_name, osm_daemon_obj.SERVER_NAME,
-                                 statsdb_obj=osm_daemon_obj.stats_obj)
+                                 statsdb_obj=osm_daemon_obj.stats_obj,
+                                 metrics_blacklist_regex=metrics_blacklist_regex)
     minio_stats_obj.get_device_subsystem_map()
     minio_stats_obj.run_stats_collector()
 
 
-def start_sflow_stats_collector(osm_daemon_obj):
+def start_sflow_stats_collector(osm_daemon_obj, metrics_blacklist_regex):
     sflow_stats_obj = SFlowStatsCollector(g_cluster_name, osm_daemon_obj.SERVER_NAME,
-                                          osm_daemon_obj.stats_obj, logger)
+                                          osm_daemon_obj.stats_obj, logger, metrics_blacklist_regex)
     sflow_stats_obj.run_stats_collector()
 
 
@@ -1715,7 +1733,7 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
     global g_daemon_obj
     global g_nvmf_pid
     global g_thread_arr
-
+    metrics_blacklist_re = None
 
     if 'attribute_poll' in g_input_args:
         attribute_poll = g_input_args['attribute_poll']
@@ -1732,6 +1750,10 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
 
     settings = agent_conf.load_config(agent_conf.CONFIG_DIR +
                                       agent_conf.AGENT_CONF_NAME)["agent"]
+
+    if settings.get('metrics_blacklist', None):
+        logger.info('Metrics blacklisted regex pattern %s', settings['metrics_blacklist'])
+        metrics_blacklist_re = re.compile(settings['metrics_blacklist'])
 
     process_path = settings["nvmf_tgt"]
     # process_name = settings["nvmf_tgt"].split('/')[-1]
@@ -1778,7 +1800,8 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         daemon_obj = OSMDaemon(endpoint, port, fn_ptrs, ustat,
                                check_spdk_running,
                                spdk_conf_obj, driver_setup_obj,
-                               stats_mode, stats_server, stats_port)
+                               stats_mode, stats_server, stats_port,
+                               metrics_blacklist_re)
     except Exception as e:
         logger.exception('Exception in initializing OSMDaemon object')
         raise e
@@ -1863,9 +1886,11 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         thread[1].start()
         logger.info("'%s' running" % thread[0])
 
-    # Start MINIO Stats collection
-    start_minio_stats_collector(daemon_obj)
-    start_sflow_stats_collector(daemon_obj)
+    if stats:
+        # Start MINIO Stats collection
+        start_minio_stats_collector(daemon_obj, metrics_blacklist_re)
+        # Start SFLOW metrics collection
+        start_sflow_stats_collector(daemon_obj, metrics_blacklist_re)
 
     # Watches etcd for configuration changes pertaining to this server
     daemon_obj.subsystem_config_watcher()
