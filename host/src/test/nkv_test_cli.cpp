@@ -460,8 +460,8 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
 
         case 1: /*GET*/
           {
-            //if (num_ios.load() > 0) {
-            if (false) {
+            if (num_ios.load() > 0) {
+            //if (false) {
               char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
               char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
               memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
@@ -684,10 +684,11 @@ void *iothread(void *args)
         case 0: /*PUT*/
         {
           for (uint32_t cnt = 0; cnt < targs->ioctx_cnt; cnt++) {
-            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
+            //num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
             while (iter_at[cnt].load() >= 0);
             
             iter_at[cnt].store(iter, std::memory_order_relaxed);
+            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
           }
          
           if (targs->simulate_minio == 2) { 
@@ -713,14 +714,18 @@ void *iothread(void *args)
           int mod = ((iter + targs->id) % targs->ioctx_cnt);
           //std::string dist_str;
           for (uint32_t cnt = 0; cnt < targs->ioctx_cnt; cnt++) {
+            while (iter_at[cnt].load() >= 0);
+
+            iter_at[cnt].store(iter, std::memory_order_relaxed);
+
             if (dist[cnt].find(mod) != dist[cnt].end()) {
               //dist_str += std::to_string(cnt);
               num_g_ios[cnt].fetch_add(1, std::memory_order_relaxed);;
             }             
             num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
-            while (iter_at[cnt].load() >= 0);
+            /*while (iter_at[cnt].load() >= 0);
 
-            iter_at[cnt].store(iter, std::memory_order_relaxed);
+            iter_at[cnt].store(iter, std::memory_order_relaxed);*/
 
           }
 
@@ -746,10 +751,11 @@ void *iothread(void *args)
         case 2: /*DEL*/
         {
           for (uint32_t cnt = 0; cnt < targs->ioctx_cnt; cnt++) {
-            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
+            //num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
             while (iter_at[cnt].load() >= 0);
 
             iter_at[cnt].store(iter, std::memory_order_relaxed);
+            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
 
           }
 
@@ -1760,6 +1766,11 @@ do {
 
   if (num_threads > 0) {
 
+    if (simulate_minio && io_ctx_cnt < 4) {
+      smg_error (logger, "In simulated minio mode, number of drives should be at least 4, supplied = %u", io_ctx_cnt);
+      nkv_close (nkv_handle, instance_uuid);
+      return 0;
+    }
     nkv_thread_args args[num_threads];
     std::thread nkv_test_threads[num_threads];
     /*pthread_t tid[num_threads];
