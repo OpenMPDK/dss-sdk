@@ -50,8 +50,8 @@ wal_map_item_t *wal_map_allocate_item(void)
 {
 	wal_map_item_t *new_item = (wal_map_item_t *)df_calloc(1, sizeof(wal_map_item_t));
 	new_item->key = (wal_key_t *)df_calloc(1, sizeof(wal_key_t));
-	new_item->key->key = df_malloc(SAMSUNG_KV_MAX_KEY_SIZE + 1);
-	new_item->key_buff_size = SAMSUNG_KV_MAX_KEY_SIZE;
+	new_item->key->key = df_malloc(SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
+	new_item->key_buff_size = SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1;
 	new_item->next = NULL;
 	new_item->status = WAL_ITEM_INVALID;
 	new_item->large_key_buff = NULL;

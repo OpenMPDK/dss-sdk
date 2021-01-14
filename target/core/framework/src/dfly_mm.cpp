@@ -109,7 +109,7 @@ void *dfly_mm_init(void)
 
 	g_mm_ctx.mm_large_key_pool = spdk_mempool_create("dfly_mm_large_key_pool",
 				     DFLY_MM_LARGE_KEY_POOL_SIZE,
-				     SAMSUNG_KV_MAX_KEY_SIZE + 1,
+				     SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1,
 				     cache_size,
 				     SPDK_ENV_SOCKET_ID_ANY);
 	if (!g_mm_ctx.mm_large_key_pool) {
@@ -174,7 +174,7 @@ void *dfly_get_key_buff(void *vctx, uint64_t size)
 
 	assert(vctx == NULL);
 
-	if (size <= SAMSUNG_KV_MAX_KEY_SIZE + 1) {
+	if (size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) {
 		buff = spdk_mempool_get(g_mm_ctx.mm_large_key_pool);
 	}
 

@@ -185,7 +185,7 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 
 		nr_entries = parse_delimiter_entries_pos(key_str, key_default_delimlist,
 				prefixes, positions, entries);
-		assert(nr_entries <= (SAMSUNG_KV_MAX_KEY_SIZE + 1) / 2);
+		assert(nr_entries <= (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) / 2);
 		req->list_data.pe_total_cnt = nr_entries;
 		req->list_data.pe_cnt_tbd = nr_entries;
 

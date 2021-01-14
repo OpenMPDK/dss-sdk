@@ -80,7 +80,7 @@ void dfly_req_init_nvme_info(struct dfly_request *req)
 	//req->flags |= DFLY_REQF_NVME;
 
 	req->req_key.key = &cmd->cdw12; //Key
-	req->req_key.length = (cmd->cdw11 + 1) & 0xFF; //Key length
+	//req->req_key.length = (cmd->cdw11 + 1) & 0xFF; //Key length
 
 	//Already populated//req->req_value.length = (cmd->cdw10 << 2);//Value length
 
@@ -116,7 +116,7 @@ void dfly_req_init_nvmf_info(struct dfly_request *req)
 	struct kv_cdw11 *cdw11;
 
 	req->req_key.key = &cmd->cdw12; //Key
-	req->req_key.length = (cmd->cdw11 + 1) & 0xFF; //Key length
+	//req->req_key.length = (cmd->cdw11 + 1) & 0xFF; //Key length
 	if (cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_LIST_READ) {
 		req->list_data.max_keys_requested = cmd->cdw11 >> 16;
 		req->list_data.start_key_offset = (cmd->cdw11 >> 8) & 0xFF;
