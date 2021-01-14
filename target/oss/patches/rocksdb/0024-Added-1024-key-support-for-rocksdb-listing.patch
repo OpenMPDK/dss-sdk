@@ -1,6 +1,6 @@
-From c39d48435e35f56a2dc5e3400c7d4c94c62645d0 Mon Sep 17 00:00:00 2001
+From cb10e1de7f60fa86c0cffc377fc33789456f13ce Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
-Date: Wed, 13 Jan 2021 23:04:27 -0800
+Date: Wed, 13 Jan 2021 23:45:40 -0800
 Subject: [PATCH 24/24] Added 1024 key support for rocksdb listing
 
 ---
@@ -19,26 +19,26 @@ index 42d7bc5..6f582f1 100644
 +    char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
      size_t prefix_size;
  } list_key_ctx_t;
-
+ 
  void * _dss_rocksdb_list_key(void *ctx)
  {
      list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
 -    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_KEY_SIZE);
 +    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
-
+ 
      void * iter = nullptr;
-	uint32_t nr_key_iter = 0;
-	uint32_t nr_key_total = 0;
-
+ 	uint32_t nr_key_iter = 0;
+ 	uint32_t nr_key_total = 0;
+ 
 -    char key[SAMSUNG_KV_MAX_KEY_SIZE];
 +    char key[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
-
+ 
 -    memset(key, 0xff, SAMSUNG_KV_MAX_KEY_SIZE);
 +    memset(key, 0xff, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
      memcpy(key, list_ctx->prefix, list_ctx->prefix_size);
 -    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_KEY_SIZE);
 +    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
-
+ 
      printf("dss_iter_start on db %p...\n", list_ctx->db);
      if(!dss_rocksdb_iter_start(list_ctx->db, &iter, list_ctx->prefix, list_ctx->prefix_size)){
 @@ -383,7 +383,7 @@ int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done
@@ -49,15 +49,16 @@ index 42d7bc5..6f582f1 100644
 +    memset(list_ctx->prefix, 0, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
      memcpy(list_ctx->prefix, prefix, prefix_size);
      list_ctx->prefix_size = prefix_size;
-
+ 
 @@ -498,7 +498,7 @@ int dss_rocksdb_iter_start(void *ctx, void ** piter,
-
+ 
      rocksdb::Iterator* iter = db->NewIterator(options);
-
+ 
 -    char key_buf[SAMSUNG_KV_MAX_KEY_SIZE]={0};
 +    char key_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1]={0};
      memcpy(key_buf, prefix, prefix_size);
      rocksdb::Slice key_prefix(key_buf, prefix_size);
      //printf("dss_rocksdb_iter_start: key_prefix %s prefix_size %d\n", (char *)key_prefix.data(), key_prefix.size());
---
+-- 
 1.8.3.1
+
