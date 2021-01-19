@@ -42,6 +42,7 @@ logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CON
 
 from minio_stats import MinioStats
 from sflow_collection import SFlowStatsCollector
+from network_stats import MellanoxRDMAStats
 import constants
 import graphite
 import server_info.server_attributes_aggregator as ServerAttr
@@ -1701,7 +1702,6 @@ def start_minio_stats_collector(osm_daemon_obj, metrics_blacklist_regex):
     minio_stats_obj = MinioStats(g_cluster_name, osm_daemon_obj.SERVER_NAME,
                                  statsdb_obj=osm_daemon_obj.stats_obj,
                                  metrics_blacklist_regex=metrics_blacklist_regex)
-    minio_stats_obj.get_device_subsystem_map()
     minio_stats_obj.run_stats_collector()
 
 
@@ -1709,6 +1709,13 @@ def start_sflow_stats_collector(osm_daemon_obj, metrics_blacklist_regex):
     sflow_stats_obj = SFlowStatsCollector(g_cluster_name, osm_daemon_obj.SERVER_NAME,
                                           osm_daemon_obj.stats_obj, logger, metrics_blacklist_regex)
     sflow_stats_obj.run_stats_collector()
+
+
+def start_mlnx_rdma_stats_collector(osm_daemon_obj, metrics_blacklist_regex):
+    mlnx_rdma_stats_obj = MellanoxRDMAStats(g_cluster_name, osm_daemon_obj.SERVER_NAME,
+                                            osm_daemon_obj.stats_obj, logger,
+                                            metrics_blacklist_regex=metrics_blacklist_regex)
+    mlnx_rdma_stats_obj.run_stats_collector()
 
 
 def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
@@ -1891,6 +1898,8 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
         start_minio_stats_collector(daemon_obj, metrics_blacklist_re)
         # Start SFLOW metrics collection
         start_sflow_stats_collector(daemon_obj, metrics_blacklist_re)
+        # Start Mellanox RDMA congestion stats collection
+        start_mlnx_rdma_stats_collector(daemon_obj, metrics_blacklist_re)
 
     # Watches etcd for configuration changes pertaining to this server
     daemon_obj.subsystem_config_watcher()
