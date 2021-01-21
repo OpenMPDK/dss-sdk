@@ -272,6 +272,8 @@ struct dragonfly {
 	bool rdb_auto_compaction_enable;
         bool rdb_wal_enable;
         bool rdb_sync_enable;
+        uint32_t rdb_io_debug_level;
+        uint32_t rdb_stats_intervals_sec;
 
 	uint32_t num_io_threads;
 	uint32_t num_nw_threads;
@@ -287,7 +289,6 @@ struct dragonfly {
 	struct dragonfly_wal_ops *wal_ops; /**< exported services from WAL */
 	ustat_handle_t              *s_handle;
 	stat_counter_types_t        *ustat_counter_types;
-	
 	bool				df_qos_enable;
 	TAILQ_HEAD(, dfly_prof)   	df_profs;
 	TAILQ_HEAD(, dfly_session)      df_sessions;
