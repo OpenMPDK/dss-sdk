@@ -169,12 +169,13 @@ class MinioStats(object):
             self.log.exception('Error in getting the PID list for MINIO instances')
         return pid_list
 
-    def run_stats_collector(self):
+    def run_stats_collector(self, interval=20):
         self.event.clear()
+        self.get_device_subsystem_map()
         pid_list = self.get_minio_instances()
         for pid in pid_list:
             self.log.info('Starting minio stats collection thread for pid %s', str(pid))
-            thr = threading.Thread(target=self.poll_statistics, args=[pid, self.event, 2])
+            thr = threading.Thread(target=self.poll_statistics, args=[pid, self.event, interval])
             thr.start()
             self.log.info('Started minio stats collection thread for pid %s', str(pid))
 
