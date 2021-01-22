@@ -1,0 +1,450 @@
+From 47f3a3403d5351a69f8294ce771db0927f05da2a Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Thu, 21 Jan 2021 16:02:02 -0800
+Subject: [PATCH 25/25] * metadata sync io, work around for read miss * user io
+ stats report * code format change * log by DFLY_NOTICELOG
+
+---
+ db/dss_kv2blk_c.cc | 244 ++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 157 insertions(+), 87 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 6f582f1..4b32c06 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -47,6 +47,11 @@
+ #include "rocksdb/utilities/sim_cache.h"
+ #include "rocksdb/utilities/transaction.h"
+ #include "rocksdb/utilities/transaction_db.h"
++#include "rocksdb/table.h"
++#include "rocksdb/utilities/memory_util.h"
++#include "rocksdb/utilities/stackable_db.h"
++#include "table/block_based_table_factory.h"
++
+ #include "rocksdb/write_batch.h"
+ #include "util/compression.h"
+ #include "util/crc32c.h"
+@@ -73,6 +78,14 @@ using rocksdb::DBOptions;
+ using rocksdb::Options;
+ using rocksdb::DBOptions;
+ uint32_t max_queue_depth = 1024;
++uint32_t g_mem_update_size = 1000;
++uint64_t g_io_cnt = 0;
++uint64_t g_get_cnt = 0, g_put_cnt = 0, g_del_cnt = 0;
++uint64_t g_get_sz = 0, g_put_sz = 0;
++uint64_t g_get_miss_cnt = 0, g_put_miss_cnt = 0, g_del_miss_cnt = 0;
++bool dss_rdb_stats_start = false;
++bool g_dss_rdb_exit = false;
++
+ pthread_mutex_t list_init_mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+ int dss_rocksdb_iter_start(void *ctx, void ** piter,
+@@ -88,6 +101,17 @@ namespace rocksdb {
+ 
+ uint32_t g_bg_coreid = 0;
+ 
++void rdb_UpdateStats(void)
++{
++    DFLY_NOTICELOG("==================UserIoStats===================\n");
++    DFLY_NOTICELOG("Put: %ld size %ld miss %ld\n"
++           "Get: %ld size %ld miss %ld\n" 
++           "Del: %ld miss %ld\n",
++        g_put_cnt, g_put_sz, g_put_miss_cnt,
++        g_get_cnt, g_get_sz, g_get_miss_cnt,
++        g_del_cnt, g_del_miss_cnt);
++}
++
+ struct RandomReadContext;
+ struct AsyncRdQueue_s{
+     std::queue<struct RandomReadContext *> queue;
+@@ -124,11 +148,14 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 
+ 	  //printf("Async read completed\n");
+       if (status.IsNotFound()) {
+-        //fprintf(stderr, "key=%s no found\n", key_.ToString(true).c_str());
+-			response->status.sc = SPDK_NVME_SC_KV_KEY_NOT_EXIST;
+-			response->status.sct = SPDK_NVME_SCT_KV_CMD;
+-			response->status.dnr = 1;//Do not retry
++        ++ g_get_miss_cnt;
++        if(g_dragonfly->rdb_io_debug_level > 0)
++            DFLY_NOTICELOG("key= %s no found\n", key_.ToString().c_str());
++	    response->status.sc = SPDK_NVME_SC_KV_KEY_NOT_EXIST;
++		response->status.sct = SPDK_NVME_SCT_KV_CMD;
+       }else if(status.ok()) {
++        ++ g_get_cnt;
++        g_get_sz += pinnable_val_.size();
+ 		response->status.sc = SPDK_NVME_SC_SUCCESS;
+ 		response->status.sct = SPDK_NVME_SCT_GENERIC;
+ 		response->cdw0 = pinnable_val_.size();
+@@ -153,7 +180,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+         //printf("OnReadComplete key=%s val=%s async=%d\n", key_.ToString(true).c_str(),
+         //    pinnable_val_.ToString().c_str(), async());
+       } else if (!status.IsNotFound()) {
+-        fprintf(stderr, "Get returned an error: %s\n",
++        DFLY_NOTICELOG("Get returned an error: %s\n",
+           status.ToString().c_str());
+ 			response->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+ 			response->status.sct = SPDK_NVME_SCT_GENERIC;
+@@ -195,6 +222,20 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ };
+ }
+ 
++void dss_rdb_stats(void)
++{
++    rocksdb::rdb_UpdateStats();
++}
++
++void *_dss_rocksdb_stats(void *arg)
++{
++    while(!g_dss_rdb_exit){
++        dss_rdb_stats();
++        usleep(g_dragonfly->rdb_stats_intervals_sec * 1000000);
++    }
++    return NULL;
++}
++
+ void *_dss_rocksdb_open(void *arg)
+ {
+     struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)arg;
+@@ -215,7 +256,7 @@ void *_dss_rocksdb_open(void *arg)
+     spdk_bdev += dss_dev->rdb_handle->dev_name;
+     dbname += spdk_bdev;
+ 
+-	printf("Creating new dss env for dbname %s\n", dbname.c_str());
++	DFLY_NOTICELOG("Creating new dss env for dbname %s\n", dbname.c_str());
+ 	rocksdb::Env* dss_env = rocksdb::NewDssEnv(rocksdb::Env::Default(),
+         dbname, cpumask,
+         nvme_conf, spdk_bdev,
+@@ -240,9 +281,10 @@ void *_dss_rocksdb_open(void *arg)
+     options.target_file_size_base = 1073741824; // 1GB
+     options.disable_auto_compactions = !g_dragonfly->rdb_auto_compaction_enable;
+     options.min_write_buffer_number_to_merge = 4;
++    options.max_open_files = 256;
+     rocksdb::Status s = rocksdb::DB::Open(options, dbname, &db);
+     if (!s.ok()) {
+-        printf("open %s failed\n", s.ToString().c_str());
++        DFLY_NOTICELOG("open %s failed\n", s.ToString().c_str());
+         return NULL;
+     }
+ 
+@@ -259,24 +301,30 @@ void *_dss_rocksdb_open(void *arg)
+ 
+ void *dss_rocksdb_open(struct dfly_io_device_s *dss_dev)
+ {
+-
+-
+     pthread_t th;
+     pthread_attr_t attr;
+-
+ 	pthread_attr_init(&attr);
+ 	pthread_create(&th, &attr, &_dss_rocksdb_open, dss_dev);
++
++    if(!dss_rdb_stats_start){
++        dss_rdb_stats_start = true;
++        pthread_t th_stats;
++        pthread_attr_t attr_stats;
++	pthread_attr_init(&attr_stats);
++        pthread_create(&th_stats, &attr_stats, &_dss_rocksdb_stats, NULL);
++    }
+ }
+ 
+ void dss_rocksdb_close(void *db, void *rdb_env)
+ {
+ 	rocksdb::DB *dB = (rocksdb::DB *)db;
+ 	rocksdb::Env* env = (rocksdb::Env*)rdb_env;
+-	printf("dss_rocksdb_close %p start ...\n", dB);
++	DFLY_NOTICELOG("dss_rocksdb_close %p start ...\n", dB);
+ 	env->WaitForJoin();
+ 	delete dB;
+ 	delete env;
+-	printf("dss_rocksdb_close %p done\n");
++    DFLY_NOTICELOG("dss_rocksdb_close %p done\n");
++        g_dss_rdb_exit = true;
+ 	return;
+ }
+ 
+@@ -297,14 +345,14 @@ void *_dss_rocksdb_compaction(void *ctx)
+ 	pthread_mutex_unlock(&dss_dev->rdb_handle->rdb_lock);
+         time_t st, et;
+         time(&st);
+-	printf("Compaction started for device %s\n", dss_dev->rdb_handle->dev_name);
++	DFLY_NOTICELOG("Compaction started for device %s\n", dss_dev->rdb_handle->dev_name);
+ 	//Syncronous compaction (Blocking)
+ 	s = db->CompactRange(rocksdb::CompactRangeOptions(), nullptr, nullptr);
+ 	if (!s.ok()) {
+-		printf("Compaction failed %s\n", s.ToString().c_str());
++		DFLY_NOTICELOG("Compaction failed %s\n", s.ToString().c_str());
+ 	}
+ 	time(&et);
+-	printf("Compaction done for device %s for %d sec\n", dss_dev->rdb_handle->dev_name, et - st);
++    DFLY_NOTICELOG("Compaction done for device %s for %d sec\n", dss_dev->rdb_handle->dev_name, et - st);
+ 
+ 	pthread_mutex_lock(&dss_dev->rdb_handle->rdb_lock);
+ 	dss_dev->rdb_handle->compaction_in_progress = false;
+@@ -317,35 +365,36 @@ void dss_rocksdb_compaction(void *ctx)
+ {
+     pthread_t th;
+     pthread_attr_t attr;
+-
++    
+ 	pthread_attr_init(&attr);
+ 	pthread_create(&th, &attr, &_dss_rocksdb_compaction, ctx);
++
+ }
+ 
+ typedef struct rocksdb_list_key_ctx_s{
+     rocksdb::DB* db;
+     struct dfly_subsystem * pool;
+     list_done_cb cb;
+-    char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
++    char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1];
+     size_t prefix_size;
+ } list_key_ctx_t;
+ 
+ void * _dss_rocksdb_list_key(void *ctx)
+ {
+     list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
+-    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
++    assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+ 
+     void * iter = nullptr;
+ 	uint32_t nr_key_iter = 0;
+ 	uint32_t nr_key_total = 0;
+ 
+-    char key[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
++    char key[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1];
+ 
+-    memset(key, 0xff, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
++    memset(key, 0xff, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+     memcpy(key, list_ctx->prefix, list_ctx->prefix_size);
+-    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
++    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+ 
+-    printf("dss_iter_start on db %p...\n", list_ctx->db);
++    DFLY_NOTICELOG("dss_iter_start on db %p...\n", list_ctx->db);
+     if(!dss_rocksdb_iter_start(list_ctx->db, &iter, list_ctx->prefix, list_ctx->prefix_size)){
+         assert(iter);
+         int key_list_requested = 10000;
+@@ -358,7 +407,7 @@ void * _dss_rocksdb_list_key(void *ctx)
+         iter = nullptr;
+     }
+ 
+-    printf("dss_iter_end  %d keys found\n", nr_key_total);
++    DFLY_NOTICELOG("dss_iter_end  %d keys found\n", nr_key_total);
+     if(list_ctx->cb){
+         struct dfly_subsystem * pool = list_ctx->pool;
+         list_ctx->cb(pool, LIST_INIT_DONE);
+@@ -383,7 +432,7 @@ int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done
+     list_ctx->db = (rocksdb::DB*)db;
+     list_ctx->pool = (struct dfly_subsystem *)dss_dev->rdb_handle->ss;
+     list_ctx->cb = list_cb;
+-    memset(list_ctx->prefix, 0, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
++    memset(list_ctx->prefix, 0, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+     memcpy(list_ctx->prefix, prefix, prefix_size);
+     list_ctx->prefix_size = prefix_size;
+ 
+@@ -395,20 +444,25 @@ int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done
+ 
+ int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t vlen)
+ {
+-	    rocksdb::DB* db = (rocksdb::DB *)ctx;
+-
+-		rocksdb::Status s;
+-		rocksdb::WriteOptions write_options = rocksdb::WriteOptions();
+-		write_options.sync = g_dragonfly->rdb_sync_enable;
+-		write_options.disableWAL = !g_dragonfly->rdb_wal_enable;
+-		//printf("dss_rocksdb_put key: %s\n", (char *)key);
+-		//printf("dss_rocksdb_put with wal=%d\n", !write_options.disableWAL);
+-		s = db->Put(write_options, rocksdb::Slice((char *)key, klen), rocksdb::Slice((char *)value, vlen));
+-		if (!s.ok()) {
+-			printf("Put failed %s\n", s.ToString().c_str());
+-			return -1;
+-		}
+-		return 0;
++    rocksdb::DB* db = (rocksdb::DB *)ctx;
++
++    rocksdb::Status s;
++    rocksdb::WriteOptions write_options = rocksdb::WriteOptions();
++    write_options.sync = g_dragonfly->rdb_sync_enable;
++    write_options.disableWAL = !g_dragonfly->rdb_wal_enable;
++    ++g_put_cnt;
++    
++   rocksdb::Slice put_key((const char *)key, klen);	
++   s = db->Put(write_options, put_key, rocksdb::Slice((char *)value, vlen));
++   if (!s.ok()) {
++	DFLY_NOTICELOG("Put failed %s\n", s.ToString().c_str());
++        ++g_put_miss_cnt;
++	return -1;
++   }
++   g_put_sz += vlen;
++   if(g_dragonfly->rdb_io_debug_level > 1)
++      DFLY_NOTICELOG("put %s: %s vlen %d\n", db->GetName().c_str(), put_key.ToString().c_str(), vlen);
++   return 0;
+ }
+ 
+ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+@@ -416,14 +470,15 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+ 							void *value, uint32_t vbuf_len,
+ 							void *cb, void *cb_arg)
+ {
+-	    rocksdb::DB* db = (rocksdb::DB*)rdb_ctx;
+-        struct io_thread_inst_ctx_s * inst = (struct io_thread_inst_ctx_s *) inst_ctx;
+-		rocksdb::Status s;
+-		rocksdb::ReadOptions read_options(false, false);
+-		char key_buffer[16] = {0};
+-        struct rocksdb::AsyncRdQueue_s * RdCtxQueue = (struct rocksdb::AsyncRdQueue_s *)inst->private_data;
++    rocksdb::DB* db = (rocksdb::DB*)rdb_ctx;
++    struct io_thread_inst_ctx_s * inst = (struct io_thread_inst_ctx_s *) inst_ctx;
++	rocksdb::Status s;
++	rocksdb::ReadOptions read_options(false, false);
++	char key_buffer[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1] = {0};
++    struct rocksdb::AsyncRdQueue_s * RdCtxQueue = (struct rocksdb::AsyncRdQueue_s *)inst->private_data;
+         //async read
+-        if(!RdCtxQueue){
++    //printf("dss_rocksdb_get_async %s\n", (const char *)key);
++    if(!RdCtxQueue){
+             RdCtxQueue = new struct rocksdb::AsyncRdQueue_s();
+             pthread_mutex_init(&RdCtxQueue->mutex, NULL);
+             //RdCtxQueue->queue = new std::queue<rocksdb::RandomReadContext *>(max_queue_depth, NULL);
+@@ -432,63 +487,78 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+             }
+             inst->private_data = RdCtxQueue;
+         }
+-        rocksdb::Slice key_async_get((const char *)key, klen);
+-        rocksdb::RandomReadContext *RdCtx = nullptr;
+-        pthread_mutex_lock(&RdCtxQueue->mutex);
+-        if(!RdCtxQueue->queue.empty()){
+-            RdCtx = RdCtxQueue->queue.front();
+-            assert(RdCtx);
+-            RdCtxQueue->queue.pop();
++    rocksdb::Slice key_async_get((const char *)key, klen);
++    rocksdb::RandomReadContext *RdCtx = nullptr;
++    pthread_mutex_lock(&RdCtxQueue->mutex);
++    if(!RdCtxQueue->queue.empty()){
++        RdCtx = RdCtxQueue->queue.front();
++        assert(RdCtx);
++        RdCtxQueue->queue.pop();
+             //printf("get RdCtx %p idx %d core %d\n", RdCtx, RdCtx->idx_, sched_getcpu());
+-        }else{
++    }else{
+             //printf("RdCtxQueue is Empty\n");
+-            assert(false);
+-        }
+-        pthread_mutex_unlock(&RdCtxQueue->mutex);
++        assert(false);
++    }
++    pthread_mutex_unlock(&RdCtxQueue->mutex);
+         //rocksdb::RandomReadContext *RdCtx = new rocksdb::RandomReadContext(0, cb, cb_arg);
+                 //pickup available ctx (no async pending io ...) TBD
+-        RdCtx->SetKey(key_async_get);
+-        RdCtx->SetValP(value);
+-        RdCtx->SetValLen(vbuf_len);
+-        RdCtx->SetCb(cb);
+-        RdCtx->SetArgs(cb_arg);
+-        RdCtx->SetCtxQueue(RdCtxQueue);
+-        s.async(false);
+-        s = rocksdb::async::DBImplGetContext::RequestGet(RdCtx->GetCallback(), db, read_options,
++    RdCtx->SetKey(key_async_get);
++    RdCtx->SetValP(value);
++    RdCtx->SetValLen(vbuf_len);
++    RdCtx->SetCb(cb);
++    RdCtx->SetArgs(cb_arg);
++    RdCtx->SetCtxQueue(RdCtxQueue);
++    
++    s.async(false);
++    if(!memcmp(key, "meta/", 5)){ //meta data sync read
++        s.user_buffer(false);
++        std::string get_value;
++        s = db->Get(read_options, RdCtx->key_, &get_value);
++        RdCtx->pinnable_val_.PinSelf(rocksdb::Slice(get_value));
++        RdCtx->vlen_ = get_value.size();
++        RdCtx->OnReadComplete(s);
++        return ;
++   }
++
++    s = rocksdb::async::DBImplGetContext::RequestGet(RdCtx->GetCallback(), db, read_options,
+             db->DefaultColumnFamily(), RdCtx->key_, &RdCtx->pinnable_val_, nullptr, value, vbuf_len);
+-        if (s.IsIOPending()) {
++    if (s.IsIOPending()) {
+             //printf("rocksdb async get submitted\n");
+-            s.async(true);
+-        } else {
+-            s.async(false);
++        s.async(true);
++    } else {
++        s.async(false);
+             //printf("rocksdb sync return\n");
+-          RdCtx->OnReadComplete(s);
+-        }
++        RdCtx->OnReadComplete(s);
++    }
+ 
+-       return;
++    return;
+ 
+ }
+ 
+ int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen)
+ {
+-	    rocksdb::DB* db = (rocksdb::DB *)ctx;
+-
+-		rocksdb::Status s;
+-		rocksdb::WriteOptions del_options;
+-
+-		del_options.disableWAL = false;
+-		s = db->Delete(del_options, rocksdb::Slice((char *)key, klen));
+-		if (!s.ok()) {
+-			printf("Delete failed\n");
+-			return -1;
+-		}
+-		return 0;
++    rocksdb::DB* db = (rocksdb::DB *)ctx;
++	rocksdb::Status s;
++	rocksdb::WriteOptions del_options;
++    del_options.sync = g_dragonfly->rdb_sync_enable;
++    del_options.disableWAL = !g_dragonfly->rdb_wal_enable;
++    rocksdb::Slice del_key((char *)key, klen);
++    ++g_del_cnt;
++	s = db->Delete(del_options, del_key);
++    if (!s.ok()) {
++        DFLY_NOTICELOG("Delete failed\n");
++        return -1;
++        ++g_del_miss_cnt;
++	}
++    if(g_dragonfly->rdb_io_debug_level > 1)
++        DFLY_NOTICELOG("del %s: %s\n", db->GetName().c_str(), del_key.ToString().c_str());
++	return 0;
+ }
+ 
+ int dss_rocksdb_iter_start(void *ctx, void ** piter,
+     void * prefix, size_t prefix_size)
+ {
+-    assert(prefix_size <= MAX_KEY_SIZE);
++    assert(prefix_size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+ 
+     rocksdb::DB* db = (rocksdb::DB *)ctx;
+     rocksdb::ReadOptions options(false, true);
+@@ -498,7 +568,7 @@ int dss_rocksdb_iter_start(void *ctx, void ** piter,
+ 
+     rocksdb::Iterator* iter = db->NewIterator(options);
+ 
+-    char key_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1]={0};
++    char key_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
+     memcpy(key_buf, prefix, prefix_size);
+     rocksdb::Slice key_prefix(key_buf, prefix_size);
+     //printf("dss_rocksdb_iter_start: key_prefix %s prefix_size %d\n", (char *)key_prefix.data(), key_prefix.size());
+@@ -525,9 +595,9 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+            && iter->Valid()
+            && iter->key().compare(key_upbound) <= 0;
+           iter->Next()) {
+-	pthread_mutex_lock(&list_init_mutex);
++	    pthread_mutex_lock(&list_init_mutex);
+         list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
+-	pthread_mutex_unlock(&list_init_mutex);
++	    pthread_mutex_unlock(&list_init_mutex);
+         //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());
+         nr_keys ++;
+ 
+-- 
+1.8.3.1
+

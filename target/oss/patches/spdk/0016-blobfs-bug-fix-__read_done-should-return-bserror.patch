@@ -1,7 +1,7 @@
-From 85512b7d13d1d556e9edb47f3a49dcc488fc619f Mon Sep 17 00:00:00 2001
+From 4eaa7e38a5c3f1dc58dfcd035c588142adf05b11 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 16 Dec 2020 09:47:02 -0800
-Subject: [PATCH 16/23] * blobfs bug fix: __read_done should return bserror
+Subject: [PATCH 16/24] * blobfs bug fix: __read_done should return bserror
 
 ---
  lib/blobfs/blobfs.c | 2 +-
