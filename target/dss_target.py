@@ -805,7 +805,9 @@ The most commonly used dss target commands are:
             + " parameters are correct and update if needed."
         )
         print (
-            "Execute the following command to start the target application: ./nvmf_tgt -c "
+            "Execute the following command to start the target application: "
+            + g_path
+            + "/nvmf_tgt -c "
             + g_conf_path
             + " -r /var/run/spdk.sock -m "
             + g_core_mask
@@ -815,7 +817,8 @@ The most commonly used dss target commands are:
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
             f.write(
-                "./nvmf_tgt -c "
+                g_path 
+                + "/nvmf_tgt -c "
                 + g_conf_path
                 + " -r /var/run/spdk.sock -m "
                 + g_core_mask
