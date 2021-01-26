@@ -1,14 +1,14 @@
-From 36c7a3a42cb18717e601ab9ebb5c45969f0b66a4 Mon Sep 17 00:00:00 2001
+From 419d2f9242e81cdac62877f150120fd7da3409e4 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:04:26 -0800
-Subject: [PATCH 24/24] * change fs channel sem array to queue.
+Subject: [PATCH 24/26] * change fs channel sem array to queue.
 
 ---
- lib/blobfs/blobfs.c | 68 +++++++++++++++++++++++++++++++++++++++++++----------
- 1 file changed, 55 insertions(+), 13 deletions(-)
+ lib/blobfs/blobfs.c | 64 ++++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 53 insertions(+), 11 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 20fae8d..17eab53 100644
+index 20fae8d..21ee919 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -118,6 +118,11 @@ cache_buffer_free(struct cache_buffer *cache_buffer)
@@ -41,7 +41,7 @@ index 20fae8d..17eab53 100644
 +
 +    TAILQ_HEAD(, spdk_sem) sems_queue;
 +    struct spdk_sem        sems[CHANNEL_SEM_MAX];
-+    
++
  	struct spdk_filesystem		*fs;
  	struct spdk_io_channel		*bs_channel;
  	fs_send_request_fn		send_request;
@@ -65,7 +65,7 @@ index 20fae8d..17eab53 100644
 -    return &channel->sem[channel->sem_idx];
 +    return sem;
 +
-+    
++
 +}
 +
 +void fs_channel_put_sem(struct spdk_fs_channel *channel, struct spdk_sem * spdk_s){
@@ -84,11 +84,11 @@ index 20fae8d..17eab53 100644
 +    TAILQ_INIT(&channel->sems_queue);
 +    for(i=0; i<CHANNEL_SEM_MAX; i++){
 +	    //sem_init(&channel->sem[i], 0, 0);
-+        
++
 +        sem_init(&channel->sems[i].sem, 0, 0);
 +        channel->sems[i].channel = channel;
 +        TAILQ_INSERT_TAIL(&channel->sems_queue, &channel->sems[i], tailq);
-+        
++
 +    }
  
      channel->sem_idx = 0;
@@ -132,21 +132,6 @@ index 20fae8d..17eab53 100644
  }
  
  static void
-@@ -2109,12 +2149,12 @@ spdk_fs_set_cache_size(uint64_t size_in_mb)
- 	/* setting g_fs_cache_size is only permitted if cache pool
- 	 * is already freed or hasn't been initialized
- 	 */
--
-+        
- 	if (g_cache_pool != NULL) {
- 		//abort();
- 		return g_fs_cache_size/ 1024 / 1024 ;
- 	}
--
-+	
- 	g_fs_cache_size = size_in_mb * 1024 * 1024;
- 
- 	return 0;
 @@ -2549,7 +2589,6 @@ __send_rw_from_file_async(struct spdk_file *file, void *payload,
  	req = alloc_fs_request_with_iov(channel, 1);
      assert(req);

@@ -1,0 +1,34 @@
+From aac0bbef0609bfe2a57943202e2bf8150460bbf5 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 26 Jan 2021 09:42:49 -0800
+Subject: [PATCH 25/26] Fixed error due to open blobs on shutdown
+
+---
+ lib/rocksdb/env_dss.cc | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
+index 35427f4..7cd721e 100644
+--- a/lib/rocksdb/env_dss.cc
++++ b/lib/rocksdb/env_dss.cc
+@@ -657,6 +657,17 @@ DssEnv::DssEnv(Env *base_env, const std::string &dir,
+ 
+ DssEnv::~DssEnv()
+ {
++	if (mSpdkFS != NULL) {
++		spdk_fs_iter iter;
++		struct spdk_file *file;
++
++		iter = spdk_fs_iter_first(mSpdkFS);
++		while (iter != NULL) {
++			file = spdk_fs_iter_get_file(iter);
++			spdk_file_close(file, mSpdkFsCh);
++			iter = spdk_fs_iter_next(iter);
++		}
++	}
+ #ifndef RDB_SPDK_MEMPOOL
+ #else
+ 	if(g_dss_rdb_mempool)
+-- 
+1.8.3.1
+

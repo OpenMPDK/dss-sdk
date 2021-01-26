@@ -1,7 +1,7 @@
-From b9db66e7950ad77a05b4e6631c4b1d55b33b62be Mon Sep 17 00:00:00 2001
+From 1097723cc883bb6a0e222cd6efbed9008e757d14 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:54:17 -0800
-Subject: [PATCH 10/25] - cpu core affinity for rdb background thread.
+Subject: [PATCH 10/26] - cpu core affinity for rdb background thread.
 
 ---
  util/threadpool_imp.cc | 18 ++++++++++++++++++

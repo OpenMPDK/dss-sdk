@@ -1,15 +1,15 @@
-From 47f3a3403d5351a69f8294ce771db0927f05da2a Mon Sep 17 00:00:00 2001
+From de3a7741de84e47278cbd4d154ca359dd5a1ebe3 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:02:02 -0800
-Subject: [PATCH 25/25] * metadata sync io, work around for read miss * user io
+Subject: [PATCH 25/26] * metadata sync io, work around for read miss * user io
  stats report * code format change * log by DFLY_NOTICELOG
 
 ---
- db/dss_kv2blk_c.cc | 244 ++++++++++++++++++++++++++++++++++-------------------
- 1 file changed, 157 insertions(+), 87 deletions(-)
+ db/dss_kv2blk_c.cc | 242 ++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 156 insertions(+), 86 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 6f582f1..4b32c06 100644
+index 6f582f1..bb5174e 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -47,6 +47,11 @@
@@ -47,7 +47,7 @@ index 6f582f1..4b32c06 100644
 +{
 +    DFLY_NOTICELOG("==================UserIoStats===================\n");
 +    DFLY_NOTICELOG("Put: %ld size %ld miss %ld\n"
-+           "Get: %ld size %ld miss %ld\n" 
++           "Get: %ld size %ld miss %ld\n"
 +           "Del: %ld miss %ld\n",
 +        g_put_cnt, g_put_sz, g_put_miss_cnt,
 +        g_get_cnt, g_get_sz, g_get_miss_cnt,
@@ -181,12 +181,8 @@ index 6f582f1..4b32c06 100644
  
  	pthread_mutex_lock(&dss_dev->rdb_handle->rdb_lock);
  	dss_dev->rdb_handle->compaction_in_progress = false;
-@@ -317,35 +365,36 @@ void dss_rocksdb_compaction(void *ctx)
- {
-     pthread_t th;
-     pthread_attr_t attr;
--
-+    
+@@ -320,32 +368,33 @@ void dss_rocksdb_compaction(void *ctx)
+ 
  	pthread_attr_init(&attr);
  	pthread_create(&th, &attr, &_dss_rocksdb_compaction, ctx);
 +
@@ -268,8 +264,8 @@ index 6f582f1..4b32c06 100644
 +    write_options.sync = g_dragonfly->rdb_sync_enable;
 +    write_options.disableWAL = !g_dragonfly->rdb_wal_enable;
 +    ++g_put_cnt;
-+    
-+   rocksdb::Slice put_key((const char *)key, klen);	
++
++   rocksdb::Slice put_key((const char *)key, klen);
 +   s = db->Put(write_options, put_key, rocksdb::Slice((char *)value, vlen));
 +   if (!s.ok()) {
 +	DFLY_NOTICELOG("Put failed %s\n", s.ToString().c_str());
@@ -350,7 +346,7 @@ index 6f582f1..4b32c06 100644
 +    RdCtx->SetCb(cb);
 +    RdCtx->SetArgs(cb_arg);
 +    RdCtx->SetCtxQueue(RdCtxQueue);
-+    
++
 +    s.async(false);
 +    if(!memcmp(key, "meta/", 5)){ //meta data sync read
 +        s.user_buffer(false);
