@@ -1,0 +1,25 @@
+From ea2c6685f75700eb72f7b6fd3a740e6ac705a1e9 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 26 Jan 2021 15:14:02 -0800
+Subject: [PATCH 28/28] memory leak fix
+
+---
+ table/format_request_context.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/table/format_request_context.cc b/table/format_request_context.cc
+index e2182af..8418ef8 100644
+--- a/table/format_request_context.cc
++++ b/table/format_request_context.cc
+@@ -242,7 +242,7 @@ Status ReadBlockContentsContext::OnIoCompletion(const Status& status,
+     const Slice& slice) {
+   assert(status.async());
+ 
+-  if(!client_cb_)
++  //if(!client_cb_)
+     std::unique_ptr<ReadBlockContentsContext> self(this);
+ 
+   Status s = OnReadBlockContentsComplete(status, slice);
+-- 
+1.8.3.1
+

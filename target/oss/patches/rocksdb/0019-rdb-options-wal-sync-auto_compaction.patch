@@ -1,7 +1,7 @@
-From 83982ab67975f4161e0f0706dd99fcf0ff4c5591 Mon Sep 17 00:00:00 2001
+From 6d6a9efe040c4eb99db2df3d5faf8412e6559b0b Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 23 Dec 2020 23:20:51 -0800
-Subject: [PATCH 19/27] * rdb options: wal, sync, auto_compaction
+Subject: [PATCH 19/28] * rdb options: wal, sync, auto_compaction
 
 ---
  db/dss_kv2blk_c.cc | 9 ++++-----
