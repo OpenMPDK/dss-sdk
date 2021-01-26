@@ -45,8 +45,8 @@ g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
 """
 
 g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
-  block_translation_bg_core_start 4 #vm mode
-  block_translation_bg_job_cnt 4 #vm mode
+  block_translation_bg_core_start 2 #vm mode
+  block_translation_bg_job_cnt 2 #vm mode
 
   io_threads_per_ss 1 #vm mode
   poll_threads_per_nic 1 #vm mode
