@@ -1,7 +1,7 @@
-From fbe7a50b0a6d580faa16bd0f7a574e703828e8a6 Mon Sep 17 00:00:00 2001
+From 791a1485836277ece863d813bf2e323bbd30b3bd Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 13 Jan 2021 23:45:40 -0800
-Subject: [PATCH 24/26] Added 1024 key support for rocksdb listing
+Subject: [PATCH 24/27] Added 1024 key support for rocksdb listing
 
 ---
  db/dss_kv2blk_c.cc | 14 +++++++-------
