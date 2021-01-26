@@ -34,11 +34,6 @@
 #include <limits.h>
 #include "dragonfly.h"
 
-extern struct wal_conf_s g_wal_conf;
-extern fuse_conf_t g_fuse_conf;
-extern list_conf_t g_list_conf;
-extern int g_list_prefix_head_size;
-
 extern int DFLY_LOG_LEVEL;
 
 static uint64_t DFLY_ONE_GRANT = 1000;

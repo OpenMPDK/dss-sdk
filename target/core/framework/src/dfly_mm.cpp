@@ -83,14 +83,16 @@ void *dfly_mm_init(void)
 
 	cache_size = g_dragonfly->mm_buff_count / (2 * spdk_env_get_core_count());
 
-	g_mm_ctx.mm_io_buff_pool = spdk_mempool_create("dfly_mm_io_buff_pool",
-				   g_dragonfly->mm_buff_count,
-				   DFLY_BDEV_BUF_MAX_SIZE + 512,
-				   cache_size,
-				   SPDK_ENV_SOCKET_ID_ANY);
-	if (!g_mm_ctx.mm_io_buff_pool) {
-		DFLY_ERRLOG("create memory manager io buff pool failed\n");
-		return NULL;
+	if(g_wal_conf.wal_cache_enabled || g_fuse_conf.fuse_enabled) {
+		g_mm_ctx.mm_io_buff_pool = spdk_mempool_create("dfly_mm_io_buff_pool",
+					   g_dragonfly->mm_buff_count,
+					   DFLY_BDEV_BUF_MAX_SIZE + 512,
+					   cache_size,
+					   SPDK_ENV_SOCKET_ID_ANY);
+		if (!g_mm_ctx.mm_io_buff_pool) {
+			DFLY_ERRLOG("create memory manager io buff pool failed\n");
+			return NULL;
+		}
 	}
 
 	g_mm_ctx.mm_req_pool = spdk_mempool_create("dfly_mm_pool",
@@ -101,27 +103,29 @@ void *dfly_mm_init(void)
 	if (!g_mm_ctx.mm_req_pool) {
 		DFLY_ERRLOG("create memory manager request pool failed\n");
 
-		spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
+		if(g_mm_ctx.mm_io_buff_pool)spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
 		g_mm_ctx.mm_io_buff_pool = NULL;
 
 		return NULL;
 	}
 
-	g_mm_ctx.mm_large_key_pool = spdk_mempool_create("dfly_mm_large_key_pool",
-				     DFLY_MM_LARGE_KEY_POOL_SIZE,
-				     SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1,
-				     cache_size,
-				     SPDK_ENV_SOCKET_ID_ANY);
-	if (!g_mm_ctx.mm_large_key_pool) {
-		DFLY_ERRLOG("create memory manager large key pool failed\n");
+	if(g_wal_conf.wal_cache_enabled || g_fuse_conf.fuse_enabled) {
+		g_mm_ctx.mm_large_key_pool = spdk_mempool_create("dfly_mm_large_key_pool",
+						 DFLY_MM_LARGE_KEY_POOL_SIZE,
+						 SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1,
+						 cache_size,
+						 SPDK_ENV_SOCKET_ID_ANY);
+		if (!g_mm_ctx.mm_large_key_pool) {
+			DFLY_ERRLOG("create memory manager large key pool failed\n");
 
-		spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
-		g_mm_ctx.mm_io_buff_pool = NULL;
+			if(g_mm_ctx.mm_io_buff_pool)spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
+			g_mm_ctx.mm_io_buff_pool = NULL;
 
-		spdk_mempool_free(g_mm_ctx.mm_req_pool);
-		g_mm_ctx.mm_req_pool = NULL;
+			spdk_mempool_free(g_mm_ctx.mm_req_pool);
+			g_mm_ctx.mm_req_pool = NULL;
 
-		return NULL;
+			return NULL;
+		}
 	}
 
 
@@ -130,17 +134,18 @@ void *dfly_mm_init(void)
 
 void dfly_mm_deinit(void)
 {
+	if(g_mm_ctx.mm_io_buff_pool) {
+		if (spdk_mempool_count(g_mm_ctx.mm_io_buff_pool) != g_dragonfly->mm_buff_count) {
+			DFLY_ERRLOG("DFLY IO  buffer pool count is %zu but should be %u\n",
+					spdk_mempool_count(g_mm_ctx.mm_io_buff_pool),
+					g_dragonfly->mm_buff_count);
+			assert(false);
+		}
 
-	if (spdk_mempool_count(g_mm_ctx.mm_io_buff_pool) != g_dragonfly->mm_buff_count) {
-		DFLY_ERRLOG("DFLY IO  buffer pool count is %zu but should be %u\n",
-			    spdk_mempool_count(g_mm_ctx.mm_io_buff_pool),
-			    g_dragonfly->mm_buff_count);
-		assert(false);
+		spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
+
+		g_mm_ctx.mm_io_buff_pool = NULL;
 	}
-
-	spdk_mempool_free(g_mm_ctx.mm_io_buff_pool);
-
-	g_mm_ctx.mm_io_buff_pool = NULL;
 
 	if (spdk_mempool_count(g_mm_ctx.mm_req_pool) != g_dragonfly->mm_buff_count) {
 		DFLY_ERRLOG("DFLY IO  buffer pool count is %zu but should be %u\n",
@@ -153,16 +158,18 @@ void dfly_mm_deinit(void)
 
 	g_mm_ctx.mm_req_pool = NULL;
 
-	if (spdk_mempool_count(g_mm_ctx.mm_large_key_pool) != DFLY_MM_LARGE_KEY_POOL_SIZE) {
-		DFLY_ERRLOG("DFLY large key buffer pool count is %zu but should be %u\n",
-			    spdk_mempool_count(g_mm_ctx.mm_large_key_pool),
-			    DFLY_MM_LARGE_KEY_POOL_SIZE);
-		assert(false);
+	if(g_mm_ctx.mm_large_key_pool) {
+		if (spdk_mempool_count(g_mm_ctx.mm_large_key_pool) != DFLY_MM_LARGE_KEY_POOL_SIZE) {
+			DFLY_ERRLOG("DFLY large key buffer pool count is %zu but should be %u\n",
+					spdk_mempool_count(g_mm_ctx.mm_large_key_pool),
+					DFLY_MM_LARGE_KEY_POOL_SIZE);
+			assert(false);
+		}
+
+		spdk_mempool_free(g_mm_ctx.mm_large_key_pool);
+
+		g_mm_ctx.mm_large_key_pool = NULL;
 	}
-
-	spdk_mempool_free(g_mm_ctx.mm_large_key_pool);
-
-	g_mm_ctx.mm_large_key_pool = NULL;
 
 	return;
 

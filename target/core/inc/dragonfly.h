@@ -124,6 +124,11 @@ extern "C" {
 
 extern struct spdk_nvmf_tgt *g_spdk_nvmf_tgt;
 
+extern struct wal_conf_s g_wal_conf;
+extern fuse_conf_t g_fuse_conf;
+extern list_conf_t g_list_conf;
+extern int g_list_prefix_head_size;
+
 struct dragonfly_core {
 	uint32_t nvmf_core; /**< this core number */
 	uint32_t current_core; /**< round robin next core */
