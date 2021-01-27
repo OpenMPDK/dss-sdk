@@ -1,7 +1,7 @@
-From 91ecaefa32b062c5dbeab5eca720873c05d21314 Mon Sep 17 00:00:00 2001
+From 50823505187018837c6a7f33b46855936f3f934c Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 21 Jul 2020 02:43:57 -0700
-Subject: [PATCH 04/26] SPDK update for rocksdb async
+Subject: [PATCH 04/27] SPDK update for rocksdb async
 
     * async blobfs read
     * add blobfs.2.h for db_bench build
