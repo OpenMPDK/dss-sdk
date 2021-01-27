@@ -161,6 +161,7 @@ typedef struct dfly_request {
 
 	uint8_t     retry_count;
 	bool		status;
+	bool		abort_cmd;
 
 	struct dfly_qpair_s *dqpair;
 

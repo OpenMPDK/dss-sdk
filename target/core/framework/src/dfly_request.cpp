@@ -337,6 +337,7 @@ void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 			req->dreq->req_ssid = req->qpair->ctrlr->subsys->id;
 
 			req->dreq->io_seq_no = req->qpair->dqpair->io_counter++;
+			req->dreq->abort_cmd = false;
 			req->dreq->dqpair = req->qpair->dqpair;
 		}
 	}
