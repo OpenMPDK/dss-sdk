@@ -192,11 +192,12 @@ def generate_core_mask(core_count, dedicate_core_percent):
     return 0
 
 def generate_core_mask_vmmode(core_count):
-    mask_count = 8
-    mask = 0xFF
-    if core_count < mask_count:
-		mask_count = core_count
-		mask = mask >> (mask_count - core_count)
+    if core_count <= 0:
+        mask = 0
+    else:
+        if core_count > 1:
+            core_count = core_count // 2
+        mask = int(('0b' + '1' * core_count), 2)
 
     global g_core_mask
     g_core_mask = "{0:#x}".format(mask)
@@ -794,7 +795,7 @@ The most commonly used dss target commands are:
         if ret != 0:
             print ("*** ERROR: Creating configuration file ***")
         if g_kvblock_vmmode == True:
-            generate_core_mask_vmmode(mp.cpu_count)
+            generate_core_mask_vmmode(mp.cpu_count())
         else:
             generate_core_mask(mp.cpu_count(), 0.50)
         setup_hugepage()
