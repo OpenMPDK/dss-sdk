@@ -1,4 +1,4 @@
-From d1feb2b324fbfb074190f4f51ebabce890b80864 Mon Sep 17 00:00:00 2001
+From f005b024c21924c7aacdfc087a018a7049094607 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 7 Dec 2020 10:28:35 -0800
 Subject: [PATCH 16/28] Comment debug print and g_bg_coreid

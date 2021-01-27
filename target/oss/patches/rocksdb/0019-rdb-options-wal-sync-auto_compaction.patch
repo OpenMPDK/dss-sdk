@@ -1,4 +1,4 @@
-From 6d6a9efe040c4eb99db2df3d5faf8412e6559b0b Mon Sep 17 00:00:00 2001
+From b1df4b9b44a570aa3d562994dbd6c05cddc814a4 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 23 Dec 2020 23:20:51 -0800
 Subject: [PATCH 19/28] * rdb options: wal, sync, auto_compaction
