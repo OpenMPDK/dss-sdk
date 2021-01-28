@@ -1,0 +1,28 @@
+From b4f306f26118a396e49e55f4eb5770e5da1040db Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 26 Jan 2021 09:43:42 -0800
+Subject: [PATCH 26/27] Optimized IO buffer local caching
+
+    * Cache IO buffer during IO completion
+    * Avoids buffers being cached in unused cores
+---
+ lib/nvmf/transport.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
+index ae5f090..fb0e890 100644
+--- a/lib/nvmf/transport.c
++++ b/lib/nvmf/transport.c
+@@ -503,7 +503,8 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport)
+ 		while (group->buf_cache_count < group->buf_cache_size) {
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			if(g_dragonfly->target_pool_enabled) {
+-				dss_numa_mempool_get(transport->data_buf_pool, spdk_env_get_socket_id(group->core_id), 1, &buf);
++				//dss_numa_mempool_get(transport->data_buf_pool, spdk_env_get_socket_id(group->core_id), 1, &buf);
++				break;//Populate on free
+ 			} else
+ 			//END - SPDK_CONFIG_OSS_TARGET
+ 			buf = (struct spdk_nvmf_transport_pg_cache_buf *)spdk_mempool_get(transport->data_buf_pool);
+-- 
+1.8.3.1
+

@@ -377,9 +377,9 @@ void dfly_fuse_wal_complete(struct df_dev_response_s resp, void *arg)
 
 static int fuse_prepare_large_key(struct dfly_key *large_key, fuse_map_item_t *item)
 {
-	assert(!item->large_key_buff && item->key->length <= SAMSUNG_KV_MAX_KEY_SIZE);
+	assert(!item->large_key_buff && item->key->length <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1);
 	item->large_key_buff = dfly_get_key_buff(NULL,
-			       SAMSUNG_KV_MAX_KEY_SIZE); //spdk_dma_malloc(SAMSUNG_KV_MAX_KEY_SIZE, 256, NULL);
+			       SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1); //spdk_dma_malloc(SAMSUNG_KV_MAX_FABRIC_KEY_SIZE, 256, NULL);
 	if (!item->large_key_buff)
 		return -1 ;
 

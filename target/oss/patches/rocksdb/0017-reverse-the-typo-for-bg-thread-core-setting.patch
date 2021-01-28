@@ -1,7 +1,7 @@
-From b22222eab8e8d4039aa5390c60542c774bb6c3de Mon Sep 17 00:00:00 2001
+From 9368105208d298b5ef2159d69f23794d5d0660dc Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 7 Dec 2020 15:07:21 -0800
-Subject: [PATCH 17/23] * reverse the typo for bg thread core setting.
+Subject: [PATCH 17/28] * reverse the typo for bg thread core setting.
 
 ---
  util/threadpool_imp.cc | 10 +++++-----

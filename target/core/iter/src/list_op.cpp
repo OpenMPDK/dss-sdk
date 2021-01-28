@@ -780,8 +780,8 @@ int dss_rocksdb_list_key(void *ctx, void * pool, void * prefix, size_t prefix_si
 int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
 {
     int rc = LIST_INIT_PENDING;
-    char prefix[SAMSUNG_KV_MAX_KEY_SIZE] = {0};
-    size_t prefix_size = SAMSUNG_KV_MAX_KEY_SIZE;
+    char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1] = {0};
+    size_t prefix_size = SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1;
     if(g_list_prefix_head_size && g_list_prefix_head_size< prefix_size && 
         g_list_conf.list_prefix_head){
         memcpy(prefix, g_list_conf.list_prefix_head, g_list_prefix_head_size);

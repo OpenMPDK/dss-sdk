@@ -1,0 +1,106 @@
+From a4d31456fba12bfd66163c698054293ac4bd47fc Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 27 Jan 2021 01:30:16 -0800
+Subject: [PATCH 27/27] Support aborting nvme cmd for DSS KV/KB-Block
+
+---
+ lib/nvmf/ctrlr.c |  7 +++++++
+ lib/nvmf/rdma.c  | 22 ++++++++++++++++++++++
+ 2 files changed, 29 insertions(+)
+
+diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
+index f9520af..7bcc525 100644
+--- a/lib/nvmf/ctrlr.c
++++ b/lib/nvmf/ctrlr.c
+@@ -3198,6 +3198,13 @@ spdk_nvmf_request_get_bdev(uint32_t nsid, struct spdk_nvmf_request *req,
+ 	*desc = NULL;
+ 	*ch = NULL;
+ 
++    //SPDK_CONFIG_DSS_TARGET
++	if(ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED &&
++		g_dragonfly->blk_map == true) {
++		return -EINVAL;
++	}
++    //END - SPDK_CONFIG_DSS_TARGET
++
+ 	ns = _nvmf_subsystem_get_ns(ctrlr->subsys, nsid);
+ 	if (ns == NULL || ns->bdev == NULL) {
+ 		return -EINVAL;
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index da43ee2..ca8b64a 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -88,6 +88,7 @@ enum spdk_nvmf_rdma_request_state {
+ 	/* Initial state when request first received */
+ 	RDMA_REQUEST_STATE_NEW,
+ 
++	RDMA_REQUEST_STATE_QOS_QUEUED,
+ 	RDMA_REQUEST_STATE_QOS_POST,
+ 	RDMA_REQUEST_STATE_PENDING_GET_KEY,
+ 	/* The request is trasferring key using data transfer */
+@@ -2354,6 +2355,7 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 				if(dfly_poller_qos_recv(rdma_req->req.dreq, \
+ 							rdma_req->req.dreq->dqpair->df_poller, \
+ 							rdma_req->req.dreq->dqpair->df_ctrlr)) {
++					rdma_req->state = RDMA_REQUEST_STATE_QOS_QUEUED;
+ 					break;
+ 				}
+ 			}//else follow through without QoS
+@@ -3993,6 +3995,12 @@ nvmf_rdma_request_complete(struct spdk_nvmf_request *req)
+ 	if (rqpair->ibv_state != IBV_QPS_ERR) {
+ 		/* The connection is alive, so process the request as normal */
+ 		rdma_req->state = RDMA_REQUEST_STATE_EXECUTED;
++		if(req->dreq && req->dreq->abort_cmd == true) {
++			rdma_req->req.rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;
++			rdma_req->req.rsp->nvme_cpl.status.sc = SPDK_NVME_SC_ABORTED_BY_REQUEST;
++
++			rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++		}
+ 	} else {
+ 		/* The connection is dead. Move the request directly to the completed state. */
+ 		rdma_req->state = RDMA_REQUEST_STATE_COMPLETED;
+@@ -4562,6 +4570,15 @@ _nvmf_rdma_qpair_abort_request(void *ctx)
+ 
+ 	switch (rdma_req_to_abort->state) {
+ 	case RDMA_REQUEST_STATE_EXECUTING:
++		if (!nvmf_qpair_is_admin_queue(req->req_to_abort->qpair) &&
++				req->req_to_abort->qpair->ctrlr->subsys->oss_target_enabled \
++					== OSS_TARGET_ENABLED) {
++				req->req_to_abort->dreq->abort_cmd = true;
++				return SPDK_POLLER_BUSY;
++		}
++		//TODO: abort dfly request if oss_enabled in subsys
++		//		for IO qpairs - admin qpair fall through
++		//		nvmf_qpair_is_admin_queue(req_to_abort->qpair)
+ 		rc = nvmf_ctrlr_abort_request(req);
+ 		if (rc == SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS) {
+ 			return SPDK_POLLER_BUSY;
+@@ -4579,6 +4596,7 @@ _nvmf_rdma_qpair_abort_request(void *ctx)
+ 		STAILQ_REMOVE(&rqpair->pending_rdma_key_read_queue, rdma_req_to_abort,
+ 			      spdk_nvmf_rdma_request, state_link);
+ 
++		dfly_rdma_fini_key_transfer(rdma_req_to_abort);
+ 		nvmf_rdma_request_set_abort_status(req, rdma_req_to_abort);
+ 		break;
+ 
+@@ -4596,6 +4614,8 @@ _nvmf_rdma_qpair_abort_request(void *ctx)
+ 		nvmf_rdma_request_set_abort_status(req, rdma_req_to_abort);
+ 		break;
+ 
++	case RDMA_REQUEST_STATE_QOS_QUEUED:
++	case RDMA_REQUEST_STATE_TRANSFERRING_KEY:
+ 	case RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER:
+ 		if (spdk_get_ticks() < req->timeout_tsc) {
+ 			req->poller = SPDK_POLLER_REGISTER(_nvmf_rdma_qpair_abort_request, req, 0);
+@@ -4603,6 +4623,8 @@ _nvmf_rdma_qpair_abort_request(void *ctx)
+ 		}
+ 		break;
+ 
++	case RDMA_REQUEST_STATE_QOS_POST:
++		assert(0); //Not expecting this state
+ 	default:
+ 		break;
+ 	}
+-- 
+1.8.3.1
+

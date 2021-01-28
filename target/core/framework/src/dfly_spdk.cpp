@@ -130,8 +130,12 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 	struct dfly_io_device_s *io_device;
 	int rc;
 
-	cmd = dfly_nvmf_setup_cmd_key(req, &tmp_cmd);
-	assert(cmd);
+	if(!g_dragonfly->blk_map) {
+		cmd = dfly_nvmf_setup_cmd_key(req, &tmp_cmd);
+		assert(cmd);
+	} else {
+		cmd = &req->cmd->nvme_cmd;
+	}
 
 	/* pre-set response details for this command */
 	response->status.sc = SPDK_NVME_SC_SUCCESS;

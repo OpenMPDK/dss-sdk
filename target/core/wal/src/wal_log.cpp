@@ -535,8 +535,8 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 			       cache_zone->zone_id, cache_zone->poll_flush_flag, is_del, cache_rc);
 
 			if (obj.key->length > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
-				large_key.key = dfly_get_key_buff(NULL, SAMSUNG_KV_MAX_KEY_SIZE);
-				assert(large_key.key && obj.key->length <= SAMSUNG_KV_MAX_KEY_SIZE);
+				large_key.key = dfly_get_key_buff(NULL, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
+				assert(large_key.key && obj.key->length <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
 				large_key.length = obj.key->length;
 				obj.key = &large_key;
 			}
@@ -1823,9 +1823,9 @@ static void wal_cache_flush_zone(wal_zone_t *zone)
 
 static int wal_prepare_large_key(struct dfly_key *large_key, wal_map_item_t *item)
 {
-	assert(!item->large_key_buff && item->key->length <= SAMSUNG_KV_MAX_KEY_SIZE);
+	assert(!item->large_key_buff && item->key->length <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
 	item->large_key_buff = dfly_get_key_buff(NULL,
-			       SAMSUNG_KV_MAX_KEY_SIZE); //spdk_dma_malloc(SAMSUNG_KV_MAX_KEY_SIZE, 256, NULL);
+			       SAMSUNG_KV_MAX_FABRIC_KEY_SIZE); //spdk_dma_malloc(SAMSUNG_KV_MAX_FABRIC_KEY_SIZE, 256, NULL);
 	if (!item->large_key_buff)
 		return -1;
 

@@ -1,0 +1,197 @@
+From 57ae8d00bd3b884c371b2bd61a4c72d3c61f0e4b Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 13 Jan 2021 23:43:58 -0800
+Subject: [PATCH 23/27] Added support for 1024 key for kv block rdma/tcp
+
+---
+ include/spdk/nvme_samsung_spec.h |  1 +
+ lib/nvmf/rdma.c                  | 37 ++++++++++++++++++++++++-------------
+ lib/nvmf/tcp.c                   | 27 +++++++++++++++++++++++++--
+ 3 files changed, 50 insertions(+), 15 deletions(-)
+
+diff --git a/include/spdk/nvme_samsung_spec.h b/include/spdk/nvme_samsung_spec.h
+index 3db4690..0769825 100644
+--- a/include/spdk/nvme_samsung_spec.h
++++ b/include/spdk/nvme_samsung_spec.h
+@@ -6,6 +6,7 @@ extern "C" {
+ #endif
+ 
+ #define SAMSUNG_KV_MAX_KEY_SIZE (255)
++#define SAMSUNG_KV_MAX_FABRIC_KEY_SIZE (1023)
+ #define SAMSUNG_KV_MAX_EMBED_KEY_SIZE (16)
+ #define SAMSUNG_KV_MAX_VALUE_SIZE (2<<20)
+ #define SAMSUNG_KV_MAX_CURRENT_VALUE_SIZE SAMSUNG_KV_MAX_VALUE_SIZE
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index f9713d3..da43ee2 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -772,8 +772,6 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 
+ 	struct dfly_request *dfly_req = rdma_req->req.dreq;
+ 
+-	uint64_t translation_len;
+-
+ 	key_len = (cmd->cdw11 & 0xFF) + 1;
+ 
+ 	if (rdma_req->req.cmd->nvmf_cmd.opcode == SPDK_NVME_OPC_FABRIC ||
+@@ -801,8 +799,22 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 
+ 	if(key_len > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
+ 		key_sgl = (struct spdk_nvme_sgl_descriptor *)&cmd->cdw12;
+-		assert(key_len <= SAMSUNG_KV_MAX_KEY_SIZE);
++		if(!((g_dragonfly->blk_map && \
++				key_sgl->keyed.length <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) ||
++			 key_sgl->keyed.length <= SAMSUNG_KV_MAX_KEY_SIZE + 1)) {
++
++			rsp->status.sct = SPDK_NVME_SCT_KV_CMD;
++			rsp->status.sc = SPDK_NVME_SC_KV_INVALID_KEY_SIZE;
++			rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++
++			return -1;
++		}
++		if(key_sgl->keyed.length <= SAMSUNG_KV_MAX_KEY_SIZE) {
++			assert(key_sgl->keyed.length == key_len);
++		}
++		dfly_req->req_key.length = key_sgl->keyed.length;
+ 	} else {
++		dfly_req->req_key.length = key_len;
+ 		return 0;
+ 	}
+ 
+@@ -811,11 +823,11 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 			if(key_sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_ADDRESS) {//Data transfer
+ 				//Update dfly_request key
+ 				dfly_req->req_key.key = rdma_req->req.dreq->key_data_buf;
+-				assert(rdma_req->key.wr.sg_list[0].length == 255);
++				assert(rdma_req->key.wr.sg_list[0].length == SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
+ 				assert(rdma_req->key.wr.wr.rdma.rkey == NULL);
+ 				assert(rdma_req->key.wr.wr.rdma.remote_addr == NULL);
+ 				//Post Get key request
+-				rdma_req->key.wr.sg_list[0].length = key_len;
++				rdma_req->key.wr.sg_list[0].length = key_sgl->keyed.length;
+ 				rdma_req->key.wr.wr.rdma.rkey = key_sgl->keyed.key;
+ 				rdma_req->key.wr.wr.rdma.remote_addr = key_sgl->address;
+ 
+@@ -850,7 +862,7 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 
+ static void dfly_rdma_fini_key_transfer(struct spdk_nvmf_rdma_request *rdma_req)
+ {
+-	rdma_req->key.wr.sg_list[0].length = 255;
++	rdma_req->key.wr.sg_list[0].length = SAMSUNG_KV_MAX_FABRIC_KEY_SIZE;
+ 	rdma_req->key.wr.wr.rdma.rkey = 0;
+ 	rdma_req->key.wr.wr.rdma.remote_addr = 0;
+ 	rdma_req->key.wr.next = NULL;
+@@ -980,7 +992,7 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 
+ 	resources->reqs = calloc(opts->max_queue_depth, sizeof(*resources->reqs));
+ 	resources->dreqs = calloc(opts->max_queue_depth, sizeof(*resources->dreqs));
+-	resources->dss_keys = spdk_zmalloc((SAMSUNG_KV_MAX_KEY_SIZE + 1) * opts->max_queue_depth,
++	resources->dss_keys = spdk_zmalloc((SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+ 1) * opts->max_queue_depth,
+                        0x1000, NULL, SPDK_ENV_LCORE_ID_ANY, SPDK_MALLOC_DMA);
+ 	resources->recvs = calloc(opts->max_queue_depth, sizeof(*resources->recvs));
+ 	resources->cmds = spdk_zmalloc(opts->max_queue_depth * sizeof(*resources->cmds),
+@@ -1016,7 +1028,7 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 
+ 	//SPDK_CONFIG_OSS_TARGET
+ 	resources->dss_keys_mr = ibv_reg_mr(opts->pd, resources->dss_keys,
+-					opts->max_queue_depth * (SAMSUNG_KV_MAX_KEY_SIZE + 1),
++					opts->max_queue_depth * (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+ 1),
+ 					IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE);
+ 	//END - SPDK_CONFIG_OSS_TARGET
+ 
+@@ -1038,7 +1050,7 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 	}
+ 	//SPDK_CONFIG_OSS_TARGET
+ 	SPDK_DEBUGLOG(SPDK_LOG_RDMA, "Key Array: %p Length: %lx LKey: %x\n",
+-		      resources->dss_keys, opts->max_queue_depth * (SAMSUNG_KV_MAX_KEY_SIZE + 1),
++		      resources->dss_keys, opts->max_queue_depth * (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1),
+ 		      resources->dss_keys_mr->lkey);
+ 	//END - SPDK_CONFIG_OSS_TARGET
+ 
+@@ -1120,7 +1132,7 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 		rdma_req->data.wr.num_sge = SPDK_COUNTOF(rdma_req->data.sgl);
+ 
+ 		rdma_req->req.dreq = &resources->dreqs[i];
+-		rdma_req->req.dreq->key_data_buf = resources->dss_keys + (i * (SAMSUNG_KV_MAX_KEY_SIZE + 1));
++		rdma_req->req.dreq->key_data_buf = resources->dss_keys + (i * (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+ 1));
+ 
+ 		//SPDK_CONFIG_OSS_TARGET
+ 		/* Set up memory for key buffers */
+@@ -1132,11 +1144,10 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 		rdma_req->key.wr.num_sge = 1;
+ 		rdma_req->key.wr.sg_list[0].addr = NULL;
+ 		rdma_req->key.wr.sg_list[0].lkey = NULL;
+-		rdma_req->key.wr.sg_list[0].length = 255;
++		rdma_req->key.wr.sg_list[0].length = SAMSUNG_KV_MAX_FABRIC_KEY_SIZE;
+ 		rdma_req->key.wr.sg_list[0].addr = (uintptr_t)rdma_req->req.dreq->key_data_buf;
+ 		rdma_req->key.wr.sg_list[0].lkey = resources->dss_keys_mr->lkey;
+-		//END - SPDK_CONFIG_OSS_TARGET
+-
++		//END - SPDK_CONFIG_OSS_TARGE.
+ 		/* Initialize request state to FREE */
+ 		rdma_req->state = RDMA_REQUEST_STATE_FREE;
+ 		STAILQ_INSERT_TAIL(&resources->free_queue, rdma_req, state_link);
+diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
+index b7926e4..148d67b 100644
+--- a/lib/nvmf/tcp.c
++++ b/lib/nvmf/tcp.c
+@@ -477,12 +477,19 @@ int dfly_nvmf_tcp_req_setup_key_transfer(struct spdk_nvmf_tcp_req *tcp_req)
+ 	struct dfly_request *dfly_req = tcp_req->req.dreq;
+ 
+ 	struct spdk_nvme_sgl_descriptor		*key_sgl;
++	uint32_t key_len;
+ 
+ 	tqpair = SPDK_CONTAINEROF(tcp_req->req.qpair, struct spdk_nvmf_tcp_qpair, qpair);
+ 	pdu = &tqpair->pdu_in_progress;
+ 
+ 	assert(tcp_req->state != TCP_REQUEST_STATE_FREE);
+ 
++	key_len = (tcp_req->cmd.cdw11 & 0xFF) + 1;
++	if(key_len > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
++		dfly_req->req_key.length = key_sgl->unkeyed.length;
++	} else {
++		dfly_req->req_key.length = key_len;
++	}
+ 	if(!dfly_nvmf_tcp_is_key_transfer_required(tcp_req)) {
+ 		return 0;
+ 	}
+@@ -493,7 +500,15 @@ int dfly_nvmf_tcp_req_setup_key_transfer(struct spdk_nvmf_tcp_req *tcp_req)
+ 	assert(key_sgl->address == 0);
+ 	assert(key_sgl->unkeyed.type == 0);
+ 	assert(key_sgl->unkeyed.subtype == 1);
+-	assert(key_sgl->unkeyed.length == dfly_req->req_key.length);
++	if(g_dragonfly->blk_map && dfly_req->req_key.length < SAMSUNG_KV_MAX_KEY_SIZE) {
++		assert(key_sgl->unkeyed.length == key_len);
++	}
++
++	if(dfly_req->req_key.length > SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) {
++		return -1;
++	} else if (dfly_req->req_key.length > SAMSUNG_KV_MAX_KEY_SIZE + 1 && !g_dragonfly->blk_map) {
++		return -1;
++	}
+ 
+ 	//Update dfly_request key
+ 	dfly_req->req_key.key = tcp_req->buf;
+@@ -2463,10 +2478,18 @@ nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			if(df_qpair_susbsys_enabled(&tqpair->qpair, NULL)) {
+ 				dfly_req_init_nvmf_info(tcp_req->req.dreq);
+-				if(dfly_nvmf_tcp_req_setup_key_transfer(tcp_req)) {
++				rc = dfly_nvmf_tcp_req_setup_key_transfer(tcp_req);
++				if(rc == 1) {
+ 					nvmf_tcp_qpair_set_recv_state(tqpair, NVME_TCP_PDU_RECV_STATE_AWAIT_PDU_PAYLOAD);
+ 					nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_TRANSFERRING_KEY_DATA);
+ 					break;
++				} else if (rc < 0) {
++					//Return invalid key size
++					tcp_req->req.rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_KV_CMD;
++					tcp_req->req.rsp->nvme_cpl.status.sc = SPDK_NVME_SC_KV_INVALID_KEY_SIZE;
++
++					nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_READY_TO_COMPLETE);
++					break;
+ 				}
+ 			}
+ 			//END - SPDK_CONFIG_OSS_TARGET
+-- 
+1.8.3.1
+

@@ -1,0 +1,156 @@
+From 2eed90ff6534836542ae1294f6ec4496574eda6d Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Thu, 21 Jan 2021 16:04:26 -0800
+Subject: [PATCH 24/27] * change fs channel sem array to queue.
+
+---
+ lib/blobfs/blobfs.c | 64 ++++++++++++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 53 insertions(+), 11 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 20fae8d..21ee919 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -118,6 +118,11 @@ cache_buffer_free(struct cache_buffer *cache_buffer)
+ //#define CACHE_READAHEAD_THRESHOLD	(128 * 1024)
+ #define CACHE_READAHEAD_THRESHOLD	(4096)
+ 
++struct spdk_sem{
++    sem_t sem;
++    struct spdk_fs_channel * channel;
++    TAILQ_ENTRY(spdk_sem)	tailq;
++};
+ struct spdk_file {
+ 	struct spdk_filesystem	*fs;
+ 	struct spdk_blob	*blob;
+@@ -296,7 +301,7 @@ __start_cache_pool_mgmt(void *ctx)
+ 		assert(false);
+ 	}
+ 	TAILQ_INIT(&g_caches);
+-
++    printf("start_cache_pool_mgmt create mempool with %ld MB\n", g_fs_cache_size >> 20);
+ 	assert(g_cache_pool_mgmt_poller == NULL);
+ 	g_cache_pool_mgmt_poller = SPDK_POLLER_REGISTER(_blobfs_cache_pool_reclaim, NULL,
+ 				   BLOBFS_CACHE_POOL_POLL_PERIOD_IN_US);
+@@ -357,7 +362,11 @@ struct spdk_fs_request {
+ struct spdk_fs_channel {
+ 	struct spdk_fs_request		*req_mem;
+ 	TAILQ_HEAD(, spdk_fs_request)	reqs;
+-	sem_t				sem[CHANNEL_SEM_MAX];
++    //sem_t               sem[CHANNEL_SEM_MAX];
++
++    TAILQ_HEAD(, spdk_sem) sems_queue;
++    struct spdk_sem        sems[CHANNEL_SEM_MAX];
++
+ 	struct spdk_filesystem		*fs;
+ 	struct spdk_io_channel		*bs_channel;
+ 	fs_send_request_fn		send_request;
+@@ -464,11 +473,27 @@ spdk_free_fs_request(void *data)
+ }
+ 
+ sem_t * fs_channel_get_sem(struct spdk_fs_channel *channel){
++    struct spdk_sem * spdk_s = NULL;
++    sem_t * sem = NULL;
+     pthread_spin_lock(&channel->lock);
+-    channel->sem_idx = (++channel->sem_idx) % CHANNEL_SEM_MAX;
++    if(!TAILQ_EMPTY(&channel->sems_queue)){
++        spdk_s = TAILQ_FIRST(&channel->sems_queue);
++        sem = &spdk_s->sem;
++        TAILQ_REMOVE(&channel->sems_queue, spdk_s, tailq);
++    }else{
++        abort();
++    }
+     pthread_spin_unlock(&channel->lock);
+     //printf("fs_channel_get_sem[%d] %p\n", channel->sem_idx, &channel->sem[channel->sem_idx]);
+-    return &channel->sem[channel->sem_idx];
++    return sem;
++
++
++}
++
++void fs_channel_put_sem(struct spdk_fs_channel *channel, struct spdk_sem * spdk_s){
++    pthread_spin_lock(&channel->lock);
++    TAILQ_INSERT_TAIL(&channel->sems_queue, spdk_s, tailq);
++    pthread_spin_unlock(&channel->lock);
+ }
+ 
+ static int
+@@ -484,8 +509,15 @@ fs_channel_create(struct spdk_filesystem *fs, struct spdk_fs_channel *channel,
+ 
+ 	channel->outstanding_reqs = 0;
+ 	TAILQ_INIT(&channel->reqs);
+-    for(i=0; i<CHANNEL_SEM_MAX; i++)
+-	    sem_init(&channel->sem[i], 0, 0);
++    TAILQ_INIT(&channel->sems_queue);
++    for(i=0; i<CHANNEL_SEM_MAX; i++){
++	    //sem_init(&channel->sem[i], 0, 0);
++
++        sem_init(&channel->sems[i].sem, 0, 0);
++        channel->sems[i].channel = channel;
++        TAILQ_INSERT_TAIL(&channel->sems_queue, &channel->sems[i], tailq);
++
++    }
+ 
+     channel->sem_idx = 0;
+ 	channel->sync = 1;
+@@ -637,13 +669,19 @@ fs_alloc(struct spdk_bs_dev *dev, fs_send_request_fn send_request_fn)
+ 	return fs;
+ }
+ 
++#define container_of(ptr, type, member) ({ \
++                const typeof( ((type *)0)->member ) *__mptr = (ptr); \
++                (type *)( (char *)__mptr - offsetof(type,member) );})
++
+ static void
+ __wake_caller(void *arg, int fserrno)
+ {
+ 	struct spdk_fs_cb_args *args = arg;
+-
+-	args->rc = fserrno;
++    struct spdk_sem * spdk_s = container_of(args->sem, struct spdk_sem, sem);
++    assert(spdk_s);
++    args->rc = fserrno;
+ 	sem_post(args->sem);
++    fs_channel_put_sem(spdk_s->channel, spdk_s);
+ }
+ 
+ static void
+@@ -1023,12 +1061,14 @@ __copy_stat(void *arg, struct spdk_file_stat *stat, int fserrno)
+ {
+ 	struct spdk_fs_request *req = arg;
+ 	struct spdk_fs_cb_args *args = &req->args;
+-
++    struct spdk_sem * spdk_s = container_of(args->sem, struct spdk_sem, sem);
++    assert(spdk_s);
+ 	args->rc = fserrno;
+ 	if (fserrno == 0) {
+ 		memcpy(args->arg, stat, sizeof(*stat));
+ 	}
+-	sem_post(args->sem);
++    sem_post(args->sem);
++    fs_channel_put_sem(spdk_s->channel, spdk_s);
+ }
+ 
+ static void
+@@ -2549,7 +2589,6 @@ __send_rw_from_file_async(struct spdk_file *file, void *payload,
+ 	req = alloc_fs_request_with_iov(channel, 1);
+     assert(req);
+ 	if (req == NULL) {
+-		//sem_post(&channel->sem);
+ 		abort();
+ 		return -ENOMEM;
+ 	}
+@@ -2579,7 +2618,10 @@ __send_rw_from_file(struct spdk_file *file, void *payload,
+ 	req = alloc_fs_request_with_iov(channel, 1);
+ 	if (req == NULL) {
+         assert(psem);
++        struct spdk_sem * spdk_s = container_of(psem, struct spdk_sem, sem);
++        assert(spdk_s);
+ 		sem_post(psem);
++        fs_channel_put_sem(spdk_s->channel, spdk_s);
+ 		return -ENOMEM;
+ 	}
+ 
+-- 
+1.8.3.1
+

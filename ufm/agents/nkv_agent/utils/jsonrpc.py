@@ -36,6 +36,10 @@ class SPDKJSONRPC:
         :param socket_path: Path to local UNIX socket.
         :return: JSON-RPC response.
         """
+        if payload['method'] not in ['dfly_oss_version_info']:
+            raise JSONRPCException('TEMP - No response from JSON RPC call for %s',
+                                   json.dumps(payload))
+
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.connect(socket_path)
         s.sendall(json.dumps(payload))

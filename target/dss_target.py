@@ -41,11 +41,12 @@ g_conf_global_text = """[Global]
 g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
   #block_translation_bg_core_start 4
   #block_translation_bg_job_cnt 4
+  block_translation_blobfs_cache_size 8192
 """
 
 g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
-  block_translation_bg_core_start 4 #vm mode
-  block_translation_bg_job_cnt 4 #vm mode
+  block_translation_bg_core_start 2 #vm mode
+  block_translation_bg_job_cnt 2 #vm mode
 
   io_threads_per_ss 1 #vm mode
   poll_threads_per_nic 1 #vm mode
@@ -191,11 +192,12 @@ def generate_core_mask(core_count, dedicate_core_percent):
     return 0
 
 def generate_core_mask_vmmode(core_count):
-    mask_count = 8
-    mask = 0xFF
-    if core_count < mask_count:
-		mask_count = core_count
-		mask = mask >> (mask_count - core_count)
+    if core_count <= 0:
+        mask = 0
+    else:
+        if core_count > 1:
+            core_count = core_count // 2
+        mask = int(('0b' + '1' * core_count), 2)
 
     global g_core_mask
     g_core_mask = "{0:#x}".format(mask)
@@ -793,7 +795,7 @@ The most commonly used dss target commands are:
         if ret != 0:
             print ("*** ERROR: Creating configuration file ***")
         if g_kvblock_vmmode == True:
-            generate_core_mask_vmmode(mp.cpu_count)
+            generate_core_mask_vmmode(mp.cpu_count())
         else:
             generate_core_mask(mp.cpu_count(), 0.50)
         setup_hugepage()
@@ -804,7 +806,9 @@ The most commonly used dss target commands are:
             + " parameters are correct and update if needed."
         )
         print (
-            "Execute the following command to start the target application: ./nvmf_tgt -c "
+            "Execute the following command to start the target application: "
+            + g_path
+            + "/nvmf_tgt -c "
             + g_conf_path
             + " -r /var/run/spdk.sock -m "
             + g_core_mask
@@ -814,7 +818,8 @@ The most commonly used dss target commands are:
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
             f.write(
-                "./nvmf_tgt -c "
+                g_path 
+                + "/nvmf_tgt -c "
                 + g_conf_path
                 + " -r /var/run/spdk.sock -m "
                 + g_core_mask
