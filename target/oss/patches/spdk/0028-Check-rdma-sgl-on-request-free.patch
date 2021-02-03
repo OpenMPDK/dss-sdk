@@ -1,0 +1,25 @@
+From 98c626a7fd30e35ebfcd602fedbbd45ae3745834 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 2 Feb 2021 16:18:25 -0800
+Subject: [PATCH 28/28] Check rdma sgl on request free
+
+---
+ lib/nvmf/rdma.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index ca8b64a..562569a 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2269,6 +2269,8 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 	memset(&rdma_req->req.dif, 0, sizeof(rdma_req->req.dif));
+ 	rqpair->qd--;
+ 
++	assert(rdma_req->key.wr.sg_list[0].length == SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
++
+ 	STAILQ_INSERT_HEAD(&rqpair->resources->free_queue, rdma_req, state_link);
+ 	rdma_req->state = RDMA_REQUEST_STATE_FREE;
+ }
+-- 
+1.8.3.1
+

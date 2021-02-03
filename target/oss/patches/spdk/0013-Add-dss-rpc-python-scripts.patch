@@ -1,7 +1,7 @@
-From e6ee912d61d46c2e69fbaabb2c101e54331a05c5 Mon Sep 17 00:00:00 2001
+From eb8cc9315f997505e16bef313b20b1db2eabb3d7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 22:34:00 -0800
-Subject: [PATCH 13/27] Add dss rpc python scripts
+Subject: [PATCH 13/28] Add dss rpc python scripts
 
     * Comment devbug prints
     * Add dss rpc from master
