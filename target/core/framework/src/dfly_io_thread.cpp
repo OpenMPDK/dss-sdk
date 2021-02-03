@@ -267,7 +267,7 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
            dss_rocksdb_close(io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_db_handle, \
 							 io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_env);
 		   spdk_fs_free_thread_ctx(io_mod_ctx->dfly_subsys->devices[i].rdb_handle->dev_channel);
-           event = spdk_event_allocate(0, dfly_rdb_close_blobfs, (void *)io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_fs_handle, NULL);
+           event = spdk_event_allocate(dfly_get_master_core(), dfly_rdb_close_blobfs, (void *)io_mod_ctx->dfly_subsys->devices[i].rdb_handle->rdb_fs_handle, NULL);
            assert(event != NULL);
            spdk_event_call(event);
        }

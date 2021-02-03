@@ -49,6 +49,10 @@ uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spd
 			return 0;//Not Enabled
 	}
 
+	if(nvmf_qpair->state != SPDK_NVMF_QPAIR_ACTIVE) {
+		return 0;//qpair not active
+	}
+
 	return df_subsystem_enabled(nvmf_qpair->ctrlr->subsys->id);
 }
 
