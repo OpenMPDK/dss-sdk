@@ -194,9 +194,10 @@ def build_driver():
     shutil.copyfile("linux_nvme.h", "/usr/src/kernels/5.1.0/include/linux/nvme.h")
     shutil.copyfile("linux_nvme_ioctl.h", "/usr/src/kernels/5.1.0/include/uapi/linux/nvme_ioctl.h")
     build = "make all"
-    exec_cmd(build)
-    if ret != 0:
+    rc, bo, err = exec_cmd(build)
+    if rc != 0:
         print("Build Failed: %s, %s" %(bo, err))
+        sys.exit(rc)        
     os.chdir(cwd)
 
 def install_kernel_driver(align):
