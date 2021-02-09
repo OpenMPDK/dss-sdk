@@ -1,7 +1,7 @@
-From f79c812949ec211ae281b6a8fc9ff2d8daebfb1a Mon Sep 17 00:00:00 2001
+From e55565d2bfdd57dff1f3420ad211bfb91e8b7286 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 22:12:41 -0800
-Subject: [PATCH 19/28] * increase fs channel sem for more parallel io
+Subject: [PATCH 19/29] * increase fs channel sem for more parallel io
 
 ---
  lib/blobfs/blobfs.c | 2 +-
