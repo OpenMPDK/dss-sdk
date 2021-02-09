@@ -314,7 +314,7 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 	DFLY_ASSERT(list_cb_event.df_ss_cb);
 	DFLY_ASSERT(list_cb_event.df_ss_cb_arg);
 
-	printf("List load for pool %s, completed in %d micro seconds", pool->name, load_time);
+	DFLY_DEBUGLOG(DFLY_LOG_LIST, "List load for pool %s, completed in %d micro seconds\n", pool->name, load_time);
 	//Call cb started event;
 	if (icore == list_cb_event.src_core) {
 		list_cb_event.df_ss_cb(list_cb_event.df_ss_cb_arg, NULL);
@@ -381,7 +381,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, &list_module_ops,
 				       list_mctx, nr_cores, list_module_started_cb, pool);
 
-	printf("dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
+	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);
 	return 0;
 }
