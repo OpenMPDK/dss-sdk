@@ -49,7 +49,7 @@ extern "C" {
 #define NKV_MAX_CONT_NAME_LENGTH 256 
 #define NKV_MAX_CONT_TRANSPORT 32 //For NKV it will be max 4 but big number is to support LKV 
 #define NKV_MAX_IP_LENGTH 32 
-#define NKV_MAX_KEY_LENGTH 256 
+#define NKV_MAX_KEY_LENGTH 1024
 #define NKV_MAX_MOUNT_POINT_LENGTH 16 
 #define NKV_MAX_VALUE_LENGTH 2097152 //2MB value support 
 #define MAX_CPU_CORE_COUNT 256 //Max core count 
