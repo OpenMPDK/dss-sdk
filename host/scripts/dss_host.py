@@ -622,11 +622,12 @@ class dss_host_args(object):
             usage='''dss_host <command> [<args>]
 
 The most commonly used dss target commands are:
-   config_host    Discovers/connects device(s), and creates config file for DSS API layer
-   config_minio   Generates MINIO scripts based on parameters
-   config_driver  Build Kernel driver
-   verify_nkv_cli Run an instance of nkv_test_cli
-   remove         Disconnects all drives and remove kernel driver
+   config_host     Discovers/connects device(s), and creates config file for DSS API layer
+   config_minio    Generates MINIO scripts based on parameters
+   config_driver   Build Kernel driver
+   create_nkv_conf Creates <nkv_config.json> based on search string for drives
+   verify_nkv_cli  Run an instance of nkv_test_cli
+   remove          Disconnects all drives and remove kernel driver
 
 ''')
         parser.add_argument('command', help='Subcommand to run')
@@ -762,6 +763,36 @@ The most commonly used dss target commands are:
         meta_str = socket.gethostname() + "/numa" + numa
 
         run_nkv_test_cli(nkv_conf_file, numa, workload, meta_str, args.keysize, args.valsize, args.threads, args.numobj)
+
+
+    def create_nkv_conf(self):
+        '''
+        Create config file for nkv_test_cli using the arguments provided.
+        Find out the drives to run by running nvme list-subsys command.
+        '''
+        parser = argparse.ArgumentParser(
+            description='Generates nkv_config.json to run nkv_test_cli on each node')
+        parser.add_argument("-c", "--conf", type=str, help="nkv config json file name to create")
+        parser.add_argument("-a", "--addr", type=str, help="Provide IP octets to distinguish the drives in 'nvme list-subsys' \
+                           output (e.g., 201.0 (for drives connected using 1 IP). Or 20[13].0 to find drives connected using 2 IPs. \
+                           i.e., 201.0 or 203.0 )", default="traddr")
+        args = parser.parse_args(sys.argv[2:])
+
+        if args.conf:
+            nkv_conf_file = "../conf/" + args.conf
+        else:
+            print("No config file provided")
+            return
+
+        if args.addr:
+            addr_octet = args.addr
+        else:
+            print("No address octet provided")
+            return
+
+        cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
+        drive_list = get_drives_list(cmd)
+        create_config_file(drive_list, nkv_conf_file)
 
 
     def remove(self):
