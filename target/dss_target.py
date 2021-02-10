@@ -8,6 +8,7 @@ from random import randint
 import re
 from subprocess import Popen, PIPE
 import sys
+from netifaces import interfaces, ifaddresses, AF_INET
 
 g_env = None
 
@@ -76,7 +77,7 @@ g_rdma_transport = """
   IOUnitSize 2097152
   MaxQueuesPerSession 64
 """
-g_transport_perfmode = """  NumSharedBuffers 4096
+g_transport_perfmode = """  NumSharedBuffers 8192
 """
 
 g_transport_vmmode = """  NumSharedBuffers 1024
@@ -276,6 +277,51 @@ def get_nvme_list_numa():
 
     return drives
 
+def ip4_addresses():
+    ip_list = {}
+    for interface in interfaces():
+        try:
+            for link in ifaddresses(interface)[AF_INET]:
+                ip_list[interface] = link['addr']
+        except:
+            continue
+    return ip_list
+
+def only_mtu9k(vip):
+    di = {}
+    for ip in vip:
+        cmd = 'cat /sys/class/net/' + ip + '/mtu'
+        rc, ou, er = exec_cmd(cmd)
+        if int(ou) == 9000:
+            di[ip] = vip[ip]
+    return di
+
+def get_rdma_ips(mip, ip):
+    di = {}
+    for i in ip:
+        for nic, ip in mip.items():
+            if i == ip:
+                di[nic] = ip
+    return di
+
+def get_numa_ip(ip_list):
+
+    all_ips = ip4_addresses()
+    mtu_ips = only_mtu9k(all_ips)
+
+    r_ips = get_rdma_ips(mtu_ips, ip_list)
+
+    s0 = {}
+    s1 = {}
+    for item in r_ips:
+        cmd = 'cat /sys/class/net/' + item.split('.')[0] + '/device/numa_node'
+        rc, ou, er = exec_cmd(cmd)
+        if int(ou) < 4:
+            s0[r_ips[item]] = int(ou)
+        else:
+            s1[r_ips[item]] = int(ou)
+
+    return s0, s1
 
 def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_address):
     """
@@ -402,6 +448,15 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     nvme_index = 1
     #for drive_count_index in range(len(kv_list)):
+    numa_ips = {}
+    s0, s1 = {}, {}
+    s0, s1 = get_numa_ip(ip_addrs)
+    print(g_kv_ssc)
+
+    if g_kv_ssc == 1:
+        numa_ips = ip_addrs
+    else:
+        numa_ips = s0
     for i in kv_list:
         if nvme_index == 1:
             subsystem_text += g_subsystem_common_text % {
@@ -410,7 +465,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 "nqn_text": nqn_text + "-kv_data" + str(ss_number),
                 "serial_number": random_with_N_digits(10),
             }
-            for ip in ip_addrs:
+            #for ip in ip_addrs:
+            for ip in numa_ips:
                 if g_tcp:
                     subsystem_text += g_subsystem_listen_text % {
                         "transport": "TCP",
@@ -434,6 +490,13 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
             ss_number = ss_number + 1
         else:
             nvme_index += 1
+
+        if ss_number >= 2:
+            if ss_number  <= g_kv_ssc / 2:
+                numa_ips = s0
+            else:
+                numa_ips = s1
+
         if ss_number > g_kv_ssc:
             break
 
