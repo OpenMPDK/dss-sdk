@@ -53,6 +53,10 @@ const stat_counter_types_t stat_counter_types_table {
 	{ "constant", USTAT_TYPE_STRING, 260, NULL },
 };
 
+const rdb_debug_counters_t rdb_debug_counters_table {
+	{"rdb_mem_bw", USTAT_TYPE_UINT64, 0, NULL },
+};
+
 const stat_serial_t stat_dev_serial_table = {
 	{ "c_serial", USTAT_TYPE_STRING, 260, NULL },
 };
@@ -168,6 +172,7 @@ dfly_ustats_init()
 	g_dragonfly->s_handle = h;
 
 	stat_counter_types_t *counter_types = NULL;
+	rdb_debug_counters_t *rdb_debug_counters = NULL;
 
 	counter_types = (stat_counter_types_t *)ustat_insert(h, "target", STAT_GNAME_COUNTERS,
 			&ustat_class_test,
@@ -180,6 +185,18 @@ dfly_ustats_init()
 
 	dfly_ustat_set_string(counter_types, &counter_types->icounters, "[i_pending_reqs, i_reqs, i_reqs_max]");
 	dfly_ustat_set_string(counter_types, &counter_types->ccounters, "[c_serial, c_nqn, c_max_qd, c_initiator_ip]");
+
+	if(g_dragonfly->rdb_io_debug_level > 0) {
+		rdb_debug_counters = (rdb_debug_counters_t *)ustat_insert(h, "target",
+		STAT_GNAME_DEBUG, &ustat_class_test,
+		sizeof(rdb_debug_counters_table)/sizeof(ustat_named_t),
+		&rdb_debug_counters_table, NULL);
+
+		dfly_ustat_set_u64(rdb_debug_counters,
+								&rdb_debug_counters->rdb_mem_bw, 0);
+
+		g_dragonfly->ustat_rdb_debug_counters = rdb_debug_counters;
+	}
 
 	return (0);
 }

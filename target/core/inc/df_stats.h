@@ -65,11 +65,16 @@ extern "C" {
 #define STAT_GNAME_RDMA "rdma"
 
 #define STAT_GNAME_COUNTERS "counters"
+#define STAT_GNAME_DEBUG "debug"
 
 typedef struct stat_counter_types_s {
 	ustat_named_t icounters;
 	ustat_named_t ccounters;
 } stat_counter_types_t;
+
+typedef struct rdb_debug_counters_s {
+	ustat_named_t rdb_mem_bw;
+} rdb_debug_counters_t;
 
 typedef struct stat_serial {
 	ustat_named_t name;

@@ -294,6 +294,7 @@ struct dragonfly {
 	struct dragonfly_wal_ops *wal_ops; /**< exported services from WAL */
 	ustat_handle_t              *s_handle;
 	stat_counter_types_t        *ustat_counter_types;
+	rdb_debug_counters_t        *ustat_rdb_debug_counters;
 	bool				df_qos_enable;
 	TAILQ_HEAD(, dfly_prof)   	df_profs;
 	TAILQ_HEAD(, dfly_session)      df_sessions;
