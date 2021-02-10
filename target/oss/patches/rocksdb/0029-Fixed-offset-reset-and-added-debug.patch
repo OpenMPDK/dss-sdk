@@ -1,0 +1,92 @@
+From 132d36b1714486fddf159cc865049da065d6c7f4 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 10 Feb 2021 11:17:40 -0800
+Subject: [PATCH 29/29] Fixed offset reset and added debug
+
+    * Added memory bandwidth counters for non user buffer read
+    * Update debug log levels >0 Counter enabled
+    >1 not found error logs >2 debug logs
+    * Reset offset_ to 0 for non-user buffer
+    * Reset pinnable_val_ after IO complete
+---
+ db/dss_kv2blk_c.cc         | 19 ++++++++++++-------
+ util/random_read_context.h |  2 +-
+ 2 files changed, 13 insertions(+), 8 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index def82e7..d14e299 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -149,7 +149,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 	  //printf("Async read completed\n");
+       if (status.IsNotFound()) {
+         ++ g_get_miss_cnt;
+-        if(g_dragonfly->rdb_io_debug_level > 0)
++        if(g_dragonfly->rdb_io_debug_level > 1)
+             DFLY_NOTICELOG("key= %s no found\n", key_.ToString().c_str());
+ 	    response->status.sc = SPDK_NVME_SC_KV_KEY_NOT_EXIST;
+ 		response->status.sct = SPDK_NVME_SCT_KV_CMD;
+@@ -161,13 +161,16 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 		response->cdw0 = pinnable_val_.size();
+ 
+ 		  if(user_buffer()){
+-			assert(offset_ == 0);
+ 			offset_ = (uint64_t)(pinnable_val_.data()) - (uint64_t)val_buffer_;
+-			//printf("Got offset %d\n", offset_);
+-			assert(req->dreq->req_value.offset == 0);
+-			assert(offset_ < 4096);
+ 			req->dreq->req_value.offset = offset_;
+ 		  } else {
++			req->dreq->req_value.offset = 0;
++			if(g_dragonfly->rdb_io_debug_level > 0) {
++				//Increment b/w counter
++				dfly_ustat_atomic_add_u64(g_dragonfly->ustat_rdb_debug_counters,
++					&g_dragonfly->ustat_rdb_debug_counters->rdb_mem_bw,
++					(response->cdw0 <= vlen_)?response->cdw0:vlen_);
++			}
+ 			if(response->cdw0 <= vlen_) {
+ 				//printf("Copied full value len %d\n", response->cdw0);
+ 				memcpy(val_buffer_, pinnable_val_.data(), response->cdw0);
+@@ -202,6 +205,8 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 		//printf("rocksdb async get done\n");
+ 	 }
+ 
++	pinnable_val_.Reset();
++
+      pthread_mutex_lock(&ctx_queue_->mutex);
+      ctx_queue_->queue.push(this);
+      pthread_mutex_unlock(&ctx_queue_->mutex);
+@@ -460,7 +465,7 @@ int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t v
+ 	return -1;
+    }
+    g_put_sz += vlen;
+-   if(g_dragonfly->rdb_io_debug_level > 1)
++   if(g_dragonfly->rdb_io_debug_level > 2)
+       DFLY_NOTICELOG("put %s: %s vlen %d\n", db->GetName().c_str(), put_key.ToString().c_str(), vlen);
+    return 0;
+ }
+@@ -552,7 +557,7 @@ int dss_rocksdb_delete(void *ctx, void *key, uint32_t klen)
+         return -1;
+         ++g_del_miss_cnt;
+ 	}
+-    if(g_dragonfly->rdb_io_debug_level > 1)
++    if(g_dragonfly->rdb_io_debug_level > 2)
+         DFLY_NOTICELOG("del %s: %s\n", db->GetName().c_str(), del_key.ToString().c_str());
+ 	return 0;
+ }
+diff --git a/util/random_read_context.h b/util/random_read_context.h
+index 8ba37f3..35e47be 100644
+--- a/util/random_read_context.h
++++ b/util/random_read_context.h
+@@ -574,7 +574,7 @@ class ReadBlockContentsContext {
+             }
+         }
+ 
+-        if(get_context && get_context->GetBuffer() && get_context->GetBufferSize()>= spdk_buffer_size){
++        if(get_context && get_context->GetBuffer() && (get_context->GetBufferSize()>= spdk_buffer_size)){
+ 
+             //printf("ConstructReadBlockContext %p ready to use get_buffer %p size %d spdk_buffer_size size %d\n",
+             //            this, get_context->GetBuffer(),
+-- 
+1.8.3.1
+

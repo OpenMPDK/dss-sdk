@@ -1,7 +1,7 @@
-From 70a2433886c25238d2343ca41aba2ca6a9f1e468 Mon Sep 17 00:00:00 2001
+From ab4e70c90217c92bec5812be69366e6457c8453e Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 7 Jan 2021 13:50:34 -0800
-Subject: [PATCH 23/28] Remove error log for key not found
+Subject: [PATCH 23/29] Remove error log for key not found
 
 ---
  db/dss_kv2blk_c.cc | 3 ++-
