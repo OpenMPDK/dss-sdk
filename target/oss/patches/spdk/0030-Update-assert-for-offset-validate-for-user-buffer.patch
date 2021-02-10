@@ -1,0 +1,27 @@
+From e6ba8fae485efab3c06c41eab45b6c661c673bf9 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 10 Feb 2021 11:09:32 -0800
+Subject: [PATCH 30/30] Update assert for offset validate for user buffer
+
+---
+ lib/nvmf/rdma.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index d59b3c8..0b1df92 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -910,9 +910,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
+ 	data_offset = dfly_req->req_value.offset;
+ 	switch(rdma_req->req.cmd->nvme_cmd.opc) {
+ 		case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+-			//assert(data_offset < 4096);//we have only 4K extra buffer allocated
+-			//data_offset + data len <= sge length
+-			assert(rdma_req->data.wr.sg_list[sge_index].length > data_offset + rsp->cdw0);
++			assert(rqpair->qpair.transport->opts.io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT > data_offset + rsp->cdw0);
+ 			while(rem_data_length && (sge_index < rdma_req->data.wr.num_sge)) {
+ 				sge_len = rdma_req->data.wr.sg_list[sge_index].length;
+ 				if(data_offset > 0) {
+-- 
+1.8.3.1
+

@@ -1,7 +1,7 @@
-From b3b4c26e4a260a482152f61f08da6a5d04353494 Mon Sep 17 00:00:00 2001
+From c02a0ce614146b435f7dd2cab009d063b20556dc Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 16 Dec 2020 21:01:51 -0800
-Subject: [PATCH 17/29] propogate blobfs error to rocksdb
+Subject: [PATCH 17/30] propogate blobfs error to rocksdb
 
 ---
  lib/rocksdb/env_dss.cc | 10 ++++++++++
