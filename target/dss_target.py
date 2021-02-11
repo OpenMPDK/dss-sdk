@@ -307,9 +307,10 @@ def get_rdma_ips(mip, ip):
 def get_numa_ip(ip_list):
 
     all_ips = ip4_addresses()
-    mtu_ips = only_mtu9k(all_ips)
+    #mtu_ips = only_mtu9k(all_ips)
 
-    r_ips = get_rdma_ips(mtu_ips, ip_list)
+    #r_ips = get_rdma_ips(mtu_ips, ip_list)
+    r_ips = get_rdma_ips(all_ips, ip_list)
 
     s0 = {}
     s1 = {}
@@ -452,11 +453,14 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     s0, s1 = {}, {}
     s0, s1 = get_numa_ip(ip_addrs)
     print(g_kv_ssc)
-
     if g_kv_ssc == 1:
         numa_ips = ip_addrs
     else:
-        numa_ips = s0
+        if s0:
+            numa_ips = s0
+        elif s1:
+            numa_ips = s1
+
     for i in kv_list:
         if nvme_index == 1:
             subsystem_text += g_subsystem_common_text % {
@@ -493,8 +497,11 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
         if ss_number >= 2:
             if ss_number  <= g_kv_ssc / 2:
-                numa_ips = s0
-            else:
+                if s0:
+                    numa_ips = s0
+                elif s1:
+                    numa_ips = s1
+            elif s1:
                 numa_ips = s1
 
         if ss_number > g_kv_ssc:
