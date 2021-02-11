@@ -18,43 +18,6 @@ import socket
 # Non-standard libraries
 import paramiko
 
-gl_nkv_config = """
-{ 
-  "fm_address": "10.1.51.2:8080",
-  "contact_fm": 0,
-  "nkv_transport" : 0,
-  "min_container_required" : 1,
-  "min_container_path_required" : 1,
-  "nkv_container_path_qd" : 16384,
-  "nkv_core_pinning_required" : 0,
-  "nkv_app_thread_core" : 22,
-  "nkv_queue_depth_monitor_required" : 0,
-  "nkv_queue_depth_threshold_per_path" : 8,
-  "drive_iter_support_required" : 1,
-  "iter_prefix_to_filter" : "meta",
-  "nkv_listing_with_cached_keys" : 1,
-  "nkv_num_path_per_container_to_iterate" : 0,
-  "nkv_stat_thread_polling_interval_in_sec": 30,
-  "nkv_need_path_stat" : 1,
-  "nkv_need_detailed_path_stat" : 0,
-  "nkv_enable_debugging": 0,
-  "nkv_listing_cache_num_shards" : 32,
-  "nkv_is_on_local_kv" : 1,
-  "nkv_use_read_cache" : 0,
-  "nkv_read_cache_size" : 400000,
-  "nkv_read_cache_shard_size" : 512,
-  "nkv_data_size_threshold" : 4096,
-  "nkv_use_data_cache" : 0,
-  "nkv_remote_listing" : 1,
-  "nkv_max_key_length" : 256,
-  "nkv_max_value_length" : 1048576,
-  "nkv_check_alignment" : 4,
-
-  "nkv_local_mounts": [
-]
-}
-"""
-
 gl_minio_start_sh = """
 export LD_LIBRARY_PATH="../lib"
 export MINIO_NKV_CONFIG="../conf/nkv_config.json"
@@ -363,22 +326,15 @@ def get_drives_list(nvme_list_cmd):
 
 def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
     '''
-    Create nkv_config.json file in conf directory
+    Update nkv_config.json file in conf directory
     '''
-    print("----- Creating %s -----" %nkv_conf_file)
-    try:
-        os.remove(nkv_conf_file)
-    except:
-        pass
-
-    # Write the initial configuration skeleton in file.
-    with open(nkv_conf_file, 'w') as f:
-        f.write(gl_nkv_config)
+    print("----- Updating %s -----" %nkv_conf_file)
 
     # Loop through drives and add them in local mounts.
     # This is the place to do any other variable changes of config file.
     with open(nkv_conf_file, 'r') as f:
         data = json.load(f)
+        data['nkv_local_mounts'] = []
         temp = data['nkv_local_mounts'] 
          
         for drive in drives_list:
@@ -387,12 +343,7 @@ def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
 
             temp.append(y)
 
-        try:
-            os.remove(nkv_conf_file)
-        except:
-            pass
-
-        write_json(data, nkv_conf_file)
+    write_json(data, nkv_conf_file)
 
 
 def num(s):
@@ -625,7 +576,7 @@ The most commonly used dss target commands are:
    config_host     Discovers/connects device(s), and creates config file for DSS API layer
    config_minio    Generates MINIO scripts based on parameters
    config_driver   Build Kernel driver
-   create_nkv_conf Creates <nkv_config.json> based on search string for drives
+   create_nkv_conf Creates nkv_config.json based on search string for drives
    verify_nkv_cli  Run an instance of nkv_test_cli
    remove          Disconnects all drives and remove kernel driver
 
@@ -763,7 +714,6 @@ The most commonly used dss target commands are:
         meta_str = socket.gethostname() + "/numa" + numa
 
         run_nkv_test_cli(nkv_conf_file, numa, workload, meta_str, args.keysize, args.valsize, args.threads, args.numobj)
-
 
     def create_nkv_conf(self):
         '''
