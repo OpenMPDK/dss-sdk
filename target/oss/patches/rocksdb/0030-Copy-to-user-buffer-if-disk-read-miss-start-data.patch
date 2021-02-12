@@ -1,0 +1,44 @@
+From 63abcea4b938dbf56aad0d3dc40f5638be6f8803 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 11 Feb 2021 23:16:04 -0800
+Subject: [PATCH 30/30] Copy to user buffer if disk read miss start data
+
+---
+ db/dss_kv2blk_c.cc | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index d14e299..a4d74f8 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -163,7 +163,18 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+ 		  if(user_buffer()){
+ 			offset_ = (uint64_t)(pinnable_val_.data()) - (uint64_t)val_buffer_;
+ 			req->dreq->req_value.offset = offset_;
++			if(((uint64_t)(pinnable_val_.data()) < (uint64_t)val_buffer_) || ((uint64_t)(pinnable_val_.data()) > ((uint64_t)val_buffer_) + vlen_)) {
++				if(g_dragonfly->rdb_io_debug_level > 3)
++					DFLY_NOTICELOG("Pinnable buffer %p is different from user buffer %p max copy len %d\n", pinnable_val_.data(), val_buffer_, response->cdw0);
++				goto copy_data;
++			} else if (offset_ + response->cdw0 >= vlen_) {
++				if(g_dragonfly->rdb_io_debug_level > 3)
++					DFLY_WARNLOG("Pinnable buffer %p is different from user buffer %p max copy len %d\n", pinnable_val_.data(), val_buffer_, response->cdw0);
++				assert(0);
++				goto copy_data;//Fall back to copying buffer for release binary
++			}
+ 		  } else {
++copy_data:
+ 			req->dreq->req_value.offset = 0;
+ 			if(g_dragonfly->rdb_io_debug_level > 0) {
+ 				//Increment b/w counter
+@@ -183,7 +194,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
+         //printf("OnReadComplete key=%s val=%s async=%d\n", key_.ToString(true).c_str(),
+         //    pinnable_val_.ToString().c_str(), async());
+       } else if (!status.IsNotFound()) {
+-        DFLY_NOTICELOG("Get returned an error: %s\n",
++        DFLY_WARNLOG("Get returned an error: %s\n",
+           status.ToString().c_str());
+ 			response->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
+ 			response->status.sct = SPDK_NVME_SCT_GENERIC;
+-- 
+1.8.3.1
+

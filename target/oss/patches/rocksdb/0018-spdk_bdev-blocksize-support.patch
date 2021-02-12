@@ -1,7 +1,7 @@
-From 4acf9743c1d0fcd3a26645daa58c71cda9407eb7 Mon Sep 17 00:00:00 2001
+From 87e1889cba61351f6de820835aed367779196fbc Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 15 Dec 2020 20:28:22 -0800
-Subject: [PATCH 18/29] * spdk_bdev blocksize support
+Subject: [PATCH 18/30] * spdk_bdev blocksize support
 
 ---
  include/rocksdb/env.h           |  2 ++
