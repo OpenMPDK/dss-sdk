@@ -193,7 +193,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				//SPDK_NOTICELOG("Rocksdb get started\n");
 				dss_rocksdb_get_async(thrd_inst, io_device->rdb_handle->rdb_db_handle,
 										req->dreq->req_key.key, req->dreq->req_key.length,
-										req->dreq->req_value.value, /*req->dreq->req_value.length*/ 2048 * 1024,
+										req->dreq->req_value.value, /*req->dreq->req_value.length*/ req->qpair->transport->opts.io_unit_size + VALUE_4KB,
 										NULL, req);
 				return SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
 				break;
