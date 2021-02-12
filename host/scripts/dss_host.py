@@ -324,7 +324,7 @@ def get_drives_list(nvme_list_cmd):
     return drives_list
 
 
-def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
+def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_config.json"):
     '''
     Update nkv_config.json file in conf directory
     '''
@@ -332,16 +332,19 @@ def create_config_file(drives_list, nkv_conf_file="../conf/nkv_config.json"):
 
     # Loop through drives and add them in local mounts.
     # This is the place to do any other variable changes of config file.
-    with open(nkv_conf_file, 'r') as f:
+    with open("../conf/nkv_config.json", 'r') as f:
         data = json.load(f)
         data['nkv_local_mounts'] = []
-        temp = data['nkv_local_mounts'] 
          
+        if nkv_kv_pair:
+            for pair in nkv_kv_pair:
+                key, value = pair.split('=')
+                data[key] = int(value)
+
         for drive in drives_list:
             #print("{ mount_point: %s },")
             y = { "mount_point": drive }
-
-            temp.append(y)
+            data['nkv_local_mounts'].append(y)
 
     write_json(data, nkv_conf_file)
 
@@ -398,7 +401,7 @@ def nkv_test_result(result_file):
     print("------------------------------")
 
 
-def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
+def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
     nqn_infos = []
@@ -420,7 +423,7 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign):
     cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
     list_of_drives = get_drives_list(cmd)
     # Create nkv_config.json file
-    create_config_file(list_of_drives)
+    create_config_file(nkv_kv_pair, list_of_drives)
 
 
 def config_minio_sa(node, ec):
@@ -605,6 +608,9 @@ The most commonly used dss target commands are:
         parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
             default=512)
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
+        parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
+                            file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
+
         args = parser.parse_args(sys.argv[2:])
 
         if args.addrs != None and args.ports != None:
@@ -620,7 +626,8 @@ The most commonly used dss target commands are:
         disc_proto = args.proto
         driver_memalign = args.memalign
         disc_qpair = args.qpair
-        config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign)
+        nkv_kv_pair = args.kvpair
+        config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair)
 
     def config_minio(self):
         parser = argparse.ArgumentParser(
@@ -681,6 +688,9 @@ The most commonly used dss target commands are:
         parser.add_argument("-v", "--valsize", type=str, help="Value size in bytes. Default/Max=1048576", default="1048576")
         parser.add_argument("-t", "--threads", type=str, help="Number of threads to run (default=128)", default="128")
         parser.add_argument("-n", "--numobj", type=str, help="Number of objects for each thread (default=1000)", default="1000")
+        parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
+                            file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
+
         args = parser.parse_args(sys.argv[2:])
 
         if args.conf:
@@ -707,9 +717,12 @@ The most commonly used dss target commands are:
             print("provide workload type")
             return
 
+        if args.kvpair:
+            nkv_kv_pair = args.kvpair
+
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
-        create_config_file(drive_list, nkv_conf_file)
+        create_config_file(nkv_kv_pair, drive_list, nkv_conf_file)
 
         meta_str = socket.gethostname() + "/numa" + numa
 
@@ -723,6 +736,8 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description='Generates nkv_config.json to run nkv_test_cli on each node')
         parser.add_argument("-c", "--conf", type=str, help="nkv config json file name to create")
+        parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
+                            file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
         parser.add_argument("-a", "--addr", type=str, help="Provide IP octets to distinguish the drives in 'nvme list-subsys' \
                            output (e.g., 201.0 (for drives connected using 1 IP). Or 20[13].0 to find drives connected using 2 IPs. \
                            i.e., 201.0 or 203.0 )", default="traddr")
@@ -740,9 +755,12 @@ The most commonly used dss target commands are:
             print("No address octet provided")
             return
 
+        if args.kvpair:
+            nkv_kv_pair = args.kvpair
+
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
-        create_config_file(drive_list, nkv_conf_file)
+        create_config_file(nkv_kv_pair, drive_list, nkv_conf_file)
 
 
     def remove(self):
