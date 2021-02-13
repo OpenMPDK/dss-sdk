@@ -1,7 +1,7 @@
-From 8f0e25383378c137bf745135d88e52accba82aab Mon Sep 17 00:00:00 2001
+From c085aa21cd575dd2d9da39df5374af97d57625e6 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:04:26 -0800
-Subject: [PATCH 24/30] * change fs channel sem array to queue.
+Subject: [PATCH 24/31] * change fs channel sem array to queue.
 
 ---
  lib/blobfs/blobfs.c | 64 ++++++++++++++++++++++++++++++++++++++++++++---------

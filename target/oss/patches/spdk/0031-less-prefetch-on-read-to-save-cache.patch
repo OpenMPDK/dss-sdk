@@ -1,0 +1,38 @@
+From 547259ce35fe69c48fb02afa06dacc09c98e17d2 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 12 Feb 2021 21:00:55 -0800
+Subject: [PATCH 31/31] * less prefetch on read to save cache
+
+---
+ lib/blobfs/blobfs.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 21ee919..9f4274a 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -2904,12 +2904,6 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 		check_readahead(file, offset, channel);
+ 		check_readahead(file, offset + CACHE_BUFFER_SIZE, channel);
+ 		check_readahead(file, offset + CACHE_BUFFER_SIZE * 2, channel);
+-		check_readahead(file, offset + CACHE_BUFFER_SIZE * 3, channel);
+-		check_readahead(file, offset + CACHE_BUFFER_SIZE * 4, channel);
+-		check_readahead(file, offset - CACHE_BUFFER_SIZE, channel);
+-		check_readahead(file, offset - CACHE_BUFFER_SIZE * 2, channel);
+-		check_readahead(file, offset - CACHE_BUFFER_SIZE * 3, channel);
+-		check_readahead(file, offset - CACHE_BUFFER_SIZE * 4, channel);
+ 	}
+ 
+ 	final_length = 0;
+@@ -2937,7 +2931,7 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 			}
+ 			BLOBFS_TRACE(file, "read %p offset=%ju length=%ju\n", payload, offset, read_len);
+ 			spdk_memcpy(payload, &buf->buf[offset - buf->offset], read_len);
+-			if (0 && (offset + read_len) % CACHE_BUFFER_SIZE == 0) {
++			if ((offset + read_len) % CACHE_BUFFER_SIZE == 0) {
+ 				SPDK_DEBUGLOG(SPDK_LOG_BLOBFS, "tree_remove_buffer: f %p offset %ld length %ld\n", file, buf->offset, buf->bytes_filled);
+ 				tree_remove_buffer(file->tree, buf);
+ 				if (file->tree->present_mask == 0) {
+-- 
+1.8.3.1
+

@@ -1,7 +1,7 @@
-From f0749f912d03e7f8248ce801deca323e25a1c297 Mon Sep 17 00:00:00 2001
+From b97a283dc6d4bb3aef4138efdee482613139a27b Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 09:45:15 -0800
-Subject: [PATCH 26/30] Added option to disable rocksdb stats
+Subject: [PATCH 26/31] Added option to disable rocksdb stats
 
     * Set rdb_stats_intervals_sec parameter to 0 to disable stats logs
 ---

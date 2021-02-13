@@ -1,7 +1,7 @@
-From d5d73a935955efc7323e74b383c602e40b63b2dc Mon Sep 17 00:00:00 2001
+From 9ec6d44cbfce002ea287b24f13f31551b4308ddc Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 1 Dec 2020 11:20:03 -0800
-Subject: [PATCH 15/30] * multiple db support * bg job core config setting.
+Subject: [PATCH 15/31] * multiple db support * bg job core config setting.
 
 ---
  db/dss_kv2blk_c.cc | 21 +++++++++++++++------

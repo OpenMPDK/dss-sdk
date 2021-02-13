@@ -1,7 +1,7 @@
-From 31a587ad4adfc9dac0efdcd90f33521a62cf7cac Mon Sep 17 00:00:00 2001
+From 3ea5f6652e885abbd084e65e62c107e0635025a6 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 13:25:18 -0700
-Subject: [PATCH 02/30] * db_bench mix io size support on write example:
+Subject: [PATCH 02/31] * db_bench mix io size support on write example:
  --nr_io_size=4 --num=1048576 ingest object with val size as 128k, 256k, 512k
  and 1024k, with total num as 1m. * db_bench key prefix range iteration.
  example: --prefix_size=6 --use_prefix_iter=true --key_prefix=0x01
