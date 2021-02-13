@@ -1,7 +1,7 @@
-From 6b8957877965ca634c20b810bf3c2701f740d108 Mon Sep 17 00:00:00 2001
+From ea11103c8e59cd0b109a92f49da9e95f70c78565 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:02:02 -0800
-Subject: [PATCH 25/30] * metadata sync io, work around for read miss * user io
+Subject: [PATCH 25/31] * metadata sync io, work around for read miss * user io
  stats report * code format change * log by DFLY_NOTICELOG
 
 ---
