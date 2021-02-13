@@ -271,9 +271,11 @@ struct dragonfly {
 
 	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
 	bool blk_map;//Rocksdb block translation
-    uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
-    uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
-    uint32_t rdb_blobfs_cache_sz_mb; /**<rdb blobs global cache size*/
+        uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
+        uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
+        int32_t rdb_shard_cnt; /**<rdb nr column family per db>*/
+        int32_t rdb_mtable_cnt; /**<rdb nr max write buffer number>*/
+        uint32_t rdb_blobfs_cache_sz_mb; /**<rdb blobs global cache size*/
 	bool rdb_auto_compaction_enable;
         bool rdb_wal_enable;
         bool rdb_sync_enable;
