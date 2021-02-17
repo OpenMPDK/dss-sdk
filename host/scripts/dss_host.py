@@ -717,8 +717,7 @@ The most commonly used dss target commands are:
             print("provide workload type")
             return
 
-        if args.kvpair:
-            nkv_kv_pair = args.kvpair
+        nkv_kv_pair = args.kvpair
 
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
