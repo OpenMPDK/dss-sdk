@@ -131,6 +131,7 @@ g_1gb_hugepages = "40"
 g_kvblock_vmmode = False
 g_config_mode = 'kv'
 
+g_tgt_gcc_setup = "source /usr/local/bin/setenv-for-gcc510.sh"
 
 def random_with_N_digits(n):
     range_start = 10 ** (n - 1)
@@ -887,6 +888,7 @@ The most commonly used dss target commands are:
             "Make necessary changes to core mask (-m option, # of cores that app should use) if needed."
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
+            f.write(g_tgt_gcc_setup + "\n")
             f.write(
                 g_path 
                 + "/nvmf_tgt -c "
