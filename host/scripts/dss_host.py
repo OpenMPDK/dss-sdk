@@ -376,8 +376,7 @@ def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value,
         with open(result_file, 'w') as f:
             f.write(out)
         print("nkv_test_cli run output written to %s" % result_file)
-
-    nkv_test_result(result_file)
+        nkv_test_result(result_file)
 
 
 def nkv_test_result(result_file):
