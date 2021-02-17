@@ -339,7 +339,10 @@ def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_conf
         if nkv_kv_pair:
             for pair in nkv_kv_pair:
                 key, value = pair.split('=')
-                data[key] = int(value)
+                if key in data:
+                    data[key] = int(value)
+                else:
+                    print('Invalid key "%s" not added to config file' % key)
 
         for drive in drives_list:
             #print("{ mount_point: %s },")
