@@ -1868,10 +1868,10 @@ do {
     nkv_key* keys_out = (nkv_key*) malloc (sizeof(nkv_key) * num_ios);
     memset(keys_out, 0, (sizeof(nkv_key) * num_ios));
     for (uint32_t iter = 0; iter < num_ios; iter++) {
-      keys_out[iter].key = malloc (256);
+      keys_out[iter].key = malloc (1024);
       assert(keys_out[iter].key != NULL);
-      memset(keys_out[iter].key, 0, 256);
-      keys_out[iter].length = 256;
+      memset(keys_out[iter].key, 0, 1024);
+      keys_out[iter].length = 1024;
     }
     auto start = std::chrono::steady_clock::now();
 
@@ -1897,13 +1897,13 @@ do {
           smg_alert(logger, "Looks like we got some valid keys, number of keys got in this batch = %u, status = %x", max_keys, status);
           total_keys += max_keys;
           for (uint32_t k_iter = 0; k_iter < max_keys; k_iter++) {
-            smg_warn(logger, "key_%u = %s", k_iter, keys_out[k_iter].key);
+            smg_warn(logger, "key_%u = %s, length = %u", k_iter, keys_out[k_iter].key, keys_out[k_iter].length);
           }
         }
         for (uint32_t iter = 0; iter < num_ios; iter++) {
           assert(keys_out[iter].key != NULL);
-          memset(keys_out[iter].key, 0, 256);
-          keys_out[iter].length = 256;
+          memset(keys_out[iter].key, 0, 1024);
+          keys_out[iter].length = 1024;
         }
 
         
