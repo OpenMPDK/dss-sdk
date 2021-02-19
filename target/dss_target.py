@@ -42,7 +42,7 @@ g_conf_global_text = """[Global]
 g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
   #block_translation_bg_core_start 4
   #block_translation_bg_job_cnt 4
-  block_translation_blobfs_cache_size 8192
+  block_translation_blobfs_cache_size 20480
 """
 
 g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
@@ -131,6 +131,7 @@ g_1gb_hugepages = "40"
 g_kvblock_vmmode = False
 g_config_mode = 'kv'
 
+g_tgt_gcc_setup = "source /usr/local/bin/setenv-for-gcc510.sh"
 
 def random_with_N_digits(n):
     range_start = 10 ** (n - 1)
@@ -887,6 +888,7 @@ The most commonly used dss target commands are:
             "Make necessary changes to core mask (-m option, # of cores that app should use) if needed."
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
+            f.write(g_tgt_gcc_setup + "\n")
             f.write(
                 g_path 
                 + "/nvmf_tgt -c "

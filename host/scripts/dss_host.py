@@ -376,8 +376,7 @@ def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value,
         with open(result_file, 'w') as f:
             f.write(out)
         print("nkv_test_cli run output written to %s" % result_file)
-
-    nkv_test_result(result_file)
+        nkv_test_result(result_file)
 
 
 def nkv_test_result(result_file):
@@ -720,8 +719,7 @@ The most commonly used dss target commands are:
             print("provide workload type")
             return
 
-        if args.kvpair:
-            nkv_kv_pair = args.kvpair
+        nkv_kv_pair = args.kvpair
 
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
