@@ -1,7 +1,7 @@
-From 547259ce35fe69c48fb02afa06dacc09c98e17d2 Mon Sep 17 00:00:00 2001
+From f7ef9c621eae5be0aeb266a5569950d80f4f950d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 12 Feb 2021 21:00:55 -0800
-Subject: [PATCH 31/31] * less prefetch on read to save cache
+Subject: [PATCH 31/32] * less prefetch on read to save cache
 
 ---
  lib/blobfs/blobfs.c | 8 +-------

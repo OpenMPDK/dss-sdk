@@ -1,7 +1,7 @@
-From cd5e0da80f21b429bab9444dd4f671059fe65076 Mon Sep 17 00:00:00 2001
+From 6074f85099d102912d4f7b50173617dd4c5175f1 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 09:42:49 -0800
-Subject: [PATCH 25/31] Fixed error due to open blobs on shutdown
+Subject: [PATCH 25/32] Fixed error due to open blobs on shutdown
 
 ---
  lib/rocksdb/env_dss.cc | 11 +++++++++++

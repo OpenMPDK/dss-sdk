@@ -1,0 +1,48 @@
+From 10d097a9037c1b67f2e8f981b4f45a4261402f6c Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Tue, 23 Feb 2021 18:06:09 -0800
+Subject: [PATCH 32/32] * retry to release the cache on file_free
+
+---
+ lib/blobfs/blobfs.c | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 9f4274a..21568c2 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -3191,6 +3191,7 @@ _file_free(void *ctx)
+ static void
+ file_free(struct spdk_file *file)
+ {
++    int retry_cnt = 0;
+ 	BLOBFS_TRACE(file, "free=%s\n", file->name);
+ 	pthread_spin_lock(&file->lock);
+ 	if (file->tree->present_mask == 0) {
+@@ -3201,7 +3202,22 @@ file_free(struct spdk_file *file)
+ 		return;
+ 	}
+ 
+-	tree_free_buffers(file->tree);
++#if 1
++    do{
++    	tree_free_buffers(file->tree);
++        if(file->tree->present_mask == 0){
++            break;
++        }else{
++              if(++retry_cnt >= 100){
++    	            SPDK_ERRLOG("file_free %s level %ld mask 0x%lx\n", file->name, file->tree->level, file->tree->present_mask);
++                    file->tree->present_mask = 0;
++                    break;
++    	      }
++        }
++        usleep(BLOBFS_CACHE_POOL_POLL_PERIOD_IN_US);
++    }while(true);
++#endif
++
+ 	assert(file->tree->present_mask == 0);
+ 	spdk_thread_send_msg(g_cache_pool_thread, _file_free, file);
+ 	pthread_spin_unlock(&file->lock);
+-- 
+1.8.3.1
+
