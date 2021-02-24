@@ -169,10 +169,15 @@ int list_handle_store_op(list_zone_t *zone, void *obj, int flags)
 
 	if(entry.length() != 0) {
 		auto ret = (*zone->listing_keys)[prefix].emplace(entry);
-		if (!ret.second)
-			list_log("list_handle_store_op: zone[%d] pe=%s:%d:%s:%d emplace fails\n", zone->zone_idx,
-				 prefix.c_str(), prefix.size(),
-				 entry.c_str(), entry.size());
+		//if (!ret.second)
+		//	list_log("list_handle_store_op: zone[%d] pe=%s:%d:%s:%d emplace fails\n", zone->zone_idx,
+		//		 prefix.c_str(), prefix.size(),
+		//		 entry.c_str(), entry.size());
+		//else
+		
+		//list_log(" pe=%s:%d:%s:%d\n", 
+        //    prefix.c_str(), prefix.size(),
+        //    entry.c_str(), entry.size());
 	} else {
 		DFLY_ASSERT(pe->entry_size == 0);
 	}
@@ -322,8 +327,9 @@ int list_handle_read_op(list_zone_t *zone, void *obj, int flags)
 		iter ++;
 	}
 
-	list_log("list: Found %d keys for prefix %s:%d start %s:%d\n",
-		 std::distance(iter, (*zone->listing_keys)[prefix].end()),
+	list_log("ss %s Found %d keys for prefix %s:%d start %s:%d\n",
+        req->req_dfly_ss->name, 
+        std::distance(iter, (*zone->listing_keys)[prefix].end()),
 		 prefix.c_str(), prefix.size(),
 		 start_key.c_str(), start_key.size());
 
@@ -353,8 +359,8 @@ int list_handle_read_op(list_zone_t *zone, void *obj, int flags)
 				     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
 	}
 
-	list_log("list: Returing %d keys data_sz %d\n",
-		 nr_keys, req->list_data.list_size - list_buffer_sz);
+	list_log("list: max_keys_requested %d Returing %d keys data_sz %d\n",
+		 req->list_data.max_keys_requested, nr_keys, req->list_data.list_size - list_buffer_sz);
 
 done_list_read:
 	* value_buffer_nr_key = nr_keys;
@@ -367,32 +373,32 @@ bool list_find_key_prefix(void *ctx, struct dfly_key *key, dfly_list_info_t *lis
 			  list_prefix_entry_pair_t &pe, int &zone_idx)
 {
 	list_thread_inst_ctx_t *list_inst_ctx = (list_thread_inst_ctx_t *) ctx;
-	int i = 0;
+	uint16_t i = 0;
 
 	int pe_cnt_tbd = ATOMIC_READ(list_data->pe_cnt_tbd);
 	if (!pe_cnt_tbd)
 		return false;
 
 	int inst_nr_zone = list_inst_ctx->nr_zones;
-	std::vector<int> zone_ids(256, -1);
+	std::vector<int16_t > zone_ids(256, -1);
 	for (i = 0; i < inst_nr_zone; i++) {
 		zone_ids[list_inst_ctx->zone_arr[i]->zone_idx] = list_inst_ctx->zone_arr[i]->zone_idx;
 	}
 
 	i = list_data->pe_total_cnt;
-	int z_id = (int)list_data->prefix_key_info[(i - 1) * 2];
-	while (i && ((z_id == -1) || (zone_ids[z_id] < 0))) {
+	int16_t z_id = list_data->prefix_key_info[(i - 1) * 2];
+	while (i && (z_id < 0)) {
 		i--;
-		z_id = (int)list_data->prefix_key_info[(i - 1) * 2];
+		z_id = list_data->prefix_key_info[(i - 1) * 2];
 	}
 
 	if (i && zone_ids[list_data->prefix_key_info[(i - 1) * 2]] >= 0) { //
 
 		i--; //prefix index
 
-		int pos = list_data->prefix_key_info[i * 2 + 1];
-		int next_pos = (int)(list_data->prefix_key_info[(i + 1) * 2 + 1]);
-		if (next_pos == -1 || next_pos > key->length)
+		int16_t  pos = list_data->prefix_key_info[i * 2 + 1];
+		int16_t  next_pos = list_data->prefix_key_info[(i + 1) * 2 + 1];
+		if (next_pos < 0 || next_pos > key->length)
 			next_pos = key->length;
 
 		if (pos) {
@@ -408,10 +414,11 @@ bool list_find_key_prefix(void *ctx, struct dfly_key *key, dfly_list_info_t *lis
 
 		zone_idx = zone_ids[list_data->prefix_key_info[i * 2]];
 
-		list_data->prefix_key_info[i * 2] = 0xFF; //reset the prefix info
+		list_data->prefix_key_info[i * 2] = -1; //reset the prefix info
 		ATOMIC_DEC_FETCH(list_data->pe_cnt_tbd);
 
-		//list_log("list_find_key_prefix %*s:%d:%*s:%d\n", pe.prefix_size, pe.prefix, pe.prefix_size, pe.entry_size, pe.entry, pe.entry_size);
+		list_log("i %d pos %d: prefix_size %d, next_pos %d entry_size %d key->length %d\n", 
+            i, pos, pe.prefix_size, next_pos, pe.entry_size, key->length);
 
 		return true;
 	}
@@ -444,6 +451,14 @@ int do_list_io(void *ctx, struct dfly_key *key, struct dfly_request *req, int op
 			zone = &list_inst_ctx->mctx->zones[zone_idx];
 			switch (opc) {
 			case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
+                {
+                std::string prefix(pe.prefix, pe.prefix_size);
+	            std::string entry(pe.entry, pe.entry_size);
+                list_log("store ss %s pe=%s:%d:%s:%d\n", 
+                    req->req_dfly_ss->name, 
+                    prefix.c_str(), prefix.size(),
+                    entry.c_str(), entry.size());
+                }
 				rc = ops->store_handler(zone, &pe, op_flags);
 				break;
 			case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:

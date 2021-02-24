@@ -69,7 +69,7 @@ struct dfly_value {
 typedef struct dfly_list_info_s {
 	int pe_cnt_tbd;		//nr of p/e pair to be processed.
 	int pe_total_cnt;	//total nr of prefix/entry pairs from the key path.
-	unsigned char prefix_key_info[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
+	int16_t prefix_key_info[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
 	int list_size;			// list buffer size
 	uint16_t list_zone_idx;	// idx of zone which handles the list requst.
 	uint16_t max_keys_requested;	// max number of list key to be returned

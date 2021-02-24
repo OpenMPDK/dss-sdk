@@ -138,6 +138,7 @@ int parse_delimiter_entries_pos(std::string &key, const std::string delimiter,
 			++cnt;
 			positions.emplace_back(cur_pos);
 			prefixes.emplace_back(std::move(key.substr(0, cur_pos)));
+            
 			//prefix = key.substr(0, cur_pos);
 			if (pos != std::string::npos) {
 				entries.emplace_back(std::move(key.substr(cur_pos, pos - cur_pos)));
@@ -146,6 +147,8 @@ int parse_delimiter_entries_pos(std::string &key, const std::string delimiter,
 				entries.emplace_back(std::move(key.substr(cur_pos, key.size() - cur_pos)));
 				//entry = key.substr(cur_pos, key.size() - cur_pos);
 			}
+            list_log("parse_delimiter_entries_pos pos: %d, prefixes: %s, entry: %s\n", 
+                cur_pos, prefixes.back().c_str(), entries.back().c_str());
 			//list_log("parse_delimiter_entries_pos %*s:%d:%*s:%d pos:%d cont:%d\n",
 			//       prefix.size(), prefix.c_str(), prefix.size(),
 			//     entry.size(), entry.c_str(), entry.size(),
@@ -185,7 +188,7 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 
 		nr_entries = parse_delimiter_entries_pos(key_str, key_default_delimlist,
 				prefixes, positions, entries);
-		assert(nr_entries <= (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) / 2);
+		assert(nr_entries < (SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1) / 2);
 		req->list_data.pe_total_cnt = nr_entries;
 		req->list_data.pe_cnt_tbd = nr_entries;
 
@@ -193,17 +196,16 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 		for (i = 0; i < nr_entries; i++) {
 			uint32_t h = hash_sdbm(prefixes[i].c_str(), prefixes[i].size());
 			zone_idx = h % g_list_conf.list_zone_per_pool;
-			//list_log("list_get_module_ctx_on_change: prefix %s sz %d\n zone_idx %d\n", prefixes[i].c_str(),
-			//	 prefixes[i].size(), zone_idx);
+			list_log("list_get_module_ctx_on_change: i %d position %d\n", i, positions[i]);
 			req->list_data.prefix_key_info[i * 2] = zone_idx;
-			req->list_data.prefix_key_info[i * 2 + 1] = positions[i];
+			req->list_data.prefix_key_info[i * 2 + 1] = (int16_t)positions[i];
 			m_inst = list_ctx->zones[zone_idx].module_instance_ctx;
 		}
-		req->list_data.prefix_key_info[i * 2] = req->list_data.prefix_key_info[i * 2 + 1] = 0xFF;
+		req->list_data.prefix_key_info[i * 2] = req->list_data.prefix_key_info[i * 2 + 1] = -1;
 	} else {
 		nr_entries = req->list_data.pe_total_cnt;
 		for (i = nr_entries - 1; i >= 0; i--) {
-			if ((zone_idx = req->list_data.prefix_key_info[i * 2]) != 0xFF) {
+			if ((zone_idx = req->list_data.prefix_key_info[i * 2]) > 0) {
 				m_inst = list_ctx->zones[zone_idx].module_instance_ctx;
 				break;
 			}
