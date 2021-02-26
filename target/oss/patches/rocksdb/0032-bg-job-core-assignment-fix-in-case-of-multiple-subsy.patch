@@ -1,0 +1,51 @@
+From 57c649110634205bdfe07b3b2bb788f169c74b97 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 26 Feb 2021 11:58:12 -0800
+Subject: [PATCH 32/33] * bg job core assignment fix in case of multiple
+ subsystems
+
+---
+ util/threadpool_imp.cc | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
+index 7253438..fe6f217 100644
+--- a/util/threadpool_imp.cc
++++ b/util/threadpool_imp.cc
+@@ -296,10 +296,13 @@ int stick_this_thread_to_core(pthread_t th_h, int core_id) {
+    return pthread_setaffinity_np(th_h, sizeof(cpu_set_t), &cpuset);
+ }
+ 
+-extern uint32_t g_bg_coreid ; //configurable TBD
++extern uint32_t g_bg_coreid ; 
++extern uint32_t g_bg_coreid_end ; 
++
+ 
+ void ThreadPoolImpl::Impl::StartBGThreads() {
+   // Start background thread if necessary
++  static uint32_t coreid = g_bg_coreid;
+   while ((int)bgthreads_.size() < total_threads_limit_) {
+ 
+     port::Thread p_t(&BGThreadWrapper,
+@@ -314,11 +317,15 @@ void ThreadPoolImpl::Impl::StartBGThreads() {
+              bgthreads_.size());
+     name_buf[sizeof name_buf - 1] = '\0';
+     pthread_setname_np(th_handle, name_buf);
+-    if(stick_this_thread_to_core(th_handle, g_bg_coreid++)){
+-	printf("bg thread fail on setaffinity on core %d\n", g_bg_coreid - 1);
++    
++    if(stick_this_thread_to_core(th_handle, coreid)){
++	    printf("bg thread fail on setaffinity on core %d\n", coreid);
+     }else{
+-	//printf("bg thread setaffinity on core %d\n", bg_coreid - 1);
++	    printf("bg thread setaffinity on core %d\n", coreid);
+     }
++    
++    if(coreid++ > g_bg_coreid_end)
++        coreid = g_bg_coreid;
+ 
+ #endif
+ #endif
+-- 
+1.8.3.1
+

@@ -1,7 +1,7 @@
-From 4e5a411a06a98aaaf60ff75f42b50514153e0334 Mon Sep 17 00:00:00 2001
+From 8b343b7aab8c8517921a23e138fd5a13f4cffee4 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 15:14:02 -0800
-Subject: [PATCH 28/31] memory leak fix
+Subject: [PATCH 28/33] memory leak fix
 
 ---
  db/dss_kv2blk_c.cc              | 2 ++

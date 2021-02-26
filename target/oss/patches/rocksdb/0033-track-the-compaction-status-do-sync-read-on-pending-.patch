@@ -1,0 +1,104 @@
+From bbccc481904f5f7b6f7f7756a9959bd31e2c93d0 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Fri, 26 Feb 2021 11:59:34 -0800
+Subject: [PATCH 33/33] * track the compaction status, do sync read on pending
+ or failure case.
+
+---
+ db/dss_kv2blk_c.cc | 29 ++++++++++++++++++++++++-----
+ 1 file changed, 24 insertions(+), 5 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index a24d3c8..13674f6 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -101,8 +101,16 @@ int dss_rocksdb_iter_end(void *ctx, void * iter);
+ namespace rocksdb {
+ 
+ uint32_t g_bg_coreid = 0;
+-std::unordered_map<DB *, std::vector<ColumnFamilyHandle*>> g_db2cf;
++uint32_t g_bg_coreid_end = 0;
+ 
++std::unordered_map<DB *, std::vector<ColumnFamilyHandle*>> g_db2cf;
++std::unordered_map<DB *, std::vector<uint32_t>> g_db2cf_status;
++enum enum_rdb_compact_status{
++    RDB_CMPCT_STATUS_INIT = 0,
++    RDB_CMPCT_STATUS_PENDING,
++    RDB_CMPCT_STATUS_FAIL,
++    RDB_CMPCT_STATUS_DONE
++};
+ void rdb_UpdateStats(void)
+ {
+     DFLY_NOTICELOG("==================UserIoStats===================\n");
+@@ -269,6 +277,7 @@ void *_dss_rocksdb_open(void *arg)
+ 
+     if(!rocksdb::g_bg_coreid){
+         rocksdb::g_bg_coreid = g_dragonfly->rdb_bg_core_start;
++        rocksdb::g_bg_coreid_end = g_dragonfly->rdb_bg_core_start + g_dragonfly->rdb_bg_job_cnt;
+     }
+ 
+     spdk_bdev += dss_dev->rdb_handle->dev_name;
+@@ -335,6 +344,8 @@ void *_dss_rocksdb_open(void *arg)
+    assert(s.ok());
+    printf("_dss_rocksdb_open: db %p handles %d s %s\n", db, handles.size(),
+     s.ToString().c_str());
++   std::vector<uint32_t> cf_status(handles.size(), 0);
++   rocksdb::g_db2cf_status[db] = cf_status;
+    rocksdb::g_db2cf[db] = handles;
+ 
+     dss_dev->rdb_handle->rdb_db_handle = db;
+@@ -383,6 +394,7 @@ void *_dss_rocksdb_compaction(void *ctx)
+ 	rocksdb::DB* db = (rocksdb::DB*)dss_dev->rdb_handle->rdb_db_handle;
+ 	rocksdb::Status s;
+     std::vector<rocksdb::ColumnFamilyHandle*> handles = rocksdb::g_db2cf[db];
++    std::vector<uint32_t> &cf_status = rocksdb::g_db2cf_status[db];
+ 
+ 	pthread_mutex_lock(&dss_dev->rdb_handle->rdb_lock);
+ 	if(dss_dev->rdb_handle->compaction_in_progress == false) {
+@@ -399,16 +411,19 @@ void *_dss_rocksdb_compaction(void *ctx)
+ 	//Syncronous compaction (Blocking)
+ 	for(int i = 0; i<g_dragonfly->rdb_shard_cnt; i++){
+         DFLY_NOTICELOG("Compaction started for device %s cf %d \n", dss_dev->rdb_handle->dev_name, i);
++        cf_status[i] = rocksdb::RDB_CMPCT_STATUS_PENDING;
+ 	    s = db->CompactRange(rocksdb::CompactRangeOptions(), handles[i], nullptr, nullptr);
+         if (!s.ok()) {
+ 		    DFLY_NOTICELOG("Compaction failed on device %s rc %s\n", dss_dev->rdb_handle->dev_name, s.ToString().c_str());
++            cf_status[i] = rocksdb::RDB_CMPCT_STATUS_FAIL;
+             break;
+ 	    }
+-        DFLY_NOTICELOG("Compaction finished for device %s cf %d \n", dss_dev->rdb_handle->dev_name, i);
++        cf_status[i] = rocksdb::RDB_CMPCT_STATUS_DONE;
++        DFLY_NOTICELOG("Compaction finished for device %s cf %d\n", dss_dev->rdb_handle->dev_name, i);
+     }
+ 	
+ 	time(&et);
+-    DFLY_NOTICELOG("Compaction done for device %s for %d sec\n", dss_dev->rdb_handle->dev_name, et - st);
++    DFLY_NOTICELOG("Compaction done for device %s for %d sec status: %s\n", dss_dev->rdb_handle->dev_name, et - st, s.ToString().c_str());
+ 
+ 	pthread_mutex_lock(&dss_dev->rdb_handle->rdb_lock);
+ 	dss_dev->rdb_handle->compaction_in_progress = false;
+@@ -536,6 +551,7 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+ 	rocksdb::Status s;
+ 	rocksdb::ReadOptions read_options(false, false);
+     std::vector<rocksdb::ColumnFamilyHandle*> handles = rocksdb::g_db2cf[db];
++    std::vector<uint32_t> cf_status = rocksdb::g_db2cf_status[db];
+ 	char key_buffer[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1] = {0};
+     struct rocksdb::AsyncRdQueue_s * RdCtxQueue = (struct rocksdb::AsyncRdQueue_s *)inst->private_data;
+         //async read
+@@ -573,8 +589,11 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
+     
+     s.async(false);
+     int cf_id = rocksdb::Hash((char *)key, klen, 0) % g_dragonfly->rdb_shard_cnt;
+-#if 0
+-    if(!memcmp(key, "meta/", 5)){ //meta data sync read
++#if 1
++    //if(!memcmp(key, "meta/", 5)){ //meta data sync read
++     if(cf_status[cf_id] == rocksdb::RDB_CMPCT_STATUS_PENDING ||
++        cf_status[cf_id] == rocksdb::RDB_CMPCT_STATUS_FAIL){
++        //printf("get cf %d %p %d\n", cf_id, &cf_status[cf_id], cf_status[cf_id]);
+         s.user_buffer(false);
+         std::string get_value;
+         s = db->Get(read_options, handles[cf_id], RdCtx->key_, &get_value);
+-- 
+1.8.3.1
+
