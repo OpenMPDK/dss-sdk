@@ -365,7 +365,7 @@ def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value,
     '''
     print("----- Running sample nkv_test_cli -----")
     nkv_cmd = "LD_LIBRARY_PATH=../lib numactl -N " + numa_num + " -m " + numa_num + " ./nkv_test_cli -c " + nkv_conf_file + \
-            " -i msl-ssg-dl04 -p 1030 -b meta/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
+            " -i msl-ssg-dl04 -p 1030 -b test/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
             threads + " -o " + workload
     #print(nkv_cmd)
     result_file = "nkv_numa" + numa_num + ".out"
