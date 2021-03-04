@@ -1,14 +1,14 @@
-From b0e34a6357a55d86623b95089810b0dc9de201e3 Mon Sep 17 00:00:00 2001
+From d65e68de1867514fe480747b2a506e72ff79a0d7 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 22:12:41 -0800
-Subject: [PATCH 19/32] * increase fs channel sem for more parallel io
+Subject: [PATCH 19/33] * increase fs channel sem for more parallel io
 
 ---
  lib/blobfs/blobfs.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index de8352a..20fae8d 100644
+index de8352af9..20fae8dbb 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -65,7 +65,7 @@ static struct spdk_thread *g_cache_pool_thread;
@@ -21,5 +21,5 @@ index de8352a..20fae8d 100644
  #define TRACE_BLOBFS_XATTR_START	SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x0)
  #define TRACE_BLOBFS_XATTR_END		SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x1)
 -- 
-1.8.3.1
+2.24.3
 

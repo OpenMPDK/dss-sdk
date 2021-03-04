@@ -1,14 +1,14 @@
-From 5ded16fe7516e5bc8c2a6417bbcbc6cd98e9dc0f Mon Sep 17 00:00:00 2001
+From 4d648feb1fd8f242682967a1b2ceb3e6e14f6970 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 8 Dec 2020 21:52:19 -0800
-Subject: [PATCH 14/32] Use configurable threads forvetwork pollers
+Subject: [PATCH 14/33] Use configurable threads forvetwork pollers
 
 ---
  lib/nvmf/rdma.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 26958d0..33386a0 100644
+index 26958d0f7..33386a048 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -747,7 +747,7 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
@@ -21,5 +21,5 @@ index 26958d0..33386a0 100644
  
  	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
 -- 
-1.8.3.1
+2.24.3
 

@@ -1,14 +1,14 @@
-From 10d097a9037c1b67f2e8f981b4f45a4261402f6c Mon Sep 17 00:00:00 2001
+From 95d49326235a1fe395912557d4ff7b874d3d8ebe Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 23 Feb 2021 18:06:09 -0800
-Subject: [PATCH 32/32] * retry to release the cache on file_free
+Subject: [PATCH 32/33] * retry to release the cache on file_free
 
 ---
- lib/blobfs/blobfs.c | 18 +++++++++++++++++-
- 1 file changed, 17 insertions(+), 1 deletion(-)
+ lib/blobfs/blobfs.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 9f4274a..21568c2 100644
+index 9f4274a56..a762160ad 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -3191,6 +3191,7 @@ _file_free(void *ctx)
@@ -23,18 +23,17 @@ index 9f4274a..21568c2 100644
  		return;
  	}
  
--	tree_free_buffers(file->tree);
 +#if 1
 +    do{
-+    	tree_free_buffers(file->tree);
+ 	tree_free_buffers(file->tree);
 +        if(file->tree->present_mask == 0){
 +            break;
 +        }else{
 +              if(++retry_cnt >= 100){
-+    	            SPDK_ERRLOG("file_free %s level %ld mask 0x%lx\n", file->name, file->tree->level, file->tree->present_mask);
++	            SPDK_ERRLOG("file_free %s level %ld mask 0x%lx\n", file->name, file->tree->level, file->tree->present_mask);
 +                    file->tree->present_mask = 0;
 +                    break;
-+    	      }
++	      }
 +        }
 +        usleep(BLOBFS_CACHE_POOL_POLL_PERIOD_IN_US);
 +    }while(true);
@@ -44,5 +43,5 @@ index 9f4274a..21568c2 100644
  	spdk_thread_send_msg(g_cache_pool_thread, _file_free, file);
  	pthread_spin_unlock(&file->lock);
 -- 
-1.8.3.1
+2.24.3
 

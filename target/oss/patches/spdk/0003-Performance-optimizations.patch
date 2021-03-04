@@ -1,7 +1,7 @@
-From f53d1ad22fa8f7f6a2ff7ff366e453cb8b5b67e1 Mon Sep 17 00:00:00 2001
+From e05136ba9c8972b6a2b2d719b3ef4b0fb100fdeb Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 25 Aug 2020 20:07:54 -0700
-Subject: [PATCH 03/32] Performance optimizations
+Subject: [PATCH 03/33] Performance optimizations
 
     * NUMA memory allocation optimization
     * Allocate buffers for put from connection specific numa node
@@ -11,13 +11,13 @@ Subject: [PATCH 03/32] Performance optimizations
     * TCP - Update response length to object length
 ---
  include/spdk/nvmf_transport.h |   4 +
- lib/nvmf/rdma.c               |  45 +++++++
- lib/nvmf/tcp.c                |  30 +++++
- lib/nvmf/transport.c          | 302 +++++++++++++++++++++++++++++++++++++++---
+ lib/nvmf/rdma.c               |  45 +++++
+ lib/nvmf/tcp.c                |  30 ++++
+ lib/nvmf/transport.c          | 302 +++++++++++++++++++++++++++++++---
  4 files changed, 361 insertions(+), 20 deletions(-)
 
 diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
-index 1305d47..e2d2f86 100644
+index 1305d4788..e2d2f86df 100644
 --- a/include/spdk/nvmf_transport.h
 +++ b/include/spdk/nvmf_transport.h
 @@ -100,6 +100,7 @@ struct spdk_nvmf_request {
@@ -39,7 +39,7 @@ index 1305d47..e2d2f86 100644
  };
  
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 226d5da..bab5b17 100644
+index 226d5daaa..bab5b17de 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -695,6 +695,9 @@ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
@@ -116,7 +116,7 @@ index 226d5da..bab5b17 100644
  	}
  
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index 99a2f71..b7926e4 100644
+index 99a2f7122..b7926e41f 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -284,6 +284,31 @@ static bool nvmf_tcp_req_process(struct spdk_nvmf_tcp_transport *ttransport,
@@ -171,7 +171,7 @@ index 99a2f71..b7926e4 100644
  	c2h_data->cccid = tcp_req->req.cmd->nvme_cmd.cid;
  	c2h_data->datal = tcp_req->req.length;
 diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
-index 11bb152..ae5f090 100644
+index 11bb152df..ae5f0908f 100644
 --- a/lib/nvmf/transport.c
 +++ b/lib/nvmf/transport.c
 @@ -45,6 +45,192 @@
@@ -559,5 +559,5 @@ index 11bb152..ae5f090 100644
  			}
  			for (j = 0; j < num_buffers - i; j++) {
 -- 
-1.8.3.1
+2.24.3
 

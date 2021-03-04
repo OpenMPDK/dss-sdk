@@ -150,10 +150,10 @@ dfly_poller_qos_recv(dfly_request_t *req,
 
 	dfly_poller_t *poller;
 
-	assert(tr_p);
 	if (!ctrl || !g_dragonfly->df_qos_enable)
 		return (0);
 
+	assert(tr_p);
 	poller = CONTAINEROF(tr_p, dfly_poller_t, po_base);
 
 	if (!ctrl->ct_session || !ctrl->ct_session->dfs_host_prof) {

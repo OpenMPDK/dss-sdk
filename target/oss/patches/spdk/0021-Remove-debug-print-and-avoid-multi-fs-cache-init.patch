@@ -1,14 +1,14 @@
-From 7a10293bc93e89bc35d2b32ee0189bca4ae41825 Mon Sep 17 00:00:00 2001
+From 1627f3df2065ae7238acf4f8b5d93723ea4bd156 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 7 Jan 2021 13:52:09 -0800
-Subject: [PATCH 21/32] Remove debug print and avoid multi fs cache init
+Subject: [PATCH 21/33] Remove debug print and avoid multi fs cache init
 
 ---
  lib/rocksdb/env_dss.cc | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index e27d392..35427f4 100644
+index e27d3923b..35427f4df 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -453,7 +453,7 @@ public:
@@ -33,5 +33,5 @@ index e27d392..35427f4 100644
  
  DssEnv::~DssEnv()
 -- 
-1.8.3.1
+2.24.3
 

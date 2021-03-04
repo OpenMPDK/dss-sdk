@@ -1,0 +1,27 @@
+From 22b26b805652d2a61c45c8af53ff429402279c3f Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 4 Mar 2021 12:49:08 -0800
+Subject: [PATCH 33/33] Reap request from qos only when enabled
+
+---
+ lib/nvmf/rdma.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 0b1df92f8..5f4ccb5ef 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -735,6 +735,10 @@ static inline void dfly_poller_rdma_qos_sched(struct spdk_nvmf_rdma_transport *r
+ 	struct dfly_request *w[64];
+ 	struct spdk_nvmf_rdma_request *nvmf_req;
+ 
++	if(!g_dragonfly->df_qos_enable) {
++		return;
++	}
++
+ 	TAILQ_FOREACH(rqpair, &rpoller->qpairs, link) {
+ 		i = 0;
+ 
+-- 
+2.24.3
+

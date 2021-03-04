@@ -1,14 +1,14 @@
-From 9d6d5fd29363540112cc02b54c56d624cab51e0b Mon Sep 17 00:00:00 2001
+From 12b96edf6d07a5c0316fd76a7b908ef780715d8a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 9 Nov 2020 15:21:45 -0800
-Subject: [PATCH 08/32] RDMA use offset for get completion
+Subject: [PATCH 08/33] RDMA use offset for get completion
 
 ---
  lib/nvmf/rdma.c | 7 +++++++
  1 file changed, 7 insertions(+)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index bab5b17..f77b2bd 100644
+index bab5b17de..f77b2bd4d 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -865,6 +865,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
@@ -37,5 +37,5 @@ index bab5b17..f77b2bd 100644
  					sge_index++;
  					rem_data_length -= sge_len;
 -- 
-1.8.3.1
+2.24.3
 

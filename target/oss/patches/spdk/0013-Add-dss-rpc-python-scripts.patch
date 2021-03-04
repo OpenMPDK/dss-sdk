@@ -1,22 +1,22 @@
-From 24cbda3cdb7c8c8275aff889f80882ea86b2af3a Mon Sep 17 00:00:00 2001
+From 13c1d94d459e47eed2991722f45b8b948198fe01 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 22:34:00 -0800
-Subject: [PATCH 13/32] Add dss rpc python scripts
+Subject: [PATCH 13/33] Add dss rpc python scripts
 
     * Comment devbug prints
     * Add dss rpc from master
     * Add support for compaction via rpc
 ---
  lib/rocksdb/env_dss.cc         |  2 +-
- scripts/dss_rpc.py             | 80 ++++++++++++++++++++++++++++++++++++++++++
+ scripts/dss_rpc.py             | 80 ++++++++++++++++++++++++++++++++++
  scripts/rpc/__init__.py        |  1 +
- scripts/rpc/latency_profile.py | 45 ++++++++++++++++++++++++
+ scripts/rpc/latency_profile.py | 45 +++++++++++++++++++
  4 files changed, 127 insertions(+), 1 deletion(-)
  create mode 100755 scripts/dss_rpc.py
  create mode 100644 scripts/rpc/latency_profile.py
 
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index f50416c..91279d7 100644
+index f50416ce7..91279d7bb 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -442,7 +442,7 @@ public:
@@ -30,7 +30,7 @@ index f50416c..91279d7 100644
  			if (rc == 0) {
 diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
 new file mode 100755
-index 0000000..46ee951
+index 000000000..46ee95129
 --- /dev/null
 +++ b/scripts/dss_rpc.py
 @@ -0,0 +1,80 @@
@@ -115,7 +115,7 @@ index 0000000..46ee951
 +        print(ex.message)
 +        exit(1)
 diff --git a/scripts/rpc/__init__.py b/scripts/rpc/__init__.py
-index f764d7a..7279df4 100644
+index f764d7ae5..7279df4cb 100644
 --- a/scripts/rpc/__init__.py
 +++ b/scripts/rpc/__init__.py
 @@ -25,6 +25,7 @@ from . import vhost
@@ -128,7 +128,7 @@ index f764d7a..7279df4 100644
  
 diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
 new file mode 100644
-index 0000000..9f82ee3
+index 000000000..9f82ee3e8
 --- /dev/null
 +++ b/scripts/rpc/latency_profile.py
 @@ -0,0 +1,45 @@
@@ -178,5 +178,5 @@ index 0000000..9f82ee3
 +
 +	return client.call('dss_rdb_compact', params)
 -- 
-1.8.3.1
+2.24.3
 

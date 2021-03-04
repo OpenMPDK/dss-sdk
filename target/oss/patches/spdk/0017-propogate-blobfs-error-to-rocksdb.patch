@@ -1,14 +1,14 @@
-From 15c1620159598f20417334298f65017a71b3d23c Mon Sep 17 00:00:00 2001
+From a49fe5ea0521f0411aa7903d649256f751272bbb Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 16 Dec 2020 21:01:51 -0800
-Subject: [PATCH 17/32] propogate blobfs error to rocksdb
+Subject: [PATCH 17/33] propogate blobfs error to rocksdb
 
 ---
  lib/rocksdb/env_dss.cc | 10 ++++++++++
  1 file changed, 10 insertions(+)
 
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index 2d1f14c..bc0c1b9 100644
+index 2d1f14cd8..bc0c1b93f 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -220,6 +220,16 @@ DpdkRandomAccessFile::AsyncReadCallback(void* ctx, int bserrno){
@@ -29,5 +29,5 @@ index 2d1f14c..bc0c1b9 100644
      spdk_ctx->cb.Invoke(s, slice);
  
 -- 
-1.8.3.1
+2.24.3
 
