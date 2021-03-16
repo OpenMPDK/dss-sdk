@@ -1,0 +1,25 @@
+From 90434f73ff2679382aa152a9b3d0c4da998444f3 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 16 Mar 2021 01:44:47 -0700
+Subject: [PATCH 36/36] Update errorlog to infolog
+
+---
+ lib/blobfs/blobfs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 15caf8437..5552acb3e 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -3213,7 +3213,7 @@ file_free(struct spdk_file *file)
+             break;
+         }else{
+               if(++retry_cnt >= 100){
+-	            SPDK_ERRLOG("file_free %s level %ld mask 0x%lx\n", file->name, file->tree->level, file->tree->present_mask);
++	            SPDK_INFOLOG(SPDK_LOG_BLOBFS, "file_free %s level %ld mask 0x%lx\n", file->name, file->tree->level, file->tree->present_mask);
+                     file->tree->present_mask = 0;
+                     break;
+ 	      }
+-- 
+2.24.3
+

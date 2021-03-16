@@ -1,0 +1,33 @@
+From 5ed3a367fdc22d27bff5d93aa03dd7adffca65db Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 16 Mar 2021 01:01:52 -0700
+Subject: [PATCH 35/36] Reduce trace name length
+
+---
+ lib/nvmf/rdma.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 5f4ccb5ef..ee48b8474 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -206,13 +206,13 @@ SPDK_TRACE_REGISTER_FN(nvmf_trace, "nvmf_rdma", TRACE_GROUP_NVMF_RDMA)
+ 	spdk_trace_register_description("RDMA_REQ_QOS_POST",
+ 					TRACE_RDMA_REQUEST_STATE_QOS_POST,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+-	spdk_trace_register_description("RDMA_REQ_PENDING_GET_KEY",
++	spdk_trace_register_description("RDMA_REQ_PENDING_KEY",
+ 					TRACE_RDMA_REQUEST_STATE_PENDING_GET_KEY,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+-	spdk_trace_register_description("RDMA_REQ_TRANSFERRING_KEY",
++	spdk_trace_register_description("RDMA_REQ_READING_KEY",
+ 					TRACE_RDMA_REQUEST_STATE_TRANSFERRING_KEY,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+-	spdk_trace_register_description("RDMA_REQ_READY_WITH_KEY",
++	spdk_trace_register_description("RDMA_REQ_KEY_READY",
+ 					TRACE_RDMA_REQUEST_STATE_READY_WITH_KEY,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+ 
+-- 
+2.24.3
+

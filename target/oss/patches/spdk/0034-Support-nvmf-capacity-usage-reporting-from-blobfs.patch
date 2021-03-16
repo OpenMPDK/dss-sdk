@@ -1,0 +1,134 @@
+From c938e85896e31d3fc9393a4566394571d087cafa Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 15 Mar 2021 20:03:52 -0700
+Subject: [PATCH 34/36] Support nvmf capacity/usage reporting from blobfs
+
+---
+ include/spdk/blobfs.h |  1 +
+ lib/blobfs/blobfs.c   |  4 +++
+ lib/nvmf/ctrlr_bdev.c | 66 +++++++++++++++++++++++++++++++++++--------
+ 3 files changed, 59 insertions(+), 12 deletions(-)
+
+diff --git a/include/spdk/blobfs.h b/include/spdk/blobfs.h
+index c83ced065..709c5518a 100644
+--- a/include/spdk/blobfs.h
++++ b/include/spdk/blobfs.h
+@@ -371,6 +371,7 @@ void spdk_free_fs_request(void *data);
+ 
+ uint32_t spdk_fs_get_lba_size(struct spdk_filesystem *fs);
+ 
++struct spdk_blob_store *spdk_fs_get_bs(struct spdk_filesystem *fs);
+ 
+ /**
+  * Set cache size for the blobstore filesystem.
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index a762160ad..15caf8437 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -2170,6 +2170,10 @@ uint32_t spdk_fs_get_lba_size(struct spdk_filesystem *fs)
+ {
+     return spdk_bs_get_io_unit_size(fs->bs);
+ }
++struct spdk_blob_store *spdk_fs_get_bs(struct spdk_filesystem *fs)
++{
++       return fs->bs;
++}
+ 
+ static void __file_flush(void *ctx);
+ 
+diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
+index c7d718df0..b0677c2f3 100644
+--- a/lib/nvmf/ctrlr_bdev.c
++++ b/lib/nvmf/ctrlr_bdev.c
+@@ -50,6 +50,8 @@
+ #include "spdk_internal/log.h"
+ 
+ //SPDK_CONFIG_OSS_TARGET
++#include "spdk/blob.h"
++#include "spdk/blobfs.h"
+ #include "dragonfly.h"
+ //END - SPDK_CONFIG_OSS_TARGET
+ 
+@@ -138,6 +140,41 @@ nvmf_bdev_ctrlr_complete_admin_cmd(struct spdk_bdev_io *bdev_io, bool success,
+ 	nvmf_bdev_ctrlr_complete_cmd(bdev_io, success, req);
+ }
+ 
++void dss_fill_ns_blobfs(uint32_t ssid, uint64_t *ncap, uint64_t *nsze, uint64_t *nuse)
++{
++    uint64_t tsze_blocks  = 0;
++    uint64_t tcap_blocks = 0;
++    uint64_t tfree_blocks = 0;
++    uint64_t blk_sze = 0;
++
++    struct dfly_subsystem *df_ss = dfly_get_subsystem_no_lock(ssid);
++    struct dfly_io_device_s *df_dev;
++    struct spdk_blob_store *df_bs;
++
++    int i;
++
++    assert(df_ss);
++    assert(df_ss->initialized  == true);
++    assert(df_ss->num_io_devices > 0);
++
++	for(i=0; i < df_ss->num_io_devices; i++) {
++        df_dev = &df_ss->devices[i];
++        df_bs = spdk_fs_get_bs(df_dev->rdb_handle->rdb_fs_handle);
++
++        blk_sze = spdk_bs_get_io_unit_size(df_bs);
++
++        tcap_blocks += (spdk_bs_get_cluster_size(df_bs) * spdk_bs_total_data_cluster_count(df_bs))/blk_sze;
++        tfree_blocks += (spdk_bs_get_cluster_size(df_bs) * spdk_bs_free_cluster_count(df_bs))/blk_sze;
++    }
++
++    *nsze = tcap_blocks;
++    *ncap = tcap_blocks;
++    assert(tcap_blocks > tfree_blocks);
++    *nuse = tcap_blocks - tfree_blocks;
++
++    return;
++}
++
+ void
+ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *nsdata,
+ 			    bool dif_insert_or_strip)
+@@ -157,20 +194,25 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+         nsdata->ncap = 0;
+         nsdata->nsze = 0;
+         nsdata->nuse = 0;
+-		device_ns = spdk_nvmf_subsystem_get_first_ns(subsystem);
+-        while(device_ns) {
+-            struct spdk_nvme_ctrlr *nvme_ctrlr;
+-            nvme_ctrlr = bdev_nvme_get_ctrlr(device_ns->bdev);
+-            if(nvme_ctrlr) {
+-				//TODO: Update capacity from identify disk
+-                //dfly_nvme_ctrlr_update_namespaces(nvme_ctrlr);
++
++        if(g_dragonfly->blk_map) {
++            dss_fill_ns_blobfs(subsystem->id, &nsdata->ncap, &nsdata->nsze, &nsdata->nuse);
++        } else {
++            device_ns = spdk_nvmf_subsystem_get_first_ns(subsystem);
++            while(device_ns) {
++                struct spdk_nvme_ctrlr *nvme_ctrlr;
++                nvme_ctrlr = bdev_nvme_get_ctrlr(device_ns->bdev);
++                if(nvme_ctrlr) {
++				    //TODO: Update capacity from identify disk
++                   //dfly_nvme_ctrlr_update_namespaces(nvme_ctrlr);
++                }
++                nsdata->nsze += spdk_bdev_get_num_blocks(device_ns->bdev);
++                nsdata->ncap += spdk_bdev_get_capacity_blocks(device_ns->bdev);
++                nsdata->nuse += spdk_bdev_get_use_blocks(device_ns->bdev);
++                device_ns = spdk_nvmf_subsystem_get_next_ns(subsystem, device_ns);
+             }
+-            nsdata->nsze += spdk_bdev_get_num_blocks(device_ns->bdev);
+-            nsdata->ncap += spdk_bdev_get_capacity_blocks(device_ns->bdev);
+-            nsdata->nuse += spdk_bdev_get_use_blocks(device_ns->bdev);
+-            device_ns = spdk_nvmf_subsystem_get_next_ns(subsystem, device_ns);
+         }
+-    //TODO: To check all disks are uniform
++        //TODO: To check all disks are uniform
+     } else {
+         nsdata->nsze = num_blocks;
+         nsdata->ncap = num_blocks;
+-- 
+2.24.3
+
