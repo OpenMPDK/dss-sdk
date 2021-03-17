@@ -1,7 +1,7 @@
-From 22b26b805652d2a61c45c8af53ff429402279c3f Mon Sep 17 00:00:00 2001
+From f31d09acddc0c946696857e829265a50822a032b Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 4 Mar 2021 12:49:08 -0800
-Subject: [PATCH 33/33] Reap request from qos only when enabled
+Subject: [PATCH 33/36] Reap request from qos only when enabled
 
 ---
  lib/nvmf/rdma.c | 4 ++++
