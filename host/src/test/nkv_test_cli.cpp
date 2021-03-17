@@ -51,7 +51,8 @@ std::atomic<int> submitted(0);
 std::atomic<int> completed(0);
 //std::atomic<int> cur_qdepth[32];
 const char* S3_DELIMITER = "/";
-#define NKV_TEST_META_VAL_LEN 4096
+#define NKV_TEST_META_VAL_LEN 196
+#define NKV_TEST_META_VAL_LEN_DATA 532
 #define NKV_TEST_META_KEY_LEN 100
 
 #define NKV_TEST_OP_LOCK_UNLOCK (6)
@@ -243,6 +244,9 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
   /*for (const uint32_t& x: dist) {
     smg_alert(logger,"minio thread:: io_size = %u, th_io_ctx = %d, id = %u, dist entry = %u", io_size, th_io_ctx, pthread_self(), x);
   }*/
+  std::string th_name = "nkvminio_t_" + std::to_string(targs->id) + "_" + std::to_string(th_io_ctx);
+  pthread_setname_np(pthread_self(), th_name.c_str());
+  smg_alert(logger, "minio pattern generator thread %s created", th_name.c_str());
   
   //for(int32_t iter = 0; iter < targs->count; iter++) 
   while (!stopping.load() || num_ios.load() > 0 || num_g_ios.load() > 0) {
@@ -263,7 +267,9 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
       const nkv_key  nkvkey = { (void*)key_name, klen};
       nkv_value nkvvalue = { (void*)val, io_size, 0 };*/
       auto iter = iter_at.load();
-      iter_at.store(-1, std::memory_order_relaxed);
+      
+      //iter_at.store(-1, std::memory_order_relaxed);
+      iter_at.store(-1);
       nkv_result status = NKV_SUCCESS;
       if (targs->app_ustat_ctx) {
         status = nkv_inc_to_counter(targs->nkv_handle, targs->app_ustat_ctx);
@@ -293,55 +299,56 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
             } else {
               smg_info(logger, "NKV Minio Store successful, key = %s", key_name);
             }
-            char*meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
-            char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            //char*meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
+            //char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_3   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             char*meta_key_5   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
-            memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
-            memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
+            //memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
+            //memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_5, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_1, "meta/.minio.sys/tmp/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-            sprintf(meta_key_2, "meta/.minio.sys/tmp/%s/%u_%u_%d/part1.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            //sprintf(meta_key_1, "meta/.minio.sys/tmp/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            //sprintf(meta_key_2, "meta/.minio.sys/tmp/%s/%u_%u_%d/part1.json", targs->key_prefix, targs->id, iter, th_io_ctx);
             sprintf(meta_key_3, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
             sprintf(meta_key_4, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
             sprintf(meta_key_5, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
-            const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
-            const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
+            //const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
+            //const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta5 = { (void*)meta_key_5, NKV_TEST_META_KEY_LEN};
 
-            char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
-            char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            //char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            //char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
-            char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+            char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN_DATA);
             char* meta_val_5 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
-            sprintf(meta_val_1, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.xl.json", targs->id, iter, th_io_ctx);
-            sprintf(meta_val_2, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.part1.json", targs->id, iter, th_io_ctx);
+            //sprintf(meta_val_1, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.xl.json", targs->id, iter, th_io_ctx);
+            //sprintf(meta_val_2, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.part1.json", targs->id, iter, th_io_ctx);
             sprintf(meta_val_4, "%s_%s_%d_%u_%d",targs->key_prefix, "data.xl.json", targs->id, iter, th_io_ctx);
             sprintf(meta_val_5, "%s_%s_%d_%u_%d",targs->key_prefix, "meta.part.1", targs->id, iter, th_io_ctx);
 
-            nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
-            nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
+            //nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
+            //nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
             nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
-            nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN, 0 };
+            nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN_DATA, 0 };
             nkv_value nkvvaluemeta5 = { (void*)meta_val_5, NKV_TEST_META_VAL_LEN, 0 };
 
-            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2, targs->s_option, &nkvvaluemeta2);
+            /*status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2, targs->s_option, &nkvvaluemeta2);
             if (status != 0) {
               smg_error(logger, "NKV Minio Store KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
               return ;
             } else {
               smg_info(logger, "NKV Minio Store successful, key = %s, meta key = %s", key_name, meta_key_2);
-            }
+            }*/
 
             status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta3, targs->r_option, &nkvvaluemeta3);
             if (status != 0 && status != NKV_ERR_KEY_NOT_EXIST) {
               smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
-              return ;
+              //return ;
+              goto cleanup;
             } else {
               smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta3.key,
                       (char*) nkvvaluemeta3.value, nkvvaluemeta3.length, nkvvaluemeta3.actual_length);
@@ -356,40 +363,56 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               smg_info(logger, "NKV Minio Store successful, key = %s, meta key = %s", key_name, meta_key_4);
             }
 
-            status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->s_option, &nkvvaluemeta1);
+            /*status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->s_option, &nkvvaluemeta1);
             if (status != 0) {
               smg_error(logger, "NKV Minio Store KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
               return ;
             } else {
               smg_info(logger, "NKV Minio Store successful, key = %s, meta key = %s", key_name, meta_key_1);
             }
-
-            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->r_option, &nkvvaluemeta1);
-            if (status != 0) {
-              smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
-              return ;
-            } else {
-              smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta1.key,
-                      (char*) nkvvaluemeta1.value, nkvvaluemeta1.length, nkvvaluemeta1.actual_length);
+            for (int retry = 0; retry < 3; retry++) {
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->r_option, &nkvvaluemeta1);
+              if (status != 0) {
+                //smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                //return ;
+                if (retry == 3) {
+                  smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                  goto cleanup;
+                }
+              } else {
+                smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta1.key,
+                        (char*) nkvvaluemeta1.value, nkvvaluemeta1.length, nkvvaluemeta1.actual_length);
+              }
+            }*/
+            for (int retry = 0; retry < 3; retry++) {
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta4, targs->r_option, &nkvvaluemeta4);
+              if (status != 0) {
+                //smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+                //return ;
+                if (retry == 3) {
+                  smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
+                  goto cleanup;
+                }
+              } else {
+                smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
+                        (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
+              }
             }
-
-            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta4, targs->r_option, &nkvvaluemeta4);
-            if (status != 0) {
-              smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
-              return ;
-            } else {
-              smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
-                      (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
-            }
-          
-            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->r_option, &nkvvaluemeta1);
-            if (status != 0) {
-              smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
-              return ;
-            } else {
-              smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta1.key,
-                      (char*) nkvvaluemeta1.value, nkvvaluemeta1.length, nkvvaluemeta1.actual_length);
-            }
+            /*for (int retry = 0; retry < 3; retry++) { 
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1, targs->r_option, &nkvvaluemeta1);
+              if (status != 0) {
+                //smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                //return ;
+                if (retry == 3) {
+                  smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
+                  goto cleanup;
+                }
+              } else {
+                smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta1.key,
+                        (char*) nkvvaluemeta1.value, nkvvaluemeta1.length, nkvvaluemeta1.actual_length);
+                break;
+              }
+            }*/
 
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta3, targs->s_option, &nkvvaluemeta3);
             if (status != 0) {
@@ -399,23 +422,30 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               smg_info(logger, "NKV Minio Store successful, key = %s, meta key = %s", key_name, meta_key_3);
             }
 
-            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1);
+            /*status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta1);
             if (status != 0) {
               smg_error(logger, "NKV Minio Delete meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta1.key, status);
               return ;
             } else {
               smg_info(logger, "NKV Minio Delete meta1 successful, key = %s", (char*) nkvkeymeta1.key);
-            }
+            }*/
 
-            status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2, targs->r_option, &nkvvaluemeta2);
-            if (status != 0) {
-              smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
-              return ;
-            } else {
-              smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta2.key,
-                      (char*) nkvvaluemeta2.value, nkvvaluemeta2.length, nkvvaluemeta2.actual_length);
-            }
-
+            /*for (int retry = 0; retry < 3; retry++) {
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2, targs->r_option, &nkvvaluemeta2);
+              if (status != 0) {
+                //smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                //return ;
+                if (retry == 3) {
+                  smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
+                  goto cleanup;
+                }
+       
+              } else {
+                smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta2.key,
+                        (char*) nkvvaluemeta2.value, nkvvaluemeta2.length, nkvvaluemeta2.actual_length);
+                break;
+              }
+            }*/
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta5, targs->s_option, &nkvvaluemeta5);
             if (status != 0) {
               smg_error(logger, "NKV Minio Store KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta5.key, status);
@@ -424,18 +454,18 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               smg_info(logger, "NKV Minio Store successful, key = %s, meta key = %s", key_name, meta_key_5);
             }
 
-            status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2);
+            /*status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta2);
             if (status != 0) {
               smg_error(logger, "NKV minio Delete meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta2.key, status);
               return ;
             } else {
               smg_info(logger, "NKV Minio Delete meta1 successful, key = %s", (char*) nkvkeymeta2.key);
-            }
+            }*/
 
-            if (meta_key_1)
+            /*if (meta_key_1)
               nkv_free(meta_key_1);
             if (meta_key_2)
-              nkv_free(meta_key_2);
+              nkv_free(meta_key_2);*/
             if (meta_key_3)
               nkv_free(meta_key_3);
             if (meta_key_4)
@@ -444,10 +474,10 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               nkv_free(meta_key_5);
 
 
-            if (meta_val_1)
+            /*if (meta_val_1)
               nkv_free(meta_val_1);
             if (meta_val_2)
-              nkv_free(meta_val_2);
+              nkv_free(meta_val_2);*/
             if (meta_val_3)
               nkv_free(meta_val_3);
             if (meta_val_4)
@@ -472,15 +502,15 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
 
               char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
-              char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
+              char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN_DATA);
 
               nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
-              nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN, 0 };
+              nkv_value nkvvaluemeta4 = { (void*)meta_val_4, NKV_TEST_META_VAL_LEN_DATA, 0 };
 
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta3, targs->r_option, &nkvvaluemeta3);
               if (status != 0) {
                 smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta3.key, status);
-                return ;
+                //goto cleanup;
               } else {
                 smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta3.key,
                         (char*) nkvvaluemeta3.value, nkvvaluemeta3.length, nkvvaluemeta3.actual_length);
@@ -489,7 +519,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta4, targs->r_option, &nkvvaluemeta4);
               if (status != 0) {
                 smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta4.key, status);
-                return ;
+                //goto cleanup ;
               } else {
                 smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta4.key,
                         (char*) nkvvaluemeta4.value, nkvvaluemeta4.length, nkvvaluemeta4.actual_length);
@@ -530,7 +560,8 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta5, targs->r_option, &nkvvaluemeta5);
               if (status != 0) {
                 smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkeymeta5.key, status);
-                return ;
+                //num_g_ios.fetch_sub(1);
+                //goto cleanup;
               } else {
                 smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta5.key,
                         (char*) nkvvaluemeta5.value, nkvvaluemeta5.length, nkvvaluemeta5.actual_length);
@@ -539,12 +570,15 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkey, targs->r_option, &nkvvalue);
               if (status != 0) {
                 smg_error(logger, "NKV Minio Retrieve meta1 KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
-                return ;
+                //num_g_ios.fetch_sub(1);
+                //goto cleanup;
               } else {
                 smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
                         (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
               }
-              num_g_ios.fetch_sub(1, std::memory_order_relaxed);
+              if (num_g_ios.load() > 0) {
+                num_g_ios.fetch_sub(1);
+              }
               if (meta_key_5)
                 nkv_free(meta_key_5);
               if (meta_val_5)
@@ -624,7 +658,9 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
           smg_error(logger,"Unsupported Minio operation provided, op = %d", targs->op_type);        
           return;
         }
-  
+     
+       cleanup:
+ 
         if (key_name)
           nkv_free(key_name);
         if (val)
@@ -638,7 +674,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
         }
 
         if (num_ios.load() > 0) {
-          num_ios.fetch_sub(1, std::memory_order_relaxed);
+          num_ios.fetch_sub(1);
         }
       }
       
@@ -687,8 +723,10 @@ void *iothread(void *args)
             //num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
             while (iter_at[cnt].load() >= 0);
             
-            iter_at[cnt].store(iter, std::memory_order_relaxed);
-            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
+            //iter_at[cnt].store(iter, std::memory_order_relaxed);
+            iter_at[cnt].store(iter);
+            //num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
+            num_ios[cnt].fetch_add(1);
           }
          
           if (targs->simulate_minio == 2) { 
@@ -716,13 +754,13 @@ void *iothread(void *args)
           for (uint32_t cnt = 0; cnt < targs->ioctx_cnt; cnt++) {
             while (iter_at[cnt].load() >= 0);
 
-            iter_at[cnt].store(iter, std::memory_order_relaxed);
+            iter_at[cnt].store(iter);
 
             if (dist[cnt].find(mod) != dist[cnt].end()) {
               //dist_str += std::to_string(cnt);
-              num_g_ios[cnt].fetch_add(1, std::memory_order_relaxed);;
+              num_g_ios[cnt].fetch_add(1);
             }             
-            num_ios[cnt].fetch_add(1, std::memory_order_relaxed);
+            num_ios[cnt].fetch_add(1);
             /*while (iter_at[cnt].load() >= 0);
 
             iter_at[cnt].store(iter, std::memory_order_relaxed);*/
