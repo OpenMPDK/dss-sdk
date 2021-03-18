@@ -163,6 +163,7 @@
     }
 
     nkv_value_wrapper(const nkv_value_wrapper& other) {
+      //std::cout <<"In copy constructor.." << std::endl;
       value = malloc (other.length);
       memcpy(value, other.value, other.length);
       length = other.length;
@@ -237,7 +238,7 @@
     std::atomic<uint64_t> pending_io_size;
     std::atomic<uint64_t> pending_io_value;
     std::condition_variable cv_path;
-    nkv_lruCache<std::string, nkv_value_wrapper>* cnt_cache;
+    nkv_lruCache<std::string, nkv_value_wrapper> *cnt_cache;
     std::atomic<uint64_t> nkv_num_dc_keys;
     stat_io_t* device_stat;
     vector<stat_io_t*> cpu_stats;
@@ -271,7 +272,9 @@
       }
 
       listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > [nkv_listing_cache_num_shards];
-      data_cache = new std::unordered_map<std::string, nkv_value_wrapper*> [nkv_listing_cache_num_shards];
+      if (nkv_in_memory_exec) {
+        data_cache = new std::unordered_map<std::string, nkv_value_wrapper*> [nkv_listing_cache_num_shards];
+      }
       cnt_cache = new nkv_lruCache<std::string, nkv_value_wrapper> [nkv_read_cache_shard_size](nkv_read_cache_size);
       nkv_num_dc_keys = 0;
 
@@ -282,13 +285,13 @@
     }
 
     ~NKVTargetPath() {
+      kvs_result ret;
       if (listing_with_cached_keys) {
         nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
         wait_for_thread_completion();
       }
  
       if (! dev_path.empty() && get_target_path_status() && !nkv_in_memory_exec ) {
-        kvs_result ret;
         #ifdef SAMSUNG_API
           ret = kvs_close_container(path_cont_handle);
           assert(ret == KVS_SUCCESS);
@@ -308,15 +311,19 @@
         pthread_rwlock_destroy(&data_rw_lock_list[iter]);
       }
 
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        for (auto x: data_cache[iter]) {
-          delete x.second;
+      if (nkv_in_memory_exec) {
+        for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+          for (auto x: data_cache[iter]) {
+            delete x.second;
+          }
         }
       }
 
       delete[] cache_rw_lock_list;
       delete[] listing_keys;
-      delete[] data_cache;
+      if (nkv_in_memory_exec) {
+        delete[] data_cache;
+      }
       delete[] cnt_cache;
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
  

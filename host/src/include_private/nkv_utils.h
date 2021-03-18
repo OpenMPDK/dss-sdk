@@ -80,15 +80,17 @@ template<typename K, typename V>
     typedef pair<K,V> key_value_pair_t;
     typedef typename list<key_value_pair_t>::iterator list_iterator_t;
     nkv_lruCache(uint64_t size) : _max_size(size) {
-      //smg_warn(logger, "## LRU Readcache size = %u", _max_size);
       pthread_rwlock_init(&lru_rw_lock, NULL);
       _threshold_size = (90 *_max_size)/100;
+      //smg_alert(logger, "## LRU Readcache size = %u, threshold_size = %u", _max_size, _threshold_size);
     }
     ~nkv_lruCache() {
       pthread_rwlock_destroy(&lru_rw_lock);
     }
 
-    void put (const K& key, const V&& val) {
+    //void put (const K& key, const V&& val) {
+    //void put (const K& key, const V& val) {
+    void put (K& key, V val) {
       //std::lock_guard<std::mutex> lck (lru_lock);
       pthread_rwlock_wrlock(&lru_rw_lock);
       auto it = _cache_map.find(key);
@@ -96,7 +98,8 @@ template<typename K, typename V>
         _cache_list.erase(it->second);
         _cache_map.erase(it);
       }
-      _cache_list.push_front(key_value_pair_t(key, val));
+      _cache_list.push_front(key_value_pair_t(key, std::move(val)));
+      //_cache_list.push_front(std::make_pair<K,V>(std::move(key), std::move(val)));
       _cache_map[key] = _cache_list.begin();
       if (_cache_map.size() > _max_size) {
         smg_warn(logger, "## Cache eviction !! size = %u, max_size = %u", _cache_map.size(), _max_size);
@@ -119,7 +122,8 @@ template<typename K, typename V>
       }
     }*/
 
-    const V& get(const K& key, bool& exists) {
+    //const V& get(const K& key, bool& exists) {
+    V& get(const K& key, bool& exists) {
       //std::lock_guard<std::mutex> lck (lru_lock);
       if (_cache_map.size() > _threshold_size) {
         pthread_rwlock_wrlock(&lru_rw_lock);
@@ -141,16 +145,16 @@ template<typename K, typename V>
     }
 
 
-    void del (const K& key) {
+    void del (const K& key, bool& exists) {
       //std::lock_guard<std::mutex> lck (lru_lock);
       pthread_rwlock_wrlock(&lru_rw_lock);
       auto it = _cache_map.find(key);
       if ( it != _cache_map.end()) {
         _cache_list.erase(it->second);
         _cache_map.erase(it);
+        exists = true;
       }
       pthread_rwlock_unlock(&lru_rw_lock);
-      
     }
 
 

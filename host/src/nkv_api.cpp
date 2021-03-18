@@ -723,8 +723,8 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
   nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_RETRIEVE_OP);
   if (stat != NKV_SUCCESS) {
     if (stat != NKV_ERR_KEY_NOT_EXIST) {
-      smg_error(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
-                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
+      smg_error(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d", nkv_handle, 
+                 key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0, stat);
     } else {
       smg_info(logger, "NKV retrieve operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle, 
                 key ? (char*)key->key: "NULL", key ? key->length:0, stat);
