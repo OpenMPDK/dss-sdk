@@ -1,0 +1,94 @@
+From 748b7d6c1ff9cf0c6f72684959e15b3f0ec9c7ce Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 22 Mar 2021 16:36:29 -0700
+Subject: [PATCH 37/37] support enable/disable blobfs cache
+
+---
+ lib/blobfs/blobfs.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 5552acb3e..7a84bc4cb 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -46,6 +46,8 @@
+ #include "spdk_internal/log.h"
+ #include "spdk/trace.h"
+ 
++#include "dragonfly.h"
++
+ #define BLOBFS_TRACE(file, str, args...) \
+ 	SPDK_DEBUGLOG(SPDK_LOG_BLOBFS, "file=%s " str, file->name, ##args)
+ 
+@@ -323,6 +325,7 @@ __stop_cache_pool_mgmt(void *ctx)
+ static void
+ initialize_global_cache(void)
+ {
++	if(g_dragonfly->rdb_blobfs_cache_enable) {
+ 	pthread_mutex_lock(&g_cache_init_lock);
+ 	if (g_fs_count == 0) {
+ 		g_cache_pool_thread = spdk_thread_create("cache_pool_mgmt", NULL);
+@@ -331,17 +334,20 @@ initialize_global_cache(void)
+ 	}
+ 	g_fs_count++;
+ 	pthread_mutex_unlock(&g_cache_init_lock);
++	}
+ }
+ 
+ static void
+ free_global_cache(void)
+ {
++	if (g_dragonfly->rdb_blobfs_cache_enable) {
+ 	pthread_mutex_lock(&g_cache_init_lock);
+ 	g_fs_count--;
+ 	if (g_fs_count == 0) {
+ 		spdk_thread_send_msg(g_cache_pool_thread, __stop_cache_pool_mgmt, NULL);
+ 	}
+ 	pthread_mutex_unlock(&g_cache_init_lock);
++	}
+ }
+ 
+ static uint64_t
+@@ -388,11 +394,6 @@ void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core)
+ {
+ 	ctx->ch.icore = core;
+ }
+-
+-uint32_t dss_get_fs_ch_core( struct spdk_fs_request * req)
+-{
+-	return req->channel->icore;
+-}
+ //END - SPDK_CONFIG_OSS_TARGET
+ 
+ static struct spdk_fs_request *
+@@ -2667,9 +2668,13 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	pthread_spin_lock(&file->lock);
+ 	file->open_for_writing = true;
+ 
++	if(g_dragonfly->rdb_blobfs_cache_enable) {
+ 	if ((file->last == NULL) && (file->append_pos % CACHE_BUFFER_SIZE == 0)) {
+ 		cache_append_buffer(file);
+ 	}
++	} else {
++		assert(file->last == NULL);
++	}
+ 
+ 	if (file->last == NULL) {
+ 		int rc;
+@@ -2904,11 +2909,13 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	}
+ 	file->seq_byte_count += length;
+ 	file->next_seq_offset = offset + length;
++	if(g_dragonfly->rdb_blobfs_cache_enable) {
+ 	if (file->seq_byte_count >= CACHE_READAHEAD_THRESHOLD) {
+ 		check_readahead(file, offset, channel);
+ 		check_readahead(file, offset + CACHE_BUFFER_SIZE, channel);
+ 		check_readahead(file, offset + CACHE_BUFFER_SIZE * 2, channel);
+ 	}
++	}
+ 
+ 	final_length = 0;
+ 	final_offset = offset + length;
+-- 
+2.24.3
+
