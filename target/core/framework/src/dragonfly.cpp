@@ -109,7 +109,7 @@ int dfly_init(void)
 	//Initialize memory pool
 	dfly_mm_init();
 
-	if(g_dragonfly->blk_map) {
+	if(g_dragonfly->blk_map && g_dragonfly->rdb_blobfs_cache_enable) {
 		spdk_fs_set_cache_size(g_dragonfly->rdb_blobfs_cache_sz_mb);
 	}
 

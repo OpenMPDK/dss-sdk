@@ -205,6 +205,7 @@ dfly_config_read(struct spdk_conf_section *sp)
     	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 24);
         g_dragonfly->rdb_shard_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_shard_cnt", 24);
         g_dragonfly->rdb_mtable_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_mtable_cnt", 10);
+    	g_dragonfly->rdb_blobfs_cache_enable = spdk_conf_section_get_boolval(sp, "block_translation_blobfs_cache_enable", true);
     	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 20480);
     	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 8);
     	g_dragonfly->rdb_wal_enable = spdk_conf_section_get_boolval(sp, "rdb_wal_enable", true);
