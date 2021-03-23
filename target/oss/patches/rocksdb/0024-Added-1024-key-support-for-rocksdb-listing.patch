@@ -1,14 +1,14 @@
-From c08003db02da948130249d9d5e0bca44e2cfdaec Mon Sep 17 00:00:00 2001
+From f1d467f96371c79e9a944534099435ba570c866f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 13 Jan 2021 23:45:40 -0800
-Subject: [PATCH 24/33] Added 1024 key support for rocksdb listing
+Subject: [PATCH 24/34] Added 1024 key support for rocksdb listing
 
 ---
  db/dss_kv2blk_c.cc | 14 +++++++-------
  1 file changed, 7 insertions(+), 7 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 42d7bc5..6f582f1 100644
+index 42d7bc5e..6f582f13 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -326,24 +326,24 @@ typedef struct rocksdb_list_key_ctx_s{
@@ -60,5 +60,5 @@ index 42d7bc5..6f582f1 100644
      rocksdb::Slice key_prefix(key_buf, prefix_size);
      //printf("dss_rocksdb_iter_start: key_prefix %s prefix_size %d\n", (char *)key_prefix.data(), key_prefix.size());
 -- 
-1.8.3.1
+2.24.3
 

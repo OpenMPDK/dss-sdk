@@ -1,7 +1,7 @@
-From 8b343b7aab8c8517921a23e138fd5a13f4cffee4 Mon Sep 17 00:00:00 2001
+From 81af0a00fc13a69f4ed3ad09570c356a1d3b707b Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 15:14:02 -0800
-Subject: [PATCH 28/33] memory leak fix
+Subject: [PATCH 28/34] memory leak fix
 
 ---
  db/dss_kv2blk_c.cc              | 2 ++
@@ -9,7 +9,7 @@ Subject: [PATCH 28/33] memory leak fix
  2 files changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index a53a212..def82e7 100644
+index a53a212a..def82e75 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -510,6 +510,7 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
@@ -29,7 +29,7 @@ index a53a212..def82e7 100644
      s = rocksdb::async::DBImplGetContext::RequestGet(RdCtx->GetCallback(), db, read_options,
              db->DefaultColumnFamily(), RdCtx->key_, &RdCtx->pinnable_val_, nullptr, value, vbuf_len);
 diff --git a/table/format_request_context.cc b/table/format_request_context.cc
-index e2182af..8418ef8 100644
+index e2182afd..8418ef8d 100644
 --- a/table/format_request_context.cc
 +++ b/table/format_request_context.cc
 @@ -242,7 +242,7 @@ Status ReadBlockContentsContext::OnIoCompletion(const Status& status,
@@ -42,5 +42,5 @@ index e2182af..8418ef8 100644
  
    Status s = OnReadBlockContentsComplete(status, slice);
 -- 
-1.8.3.1
+2.24.3
 

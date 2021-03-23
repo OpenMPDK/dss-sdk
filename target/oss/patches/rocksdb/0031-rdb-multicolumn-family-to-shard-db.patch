@@ -1,14 +1,14 @@
-From 8ee4f578192051c72930bf6300751cb75b3da764 Mon Sep 17 00:00:00 2001
+From 4da086140f1c0278542a088bd6a44b404adfa77d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 12 Feb 2021 19:47:28 -0800
-Subject: [PATCH 31/33] * rdb multicolumn family to shard db
+Subject: [PATCH 31/34] * rdb multicolumn family to shard db
 
 ---
- db/dss_kv2blk_c.cc | 125 +++++++++++++++++++++++++++++++++++++----------------
- 1 file changed, 88 insertions(+), 37 deletions(-)
+ db/dss_kv2blk_c.cc | 111 +++++++++++++++++++++++++++++++++------------
+ 1 file changed, 81 insertions(+), 30 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 98c806f..a24d3c8 100644
+index 98c806f6..02152834 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -57,6 +57,7 @@
@@ -28,7 +28,7 @@ index 98c806f..a24d3c8 100644
              void * prefix, size_t prefix_size);
  
  int dss_rocksdb_iter_read(void * ctx, void ** piter,
-@@ -100,12 +101,13 @@ int dss_rocksdb_iter_end(void *ctx, void * iter);
+@@ -100,6 +101,7 @@ int dss_rocksdb_iter_end(void *ctx, void * iter);
  namespace rocksdb {
  
  uint32_t g_bg_coreid = 0;
@@ -36,13 +36,6 @@ index 98c806f..a24d3c8 100644
  
  void rdb_UpdateStats(void)
  {
-     DFLY_NOTICELOG("==================UserIoStats===================\n");
-     DFLY_NOTICELOG("Put: %ld size %ld miss %ld\n"
--           "Get: %ld size %ld miss %ld\n"
-+           "Get: %ld size %ld miss %ld\n" 
-            "Del: %ld miss %ld\n",
-         g_put_cnt, g_put_sz, g_put_miss_cnt,
-         g_get_cnt, g_get_sz, g_get_miss_cnt,
 @@ -163,7 +165,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
  		  if(user_buffer()){
  			offset_ = (uint64_t)(pinnable_val_.data()) - (uint64_t)val_buffer_;
@@ -61,7 +54,7 @@ index 98c806f..a24d3c8 100644
      std::string dbname = "/mnt/";
      std::string cpumask = "0x1";  //for core 0
      std::string nvme_conf = "/usr/local/etc/spdk/nvme5.conf";
-@@ -291,23 +293,54 @@ void *_dss_rocksdb_open(void *arg)
+@@ -291,20 +293,51 @@ void *_dss_rocksdb_open(void *arg)
      options.enable_write_thread_adaptive_yield = false;
      */
      options.max_background_jobs = g_dragonfly->rdb_bg_job_cnt;
@@ -119,10 +112,6 @@ index 98c806f..a24d3c8 100644
 +    dss_dev->rdb_handle->rdb_db_handle = db;
  	dss_dev->rdb_handle->rdb_env = (void *)dss_env;
  	DFLY_ASSERT(dss_dev->rdb_handle->rdb_db_handle);
--
-+    
- 	_dev_init_done(dss_dev->rdb_handle->tmp_init_back_ptr);
- 	dss_dev->rdb_handle->tmp_init_back_ptr = NULL;
  
 @@ -349,6 +382,7 @@ void *_dss_rocksdb_compaction(void *ctx)
  	struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)ctx;
@@ -152,18 +141,9 @@ index 98c806f..a24d3c8 100644
 +	    }
 +        DFLY_NOTICELOG("Compaction finished for device %s cf %d \n", dss_dev->rdb_handle->dev_name, i);
 +    }
-+	
++
  	time(&et);
      DFLY_NOTICELOG("Compaction done for device %s for %d sec\n", dss_dev->rdb_handle->dev_name, et - st);
- 
-@@ -381,7 +421,7 @@ void dss_rocksdb_compaction(void *ctx)
- {
-     pthread_t th;
-     pthread_attr_t attr;
--
-+    
- 	pthread_attr_init(&attr);
- 	pthread_create(&th, &attr, &_dss_rocksdb_compaction, ctx);
  
 @@ -411,16 +451,19 @@ void * _dss_rocksdb_list_key(void *ctx)
      rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
@@ -174,8 +154,6 @@ index 98c806f..a24d3c8 100644
 -        int key_list_requested = 10000;
 -        while(nr_key_iter = dss_rocksdb_iter_read(ctx, &iter,
 -            key_list_requested,key_upbound)){
--	        nr_key_total += nr_key_iter;
--            //printf("list_key updated %d\n", nr_key_total);
 +
 +    for(int cf_idx = 0; cf_idx < g_dragonfly->rdb_shard_cnt; cf_idx ++){
 +        if(!dss_rocksdb_iter_start(list_ctx->db, cf_idx, &iter, list_ctx->prefix, list_ctx->prefix_size)){
@@ -183,7 +161,8 @@ index 98c806f..a24d3c8 100644
 +            int key_list_requested = 10000;
 +            while(nr_key_iter = dss_rocksdb_iter_read(ctx, &iter,
 +                key_list_requested,key_upbound)){
-+    	        nr_key_total += nr_key_iter;
+ 	        nr_key_total += nr_key_iter;
+-            //printf("list_key updated %d\n", nr_key_total);
 +                //printf("list_key updated %d\n", nr_key_total);
 +            }
 +            assert(!dss_rocksdb_iter_end(ctx, iter));
@@ -200,11 +179,9 @@ index 98c806f..a24d3c8 100644
      write_options.disableWAL = !g_dragonfly->rdb_wal_enable;
 +    std::vector<rocksdb::ColumnFamilyHandle*> handles = rocksdb::g_db2cf[db];
      ++g_put_cnt;
--
--   rocksdb::Slice put_key((const char *)key, klen);
+ 
+    rocksdb::Slice put_key((const char *)key, klen);
 -   s = db->Put(write_options, put_key, rocksdb::Slice((char *)value, vlen));
-+    
-+   rocksdb::Slice put_key((const char *)key, klen);	
 +   int cf_id = rocksdb::Hash((char *)key, klen, 0) % g_dragonfly->rdb_shard_cnt;
 +   s = db->Put(write_options, handles[cf_id], put_key, rocksdb::Slice((char *)value, vlen));
     if (!s.ok()) {
@@ -218,12 +195,9 @@ index 98c806f..a24d3c8 100644
  	char key_buffer[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1] = {0};
      struct rocksdb::AsyncRdQueue_s * RdCtxQueue = (struct rocksdb::AsyncRdQueue_s *)inst->private_data;
          //async read
-@@ -524,22 +570,22 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
-     RdCtx->SetCb(cb);
-     RdCtx->SetArgs(cb_arg);
+@@ -526,20 +572,20 @@ void dss_rocksdb_get_async(void * inst_ctx, void *rdb_ctx,
      RdCtx->SetCtxQueue(RdCtxQueue);
--
-+    
+ 
      s.async(false);
 +    int cf_id = rocksdb::Hash((char *)key, klen, 0) % g_dragonfly->rdb_shard_cnt;
  #if 0
@@ -275,7 +249,7 @@ index 98c806f..a24d3c8 100644
      options.prefix_same_as_start = true;
      bool use_prefix_iter = true;
 +    rocksdb::ColumnFamilyHandle* data_handle = handles[cf_idx]; //meta
-+    //printf("dss_rocksdb_iter_start: db %p hanles %p %p\n", db, handles[0], handles[1]); 
++    //printf("dss_rocksdb_iter_start: db %p hanles %p %p\n", db, handles[0], handles[1]);
  
 -    rocksdb::Iterator* iter = db->NewIterator(options);
 +    rocksdb::Iterator* iter = db->NewIterator(options, data_handle);
@@ -283,5 +257,5 @@ index 98c806f..a24d3c8 100644
      char key_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
      memcpy(key_buf, prefix, prefix_size);
 -- 
-1.8.3.1
+2.24.3
 

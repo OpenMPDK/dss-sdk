@@ -1,14 +1,14 @@
-From 19d1025883d6189044c6ff6526bf05e07ae55a3b Mon Sep 17 00:00:00 2001
+From dfb4844079e3165e35579f2a2f475a46941863c2 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 1 Dec 2020 11:20:03 -0800
-Subject: [PATCH 15/33] * multiple db support * bg job core config setting.
+Subject: [PATCH 15/34] * multiple db support * bg job core config setting.
 
 ---
  db/dss_kv2blk_c.cc | 21 +++++++++++++++------
  1 file changed, 15 insertions(+), 6 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 56394c0..5eb95f5 100644
+index 56394c09..5eb95f58 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -84,6 +84,9 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
@@ -73,5 +73,5 @@ index 56394c0..5eb95f5 100644
  		s = db->Put(write_options, rocksdb::Slice((char *)key, klen), rocksdb::Slice((char *)value, vlen));
  		if (!s.ok()) {
 -- 
-1.8.3.1
+2.24.3
 

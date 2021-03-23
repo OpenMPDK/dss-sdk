@@ -1,10 +1,10 @@
-From f9db2474f42286f0cb3d6ac1c4b19837d468e68d Mon Sep 17 00:00:00 2001
+From 66399c267577431a3728455c441aa481fd2d4590 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 16 Oct 2020 14:02:21 -0700
-Subject: [PATCH 05/33] Rockdb API implementation for nvmf target blk dev
+Subject: [PATCH 05/34] Rockdb API implementation for nvmf target blk dev
 
 ---
- db/dss_kv2blk_c.cc             | 295 +++++++++++++++++++++++++++++++++++++++++
+ db/dss_kv2blk_c.cc             | 295 +++++++++++++++++++++++++++++++++
  include/rocksdb/dss_kv2blk_c.h |  21 +++
  include/rocksdb/env.h          |   5 +
  src.mk                         |   2 +
@@ -14,7 +14,7 @@ Subject: [PATCH 05/33] Rockdb API implementation for nvmf target blk dev
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
 new file mode 100644
-index 0000000..338a0a0
+index 00000000..338a0a0d
 --- /dev/null
 +++ b/db/dss_kv2blk_c.cc
 @@ -0,0 +1,295 @@
@@ -315,7 +315,7 @@ index 0000000..338a0a0
 +#endif
 diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
 new file mode 100644
-index 0000000..7484f2a
+index 00000000..7484f2ac
 --- /dev/null
 +++ b/include/rocksdb/dss_kv2blk_c.h
 @@ -0,0 +1,21 @@
@@ -341,7 +341,7 @@ index 0000000..7484f2a
 +
 +#endif  /* STORAGE_ROCKSDB_INCLUDE_C_H_ */
 diff --git a/include/rocksdb/env.h b/include/rocksdb/env.h
-index 6eaf5db..759efe2 100644
+index 6eaf5db3..759efe27 100644
 --- a/include/rocksdb/env.h
 +++ b/include/rocksdb/env.h
 @@ -1177,6 +1177,11 @@ Env* NewSpdkEnv(Env* base_env, const std::string& fsname,
@@ -357,7 +357,7 @@ index 6eaf5db..759efe2 100644
  }  // namespace rocksdb
  
 diff --git a/src.mk b/src.mk
-index 3b28ec5..a551e8d 100644
+index 3b28ec52..a551e8d6 100644
 --- a/src.mk
 +++ b/src.mk
 @@ -5,6 +5,7 @@ LIB_SOURCES =                                                   \
@@ -377,5 +377,5 @@ index 3b28ec5..a551e8d 100644
    env/mock_env.cc                                               \
    memtable/alloc_tracker.cc                                     \
 -- 
-1.8.3.1
+2.24.3
 

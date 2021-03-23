@@ -1,15 +1,15 @@
-From dcbf3034135c6c912d3324cb00d7a88e025682b5 Mon Sep 17 00:00:00 2001
+From 07537a25b23516e8c564e37eddb9570f476cc6e6 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 2 Nov 2020 15:30:28 -0800
-Subject: [PATCH 06/33] * open/read options changes * rd context queue per dfly
+Subject: [PATCH 06/34] * open/read options changes * rd context queue per dfly
  instance
 
 ---
- db/dss_kv2blk_c.cc | 107 ++++++++++++++++++++++++++++++++++++-----------------
+ db/dss_kv2blk_c.cc | 107 +++++++++++++++++++++++++++++++--------------
  1 file changed, 73 insertions(+), 34 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 338a0a0..bf43c00 100644
+index 338a0a0d..bf43c009 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -7,6 +7,7 @@
@@ -220,5 +220,5 @@ index 338a0a0..bf43c00 100644
  		if (!s.ok()) {
  			printf("Delete failed\n");
 -- 
-1.8.3.1
+2.24.3
 

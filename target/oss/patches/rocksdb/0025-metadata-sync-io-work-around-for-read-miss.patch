@@ -1,15 +1,15 @@
-From 438fa75d2674f6ad45c622e5356c257bc6fafd83 Mon Sep 17 00:00:00 2001
+From e617dea3be041414a7565bb51c9d1272129ea2ce Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:02:02 -0800
-Subject: [PATCH 25/33] * metadata sync io, work around for read miss * user io
+Subject: [PATCH 25/34] * metadata sync io, work around for read miss * user io
  stats report * code format change * log by DFLY_NOTICELOG
 
 ---
- db/dss_kv2blk_c.cc | 242 ++++++++++++++++++++++++++++++++++-------------------
+ db/dss_kv2blk_c.cc | 242 +++++++++++++++++++++++++++++----------------
  1 file changed, 156 insertions(+), 86 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 6f582f1..bb5174e 100644
+index 6f582f13..bb5174e6 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -47,6 +47,11 @@
@@ -442,5 +442,5 @@ index 6f582f1..bb5174e 100644
          nr_keys ++;
  
 -- 
-1.8.3.1
+2.24.3
 

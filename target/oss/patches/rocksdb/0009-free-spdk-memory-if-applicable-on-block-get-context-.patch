@@ -1,7 +1,7 @@
-From 12dc41f6628ccf3e357cfd733e98c4c1fcb4bc7c Mon Sep 17 00:00:00 2001
+From 279a5217e402468d3db584dc315728f2407d40e5 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:51:51 -0800
-Subject: [PATCH 09/33] - free spdk memory if applicable on block get context
+Subject: [PATCH 09/34] - free spdk memory if applicable on block get context
  cleanup
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH 09/33] - free spdk memory if applicable on block get context
  2 files changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/table/block.h b/table/block.h
-index 733eacd..a9fe255 100644
+index 733eacd1..a9fe2557 100644
 --- a/table/block.h
 +++ b/table/block.h
 @@ -140,6 +140,14 @@ class Block {
@@ -29,7 +29,7 @@ index 733eacd..a9fe255 100644
    const char* data() const { return data_; }
    bool cachable() const { return contents_.cachable; }
 diff --git a/table/block_based_table_request.h b/table/block_based_table_request.h
-index 26f8b5b..c554e9a 100644
+index 26f8b5b1..c554e9a6 100644
 --- a/table/block_based_table_request.h
 +++ b/table/block_based_table_request.h
 @@ -1076,6 +1076,13 @@ class NewDataBlockIteratorHelper {
@@ -63,5 +63,5 @@ index 26f8b5b..c554e9a 100644
        return s;
      }
 -- 
-1.8.3.1
+2.24.3
 

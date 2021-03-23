@@ -1,7 +1,7 @@
-From e6fa14a37a5586ec6e95dc431a1af84456d8ea2a Mon Sep 17 00:00:00 2001
+From d82689556ac6721fae15c887bc8beac20e9f94ba Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 14:50:05 -0800
-Subject: [PATCH 08/33] - competion request post on queue - tuning rdb write
+Subject: [PATCH 08/34] - competion request post on queue - tuning rdb write
  buffer and background thread for write performance.
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH 08/33] - competion request post on queue - tuning rdb write
  2 files changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index a7a668e..66bb8bf 100644
+index a7a668e2..66bb8bf4 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -154,8 +154,10 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -48,7 +48,7 @@ index a7a668e..66bb8bf 100644
      if (!s.ok()) {
          printf("open %s failed\n", s.ToString().c_str());
 diff --git a/include/rocksdb/options.h b/include/rocksdb/options.h
-index 869685f..ebec75c 100644
+index 869685f3..ebec75cd 100644
 --- a/include/rocksdb/options.h
 +++ b/include/rocksdb/options.h
 @@ -468,7 +468,7 @@ struct DBOptions {
@@ -61,5 +61,5 @@ index 869685f..ebec75c 100644
    // NOT SUPPORTED ANYMORE: RocksDB automatically decides this based on the
    // value of max_background_jobs. This option is ignored.
 -- 
-1.8.3.1
+2.24.3
 
