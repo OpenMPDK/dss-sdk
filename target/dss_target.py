@@ -56,6 +56,8 @@ g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
   rdb_wal_enable No
   rdb_sync_enable No
   block_translation_shard_cnt 4
+  block_translation_mtable_cnt 2
+  block_translation_min_mtable_to_merge 1
 
   #block_translation_blobfs_cache_size 4096 #cache disabled
 """
