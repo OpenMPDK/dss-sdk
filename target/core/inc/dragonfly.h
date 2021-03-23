@@ -275,6 +275,7 @@ struct dragonfly {
         uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
         int32_t rdb_shard_cnt; /**<rdb nr column family per db>*/
         int32_t rdb_mtable_cnt; /**<rdb nr max write buffer number>*/
+        int32_t rdb_min_mtable_to_merge; /**<rdb nr min write buffer to merge>*/
         uint32_t rdb_blobfs_cache_enable; /**<rdb blobs global cache enabled*/
         uint32_t rdb_blobfs_cache_sz_mb; /**<rdb blobs global cache size*/
 	bool rdb_auto_compaction_enable;
