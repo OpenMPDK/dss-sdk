@@ -1,7 +1,7 @@
-From f7e16e57b25254befe025446f6505795e48c849c Mon Sep 17 00:00:00 2001
+From c38b8ea079fea53e91ca6916bf95cd77ed94cc7a Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 6 Jan 2021 13:05:00 -0800
-Subject: [PATCH 20/37] * comment assert for len check
+Subject: [PATCH 20/38] * comment assert for len check
 
 ---
  lib/nvmf/rdma.c | 2 +-
