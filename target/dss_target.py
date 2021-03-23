@@ -51,9 +51,13 @@ g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
 
   io_threads_per_ss 1 #vm mode
   poll_threads_per_nic 1 #vm mode
-  mm_buff_count 1024 #vm mode
+  mm_buff_count 128 #vm mode
+  block_translation_blobfs_cache_enable No #vm mode
+  rdb_wal_enable No
+  rdb_sync_enable No
+  block_translation_shard_cnt 4
 
-  block_translation_blobfs_cache_size 4096
+  #block_translation_blobfs_cache_size 4096 #cache disabled
 """
 
 g_dfly_wal_log_dev_name = """  wal_log_dev_name \"walbdev-%(num)sn1\"
@@ -80,9 +84,21 @@ g_rdma_transport = """
 g_transport_perfmode = """  NumSharedBuffers 8192
 """
 
-g_transport_vmmode = """  NumSharedBuffers 1024
+g_transport_vmmode = """  NumSharedBuffers 128
+  MaxQueuesPerSession 4
+  MaxQueueDepth 32
+  MaxAQDepth 32
+  NoSRQ Yes
+  BufCacheSize 4
 """
 g_nvme_global_text = """
+[Nvme]
+"""
+
+g_nvme_vmmode_global_text = """
+[Blobfs]
+  TrimEnabled No
+
 [Nvme]
 """
 
@@ -360,7 +376,10 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     nqn_text = "nqn." + yemo + ".io:" + hostname
     subtext = ""
 
-    subtext += g_nvme_global_text
+    if g_kvblock_vmmode == True:
+        subtext += g_nvme_vmmode_global_text
+    else:
+        subtext += g_nvme_global_text
 
     global g_conf_global_text, g_dfly_kvblock_vm_mode, g_dfly_kvblock_perf_mode, g_wal, g_rdma, g_tcp, g_kv_ssc
 
