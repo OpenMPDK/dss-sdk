@@ -1,0 +1,34 @@
+From e28eac3469c0677bcbf7ddec145cd43be14ee63d Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 25 Mar 2021 00:06:24 -0700
+Subject: [PATCH 40/40] Disable opal dev initialization
+
+---
+ module/bdev/nvme/bdev_nvme.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/module/bdev/nvme/bdev_nvme.c b/module/bdev/nvme/bdev_nvme.c
+index 08649b298..c4f373a09 100644
+--- a/module/bdev/nvme/bdev_nvme.c
++++ b/module/bdev/nvme/bdev_nvme.c
+@@ -1457,6 +1457,8 @@ create_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
+ 
+ 	spdk_nvme_ctrlr_register_aer_callback(ctrlr, aer_cb, nvme_bdev_ctrlr);
+ 
++//SPDK_CONFIG_OSS_TARGET
++#if 0//Opal dev creation gives error - Disable as it is not used
+ 	if (spdk_nvme_ctrlr_get_flags(nvme_bdev_ctrlr->ctrlr) &
+ 	    SPDK_NVME_CTRLR_SECURITY_SEND_RECV_SUPPORTED) {
+ 		nvme_bdev_ctrlr->opal_dev = spdk_opal_dev_construct(nvme_bdev_ctrlr->ctrlr);
+@@ -1464,6 +1466,8 @@ create_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
+ 			SPDK_ERRLOG("Failed to initialize Opal\n");
+ 		}
+ 	}
++#endif
++//END - SPDK_CONFIG_OSS_TARGET
+ 	return 0;
+ }
+ 
+-- 
+2.24.3
+
