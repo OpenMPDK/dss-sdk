@@ -33,6 +33,7 @@
 
 
 #include "dragonfly.h"
+#include "version.h"
 
 extern "C" {
 #include "spdk/blobfs.h"
@@ -88,6 +89,8 @@ int dragonfly_finish(void)
 int dfly_init(void)
 {
 	int rc = 0;
+
+	DFLY_NOTICELOG("DSS version %s.rev-%s\n", OSS_TARGET_VER, OSS_TARGET_HASH);
 
 	//Parse Config
 	rc = dfly_config_parse();
