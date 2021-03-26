@@ -384,6 +384,10 @@ dfly_ustat_update_rqpair_stat(void *qpair, int ops)
 		return;
 	}
 
+	if(dqpair->parent_qpair->state != SPDK_NVMF_QPAIR_ACTIVE) {
+		return 0;
+	}
+
 	if (ops == 0) {
 		__sync_fetch_and_add(&dqpair->curr_qd, 1);
 	} else {

@@ -77,6 +77,8 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 		if (!dqpair) {
 			return -1;
 		}
+
+		pthread_mutex_init(&dqpair->qp_lock, NULL);
 		dqpair->parent_qpair = nvmf_qpair;
 		dqpair->io_counter = 0;
 		dqpair->curr_qd = 0;
@@ -141,6 +143,8 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 {
 	struct dss_lat_prof_arr *tmp = NULL;
 
+	pthread_mutex_lock(&dqpair->qp_lock);
+
 	dfly_ustat_remove_qpair_stat(dqpair);
 	if(g_dragonfly->enable_latency_profiling && dqpair->parent_qpair->qid != 0) {
 		dss_lat_get_percentile(dqpair->lat_ctx, &tmp);
@@ -151,11 +155,22 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 		}
 		DFLY_DEBUGLOG(DLFY_LOG_CORE, "]\n");
 	}
-	dss_lat_del_ctx(dqpair->lat_ctx);
-	dfly_poller_fini(dqpair->df_poller);
+	dqpair->qid = -1;
+
+	if(dqpair->lat_ctx) {
+		dss_lat_del_ctx(dqpair->lat_ctx);
+		dqpair->lat_ctx = NULL;
+	}
+
+	if(dqpair->df_poller) {
+		dfly_poller_fini(dqpair->df_poller);
+		dqpair->df_poller = NULL;
+	}
 	if(dqpair->reqs) {
 		free(dqpair->reqs);
+		dqpair->reqs = NULL;
 	}
+	pthread_mutex_unlock(&dqpair->qp_lock);
 	free(dqpair);
 	return 0;
 }

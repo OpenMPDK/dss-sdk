@@ -56,6 +56,8 @@ extern "C" {
 #include "spdk/thread.h"
 #include "spdk/bdev.h"
 #include "spdk/nvme.h"
+#include "spdk/nvmf_transport.h"
+#include "spdk/likely.h"
 
 #include "spdk_internal/log.h"
 
@@ -283,6 +285,9 @@ struct dragonfly {
         bool rdb_sync_enable;
         uint32_t rdb_io_debug_level;
         uint32_t rdb_stats_intervals_sec;
+        uint32_t rdb_sim_timeout;
+        uint32_t rdb_sim_io_pre_timeout;
+        uint32_t rdb_sim_io_post_timeout;
 
 	uint32_t num_io_threads;
 	uint32_t num_nw_threads;
@@ -290,6 +295,7 @@ struct dragonfly {
 	uint32_t mm_buff_count;
 
     bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
+	uint32_t test_sim_io_timeout;/** Simulate IO Timeout in Seconds */
 
 	uint32_t num_sgroups; /**< number of pools */
 
@@ -326,6 +332,8 @@ struct dfly_qpair_s {
 	uint32_t curr_qd;
 	stat_rqpair_t *stat_qpair;
 	stat_initiator_ip_t *stat_iip;
+
+	pthread_mutex_t qp_lock;
 
 	uint32_t max_pending_lock_reqs;
 	uint32_t npending_lock_reqs;
