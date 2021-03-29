@@ -82,7 +82,7 @@ void dss_lat_del_ctx(struct dss_lat_ctx_s *lctx)
 		lctx->initialized = 0;
 		free(lctx);
 	}
-	pthread_mutex_lock(&lctx->lat_ctx_lock);
+	pthread_mutex_unlock(&lctx->lat_ctx_lock);
 
 	return;
 }
