@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 2.8.9)
 project (libnkvapi C CXX)
 
+add_custom_target(
+  run ALL
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMAND ./generate_version.sh
+)
+
 option(NKV_WITH_EMU "Enable NKV with Emulator support" OFF)
 option(NKV_WITH_KDD "Enable NKV with Kernel Driver support" OFF)
 option(NKV_WITH_SPDK "Enable NKV with SPDK Driver support" OFF)
@@ -123,6 +129,20 @@ target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS})
 add_dependencies(nkv_test_cli nkvapi)
 
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+set (git_cmd "git")
+set (git_arg "describe")
+set (git_arg1 "--abbrev=4")
+set (git_arg2 "--dirty")
+set (git_arg3 "--always")
+set (git_arg4 "--tags")
+
+#message(STATUS "git cmd: ${git_cmd} ${git_arg}")
+
+execute_process(COMMAND ${git_cmd} ${git_arg} ${git_arg1} ${git_arg2} ${git_arg3} ${git_arg4} RESULT_VARIABLE dss_result OUTPUT_VARIABLE dss_version OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+message(STATUS "Command = ${git_cmd} ${git_arg} , result =  ${dss_result} : ${dss_version}")
+
 add_custom_command(
 	TARGET nkv_test_cli POST_BUILD
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include
@@ -157,7 +177,8 @@ add_custom_command(
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/driver/PCIe/kernel_driver/kernel_v5.1/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/openmpdk_driver/kernel_v5.1_nvmf/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-	COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz nkv-sdk
+	#COMMAND tar cvzf nkv-sdk-bin-${DATE}.tgz nkv-sdk
+	COMMAND tar cvzf nkv-sdk-bin-${dss_version}.tgz nkv-sdk
         COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 )
 

@@ -35,6 +35,7 @@
 #include <cstdlib>
 #include <string>
 #include "nkv_framework.h"
+#include "dss_version.h"
 #include "native_fabric_manager.h"
 #include "unified_fabric_manager.h"
 #include "auto_discovery.h"
@@ -121,7 +122,7 @@ void nkv_thread_func (uint64_t nkv_handle) {
       nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
       break;
     }
-    smg_alert(logger, "### NKV Library version in use = %s ###", NKV_VERSION_INFO);
+    smg_alert(logger, "### NKV Library version in use = %s ###", dssVersion.c_str());
     boost::property_tree::ptree pt;
     try {
       std::unique_lock<std::mutex> lck(mtx_global);
@@ -246,8 +247,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     }
   }
   smg_info(logger, "NKV config file = %s", config_path.c_str());
-  smg_alert(logger, "### NKV Library version = %s ###", NKV_VERSION_INFO);
-
+  smg_alert(logger, "### NKV Library version in use = %s ###", dssVersion.c_str());
   std::string nkv_unique_instance_name = std::string(app_uuid) + "-" + std::string(host_name_ip) + "-" + std::to_string(host_port);
 
   *nkv_handle = std::hash<std::string>{}(app_uuid);

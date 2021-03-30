@@ -53,7 +53,6 @@ extern "C" {
 #define NKV_MAX_MOUNT_POINT_LENGTH 16 
 #define NKV_MAX_VALUE_LENGTH 2097152 //2MB value support 
 #define MAX_CPU_CORE_COUNT 256 //Max core count 
-#define NKV_VERSION_INFO "dss_api_v_1.1" //NKV version
 
 #ifdef __cplusplus
 } // extern "C"
