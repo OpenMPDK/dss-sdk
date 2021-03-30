@@ -117,7 +117,7 @@ dfly_ustat_init_bdev_stat(const char *dev_name)
 					    &stat_bdev_io_table, NULL);
 
 	if (!st_io) {
-		DFLY_ERRLOG("Failed to initialize io ustat entry for namespace\n");
+		DFLY_WARNLOG("Could not init ustat entry for %s. Statistics will not be available\n", dev_name);
 		return (-1);
 	}
 
