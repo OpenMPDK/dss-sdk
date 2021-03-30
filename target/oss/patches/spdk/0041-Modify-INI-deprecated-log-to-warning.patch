@@ -1,0 +1,24 @@
+From 8ba916f3a3e91ff8b742b7d5aadce4092c67fe36 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 30 Mar 2021 15:10:31 -0700
+Subject: [PATCH 41/41] Modify INI deprecated log to warning
+
+---
+ lib/conf/conf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/conf/conf.c b/lib/conf/conf.c
+index 287e157a5..744e02411 100644
+--- a/lib/conf/conf.c
++++ b/lib/conf/conf.c
+@@ -623,7 +623,7 @@ spdk_conf_read(struct spdk_conf *cp, const char *file)
+	if (file == NULL || file[0] == '\0') {
+		return -1;
+	}
+-	SPDK_ERRLOG("INI configuration has been deprecated and will be removed in a future release. Please switch to JSON-RPC.\n");
++	SPDK_WARNLOG("INI configuration has been deprecated and will be removed in a future release. Please switch to JSON-RPC.\n");
+
+	fp = fopen(file, "r");
+	if (fp == NULL) {
+--
+2.24.3
