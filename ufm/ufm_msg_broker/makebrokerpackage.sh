@@ -94,6 +94,7 @@ buildPackage()
     # include in the deb install package
     mkdir -p ${dir_share}
     cp -a ufm_msg_broker.py ${dir_share}/
+    cp ../LICENSE.md ${dir_share}/
 
     mkdir -p ${dir_share}/systemd
     cp -a systemd_files/* ${dir_share}/systemd/

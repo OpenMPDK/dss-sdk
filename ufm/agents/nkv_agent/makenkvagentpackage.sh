@@ -96,7 +96,7 @@ buildPackage()
     # include in the deb install package
     mkdir -p ${dir_share}
     # kv-cli.py
-    cp *.py           ${dir_share}/
+    cp *.py                    ${dir_share}/
     cp -aR clusterlib          ${dir_share}/
     cp -aR device_driver_setup ${dir_share}/
     cp -aR etcdlib             ${dir_share}/
@@ -109,6 +109,7 @@ buildPackage()
     cp -aR udev_monitor        ${dir_share}/
     cp -aR utils               ${dir_share}/
     cp ../requirements.txt     ${dir_share}/
+    cp ../../LICENSE.md        ${dir_share}/
 
     mkdir -p ${dir_share}/systemd
     cp -a systemd_files/* ${dir_share}/systemd/
