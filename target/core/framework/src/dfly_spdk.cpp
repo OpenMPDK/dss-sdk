@@ -171,12 +171,21 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation
+		if(spdk_unlikely(g_dragonfly->rdb_sim_timeout)) {
+				usleep(g_dragonfly->rdb_sim_timeout * 1000000);
+		}
 		switch (cmd->opc) {
 			case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
 				//SPDK_NOTICELOG("Rocksdb put started\n");
+				if(spdk_unlikely(g_dragonfly->rdb_sim_io_pre_timeout)) {
+						usleep(g_dragonfly->rdb_sim_io_pre_timeout * 1000000);
+				}
 				rc = dss_rocksdb_put(io_device->rdb_handle->rdb_db_handle,
 										req->dreq->req_key.key, req->dreq->req_key.length,
 										req->dreq->req_value.value, req->dreq->req_value.length);
+				if(spdk_unlikely(g_dragonfly->rdb_sim_io_post_timeout)) {
+						usleep(g_dragonfly->rdb_sim_io_post_timeout * 1000000);
+				}
 				if(rc == -1) {
 					SPDK_ERRLOG("Rocksdb put failed\n");
 					req->rsp->nvme_cpl.status.sct = SPDK_NVME_SCT_GENERIC;

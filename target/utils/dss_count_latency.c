@@ -33,6 +33,7 @@
 
 #include <malloc.h>
 #include <string.h>
+#include <pthread.h>
 
 #include <Judy.h>
 
@@ -42,6 +43,8 @@ struct dss_lat_ctx_s {
 	char *name;
 	void *jarr;
 	uint64_t nsamples;
+	int initialized;
+	pthread_mutex_t lat_ctx_lock;
 };
 
 #define DEFAULT_PARR_COUNT (15)
@@ -52,9 +55,11 @@ struct dss_lat_ctx_s * dss_lat_new_ctx(char *name)
 	struct dss_lat_ctx_s *lctx = (struct dss_lat_ctx_s *)calloc(1, sizeof(struct dss_lat_ctx_s));
 
 	if(lctx) {
+		pthread_mutex_init(&lctx->lat_ctx_lock, NULL);
 		lctx->name = strdup(name);
 		lctx->jarr = NULL;
 		lctx->nsamples = 0;
+		lctx->initialized = 1;
 		return lctx;
 	} else {
 		return NULL;
@@ -65,11 +70,19 @@ void dss_lat_del_ctx(struct dss_lat_ctx_s *lctx)
 {
 	uint64_t mem_freed_count;
 
-	mem_freed_count = JudyLFreeArray(&lctx->jarr, PJE0);
-	lctx->nsamples = 0;
-
-	free(lctx->name);
-	free(lctx);
+	pthread_mutex_lock(&lctx->lat_ctx_lock);
+	if(lctx->jarr) {
+		mem_freed_count = JudyLFreeArray(&lctx->jarr, PJE0);
+		lctx->nsamples = 0;
+		lctx->jarr = NULL;
+	}
+	if(lctx->initialized) {
+		free(lctx->name);
+		lctx->name = NULL;
+		lctx->initialized = 0;
+		free(lctx);
+	}
+	pthread_mutex_unlock(&lctx->lat_ctx_lock);
 
 	return;
 }
@@ -78,8 +91,15 @@ void dss_lat_reset_ctx(struct dss_lat_ctx_s *lctx)
 {
 	uint64_t mem_freed_count;
 
-	mem_freed_count = JudyLFreeArray(&lctx->jarr, PJE0);
+	pthread_mutex_lock(&lctx->lat_ctx_lock);
+
+	if(lctx->jarr) {
+		mem_freed_count = JudyLFreeArray(&lctx->jarr, PJE0);
+		lctx->jarr = NULL;
+	}
 	lctx->nsamples = 0;
+
+	pthread_mutex_unlock(&lctx->lat_ctx_lock);
 
 	return;
 }

@@ -214,10 +214,14 @@ dfly_config_read(struct spdk_conf_section *sp)
         g_dragonfly->rdb_auto_compaction_enable = spdk_conf_section_get_boolval(sp, "rdb_auto_compaction_enable", false);
         g_dragonfly->rdb_io_debug_level = dfly_spdk_conf_section_get_intval_default(sp, "rdb_io_debug_level", 0);
         g_dragonfly->rdb_stats_intervals_sec = dfly_spdk_conf_section_get_intval_default(sp, "rdb_stats_intervals_sec", 10);
+   		g_dragonfly->rdb_sim_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_timeout", 0);
+   		g_dragonfly->rdb_sim_io_pre_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_io_pre_timeout", 0);
+   		g_dragonfly->rdb_sim_io_post_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_io_post_timeout", 0);
         
 	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
    	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);
 	g_dragonfly->test_nic_bw  = spdk_conf_section_get_boolval(sp, "test_nic_bw", false);
+   	g_dragonfly->test_sim_io_timeout = dfly_spdk_conf_section_get_intval_default(sp, "test_sim_io_timeout", 0);
 
 	g_wal_conf.wal_cache_enabled = spdk_conf_section_get_boolval(sp, "wal_cache_enabled", false);
 	g_wal_conf.wal_log_enabled = spdk_conf_section_get_boolval(sp, "wal_log_enabled", false);

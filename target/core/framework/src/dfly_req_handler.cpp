@@ -32,7 +32,7 @@
  */
 
 
-#include <dragonfly.h>
+#include "dragonfly.h"
 
 extern struct wal_conf_s g_wal_conf;
 extern struct fuse_conf_s g_fuse_conf;
@@ -61,15 +61,20 @@ hop_2_next:
 		break;
 	case DFLY_REQ_INITIALIZED:
 		cmd_opc = dfly_req_get_command(dfly_req);
-		if(g_dragonfly->test_nic_bw &&
+		if(spdk_unlikely(g_dragonfly->test_nic_bw &&
 			(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE ||
-			 cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE)) {
+			 cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE))) {
 			if(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
 				  dfly_resp_set_cdw0(dfly_req, dfly_req->req_value.length);
 			}
 			dfly_set_status_code(dfly_req, SPDK_NVME_SCT_GENERIC, SPDK_NVME_SC_SUCCESS);
 			dfly_nvmf_complete(dfly_req);
 			break;
+		}
+		if(spdk_unlikely(g_dragonfly->test_sim_io_timeout &&
+			(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE ||
+			 cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE))) {
+				usleep(g_dragonfly->test_sim_io_timeout * 1000000);
 		}
 		if (cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_LOCK
 		    || cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_UNLOCK) {

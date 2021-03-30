@@ -1,7 +1,7 @@
-From 9872f75891600f58124f164c99e2a49f2b84d69b Mon Sep 17 00:00:00 2001
+From c8e3236bddff0a93fb163999d2f992a7e15421bc Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 27 Jan 2021 01:30:16 -0800
-Subject: [PATCH 27/39] Support aborting nvme cmd for DSS KV/KB-Block
+Subject: [PATCH 27/40] Support aborting nvme cmd for DSS KV/KB-Block
 
 ---
  lib/nvmf/ctrlr.c |  7 +++++++
