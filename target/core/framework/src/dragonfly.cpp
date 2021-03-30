@@ -90,7 +90,7 @@ int dfly_init(void)
 {
 	int rc = 0;
 
-	DFLY_NOTICELOG("DSS version %s.rev-%s\n", OSS_TARGET_VER, OSS_TARGET_HASH);
+	DFLY_NOTICELOG("DSS target software version: %s\n", OSS_TARGET_GIT_VER);
 
 	//Parse Config
 	rc = dfly_config_parse();

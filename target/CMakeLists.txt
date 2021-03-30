@@ -276,7 +276,7 @@ ADD_CUSTOM_TARGET(test_latency_counter
     DEPENDS dss_lat
 )
 
-execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
         TARGET spdk_tcp POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target
@@ -295,7 +295,7 @@ add_custom_command(
         COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND tar cvzf nkv-target-${DATE}.tgz nkv-target
+        COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
 )
 
 ADD_CUSTOM_TARGET(rocksdb

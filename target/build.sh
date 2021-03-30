@@ -33,7 +33,7 @@ updateVersionInHeaderFile()
     [[ -z "${gitHash}" ]] && die "ERR: Invalid git hash "
 
     sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"${targetVersion}\"/" include/version.h
-    sed -i -e "s/^\#define OSS_TARGET_HASH.\+$/#define OSS_TARGET_HASH \"${gitHash}\"/" include/version.h
+    sed -i -e "s/^\#define OSS_TARGET_GIT_VER.\+$/#define OSS_TARGET_GIT_VER \"${gitHash}\"/" include/version.h
 }
 
 makePackageDirectories()
@@ -53,10 +53,12 @@ generateSpecFile()
 {
     local rpmSpecFile=$1
     local packageName=$2
-    local targetVersion=$3
-    local gitHash=$4
+    local gitVer=$3
 
-    [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
+	#replace hyphen with underscore for file name
+	gitVer=${gitVer//[-]/_}
+
+    [[ -z "${gitVer}" ]] && die "ERR: Git Version string is empty!"
     [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
 
 
@@ -64,7 +66,7 @@ generateSpecFile()
 
 ####### NKV Target Package ###########
 Name: ${packageName}
-Version: ${targetVersion}.${gitHash}
+Version: ${gitVer}
 Release: 1%{?dist}
 Summary: DSS NKV Target Release
 License: GPLv3+
@@ -196,7 +198,7 @@ packageName="nkv-target"
 # TODO(ER) - Add switch to Job number
 jenkingJobnumber=0
 targetVersion=${TARGET_VER}
-gitHash="$(git log -1 --format=%h).${jenkingJobnumber}"
+gitVersion="$(git describe --abbrev=4 --always --tags)"
 
 
 pushd "${target_dir}"/oss
@@ -205,7 +207,7 @@ popd
 
 pushd "${build_dir}"
     pushd "${target_dir}"
-        updateVersionInHeaderFile "${targetVersion}" "${gitHash}"
+        updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
     popd
 
     cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
@@ -221,7 +223,7 @@ pushd "${build_dir}"
 
     cp -rf "${build_dir}"/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
 
-    generateSpecFile "${rpm_spec_file}" "${packageName}" "${targetVersion}" "${gitHash}"
+    generateSpecFile "${rpm_spec_file}" "${packageName}" "${gitVersion}"
     generateRPM "${rpm_spec_file}" "${rpm_build_dir}" || die "ERR: Failed to build RPM"
 
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/

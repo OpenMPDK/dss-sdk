@@ -134,8 +134,8 @@ dragonfly_oss_version_info(struct spdk_jsonrpc_request *request,
 	spdk_json_write_object_begin(w);
 	spdk_json_write_name(w, "OSS_TARGET_VER");
 	spdk_json_write_string(w, OSS_TARGET_VER);
-	spdk_json_write_name(w, "OSS_TARGET_HASH");
-	spdk_json_write_string(w, OSS_TARGET_HASH);
+	spdk_json_write_name(w, "OSS_TARGET_GIT_VER");
+	spdk_json_write_string(w, OSS_TARGET_GIT_VER);
 	spdk_json_write_object_end(w);
 
 	spdk_json_write_array_end(w);
