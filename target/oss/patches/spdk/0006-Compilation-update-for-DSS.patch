@@ -1,7 +1,7 @@
-From 99ac6f7e00b939177cc33dcf7a9b4f385c3baf33 Mon Sep 17 00:00:00 2001
+From a49b602ea3ede25438de36f7504f14dc543d6f6f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 29 Sep 2020 02:00:26 -0700
-Subject: [PATCH 06/41] Compilation update for DSS
+Subject: [PATCH 06/42] Compilation update for DSS
 
 ---
  app/iscsi_tgt/Makefile                  | 2 ++

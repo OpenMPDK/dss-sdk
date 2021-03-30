@@ -1,7 +1,7 @@
-From 489a539282c24072645bf8c9a12727106eff5e6f Mon Sep 17 00:00:00 2001
+From 032fa5903f93f05beff16859ccc0ac406fd9c4f7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 23 Mar 2021 14:24:03 -0700
-Subject: [PATCH 39/41] Trim disable update
+Subject: [PATCH 39/42] Trim disable update
 
 ---
  lib/blob/blobstore.c | 3 +++

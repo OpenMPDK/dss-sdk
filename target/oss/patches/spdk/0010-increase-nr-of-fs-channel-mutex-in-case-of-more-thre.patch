@@ -1,7 +1,7 @@
-From f272e03134d5460e392a519b2bff5b8830613f84 Mon Sep 17 00:00:00 2001
+From 23fcd39f54a0845faea6b00b27f17bee74023081 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 15:03:13 -0800
-Subject: [PATCH 10/41] - increase nr of fs channel mutex in case of more
+Subject: [PATCH 10/42] - increase nr of fs channel mutex in case of more
  threading io.
 
 ---

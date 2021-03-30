@@ -1,0 +1,96 @@
+From 8f1b57c7af932e22fb61e93b2598e12996c53b4d Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 30 Mar 2021 15:43:20 -0700
+Subject: [PATCH 42/42] Update BSD License
+
+---
+ scripts/dss_rpc.py             | 33 +++++++++++++++++++++++++++++++++
+ scripts/rpc/latency_profile.py | 33 +++++++++++++++++++++++++++++++++
+ 2 files changed, 66 insertions(+)
+
+diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
+index 5e1a58b97..6c228db08 100755
+--- a/scripts/dss_rpc.py
++++ b/scripts/dss_rpc.py
+@@ -1,5 +1,38 @@
+ #!/usr/bin/env python3
+
++"""
++ *   BSD LICENSE
++ *
++ *   Copyright (c) 2019 Samsung Electronics Co., Ltd.
++ *   All rights reserved.
++ *
++ *   Redistribution and use in source and binary forms, with or without
++ *   modification, are permitted provided that the following conditions
++ *   are met:
++ *
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above copyright
++ *       notice, this list of conditions and the following disclaimer in
++ *       the documentation and/or other materials provided with the
++ *       distribution.
++ *     * Neither the name of Samsung Electronics Co., Ltd. nor the names of
++ *       its contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++"""
++
+ from rpc.client import print_dict, print_json, JSONRPCException
+ from rpc.helpers import deprecated_aliases
+
+diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
+index c1d91f649..393b3a5e3 100644
+--- a/scripts/rpc/latency_profile.py
++++ b/scripts/rpc/latency_profile.py
+@@ -1,3 +1,36 @@
++"""
++ *   BSD LICENSE
++ *
++ *   Copyright (c) 2019 Samsung Electronics Co., Ltd.
++ *   All rights reserved.
++ *
++ *   Redistribution and use in source and binary forms, with or without
++ *   modification, are permitted provided that the following conditions
++ *   are met:
++ *
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above copyright
++ *       notice, this list of conditions and the following disclaimer in
++ *       the documentation and/or other materials provided with the
++ *       distribution.
++ *     * Neither the name of Samsung Electronics Co., Ltd. nor the names of
++ *       its contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++"""
++
+ def get_qpair_latency_profile(client, nqn, cid, qid):
+     """Get latency profile information for an NVMe-oF subsystem/
+
+--
+2.24.3
