@@ -133,13 +133,13 @@ execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILIN
 set (git_cmd "git")
 set (git_arg "describe")
 set (git_arg1 "--abbrev=4")
-set (git_arg2 "--dirty")
+#set (git_arg2 "--dirty")
 set (git_arg3 "--always")
 set (git_arg4 "--tags")
 
 #message(STATUS "git cmd: ${git_cmd} ${git_arg}")
 
-execute_process(COMMAND ${git_cmd} ${git_arg} ${git_arg1} ${git_arg2} ${git_arg3} ${git_arg4} RESULT_VARIABLE dss_result OUTPUT_VARIABLE dss_version OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND ${git_cmd} ${git_arg} ${git_arg1} ${git_arg3} ${git_arg4} RESULT_VARIABLE dss_result OUTPUT_VARIABLE dss_version OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 message(STATUS "Command = ${git_cmd} ${git_arg} , result =  ${dss_result} : ${dss_version}")
 
