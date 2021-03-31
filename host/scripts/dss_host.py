@@ -159,7 +159,7 @@ def nvme_discover(proto, ip, port):
     
 def nvme_connect(nqn_info_sorted, qpair):
     for nqn_info in nqn_info_sorted:
-        cmd = "nvme connect -t %s -a %s -s %s -n %s -i %d " \
+        cmd = "nvme connect -t %s -a %s -s %s -n %s -i %d -k 0" \
                 %(nqn_info[0], nqn_info[3], nqn_info[1], nqn_info[2], qpair)
         ret, out, err = exec_cmd(cmd)
         if ret != 0:
