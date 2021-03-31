@@ -1,4 +1,4 @@
-From bbea64cab166a6bf2bfcbaf2105a9e685433705c Mon Sep 17 00:00:00 2001
+From 5d3217a93c1deb4178d58b92cb93bd69d6821882 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 16 Mar 2021 01:44:47 -0700
 Subject: [PATCH 36/42] Update errorlog to infolog

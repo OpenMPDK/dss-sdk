@@ -1,4 +1,4 @@
-From 67d324e0f9532975d3c0f28f021b3f96fe18c42b Mon Sep 17 00:00:00 2001
+From 0ce46e0e157fa9f7017b08bbcf56577e2253c8bf Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 25 Mar 2021 00:06:24 -0700
 Subject: [PATCH 40/42] Disable opal dev initialization
