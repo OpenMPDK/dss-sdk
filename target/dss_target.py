@@ -1,9 +1,9 @@
 #!/usr/bin/python
 
-g_license_text = """
+
  #   BSD LICENSE
  #
- #   Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ #   Copyright (c) 2021 Samsung Electronics Co., Ltd.
  #   All rights reserved.
  #
  #   Redistribution and use in source and binary forms, with or without
