@@ -225,7 +225,7 @@ def install_kernel_driver(align):
     disconnect_cmd = "nvme disconnect-all"
     rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
     #rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
-    insmod = "insmod ./nvme-core.ko mem_align=%d; insmod ./nvme-fabrics.ko; \
+    insmod = "insmod ./nvme-core.ko mem_align=%d io_timeout=300 admin_timeout=300; insmod ./nvme-fabrics.ko; \
             insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
 
     ret, do, err = exec_cmd(disconnect_cmd)
