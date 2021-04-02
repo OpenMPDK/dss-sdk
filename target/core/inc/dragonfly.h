@@ -297,6 +297,9 @@ struct dragonfly {
     bool test_nic_bw; /** Enable simulation for short circuit without drive IO (PUT/GET) */
 	uint32_t test_sim_io_timeout;/** Simulate IO Timeout in Seconds */
 
+	bool test_sim_io_stall;
+	uint16_t stall_timeout;
+
 	uint32_t num_sgroups; /**< number of pools */
 
 	struct dfly_subsystem

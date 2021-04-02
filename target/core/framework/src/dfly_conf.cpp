@@ -222,6 +222,7 @@ dfly_config_read(struct spdk_conf_section *sp)
    	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);
 	g_dragonfly->test_nic_bw  = spdk_conf_section_get_boolval(sp, "test_nic_bw", false);
    	g_dragonfly->test_sim_io_timeout = dfly_spdk_conf_section_get_intval_default(sp, "test_sim_io_timeout", 0);
+	g_dragonfly->test_sim_io_stall = spdk_conf_section_get_boolval(sp, "test_sim_io_stall", false);
 
 	g_wal_conf.wal_cache_enabled = spdk_conf_section_get_boolval(sp, "wal_cache_enabled", false);
 	g_wal_conf.wal_log_enabled = spdk_conf_section_get_boolval(sp, "wal_log_enabled", false);

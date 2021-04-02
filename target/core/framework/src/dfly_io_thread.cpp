@@ -97,6 +97,13 @@ int dfly_io_req_process(void *ctx, struct dfly_request *req)
 	int status = 0;
 	struct io_thread_inst_ctx_s *thrd_inst = (struct io_thread_inst_ctx_s *)ctx;
 
+	if(spdk_unlikely(g_dragonfly->test_sim_io_stall)) {
+		if(g_dragonfly->stall_timeout) {
+			usleep(g_dragonfly->stall_timeout * 1000000);
+			g_dragonfly->stall_timeout = 0;
+		}
+	}
+
 	if (req->flags & DFLY_REQF_NVMF) {
 		status = dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, (struct spdk_nvmf_request *)req->req_ctx);
 	} else if (req->flags & DFLY_REQF_NVME) {

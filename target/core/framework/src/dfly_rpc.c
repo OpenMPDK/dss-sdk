@@ -44,6 +44,68 @@
 
 #include "version.h"
 
+#define DSS_MAX_SIM_IO_TIMEOUT (10)
+
+struct dss_stall_io {
+	uint16_t timeout;
+};
+
+static const struct spdk_json_object_decoder dss_stall_io_decoder[] = {
+	{"timeout", offsetof(struct dss_stall_io, timeout), spdk_json_decode_uint16},
+};
+
+static void
+dss_stall_io(struct spdk_jsonrpc_request *request,
+		       const struct spdk_json_val *params)
+{
+	struct spdk_json_write_ctx *w;
+	struct dss_stall_io req = {};
+	int rc;
+
+	if (spdk_json_decode_object(params, dss_stall_io_decoder,
+				    SPDK_COUNTOF(dss_stall_io_decoder),
+				    &req)) {
+		DFLY_ERRLOG("spdk_json_decode_object failed\n");
+		goto invalid;
+	}
+
+	if(g_dragonfly->test_sim_io_stall) {
+		if(req.timeout > DSS_MAX_SIM_IO_TIMEOUT) {
+			g_dragonfly->stall_timeout = DSS_MAX_SIM_IO_TIMEOUT;
+		} else {
+			g_dragonfly->stall_timeout = req.timeout;
+		}
+		DFLY_NOTICELOG("Setting stall timeout to %u seconsd\n", g_dragonfly->stall_timeout);
+		rc = 0;
+	} else {
+		rc = -1;
+	}
+
+	w = spdk_jsonrpc_begin_result(request);
+	if (w == NULL) {
+		return;
+	}
+
+	spdk_json_write_object_begin(w);
+
+	spdk_json_write_name(w, "timeout_set");
+	if(!rc) {
+		spdk_json_write_bool(w, true);
+	} else {
+		spdk_json_write_bool(w, false);
+	}
+
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_result(request, w);
+	return;
+
+invalid:
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid parameters");
+}
+
+SPDK_RPC_REGISTER("dss_stall_io", dss_stall_io, SPDK_RPC_RUNTIME)
+
 struct dfly_migrate {
 	int32_t src_id;
 	int32_t dst_id;
