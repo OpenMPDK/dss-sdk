@@ -1,7 +1,7 @@
-From 66a607a8ba7ae786347a6aa5b8eff8e61c6593a4 Mon Sep 17 00:00:00 2001
+From 8105ec5cc4be5bc685b8e1eeee7974c5b8c5496b Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 9 Nov 2020 15:21:45 -0800
-Subject: [PATCH 08/42] RDMA use offset for get completion
+Subject: [PATCH 08/44] RDMA use offset for get completion
 
 ---
  lib/nvmf/rdma.c | 7 +++++++

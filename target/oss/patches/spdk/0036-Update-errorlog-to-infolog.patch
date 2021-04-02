@@ -1,7 +1,7 @@
-From 5d3217a93c1deb4178d58b92cb93bd69d6821882 Mon Sep 17 00:00:00 2001
+From b9ecb4a801807c429eb654e1790f4db79406ade4 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 16 Mar 2021 01:44:47 -0700
-Subject: [PATCH 36/42] Update errorlog to infolog
+Subject: [PATCH 36/44] Update errorlog to infolog
 
 ---
  lib/blobfs/blobfs.c | 2 +-

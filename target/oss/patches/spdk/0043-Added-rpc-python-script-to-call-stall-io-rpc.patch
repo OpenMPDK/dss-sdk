@@ -1,0 +1,56 @@
+From 95f6595ecfe4cebb959f1d03b6b737dccfee4f85 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 2 Apr 2021 14:03:38 -0700
+Subject: [PATCH 43/44] Added rpc python script to call stall io rpc
+
+---
+ scripts/dss_rpc.py             |  7 +++++++
+ scripts/rpc/latency_profile.py | 14 ++++++++++++++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
+index f1d5956be..fa2bfb183 100755
+--- a/scripts/dss_rpc.py
++++ b/scripts/dss_rpc.py
+@@ -91,6 +91,13 @@ if __name__ == "__main__":
+     p.add_argument('-n', '--nqn', help='NVMe-oF target nqn')
+     p.set_defaults(func=reset_ustat_counters)
+ 
++    def dss_set_io_stall_timeout(args):
++        print_dict(rpc.latency_profile.dss_set_io_stall_timeout(args.client,
++                                                      timeout=args.timeout))
++    p = subparsers.add_parser('dss_set_io_stall_timeout', help='Set stall IO timeout value if enabled')
++    p.add_argument('-t', '--timeout', help='timeout value in seconds', type=int)
++    p.set_defaults(func=dss_set_io_stall_timeout)
++
+     def dss_rdb_compact(args):
+         print_dict(rpc.latency_profile.dss_rdb_compact(args.client,
+                                                       nqn=args.nqn,
+diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
+index 905345fe3..a11cb81b1 100644
+--- a/scripts/rpc/latency_profile.py
++++ b/scripts/rpc/latency_profile.py
+@@ -63,6 +63,20 @@ def reset_ustat_counters(client, nqn):
+ 
+ 	return client.call('dss_reset_ustat_counters', params)
+ 
++def dss_set_io_stall_timeout(client, timeout):
++	"""Set timeout for IO stall if enabled in config
++
++	Args:
++		timeout: timeout to set in seconds
++
++	Returns:
++		true when timeout is set
++	"""
++
++	params = {'timeout': timeout}
++
++	return client.call('dss_stall_io', params)
++
+ def dss_rdb_compact(client, nqn, get_status=False):
+ 	"""Initialte or get status of compaction for rdb block devices in an NVMEoF subsystem
+ 
+-- 
+2.24.3
+

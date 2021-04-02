@@ -1,0 +1,138 @@
+From 1750f98ea8f88f4754d1adb51733fd0b4f27a314 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 2 Apr 2021 14:05:10 -0700
+Subject: [PATCH 44/44] Crash fix for mempool data socket -1
+
+    * Move dfly_req_fini to just before adding to free queue
+    * Add nvme_opcode to request struct and initialize
+    * Use req struct opcode instead od cmd opcode directly
+---
+ lib/nvmf/nvmf.c      |  2 ++
+ lib/nvmf/rdma.c      | 12 ++++++++----
+ lib/nvmf/transport.c | 11 ++++++++---
+ 3 files changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/lib/nvmf/nvmf.c b/lib/nvmf/nvmf.c
+index 47779a21f..33ee41d19 100644
+--- a/lib/nvmf/nvmf.c
++++ b/lib/nvmf/nvmf.c
+@@ -951,6 +951,8 @@ spdk_nvmf_qpair_disconnect(struct spdk_nvmf_qpair *qpair, nvmf_qpair_disconnect_
+ {
+ 	struct nvmf_qpair_disconnect_ctx *qpair_ctx;
+ 
++	SPDK_NOTICELOG("Disconnecting qpair %p\n", qpair);
++
+ 	/* If we get a qpair in the uninitialized state, we can just destroy it immediately */
+ 	if (qpair->state == SPDK_NVMF_QPAIR_UNINITIALIZED) {
+ 		nvmf_transport_qpair_fini(qpair);
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index ee48b8474..032aa9194 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -653,6 +653,7 @@ nvmf_rdma_request_free_data(struct spdk_nvmf_rdma_request *rdma_req,
+ 		data_wr->wr.num_sge = 0;
+ 		next_send_wr = data_wr->wr.next;
+ 		if (data_wr != &rdma_req->data) {
++			SPDK_NOTICELOG("Freeing linked data wr %p req %p\n", data_wr, rdma_req);
+ 			spdk_mempool_put(rtransport->data_wr_pool, data_wr);
+ 		}
+ 		data_wr = (!next_send_wr || next_send_wr == &rdma_req->rsp.wr) ? NULL :
+@@ -1130,6 +1131,7 @@ nvmf_rdma_resources_create(struct spdk_nvmf_rdma_resource_opts *opts)
+ 			rdma_req->req.qpair = NULL;
+ 		}
+ 		rdma_req->req.cmd = NULL;
++		rdma_req->req.data_pool_socket = -1;
+ 
+ 		/* Set up memory to send responses */
+ 		rdma_req->req.rsp = &resources->cpls[i];
+@@ -2282,6 +2284,7 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 
+ 		spdk_nvmf_request_free_buffers(&rdma_req->req, &rgroup->group, &rtransport->transport);
+ 	}
++
+ 	nvmf_rdma_request_free_data(rdma_req, rtransport);
+ 	rdma_req->req.length = 0;
+ 	rdma_req->req.iovcnt = 0;
+@@ -2293,6 +2296,10 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 	memset(&rdma_req->req.dif, 0, sizeof(rdma_req->req.dif));
+ 	rqpair->qd--;
+ 
++	if((rqpair->qpair.dqpair->dss_enabled == true) &&
++			df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++		dfly_req_fini(rdma_req->req.dreq);
++	}
+ 
+ 	STAILQ_INSERT_HEAD(&rqpair->resources->free_queue, rdma_req, state_link);
+ 	rdma_req->state = RDMA_REQUEST_STATE_FREE;
+@@ -2670,10 +2677,6 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 				df_lat_update_tick(rdma_req->req.dreq, DF_LAT_REQ_END);
+ 				df_print_tick(rdma_req->req.dreq);
+ 			}
+-			if((rqpair->qpair.dqpair->dss_enabled == true) &&
+-					df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
+-				dfly_req_fini(rdma_req->req.dreq);
+-			}
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			rqpair->poller->stat.request_latency += spdk_get_ticks() - rdma_req->receive_tsc;
+ 			_nvmf_rdma_request_free(rdma_req, rtransport);
+@@ -3274,6 +3277,7 @@ _nvmf_rdma_try_disconnect(void *ctx)
+ static inline void
+ nvmf_rdma_start_disconnect(struct spdk_nvmf_rdma_qpair *rqpair)
+ {
++	SPDK_NOTICELOG("Start disconnect on qpair %p\n", rqpair);
+ 	if (!__atomic_test_and_set(&rqpair->disconnect_started, __ATOMIC_RELAXED)) {
+ 		_nvmf_rdma_try_disconnect(&rqpair->qpair);
+ 	}
+diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
+index fb0e8901b..24ba92c8f 100644
+--- a/lib/nvmf/transport.c
++++ b/lib/nvmf/transport.c
+@@ -157,6 +157,10 @@ int dss_numa_mempool_get(struct dss_numa_mempool_s *mp, uint32_t node, int count
+ 	assert(count > 0);
+ 	assert(node < mp->socket_count);
+ 
++	if(count > 1) {
++	SPDK_NOTICELOG("Multiple buffers requested mp %p\n", mp);
++	}
++
+ 	if(curr_numa != node) {
+ 		STAILQ_FOREACH_SAFE(get_buf, &mp->get_bufs[core_idx].buf_head, link, tmp) {
+ 			if(get_buf->numa_node == node) {
+@@ -679,7 +683,7 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
+ 
+ 	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
+ 	bool to_mempool = false;
+-	if(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++	if(req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
+ 		numa_socket = req->data_pool_socket;
+ 		to_mempool = true;
+ 	}
+@@ -740,6 +744,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 	/* If the number of buffers is too large, then we know the I/O is larger than allowed.
+ 	 *  Fail it.
+ 	 */
++
+ 	num_buffers = SPDK_CEIL_DIV(length, io_unit_size);
+ 	if (num_buffers + req->iovcnt > NVMF_REQ_MAX_BUFFERS) {
+ 		return -EINVAL;
+@@ -747,7 +752,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 
+ 	while (i < num_buffers) {
+ 		if(g_dragonfly->target_pool_enabled &&
+-			(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE)) {
++			(req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE)) {
+ 			goto alloc_pool;
+ 		} else if (!(STAILQ_EMPTY(&group->buf_cache))) {
+ 			group->buf_cache_count--;
+@@ -761,7 +766,7 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			if(g_dragonfly->target_pool_enabled) {
+ alloc_pool:
+-				if(req->cmd->nvme_cmd.opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++				if(req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
+ 					struct dfly_io_device_s *iod = dfly_kd_get_device(req->dreq);
+ 					assert(iod);
+ 					if(iod->numa_node != -1) {
+-- 
+2.24.3
+

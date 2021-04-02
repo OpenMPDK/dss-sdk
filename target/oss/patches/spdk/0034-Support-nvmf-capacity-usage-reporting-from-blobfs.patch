@@ -1,7 +1,7 @@
-From 8b560dd9a180da3f7f25f65a5f257f90dd331912 Mon Sep 17 00:00:00 2001
+From 2e05945a181128a23b31e47bb992eae6b08d5e53 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 15 Mar 2021 20:03:52 -0700
-Subject: [PATCH 34/42] Support nvmf capacity/usage reporting from blobfs
+Subject: [PATCH 34/44] Support nvmf capacity/usage reporting from blobfs
 
 ---
  include/spdk/blobfs.h |  1 +
