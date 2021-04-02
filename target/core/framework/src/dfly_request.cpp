@@ -36,6 +36,21 @@
 #include "nvmf_internal.h"
 #include <map>
 
+void dss_req_set_from_nvme_cmd(struct dfly_request *req)
+{
+	struct spdk_nvme_cmd *cmd;
+	if (req->flags & DFLY_REQF_NVME) {
+		cmd = (struct spdk_nvme_cmd *)req->req_ctx;
+	} else {
+		struct spdk_nvmf_request *nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
+		cmd = &((*nvmf_req->cmd).nvme_cmd);
+	}
+
+	req->nvme_opcode = cmd->opc;
+
+	return;
+}
+
 int dfly_req_fini(struct dfly_request *req)
 {
 
@@ -94,6 +109,9 @@ void dfly_req_init_nvme_info(struct dfly_request *req)
 	assert(req->req_key.length == 16);
 #endif
 
+	//Do after other init
+	dss_req_set_from_nvme_cmd(req);
+
 	return;
 }
 
@@ -135,6 +153,9 @@ void dfly_req_init_nvmf_info(struct dfly_request *req)
 	DFLY_ASSERT(nvmf_req->qpair->ctrlr->subsys->id == req->req_dfly_ss->id);
 
 	dfly_ustat_update_rqpair_stat(nvmf_req->qpair->dqpair, 0);
+
+	//Do after other init
+	dss_req_set_from_nvme_cmd(req);
 
 	return;
 }

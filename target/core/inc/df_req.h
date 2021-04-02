@@ -163,6 +163,9 @@ typedef struct dfly_request {
 	bool		status;
 	bool		abort_cmd;
 
+	//From nvme command
+	uint8_t nvme_opcode;
+
 	struct dfly_qpair_s *dqpair;
 
 	struct dfly_key req_key;
