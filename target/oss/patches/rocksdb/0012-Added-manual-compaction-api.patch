@@ -1,17 +1,17 @@
-From d7044bfdbe7dc18a1299966d6f719b12ebad6d24 Mon Sep 17 00:00:00 2001
+From 361144684531ab7afd632922a9b0876e114105cb Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 22:31:59 -0800
-Subject: [PATCH 12/34] Added manual compaction api
+Subject: [PATCH 12/35] Added manual compaction api
 
     * Disabled auto compaction
     * New api for manual compaction
 ---
- db/dss_kv2blk_c.cc             | 42 +++++++++++++++++++++++++++++++++-
+ db/dss_kv2blk_c.cc             | 42 +++++++++++++++++++++++++++++++++++++++++-
  include/rocksdb/dss_kv2blk_c.h |  1 +
  2 files changed, 42 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index a56a15f1..81459bed 100644
+index a56a15f..81459be 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -219,7 +219,7 @@ void *_dss_rocksdb_open(void *arg)
@@ -71,7 +71,7 @@ index a56a15f1..81459bed 100644
  {
  	    rocksdb::DB* db = (rocksdb::DB *)ctx;
 diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
-index 1a858134..7c9ddd1b 100644
+index 1a85813..7c9ddd1 100644
 --- a/include/rocksdb/dss_kv2blk_c.h
 +++ b/include/rocksdb/dss_kv2blk_c.h
 @@ -14,6 +14,7 @@ extern int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uin
@@ -83,5 +83,5 @@ index 1a858134..7c9ddd1b 100644
  }  /* end extern "C" */
  #endif
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,14 +1,14 @@
-From e2f99501389af1cc30436d50fedc50fcb7fbe3b9 Mon Sep 17 00:00:00 2001
+From 73a1065a538031a8652339829531d1bfcebd7300 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 23 Dec 2020 23:21:26 -0800
-Subject: [PATCH 20/34] * adjust flush bg job limit (1/4 -> 1/2 of thread pool)
+Subject: [PATCH 20/35] * adjust flush bg job limit (1/4 -> 1/2 of thread pool)
 
 ---
  db/db_impl_compaction_flush.cc | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/db/db_impl_compaction_flush.cc b/db/db_impl_compaction_flush.cc
-index 433c07ea..767c2d1e 100644
+index 433c07e..767c2d1 100644
 --- a/db/db_impl_compaction_flush.cc
 +++ b/db/db_impl_compaction_flush.cc
 @@ -1042,7 +1042,8 @@ DBImpl::BGJobLimits DBImpl::GetBGJobLimits(int max_background_flushes,
@@ -22,5 +22,5 @@ index 433c07ea..767c2d1e 100644
    } else {
      // compatibility code in case users haven't migrated to max_background_jobs,
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,15 +1,15 @@
-From 5673e9d9dd0a8bf764832fd7f172b12698cb9b09 Mon Sep 17 00:00:00 2001
+From e83141e311d6b82bcdb27248b68321b45186f70d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 25 Nov 2020 14:46:58 -0800
-Subject: [PATCH 13/34] * prefix iter support for list cache population.
+Subject: [PATCH 13/35] * prefix iter support for list cache population.
 
 ---
- db/dss_kv2blk_c.cc             | 133 +++++++++++++++++++++++++++++++++
+ db/dss_kv2blk_c.cc             | 133 +++++++++++++++++++++++++++++++++++++++++
  include/rocksdb/dss_kv2blk_c.h |   6 +-
  2 files changed, 138 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 81459bed..9096b482 100644
+index 81459be..9096b48 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -74,6 +74,15 @@ using rocksdb::Options;
@@ -172,7 +172,7 @@ index 81459bed..9096b482 100644
 +}
  #endif
 diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
-index 7c9ddd1b..bec66507 100644
+index 7c9ddd1..bec6650 100644
 --- a/include/rocksdb/dss_kv2blk_c.h
 +++ b/include/rocksdb/dss_kv2blk_c.h
 @@ -8,13 +8,17 @@
@@ -195,5 +195,5 @@ index 7c9ddd1b..bec66507 100644
  }  /* end extern "C" */
  #endif
 -- 
-2.24.3
+1.8.3.1
 

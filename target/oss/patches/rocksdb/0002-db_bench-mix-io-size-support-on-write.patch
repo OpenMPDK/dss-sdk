@@ -1,7 +1,7 @@
-From 8063f2098cf076bcf5a5ad7a2302b861b646bbb0 Mon Sep 17 00:00:00 2001
+From 1d1e932ebb172920d2131db6d40d0e19ddfb098b Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 13:25:18 -0700
-Subject: [PATCH 02/34] * db_bench mix io size support on write example:
+Subject: [PATCH 02/35] * db_bench mix io size support on write example:
  --nr_io_size=4 --num=1048576 ingest object with val size as 128k, 256k, 512k
  and 1024k, with total num as 1m. * db_bench key prefix range iteration.
  example: --prefix_size=6 --use_prefix_iter=true --key_prefix=0x01
@@ -9,11 +9,11 @@ Subject: [PATCH 02/34] * db_bench mix io size support on write example:
  (0x00000000000100000000000000000000 - 0x00000000002D00000000000000000000)
 
 ---
- tools/db_bench_tool.cc | 130 ++++++++++++++++++++++++++++++++++++-----
+ tools/db_bench_tool.cc | 130 +++++++++++++++++++++++++++++++++++++++++++------
  1 file changed, 114 insertions(+), 16 deletions(-)
 
 diff --git a/tools/db_bench_tool.cc b/tools/db_bench_tool.cc
-index 6b248a1f..ca0a97d7 100644
+index 6b248a1..ca0a97d 100644
 --- a/tools/db_bench_tool.cc
 +++ b/tools/db_bench_tool.cc
 @@ -727,8 +727,37 @@ DEFINE_int32(table_cache_numshardbits, 4, "");
@@ -269,5 +269,5 @@ index 6b248a1f..ca0a97d7 100644
  
    // Given a key K and value V, this puts (K+"0", V), (K+"1", V), (K+"2", V)
 -- 
-2.24.3
+1.8.3.1
 

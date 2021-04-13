@@ -1,7 +1,7 @@
-From b6abba458f2e58b7f6444cee3cd39856308dfaea Mon Sep 17 00:00:00 2001
+From ad81ab47f35fef758957f9b1f85f6a6dce7325fd Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 15:03:13 -0800
-Subject: [PATCH 10/44] - increase nr of fs channel mutex in case of more
+Subject: [PATCH 10/45] - increase nr of fs channel mutex in case of more
  threading io.
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 10/44] - increase nr of fs channel mutex in case of more
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index fbc02eef5..0cb219ced 100644
+index fbc02ee..0cb219c 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -65,7 +65,7 @@ static struct spdk_thread *g_cache_pool_thread;
@@ -22,5 +22,5 @@ index fbc02eef5..0cb219ced 100644
  #define TRACE_BLOBFS_XATTR_START	SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x0)
  #define TRACE_BLOBFS_XATTR_END		SPDK_TPOINT_ID(TRACE_GROUP_BLOBFS, 0x1)
 -- 
-2.24.3
+1.8.3.1
 

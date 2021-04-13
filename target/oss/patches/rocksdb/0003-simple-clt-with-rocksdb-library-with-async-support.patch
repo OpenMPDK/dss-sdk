@@ -1,16 +1,16 @@
-From c31db8bdcbc7f9be39f94f8b1da5c00f5f55cba2 Mon Sep 17 00:00:00 2001
+From 5dc2f5a31492d0ae4d2e208a705726ade5cdbb22 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:08:45 -0700
-Subject: [PATCH 03/34] * simple clt with rocksdb library with async support
+Subject: [PATCH 03/35] * simple clt with rocksdb library with async support
 
 ---
  Makefile                 |   3 +
- tools/rdb_spdk_simple.cc | 359 +++++++++++++++++++++++++++++++++++++++
+ tools/rdb_spdk_simple.cc | 359 +++++++++++++++++++++++++++++++++++++++++++++++
  2 files changed, 362 insertions(+)
  create mode 100644 tools/rdb_spdk_simple.cc
 
 diff --git a/Makefile b/Makefile
-index fd13120a..16bf9dbf 100644
+index fd13120..16bf9db 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -949,6 +949,9 @@ librocksdb_env_basic_test.a: env/env_basic_test.o $(LIBOBJECTS) $(TESTHARNESS)
@@ -25,7 +25,7 @@ index fd13120a..16bf9dbf 100644
  
 diff --git a/tools/rdb_spdk_simple.cc b/tools/rdb_spdk_simple.cc
 new file mode 100644
-index 00000000..1b9f4937
+index 0000000..1b9f493
 --- /dev/null
 +++ b/tools/rdb_spdk_simple.cc
 @@ -0,0 +1,359 @@
@@ -389,5 +389,5 @@ index 00000000..1b9f4937
 +    delete db;
 +}
 -- 
-2.24.3
+1.8.3.1
 

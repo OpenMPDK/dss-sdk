@@ -1,14 +1,14 @@
-From 4da086140f1c0278542a088bd6a44b404adfa77d Mon Sep 17 00:00:00 2001
+From 88490d3a3cb2514a126d8f16ac81800b9add04ab Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 12 Feb 2021 19:47:28 -0800
-Subject: [PATCH 31/34] * rdb multicolumn family to shard db
+Subject: [PATCH 31/35] * rdb multicolumn family to shard db
 
 ---
- db/dss_kv2blk_c.cc | 111 +++++++++++++++++++++++++++++++++------------
+ db/dss_kv2blk_c.cc | 111 ++++++++++++++++++++++++++++++++++++++---------------
  1 file changed, 81 insertions(+), 30 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 98c806f6..02152834 100644
+index 98c806f..0215283 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -57,6 +57,7 @@
@@ -257,5 +257,5 @@ index 98c806f6..02152834 100644
      char key_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
      memcpy(key_buf, prefix, prefix_size);
 -- 
-2.24.3
+1.8.3.1
 

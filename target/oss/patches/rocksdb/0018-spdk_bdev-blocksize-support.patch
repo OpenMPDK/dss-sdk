@@ -1,17 +1,17 @@
-From 7d69781005ac0c1127186cf4e3f9812c80dda3c0 Mon Sep 17 00:00:00 2001
+From d27322ba0b67fcf3f224333fcfe856e9497c13e2 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 15 Dec 2020 20:28:22 -0800
-Subject: [PATCH 18/34] * spdk_bdev blocksize support
+Subject: [PATCH 18/35] * spdk_bdev blocksize support
 
 ---
  include/rocksdb/env.h           |  2 ++
  table/format_request_context.cc |  3 +--
  util/file_reader_writer.h       |  3 +++
- util/random_read_context.h      | 36 ++++++++++++++++++---------------
+ util/random_read_context.h      | 36 ++++++++++++++++++++----------------
  4 files changed, 26 insertions(+), 18 deletions(-)
 
 diff --git a/include/rocksdb/env.h b/include/rocksdb/env.h
-index 759efe27..78a6989d 100644
+index 759efe2..78a6989 100644
 --- a/include/rocksdb/env.h
 +++ b/include/rocksdb/env.h
 @@ -261,6 +261,8 @@ class Env {
@@ -24,7 +24,7 @@ index 759efe27..78a6989d 100644
    virtual Status GetFileModificationTime(const std::string& fname,
                                           uint64_t* file_mtime) = 0;
 diff --git a/table/format_request_context.cc b/table/format_request_context.cc
-index 89089021..e2182afd 100644
+index 8908902..e2182af 100644
 --- a/table/format_request_context.cc
 +++ b/table/format_request_context.cc
 @@ -170,9 +170,8 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
@@ -39,7 +39,7 @@ index 89089021..e2182afd 100644
    char* used_buf = (heap_buf_) ? heap_buf_.get() : inclass_buf_;
    assert(used_buf != nullptr);
 diff --git a/util/file_reader_writer.h b/util/file_reader_writer.h
-index b24f98b9..12d626a4 100644
+index b24f98b..12d626a 100644
 --- a/util/file_reader_writer.h
 +++ b/util/file_reader_writer.h
 @@ -110,6 +110,9 @@ class RandomAccessFileReader {
@@ -53,7 +53,7 @@ index b24f98b9..12d626a4 100644
    Status Prefetch(uint64_t offset, size_t n) const {
      return file_->Prefetch(offset, n);
 diff --git a/util/random_read_context.h b/util/random_read_context.h
-index be1f87d9..8ba37f32 100644
+index be1f87d..8ba37f3 100644
 --- a/util/random_read_context.h
 +++ b/util/random_read_context.h
 @@ -338,6 +338,7 @@ class ReadBlockContext : protected RandomReadContext {
@@ -169,5 +169,5 @@ index be1f87d9..8ba37f32 100644
  
  } // namespace async
 -- 
-2.24.3
+1.8.3.1
 

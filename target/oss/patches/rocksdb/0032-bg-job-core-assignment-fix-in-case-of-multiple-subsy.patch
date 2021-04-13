@@ -1,7 +1,7 @@
-From 0c883aac6c0c5b7479af7f71a0a3b4bd4adbb25f Mon Sep 17 00:00:00 2001
+From b96b6c7a68781aac8ab97b748af6e9250f24eb9f Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 26 Feb 2021 11:58:12 -0800
-Subject: [PATCH 32/34] * bg job core assignment fix in case of multiple
+Subject: [PATCH 32/35] * bg job core assignment fix in case of multiple
  subsystems
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 32/34] * bg job core assignment fix in case of multiple
  1 file changed, 11 insertions(+), 4 deletions(-)
 
 diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
-index 72534382..273e5209 100644
+index 7253438..273e520 100644
 --- a/util/threadpool_imp.cc
 +++ b/util/threadpool_imp.cc
 @@ -296,10 +296,13 @@ int stick_this_thread_to_core(pthread_t th_h, int core_id) {
@@ -48,5 +48,5 @@ index 72534382..273e5209 100644
  #endif
      bgthreads_.push_back(std::move(p_t));
 -- 
-2.24.3
+1.8.3.1
 

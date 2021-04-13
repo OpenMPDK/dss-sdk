@@ -1,16 +1,16 @@
-From 64bf2e5d56a65f21a71327f8b6d93e20dd3208ec Mon Sep 17 00:00:00 2001
+From b63deb5533040a08c6d1afcef1134cf45ad94707 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 13 Jan 2021 23:43:58 -0800
-Subject: [PATCH 23/44] Added support for 1024 key for kv block rdma/tcp
+Subject: [PATCH 23/45] Added support for 1024 key for kv block rdma/tcp
 
 ---
  include/spdk/nvme_samsung_spec.h |  1 +
- lib/nvmf/rdma.c                  | 37 +++++++++++++++++++++-----------
- lib/nvmf/tcp.c                   | 27 +++++++++++++++++++++--
+ lib/nvmf/rdma.c                  | 37 ++++++++++++++++++++++++-------------
+ lib/nvmf/tcp.c                   | 27 +++++++++++++++++++++++++--
  3 files changed, 50 insertions(+), 15 deletions(-)
 
 diff --git a/include/spdk/nvme_samsung_spec.h b/include/spdk/nvme_samsung_spec.h
-index 3db46906e..076982532 100644
+index 3db4690..0769825 100644
 --- a/include/spdk/nvme_samsung_spec.h
 +++ b/include/spdk/nvme_samsung_spec.h
 @@ -6,6 +6,7 @@ extern "C" {
@@ -22,7 +22,7 @@ index 3db46906e..076982532 100644
  #define SAMSUNG_KV_MAX_VALUE_SIZE (2<<20)
  #define SAMSUNG_KV_MAX_CURRENT_VALUE_SIZE SAMSUNG_KV_MAX_VALUE_SIZE
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index f9713d3f7..da43ee23b 100644
+index f9713d3..da43ee2 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -772,8 +772,6 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
@@ -132,7 +132,7 @@ index f9713d3f7..da43ee23b 100644
  		rdma_req->state = RDMA_REQUEST_STATE_FREE;
  		STAILQ_INSERT_TAIL(&resources->free_queue, rdma_req, state_link);
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index b7926e41f..148d67b2a 100644
+index b7926e4..148d67b 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -477,12 +477,19 @@ int dfly_nvmf_tcp_req_setup_key_transfer(struct spdk_nvmf_tcp_req *tcp_req)
@@ -193,5 +193,5 @@ index b7926e41f..148d67b2a 100644
  			}
  			//END - SPDK_CONFIG_OSS_TARGET
 -- 
-2.24.3
+1.8.3.1
 

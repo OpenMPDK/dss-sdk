@@ -1,7 +1,7 @@
-From 20cce6aa432461638ec4b7eed8ceb0fe650ce2cc Mon Sep 17 00:00:00 2001
+From 9f4314d844dfb70c73ac4fb6b91b25ad3f51f749 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 10 Feb 2021 11:17:40 -0800
-Subject: [PATCH 29/34] Fixed offset reset and added debug
+Subject: [PATCH 29/35] Fixed offset reset and added debug
 
     * Added memory bandwidth counters for non user buffer read
     * Update debug log levels >0 Counter enabled
@@ -14,7 +14,7 @@ Subject: [PATCH 29/34] Fixed offset reset and added debug
  2 files changed, 13 insertions(+), 8 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index def82e75..d14e299c 100644
+index def82e7..d14e299 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -149,7 +149,7 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -75,7 +75,7 @@ index def82e75..d14e299c 100644
  	return 0;
  }
 diff --git a/util/random_read_context.h b/util/random_read_context.h
-index 8ba37f32..35e47be7 100644
+index 8ba37f3..35e47be 100644
 --- a/util/random_read_context.h
 +++ b/util/random_read_context.h
 @@ -574,7 +574,7 @@ class ReadBlockContentsContext {
@@ -88,5 +88,5 @@ index 8ba37f32..35e47be7 100644
              //printf("ConstructReadBlockContext %p ready to use get_buffer %p size %d spdk_buffer_size size %d\n",
              //            this, get_context->GetBuffer(),
 -- 
-2.24.3
+1.8.3.1
 

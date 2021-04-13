@@ -1,14 +1,14 @@
-From 90b253f9f6479c5b5131d157775995a5c4a5ad67 Mon Sep 17 00:00:00 2001
+From 5ebf012bec68dcd047c6c2bae4215a00392a3fa0 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 23 Mar 2021 15:36:07 -0700
-Subject: [PATCH 34/34] Use mtable merge from config
+Subject: [PATCH 34/35] Use mtable merge from config
 
 ---
  db/dss_kv2blk_c.cc | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index f01ce8f1..68f34168 100644
+index f01ce8f..68f3416 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -307,7 +307,7 @@ void *_dss_rocksdb_open(void *arg)
@@ -21,5 +21,5 @@ index f01ce8f1..68f34168 100644
      //options.max_open_files = 256;
  
 -- 
-2.24.3
+1.8.3.1
 

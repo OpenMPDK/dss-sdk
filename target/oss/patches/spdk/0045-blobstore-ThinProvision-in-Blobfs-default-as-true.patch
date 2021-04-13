@@ -1,0 +1,60 @@
+From 8ba1e49d83f046e2c4dfccbdd54eb0635b6f0bd8 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Tue, 13 Apr 2021 00:21:47 -0700
+Subject: [PATCH 45/45] * blobstore "ThinProvision" in [Blobfs], default as
+ true
+
+---
+ include/spdk/blob.h  | 1 +
+ lib/blob/blobstore.c | 3 ++-
+ lib/blobfs/blobfs.c  | 1 +
+ 3 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/include/spdk/blob.h b/include/spdk/blob.h
+index e17b082..9730f6a 100644
+--- a/include/spdk/blob.h
++++ b/include/spdk/blob.h
+@@ -63,6 +63,7 @@
+ #include "spdk/stdinc.h"
+ 
+ extern bool g_bs_trim_enable;
++extern bool g_bs_thin_provision;
+ 
+ #ifdef __cplusplus
+ extern "C" {
+diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
+index 5af1561..c1196ac 100644
+--- a/lib/blob/blobstore.c
++++ b/lib/blob/blobstore.c
+@@ -51,6 +51,7 @@
+ #define BLOB_CRC32C_INITIAL    0xffffffffUL
+ 
+ bool g_bs_trim_enable = true;
++bool g_bs_thin_provision = true;
+ 
+ static int bs_register_md_thread(struct spdk_blob_store *bs);
+ static int bs_unregister_md_thread(struct spdk_blob_store *bs);
+@@ -208,7 +209,7 @@ void
+ spdk_blob_opts_init(struct spdk_blob_opts *opts)
+ {
+ 	opts->num_clusters = 0;
+-	opts->thin_provision = false;
++	opts->thin_provision = g_bs_thin_provision;
+ 	opts->clear_method = BLOB_CLEAR_WITH_DEFAULT;
+ 	blob_xattrs_init(&opts->xattrs);
+ 	opts->use_extent_table = true;
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index a8c898f..7131c16 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -637,6 +637,7 @@ fs_conf_parse(void)
+ 	}
+ 
+ 	g_bs_trim_enable = spdk_conf_section_get_boolval(sp, "TrimEnabled", true);
++	g_bs_thin_provision = spdk_conf_section_get_boolval(sp, "ThinProvision", true);
+ 
+ }
+ 
+-- 
+1.8.3.1
+

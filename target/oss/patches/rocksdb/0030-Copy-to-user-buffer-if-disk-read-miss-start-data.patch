@@ -1,14 +1,14 @@
-From 15c1cb287cb9661563c2c857ed80c39677a6b91d Mon Sep 17 00:00:00 2001
+From 2be3a0dbe2501922392f8444f0934dbab4b09ef7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 11 Feb 2021 23:16:04 -0800
-Subject: [PATCH 30/34] Copy to user buffer if disk read miss start data
+Subject: [PATCH 30/35] Copy to user buffer if disk read miss start data
 
 ---
  db/dss_kv2blk_c.cc | 13 ++++++++++++-
  1 file changed, 12 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index d14e299c..98c806f6 100644
+index d14e299..98c806f 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -163,7 +163,18 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -40,5 +40,5 @@ index d14e299c..98c806f6 100644
  			response->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
  			response->status.sct = SPDK_NVME_SCT_GENERIC;
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,7 +1,7 @@
-From 4080dbeb14a45f6f31eb5bfc9f1b90f8b1bfd13f Mon Sep 17 00:00:00 2001
+From 1f9067c9711dce372727f30c0b14fe8399c068e3 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 7 Dec 2020 10:28:35 -0800
-Subject: [PATCH 16/34] Comment debug print and g_bg_coreid
+Subject: [PATCH 16/35] Comment debug print and g_bg_coreid
 
 ---
  db/dss_kv2blk_c.cc     |  2 +-
@@ -9,7 +9,7 @@ Subject: [PATCH 16/34] Comment debug print and g_bg_coreid
  2 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 5eb95f58..f99dccde 100644
+index 5eb95f5..f99dccd 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -397,7 +397,7 @@ int dss_rocksdb_put(void *ctx, void *key, uint32_t klen, void *value, uint32_t v
@@ -22,7 +22,7 @@ index 5eb95f58..f99dccde 100644
  		s = db->Put(write_options, rocksdb::Slice((char *)key, klen), rocksdb::Slice((char *)value, vlen));
  		if (!s.ok()) {
 diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
-index 9ad8c05e..e3d6af30 100644
+index 9ad8c05..e3d6af3 100644
 --- a/util/threadpool_imp.cc
 +++ b/util/threadpool_imp.cc
 @@ -296,7 +296,7 @@ int stick_this_thread_to_core(pthread_t th_h, int core_id) {
@@ -51,5 +51,5 @@ index 9ad8c05e..e3d6af30 100644
  #endif
  #endif
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,14 +1,14 @@
-From 364338905f3e70b6def3563f6a290e22b46ebca0 Mon Sep 17 00:00:00 2001
+From ae49003cbabaac84dcabe12c677473c63bd7142b Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 6 Jan 2021 13:03:55 -0800
-Subject: [PATCH 22/34] * protect the async get context queue
+Subject: [PATCH 22/35] * protect the async get context queue
 
 ---
  db/dss_kv2blk_c.cc | 8 ++++----
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index f2b4c43f..d61aeea6 100644
+index f2b4c43..d61aeea 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -174,9 +174,9 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -42,5 +42,5 @@ index f2b4c43f..d61aeea6 100644
                  //pickup available ctx (no async pending io ...) TBD
          RdCtx->SetKey(key_async_get);
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,14 +1,14 @@
-From e4211d723680e8bae6b1287adde3d7ebc8797163 Mon Sep 17 00:00:00 2001
+From 95abe369c3d6c57752dabe961d7ad9c0e93eb4fa Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 7 Dec 2020 15:07:21 -0800
-Subject: [PATCH 17/34] * reverse the typo for bg thread core setting.
+Subject: [PATCH 17/35] * reverse the typo for bg thread core setting.
 
 ---
  util/threadpool_imp.cc | 10 +++++-----
  1 file changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/util/threadpool_imp.cc b/util/threadpool_imp.cc
-index e3d6af30..72534382 100644
+index e3d6af3..7253438 100644
 --- a/util/threadpool_imp.cc
 +++ b/util/threadpool_imp.cc
 @@ -296,7 +296,7 @@ int stick_this_thread_to_core(pthread_t th_h, int core_id) {
@@ -37,5 +37,5 @@ index e3d6af30..72534382 100644
  #endif
  #endif
 -- 
-2.24.3
+1.8.3.1
 

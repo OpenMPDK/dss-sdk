@@ -1,27 +1,27 @@
-From 13acebf68af0d799b3cae2c50d06a4d358862105 Mon Sep 17 00:00:00 2001
+From 07bf5cd9007840e38d4a87f84e9c2abb18bcd19e Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:52:34 -0700
-Subject: [PATCH 04/34] * support user io buffer for rdb/blobfs async read
+Subject: [PATCH 04/35] * support user io buffer for rdb/blobfs async read
 
 ---
- async/async_status_capture.h       |  12 ++-
- db/db_impl_request.cc              |   8 +-
- db/db_impl_request.h               |  13 ++-
- db/version_set_request.h           |  14 ++-
- include/rocksdb/status.h           |   9 +-
- table/block_based_table_request.cc |   9 +-
+ async/async_status_capture.h       |  12 +++-
+ db/db_impl_request.cc              |   8 ++-
+ db/db_impl_request.h               |  13 +++-
+ db/version_set_request.h           |  14 ++--
+ include/rocksdb/status.h           |   9 ++-
+ table/block_based_table_request.cc |   9 +--
  table/block_based_table_request.h  |  11 +--
- table/format.h                     |  32 ++++---
- table/format_request_context.cc    |  20 ++++-
- table/get_context.cc               |   4 +
- table/get_context.h                |  12 ++-
- tools/db_bench_tool.cc             |  71 +++++++++++++--
- tools/rdb_spdk_simple.cc           |  81 ++++++++++++++---
- util/random_read_context.h         | 135 +++++++++++++++++++++++------
+ table/format.h                     |  32 +++++----
+ table/format_request_context.cc    |  20 ++++--
+ table/get_context.cc               |   4 ++
+ table/get_context.h                |  12 +++-
+ tools/db_bench_tool.cc             |  71 ++++++++++++++++---
+ tools/rdb_spdk_simple.cc           |  81 ++++++++++++++++++----
+ util/random_read_context.h         | 135 +++++++++++++++++++++++++++++--------
  14 files changed, 340 insertions(+), 91 deletions(-)
 
 diff --git a/async/async_status_capture.h b/async/async_status_capture.h
-index 2eeab359..fda98315 100644
+index 2eeab35..fda9831 100644
 --- a/async/async_status_capture.h
 +++ b/async/async_status_capture.h
 @@ -28,9 +28,10 @@ namespace async {
@@ -53,7 +53,7 @@ index 2eeab359..fda98315 100644
      async_ = s.async();
    }
 diff --git a/db/db_impl_request.cc b/db/db_impl_request.cc
-index 04bcd908..1b20a257 100644
+index 04bcd90..1b20a25 100644
 --- a/db/db_impl_request.cc
 +++ b/db/db_impl_request.cc
 @@ -35,12 +35,15 @@ DBImplGetContext::DBImplGetContext(const Callback& cb, DBImpl* db,
@@ -84,7 +84,7 @@ index 04bcd908..1b20a257 100644
        s = VersionSetGetContext::Get(sv_->current,
                                      read_options_, GetLookupKey(),
 diff --git a/db/db_impl_request.h b/db/db_impl_request.h
-index f99db5cf..cdfefb23 100644
+index f99db5c..cdfefb2 100644
 --- a/db/db_impl_request.h
 +++ b/db/db_impl_request.h
 @@ -86,12 +86,14 @@ class DBImplGetContext : private AsyncStatusCapture {
@@ -140,7 +140,7 @@ index f99db5cf..cdfefb23 100644
  
    ColumnFamilyData*   cfd_;
 diff --git a/db/version_set_request.h b/db/version_set_request.h
-index 033f1880..3ac32943 100644
+index 033f188..3ac3294 100644
 --- a/db/version_set_request.h
 +++ b/db/version_set_request.h
 @@ -84,6 +84,7 @@ class VersionSetGetContext : private AsyncStatusCapture {
@@ -202,7 +202,7 @@ index 033f1880..3ac32943 100644
    bool*                  key_exists_;
  
 diff --git a/include/rocksdb/status.h b/include/rocksdb/status.h
-index cd1b71aa..bdcf03d6 100644
+index cd1b71a..bdcf03d 100644
 --- a/include/rocksdb/status.h
 +++ b/include/rocksdb/status.h
 @@ -25,7 +25,7 @@ namespace rocksdb {
@@ -250,7 +250,7 @@ index cd1b71aa..bdcf03d6 100644
    return *this;
  }
 diff --git a/table/block_based_table_request.cc b/table/block_based_table_request.cc
-index 5580416e..6d43e842 100644
+index 5580416..6d43e84 100644
 --- a/table/block_based_table_request.cc
 +++ b/table/block_based_table_request.cc
 @@ -1507,7 +1507,7 @@ Status TableOpenRequestContext::OnComplete(const Status& status) {
@@ -289,7 +289,7 @@ index 5580416e..6d43e842 100644
 \ No newline at end of file
 +} // namespace rocksdb
 diff --git a/table/block_based_table_request.h b/table/block_based_table_request.h
-index 3e196c0b..26f8b5b1 100644
+index 3e196c0..26f8b5b 100644
 --- a/table/block_based_table_request.h
 +++ b/table/block_based_table_request.h
 @@ -1038,7 +1038,7 @@ class NewDataBlockIteratorHelper {
@@ -341,7 +341,7 @@ index 3e196c0b..26f8b5b1 100644
      }
      return s;
 diff --git a/table/format.h b/table/format.h
-index 3a81fd77..8661e4a5 100644
+index 3a81fd7..8661e4a 100644
 --- a/table/format.h
 +++ b/table/format.h
 @@ -29,6 +29,8 @@ namespace rocksdb {
@@ -428,7 +428,7 @@ index 3a81fd77..8661e4a5 100644
      }
  
 diff --git a/table/format_request_context.cc b/table/format_request_context.cc
-index fd0749be..89089021 100644
+index fd0749b..8908902 100644
 --- a/table/format_request_context.cc
 +++ b/table/format_request_context.cc
 @@ -198,9 +198,13 @@ Status ReadBlockContentsContext::OnReadBlockContentsComplete(const Status& s,
@@ -468,7 +468,7 @@ index fd0749be..89089021 100644
    }
  
 diff --git a/table/get_context.cc b/table/get_context.cc
-index 494cd6fe..f7b79e8e 100644
+index 494cd6f..f7b79e8 100644
 --- a/table/get_context.cc
 +++ b/table/get_context.cc
 @@ -38,6 +38,7 @@ GetContext::GetContext(const Comparator* ucmp,
@@ -490,7 +490,7 @@ index 494cd6fe..f7b79e8e 100644
        pinned_iters_mgr_(_pinned_iters_mgr) {
    if (seq_) {
 diff --git a/table/get_context.h b/table/get_context.h
-index 3603ef63..d633515e 100644
+index 3603ef6..d633515 100644
 --- a/table/get_context.h
 +++ b/table/get_context.h
 @@ -29,7 +29,7 @@ class GetContext {
@@ -527,7 +527,7 @@ index 3603ef63..d633515e 100644
  
  void replayGetContextLog(const Slice& replay_log, const Slice& user_key,
 diff --git a/tools/db_bench_tool.cc b/tools/db_bench_tool.cc
-index ca0a97d7..f25328c4 100644
+index ca0a97d..f25328c 100644
 --- a/tools/db_bench_tool.cc
 +++ b/tools/db_bench_tool.cc
 @@ -733,6 +733,8 @@ DEFINE_int32(nr_io_size, 1, "fillseq nr io size (inverse power of 2 of value_siz
@@ -703,7 +703,7 @@ index ca0a97d7..f25328c4 100644
  
    // Calls MultiGet over a list of keys from a random distribution.
 diff --git a/tools/rdb_spdk_simple.cc b/tools/rdb_spdk_simple.cc
-index 1b9f4937..33486e77 100644
+index 1b9f493..33486e7 100644
 --- a/tools/rdb_spdk_simple.cc
 +++ b/tools/rdb_spdk_simple.cc
 @@ -102,11 +102,20 @@ class ReadRandomAsync : public AsyncBenchBase{
@@ -876,7 +876,7 @@ index 1b9f4937..33486e77 100644
  
          printf("done the async read\n");
 diff --git a/util/random_read_context.h b/util/random_read_context.h
-index 37e70507..be1f87d9 100644
+index 37e7050..be1f87d 100644
 --- a/util/random_read_context.h
 +++ b/util/random_read_context.h
 @@ -14,6 +14,8 @@
@@ -1087,5 +1087,5 @@ index 37e70507..be1f87d9 100644
    std::aligned_storage<sizeof(ReadBlockContext)>::type read_block_;
  };
 -- 
-2.24.3
+1.8.3.1
 

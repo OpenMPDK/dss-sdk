@@ -1,16 +1,16 @@
-From 6fea40f91ba448d24228f9339e57cbc59f84495e Mon Sep 17 00:00:00 2001
+From 388abba666b78922a663e9c1875f5b427afc2b58 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 9 Nov 2020 15:18:53 -0800
-Subject: [PATCH 07/34] Use get buffer from target
+Subject: [PATCH 07/35] Use get buffer from target
 
     * Fix queue issues in caching read context
 ---
- db/dss_kv2blk_c.cc             | 63 ++++++++++++++++++++--------------
+ db/dss_kv2blk_c.cc             | 63 +++++++++++++++++++++++++-----------------
  include/rocksdb/dss_kv2blk_c.h |  2 +-
  2 files changed, 38 insertions(+), 27 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index bf43c009..a7a668e2 100644
+index bf43c00..a7a668e 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -77,7 +77,7 @@ uint32_t max_queue_depth = 1024;
@@ -162,7 +162,7 @@ index bf43c009..a7a668e2 100644
              //printf("rocksdb async get submitted\n");
              s.async(true);
 diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
-index 7484f2ac..30ad1e8b 100644
+index 7484f2a..30ad1e8 100644
 --- a/include/rocksdb/dss_kv2blk_c.h
 +++ b/include/rocksdb/dss_kv2blk_c.h
 @@ -11,7 +11,7 @@ extern "C" {
@@ -175,5 +175,5 @@ index 7484f2ac..30ad1e8b 100644
  
  #ifdef __cplusplus
 -- 
-2.24.3
+1.8.3.1
 

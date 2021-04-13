@@ -1,14 +1,14 @@
-From 4aafd905c5caba835e3c0ae3d3179df6e11d52c4 Mon Sep 17 00:00:00 2001
+From 07b68bb256b1a7793babcf2880d04ca7e6902035 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 12:39:25 -0800
-Subject: [PATCH 21/34] * apply blobfs cache_size_in_mb for fs init.
+Subject: [PATCH 21/35] * apply blobfs cache_size_in_mb for fs init.
 
 ---
  db/dss_kv2blk_c.cc | 10 ++++++++--
  1 file changed, 8 insertions(+), 2 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index f10dc390..f2b4c43f 100644
+index f10dc39..f2b4c43 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -73,6 +73,7 @@ using rocksdb::DBOptions;
@@ -57,5 +57,5 @@ index f10dc390..f2b4c43f 100644
          nr_keys ++;
  
 -- 
-2.24.3
+1.8.3.1
 

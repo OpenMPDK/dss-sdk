@@ -1,0 +1,51 @@
+From 1148ccca6512de23c5fe4630be6c8d09e8aa0dc3 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Tue, 13 Apr 2021 00:31:05 -0700
+Subject: [PATCH 35/35] * close iteration properly
+
+---
+ db/dss_kv2blk_c.cc | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 68f3416..0a114b0 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -455,7 +455,7 @@ void * _dss_rocksdb_list_key(void *ctx)
+     list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
+     assert(list_ctx && list_ctx->prefix_size <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
+ 
+-    void * iter = nullptr;
++    void * iter = nullptr;
+ 	uint32_t nr_key_iter = 0;
+ 	uint32_t nr_key_total = 0;
+ 
+@@ -476,7 +476,7 @@ void * _dss_rocksdb_list_key(void *ctx)
+ 	        nr_key_total += nr_key_iter;
+                 //printf("list_key updated %d\n", nr_key_total);
+             }
+-            assert(!dss_rocksdb_iter_end(ctx, iter));
++            dss_rocksdb_iter_end(ctx, iter);
+             iter = nullptr;
+         }
+     }
+@@ -648,6 +648,7 @@ int dss_rocksdb_iter_start(void *ctx, int cf_idx, void ** piter,
+     rocksdb::DB* db = (rocksdb::DB *)ctx;
+     std::vector<rocksdb::ColumnFamilyHandle*> handles = rocksdb::g_db2cf[db];
+     rocksdb::ReadOptions options(false, true);
++    options.background_purge_on_iterator_cleanup = true;
+     options.tailing = false;
+     options.prefix_same_as_start = true;
+     bool use_prefix_iter = true;
+@@ -696,7 +697,7 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+ 
+ int dss_rocksdb_iter_end(void *ctx, void * iter){
+     assert(iter);
+-    delete iter;
++    delete (rocksdb::Iterator*)iter;
+     return 0;
+ }
+ #endif
+-- 
+1.8.3.1
+

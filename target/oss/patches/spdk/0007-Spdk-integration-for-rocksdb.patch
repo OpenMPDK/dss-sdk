@@ -1,7 +1,7 @@
-From 7e304bdaaccaecf40981f27523b3ab6b3d645ec2 Mon Sep 17 00:00:00 2001
+From 8d400065b23caa4db39e6386d390731126877b4c Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 16 Oct 2020 14:04:02 -0700
-Subject: [PATCH 07/44] Spdk integration for rocksdb
+Subject: [PATCH 07/45] Spdk integration for rocksdb
 
     * Channel core to route requests
     * Don't claim module for rocksdb
@@ -11,7 +11,7 @@ Subject: [PATCH 07/44] Spdk integration for rocksdb
  include/spdk/blob.h         |   1 +
  lib/blobfs/blobfs.c         |  13 +
  lib/nvmf/subsystem.c        |  21 +-
- lib/rocksdb/env_dss.cc      | 663 ++++++++++++++++++++++++++++++++++++
+ lib/rocksdb/env_dss.cc      | 663 ++++++++++++++++++++++++++++++++++++++++++++
  lib/rocksdb/spdk.rocksdb.mk |   2 +-
  mk/spdk.app.mk              |   2 +-
  test/blobfs/mkfs/Makefile   |   2 +
@@ -19,7 +19,7 @@ Subject: [PATCH 07/44] Spdk integration for rocksdb
  create mode 100644 lib/rocksdb/env_dss.cc
 
 diff --git a/app/nvmf_tgt/Makefile b/app/nvmf_tgt/Makefile
-index f4ac12c7f..0a7796d41 100644
+index f4ac12c..0a7796d 100644
 --- a/app/nvmf_tgt/Makefile
 +++ b/app/nvmf_tgt/Makefile
 @@ -59,6 +59,4 @@ endif
@@ -30,7 +30,7 @@ index f4ac12c7f..0a7796d41 100644
 -
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/include/spdk/blob.h b/include/spdk/blob.h
-index fbc2728ee..1751a12b8 100644
+index fbc2728..1751a12 100644
 --- a/include/spdk/blob.h
 +++ b/include/spdk/blob.h
 @@ -193,6 +193,7 @@ struct spdk_bs_dev {
@@ -42,7 +42,7 @@ index fbc2728ee..1751a12b8 100644
  
  struct spdk_bs_type {
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 1bc7379ce..be4600156 100644
+index 1bc7379..be46001 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -363,6 +363,7 @@ struct spdk_fs_channel {
@@ -73,7 +73,7 @@ index 1bc7379ce..be4600156 100644
  alloc_fs_request_with_iov(struct spdk_fs_channel *channel, uint32_t iovcnt)
  {
 diff --git a/lib/nvmf/subsystem.c b/lib/nvmf/subsystem.c
-index ebe8d9a8e..ae1d21f00 100644
+index ebe8d9a..ae1d21f 100644
 --- a/lib/nvmf/subsystem.c
 +++ b/lib/nvmf/subsystem.c
 @@ -48,6 +48,8 @@
@@ -122,7 +122,7 @@ index ebe8d9a8e..ae1d21f00 100644
  	TAILQ_INIT(&ns->registrants);
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
 new file mode 100644
-index 000000000..f50416ce7
+index 0000000..f50416c
 --- /dev/null
 +++ b/lib/rocksdb/env_dss.cc
 @@ -0,0 +1,663 @@
@@ -790,7 +790,7 @@ index 000000000..f50416ce7
 +
 +} // namespace rocksdb
 diff --git a/lib/rocksdb/spdk.rocksdb.mk b/lib/rocksdb/spdk.rocksdb.mk
-index 8f4f8fca8..aaf72fa55 100644
+index 8f4f8fc..aaf72fa 100644
 --- a/lib/rocksdb/spdk.rocksdb.mk
 +++ b/lib/rocksdb/spdk.rocksdb.mk
 @@ -37,7 +37,7 @@ include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
@@ -803,7 +803,7 @@ index 8f4f8fca8..aaf72fa55 100644
  # The SPDK makefiles turn this on, but RocksDB won't compile with it.  So
  #  turn it off after including the SPDK makefiles.
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index b7011bb4b..51a3c5b6d 100644
+index b7011bb..51a3c5b 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,7 +48,7 @@ endif
@@ -816,7 +816,7 @@ index b7011bb4b..51a3c5b6d 100644
  CLEAN_FILES = $(APP)
  
 diff --git a/test/blobfs/mkfs/Makefile b/test/blobfs/mkfs/Makefile
-index 42eebd9f1..396c2490b 100644
+index 42eebd9..396c249 100644
 --- a/test/blobfs/mkfs/Makefile
 +++ b/test/blobfs/mkfs/Makefile
 @@ -44,6 +44,8 @@ SPDK_LIB_LIST += $(EVENT_BDEV_SUBSYSTEM)
@@ -829,5 +829,5 @@ index 42eebd9f1..396c2490b 100644
  ifeq ($(CONFIG_FUSE),y)
  LIBS+= -L/usr/local/lib -lfuse3
 -- 
-2.24.3
+1.8.3.1
 

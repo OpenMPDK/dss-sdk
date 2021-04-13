@@ -1,7 +1,7 @@
-From 282e74cd7329ec16784d1ab4f560c68737538b72 Mon Sep 17 00:00:00 2001
+From 885fa5c2108e32c0630a9823c2c45775723baf08 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 09:45:15 -0800
-Subject: [PATCH 26/34] Added option to disable rocksdb stats
+Subject: [PATCH 26/35] Added option to disable rocksdb stats
 
     * Set rdb_stats_intervals_sec parameter to 0 to disable stats logs
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 26/34] Added option to disable rocksdb stats
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index bb5174e6..eb2a857d 100644
+index bb5174e..eb2a857 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -306,7 +306,7 @@ void *dss_rocksdb_open(struct dfly_io_device_s *dss_dev)
@@ -22,5 +22,5 @@ index bb5174e6..eb2a857d 100644
          pthread_t th_stats;
          pthread_attr_t attr_stats;
 -- 
-2.24.3
+1.8.3.1
 

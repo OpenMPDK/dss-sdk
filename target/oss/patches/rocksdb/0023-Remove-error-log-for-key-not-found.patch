@@ -1,14 +1,14 @@
-From aa527d57f62b5820fa5d9618059df18366df0f26 Mon Sep 17 00:00:00 2001
+From 33ef412430641f65600344a546ad7600e74c48e7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 7 Jan 2021 13:50:34 -0800
-Subject: [PATCH 23/34] Remove error log for key not found
+Subject: [PATCH 23/35] Remove error log for key not found
 
 ---
  db/dss_kv2blk_c.cc | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index d61aeea6..42d7bc5e 100644
+index d61aeea..42d7bc5 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -124,9 +124,10 @@ struct RandomReadContext : public async::AsyncStatusCapture {
@@ -24,5 +24,5 @@ index d61aeea6..42d7bc5e 100644
  		response->status.sc = SPDK_NVME_SC_SUCCESS;
  		response->status.sct = SPDK_NVME_SCT_GENERIC;
 -- 
-2.24.3
+1.8.3.1
 

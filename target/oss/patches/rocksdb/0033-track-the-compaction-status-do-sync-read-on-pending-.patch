@@ -1,7 +1,7 @@
-From 065281db408880cc822fecf4de1c54ba17b1413f Mon Sep 17 00:00:00 2001
+From f66d508b43ceacf317912ea081b35f7f57c92c90 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 26 Feb 2021 11:59:34 -0800
-Subject: [PATCH 33/34] * track the compaction status, do sync read on pending
+Subject: [PATCH 33/35] * track the compaction status, do sync read on pending
  or failure case.
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 33/34] * track the compaction status, do sync read on pending
  1 file changed, 24 insertions(+), 5 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 02152834..f01ce8f1 100644
+index 0215283..f01ce8f 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
 @@ -101,8 +101,16 @@ int dss_rocksdb_iter_end(void *ctx, void * iter);
@@ -100,5 +100,5 @@ index 02152834..f01ce8f1 100644
          std::string get_value;
          s = db->Get(read_options, handles[cf_id], RdCtx->key_, &get_value);
 -- 
-2.24.3
+1.8.3.1
 
