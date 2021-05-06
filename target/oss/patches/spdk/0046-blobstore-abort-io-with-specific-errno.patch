@@ -1,0 +1,179 @@
+From 32b983f3776e83d639d94c6523b8e4497981ccb9 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Thu, 6 May 2021 14:57:07 -0700
+Subject: [PATCH 46/46]  * blobstore abort io with specific errno.  * thin
+ provision check the enough space on resize
+
+---
+ lib/blob/blobstore.c | 25 ++++++++++++-------------
+ lib/blob/request.c   | 11 ++++++-----
+ lib/blob/request.h   |  2 +-
+ 3 files changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
+index c1196ac..acc87fd 100644
+--- a/lib/blob/blobstore.c
++++ b/lib/blob/blobstore.c
+@@ -141,7 +141,6 @@ bs_allocate_cluster(struct spdk_blob *blob, uint32_t cluster_num,
+ 		    uint64_t *lowest_free_cluster, uint32_t *lowest_free_md_page, bool update_map)
+ {
+ 	uint32_t *extent_page = 0;
+-
+ 	pthread_mutex_lock(&blob->bs->used_clusters_mutex);
+ 	*lowest_free_cluster = spdk_bit_array_find_first_clear(blob->bs->used_clusters,
+ 			       *lowest_free_cluster);
+@@ -1597,13 +1596,12 @@ blob_persist_clear_clusters_cpl(spdk_bs_sequence_t *seq, void *cb_arg, int bserr
+ 	struct spdk_blob		*blob = ctx->blob;
+ 	struct spdk_blob_store		*bs = blob->bs;
+ 	size_t				i;
+-
+ 	if (bserrno != 0) {
+ 		blob_persist_complete(seq, ctx, bserrno);
+ 		return;
+ 	}
+ 
+-	/* Release all clusters that were truncated */
++  	/* Release all clusters that were truncated */
+ 	for (i = blob->active.num_clusters; i < blob->active.cluster_array_size; i++) {
+ 		uint32_t cluster_num = bs_lba_to_cluster(bs, blob->active.clusters[i]);
+ 
+@@ -1613,7 +1611,7 @@ blob_persist_clear_clusters_cpl(spdk_bs_sequence_t *seq, void *cb_arg, int bserr
+ 		}
+ 	}
+ 
+-	if (blob->active.num_clusters == 0) {
++    	if (blob->active.num_clusters == 0) {
+ 		free(blob->active.clusters);
+ 		blob->active.clusters = NULL;
+ 		blob->active.cluster_array_size = 0;
+@@ -1886,7 +1884,7 @@ blob_resize(struct spdk_blob *blob, uint64_t sz)
+ 	 * and md pages, another to actually claim them.
+ 	 */
+ 
+-	if (spdk_blob_is_thin_provisioned(blob) == false) {
++	if (true || spdk_blob_is_thin_provisioned(blob) == false) { //check enough space in thin provision as well
+ 		lfc = 0;
+ 		for (i = num_clusters; i < sz; i++) {
+ 			lfc = spdk_bit_array_find_first_clear(bs->used_clusters, lfc);
+@@ -2206,7 +2204,7 @@ blob_allocate_and_copy_cluster_cpl(void *cb_arg, int bserrno)
+ 		if (bserrno == 0) {
+ 			bs_user_op_execute(op);
+ 		} else {
+-			bs_user_op_abort(op);
++			bs_user_op_abort(op, -EIO);
+ 		}
+ 	}
+ 
+@@ -2302,7 +2300,7 @@ bs_allocate_and_copy_cluster(struct spdk_blob *blob,
+ 
+ 	ctx = calloc(1, sizeof(*ctx));
+ 	if (!ctx) {
+-		bs_user_op_abort(op);
++		bs_user_op_abort(op, -ENOMEM);
+ 		return;
+ 	}
+ 
+@@ -2318,7 +2316,7 @@ bs_allocate_and_copy_cluster(struct spdk_blob *blob,
+ 			SPDK_ERRLOG("DMA allocation for cluster of size = %" PRIu32 " failed.\n",
+ 				    blob->bs->cluster_sz);
+ 			free(ctx);
+-			bs_user_op_abort(op);
++			bs_user_op_abort(op, -ENOMEM);
+ 			return;
+ 		}
+ 	}
+@@ -2326,9 +2324,10 @@ bs_allocate_and_copy_cluster(struct spdk_blob *blob,
+ 	rc = bs_allocate_cluster(blob, cluster_number, &ctx->new_cluster, &ctx->new_extent_page,
+ 				 false);
+ 	if (rc != 0) {
+-		spdk_free(ctx->buf);
++        	SPDK_ERRLOG("bs_allocate_cluster failed rc %d\n", rc);
++ 		spdk_free(ctx->buf);
+ 		free(ctx);
+-		bs_user_op_abort(op);
++		bs_user_op_abort(op, rc);
+ 		return;
+ 	}
+ 
+@@ -2341,7 +2340,7 @@ bs_allocate_and_copy_cluster(struct spdk_blob *blob,
+ 		bs_release_cluster(blob->bs, ctx->new_cluster);
+ 		spdk_free(ctx->buf);
+ 		free(ctx);
+-		bs_user_op_abort(op);
++		bs_user_op_abort(op, -EIO);
+ 		return;
+ 	}
+ 
+@@ -2934,13 +2933,13 @@ bs_channel_destroy(void *io_device, void *ctx_buf)
+ 	while (!TAILQ_EMPTY(&channel->need_cluster_alloc)) {
+ 		op = TAILQ_FIRST(&channel->need_cluster_alloc);
+ 		TAILQ_REMOVE(&channel->need_cluster_alloc, op, link);
+-		bs_user_op_abort(op);
++		bs_user_op_abort(op, -EIO);
+ 	}
+ 
+ 	while (!TAILQ_EMPTY(&channel->queued_io)) {
+ 		op = TAILQ_FIRST(&channel->queued_io);
+ 		TAILQ_REMOVE(&channel->queued_io, op, link);
+-		bs_user_op_abort(op);
++		bs_user_op_abort(op, -EIO);
+ 	}
+ 
+ 	free(channel->req_mem);
+diff --git a/lib/blob/request.c b/lib/blob/request.c
+index 0975bcf..32c89ca 100644
+--- a/lib/blob/request.c
++++ b/lib/blob/request.c
+@@ -166,16 +166,16 @@ bs_sequence_write_dev(spdk_bs_sequence_t *seq, void *payload,
+ {
+ 	struct spdk_bs_request_set      *set = (struct spdk_bs_request_set *)seq;
+ 	struct spdk_bs_channel       *channel = set->channel;
+-
+ 	SPDK_DEBUGLOG(SPDK_LOG_BLOB_RW, "Writing %" PRIu32 " blocks from LBA %" PRIu64 "\n", lba_count,
+ 		      lba);
+ 
+ 	set->u.sequence.cb_fn = cb_fn;
+ 	set->u.sequence.cb_arg = cb_arg;
+ 
++    
+ 	channel->dev->write(channel->dev, channel->dev_channel, payload, lba, lba_count,
+ 			    &set->cb_args);
+-}
++}   
+ 
+ void
+ bs_sequence_readv_bs_dev(spdk_bs_sequence_t *seq, struct spdk_bs_dev *bs_dev,
+@@ -494,13 +494,14 @@ bs_user_op_execute(spdk_bs_user_op_t *op)
+ }
+ 
+ void
+-bs_user_op_abort(spdk_bs_user_op_t *op)
++bs_user_op_abort(spdk_bs_user_op_t *op, int berrno)
+ {
+ 	struct spdk_bs_request_set	*set;
+ 
+ 	set = (struct spdk_bs_request_set *)op;
+-
+-	set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, -EIO);
++    	//-EIO by default
++	//set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, -EIO);
++	set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, berrno);
+ 	TAILQ_INSERT_TAIL(&set->channel->reqs, set, link);
+ }
+ 
+diff --git a/lib/blob/request.h b/lib/blob/request.h
+index 81dc161..f5263b7 100644
+--- a/lib/blob/request.h
++++ b/lib/blob/request.h
+@@ -210,7 +210,7 @@ spdk_bs_user_op_t *bs_user_op_alloc(struct spdk_io_channel *channel, struct spdk
+ 
+ void bs_user_op_execute(spdk_bs_user_op_t *op);
+ 
+-void bs_user_op_abort(spdk_bs_user_op_t *op);
++void bs_user_op_abort(spdk_bs_user_op_t *op, int berrno);
+ 
+ void bs_sequence_to_batch_completion(void *cb_arg, int bserrno);
+ 
+-- 
+1.8.3.1
+

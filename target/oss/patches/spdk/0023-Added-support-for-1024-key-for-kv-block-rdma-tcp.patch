@@ -1,7 +1,7 @@
-From b63deb5533040a08c6d1afcef1134cf45ad94707 Mon Sep 17 00:00:00 2001
+From b2b96f869e67e2fc10f3d0d43cc1f9db0ecbe930 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 13 Jan 2021 23:43:58 -0800
-Subject: [PATCH 23/45] Added support for 1024 key for kv block rdma/tcp
+Subject: [PATCH 23/46] Added support for 1024 key for kv block rdma/tcp
 
 ---
  include/spdk/nvme_samsung_spec.h |  1 +

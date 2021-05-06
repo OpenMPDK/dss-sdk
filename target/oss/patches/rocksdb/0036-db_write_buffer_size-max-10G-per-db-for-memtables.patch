@@ -1,0 +1,82 @@
+From 6023aaddeeddc124bc346d991767435410c415d1 Mon Sep 17 00:00:00 2001
+From: Jian Liang <jian.l@ssi.samsung.com>
+Date: Thu, 6 May 2021 15:08:36 -0700
+Subject: [PATCH 36/36] * db_write_buffer_size max 10G per db for memtables *
+ manifest corruption poistion log on startup.
+
+---
+ db/dss_kv2blk_c.cc | 21 ++++++++++++++++-----
+ db/log_reader.cc   |  1 +
+ 2 files changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 0a114b0..49094af 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -308,27 +308,38 @@ void *_dss_rocksdb_open(void *arg)
+     options.target_file_size_base = 1073741824; // 1GB
+     options.disable_auto_compactions = !g_dragonfly->rdb_auto_compaction_enable;
+     options.min_write_buffer_number_to_merge = g_dragonfly->rdb_min_mtable_to_merge;
++    options.db_write_buffer_size = 10737418240; //10GB
+ 
+     //options.max_open_files = 256;
+ 
+     std::vector<std::string> families;
+     s = DB::ListColumnFamilies(options, dbname, &families);
+-    //printf("ListColumnFamilies %s\n", s.ToString().c_str());
++    if(g_dragonfly->rdb_io_debug_level > 0)
++	    DFLY_NOTICELOG("ListColumnFamilies %s %s\n", dbname.c_str(), s.ToString().c_str());
++    
++    if(s.IsCorruption()){
++	    DFLY_ERRLOG("ListColumnFamilies %s %s\n", dbname.c_str(), s.ToString().c_str());
++	    abort();
++    }
+     if(s.ok()){
+         for(std::string f : families){
+             if(g_dragonfly->rdb_io_debug_level > 0)
+-                printf("ListColumnFamilies families %s\n", f.c_str());
++                DFLY_NOTICELOG("ListColumnFamilies %s : %s\n", dbname.c_str(), f.c_str());
+         }
+     }else{
+         s = rocksdb::DB::Open(options, dbname, &db);
++	    if(!s.ok()){
++	        DFLY_ERRLOG("open %s failed %s\n", dbname.c_str(), s.ToString().c_str());
++	        abort();
++	    }
+         rocksdb::ColumnFamilyHandle* cf_handle[1024];
+         for(int i=1; i<g_dragonfly->rdb_shard_cnt; i++){
+             std::string column_family_name = "cf_" + std::to_string(i);
+             s = db->CreateColumnFamily(rocksdb::ColumnFamilyOptions(options), column_family_name, &cf_handle[i]);
+             if(g_dragonfly->rdb_io_debug_level > 0)
+-                printf("CreateColumnFamily db %p s %s\n", db, s.ToString().c_str());
++                DFLY_NOTICELOG("CreateColumnFamily db %p s %s\n", db, s.ToString().c_str());
+         }
+-    }
++    } 
+     std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+     // have to open default column family
+     column_families.push_back(rocksdb::ColumnFamilyDescriptor(
+@@ -342,7 +353,7 @@ void *_dss_rocksdb_open(void *arg)
+    std::vector<rocksdb::ColumnFamilyHandle*> handles;
+    s = rocksdb::DB::Open(options, dbname, column_families, &handles, &db);
+    assert(s.ok());
+-   printf("_dss_rocksdb_open: db %p handles %d s %s\n", db, handles.size(),
++   DFLY_NOTICELOG("_dss_rocksdb_open: db %s %p handles %d s %s\n", dbname.c_str(), db, handles.size(),
+     s.ToString().c_str());
+    std::vector<uint32_t> cf_status(handles.size(), 0);
+    rocksdb::g_db2cf_status[db] = cf_status;
+diff --git a/db/log_reader.cc b/db/log_reader.cc
+index cae5d8e..11bfd29 100644
+--- a/db/log_reader.cc
++++ b/db/log_reader.cc
+@@ -203,6 +203,7 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch,
+           ReportCorruption(drop_size, "bad record length");
+         } else {
+           ReportCorruption(drop_size, "checksum mismatch");
++          printf("ReadRecord drop_size %ld\n", drop_size);
+         }
+         if (in_fragmented_record) {
+           ReportCorruption(scratch->size(), "error in middle of record");
+-- 
+1.8.3.1
+
