@@ -45,6 +45,7 @@
 #include "csmglogger.h"
 #include <thread>
 #include <unordered_set>
+#include <math.h>
 
 c_smglogger* logger = NULL;
 std::atomic<int> submitted(0);
@@ -56,6 +57,10 @@ const char* S3_DELIMITER = "/";
 #define NKV_TEST_META_KEY_LEN 100
 
 #define NKV_TEST_OP_LOCK_UNLOCK (6)
+
+#define NKV_RANDOM_KEY_SEED 123456
+#define MIN_KLEN 10
+#define MAX_KLEN 1024
 
 struct nkv_thread_args{
   int id;
@@ -79,6 +84,52 @@ struct nkv_thread_args{
   int simulate_minio;
   int num_ec_p_chunk;
 };
+
+/* Generate samples in [0, 1] following uniform distribution */
+double Random(void)
+{
+    return (double)rand() / (double)RAND_MAX;
+}
+
+/* Generate samples in {mean +/- range}, following uniform distribution*/
+int Uniform(int mean, int range)
+{
+    return (int)(Random() * 2 * range + (mean - range));
+}
+
+/* Generate samples following exponential distribution. */
+int Exponential(int mean)
+{
+    return (int)(-mean * log(1.0 - Random()));
+}
+
+/* Generate samples following Gaussian disrtibution, where sigma is mean, and mu is variance*/
+int Normal(int mu, int sigma)
+{
+    double v1 = Random();
+    double v2 = Random();
+    return cos(2 * M_PI * v2)*sqrt(-2. * log(v1)) * sigma + mu;
+}
+
+/* Generate random key length with different distributions:
+    n - Normal(mu, sigma)
+    e - Exponantial(mean)
+    u - Uniform(mean, range)
+*/
+int GetKeyLen(int min, int max, char distribution, int * args)
+{   
+    int keylen = 0;
+    switch(distribution) {
+        case 'n' :
+            keylen = Normal(args[0], args[1]);
+        case 'e' :
+            keylen = Exponential(args[0]);
+        case 'u' :
+            keylen = Uniform(args[0], args[1]);
+    }
+    // limit keylen within [min, max]
+    return abs(keylen - min) % (max - min) + min;
+}
 
 void memHexDump (void *addr, int len) {
     int i;
@@ -1354,7 +1405,7 @@ void *iothread(void *args)
 void usage(char *program)
 {
   printf("==============\n");
-  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-e is_exclusive] [-m check_integrity] \n", program);
+  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-y rnd_klen_dist] [-S rnd_seed] [-e is_exclusive] [-m check_integrity] \n", program);
   printf("-c      config_path     :  NKV config file location\n");
   printf("-i      host_name_ip    :  Host name or ip the nkv client instance will be running\n");
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
@@ -1365,6 +1416,8 @@ void usage(char *program)
 					"5: Put and list 6: Lock&Unlock\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
+  printf("-y      rnd_klen_dist   :  random key length distribution. n: Normal; e: Exponantial; u: Uniform \n");
+  printf("-S      rnd_seed        :  random seed  \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
   printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
   printf("-a      async_mode      :  Execution will be done in async mode  \n");
@@ -1396,6 +1449,8 @@ int main(int argc, char *argv[]) {
   int parent_op_type = -1;
   uint32_t vlen = 4096;
   uint32_t klen = 16;
+  char* rnd_klen_dist = NULL;
+  int rnd_seed = NKV_RANDOM_KEY_SEED;
   char* key_beginning = NULL;
   char* key_delimiter = NULL;
   int is_exclusive = 0;
@@ -1421,7 +1476,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:z:g:")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:y:S:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:z:g:")) != -1) {
     switch(c) {
 
     case 'c':
@@ -1448,6 +1503,10 @@ int main(int argc, char *argv[]) {
     case 'v':
       vlen = atoi(optarg);
       break;
+    case 'y':
+      rnd_klen_dist = optarg;
+    case 'S':
+      rnd_seed = atoi(optarg);
     case 'e':
       is_exclusive = atoi(optarg);
       break;
@@ -1572,6 +1631,19 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  int dist_klen[num_threads];
+  if (rnd_klen_dist) {
+    int dist_args[2];
+    srand(rnd_seed);
+    dist_args[0] = klen;
+    // hard code variance, 20% of mean
+    dist_args[1] = klen * 0.2;
+    for (int i=0; i<num_threads; i++) {
+      dist_klen[i] = GetKeyLen(MIN_KLEN, MAX_KLEN, *rnd_klen_dist, dist_args);
+      //printf("len: %d", dist_klen[i]);  //debug
+    }
+  }
+
 do {
   if (op_type == 5) {
     parent_op_type = 5;
@@ -1641,10 +1713,13 @@ do {
     if (num_threads > 0) {
       nkv_thread_args args[num_threads];
       std::thread nkv_test_threads[num_threads];
-
+      
       for(int i = 0; i < num_threads; i++){
         args[i].id = i;
-        args[i].klen = klen;
+        if (rnd_klen_dist)
+          args[i].klen = dist_klen[i];
+        else 
+          args[i].klen = klen;
         args[i].vlen = vlen;
         args[i].count = num_ios;
         args[i].op_type = op_type;
@@ -1820,7 +1895,10 @@ do {
  
     for(int i = 0; i < num_threads; i++){
       args[i].id = i;
-      args[i].klen = klen;
+      if (rnd_klen_dist)
+        args[i].klen = dist_klen[i];
+      else 
+        args[i].klen = klen;
       args[i].vlen = vlen;
       args[i].count = num_ios;
       args[i].op_type = op_type;
