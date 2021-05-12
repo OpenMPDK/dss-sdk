@@ -118,19 +118,17 @@ int Normal(int mu, int sigma)
 */
 int GetKeyLen(int min, int max, char distribution, int * args)
 {   
-    int keylen = -1;
-    int error_count = 0;
-    while (keylen < min || keylen > max){
-        switch(distribution) {
-            case 'n' :
-                keylen = Normal(args[0], args[1]);
-            case 'e' :
-                keylen = Exponential(args[0]);
-            case 'u' :
-                keylen = Uniform(args[0], args[1]);
-        }
+    int keylen = 0;
+    switch(distribution) {
+        case 'n' :
+            keylen = Normal(args[0], args[1]);
+        case 'e' :
+            keylen = Exponential(args[0]);
+        case 'u' :
+            keylen = Uniform(args[0], args[1]);
     }
-    return keylen;
+    // limit keylen within [min, max]
+    return abs(keylen - min) % (max - min) + min;
 }
 
 void memHexDump (void *addr, int len) {
@@ -1407,7 +1405,7 @@ void *iothread(void *args)
 void usage(char *program)
 {
   printf("==============\n");
-  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-y rnd_klen_dist] [-e is_exclusive] [-m check_integrity] \n", program);
+  printf("usage: %s -c config_path -i host_name_ip -p host_port -b key_prefix [-n num_ios] [-q queue_depth] [-o op_type] [-k klen] [-v vlen] [-y rnd_klen_dist] [-S rnd_seed] [-e is_exclusive] [-m check_integrity] \n", program);
   printf("-c      config_path     :  NKV config file location\n");
   printf("-i      host_name_ip    :  Host name or ip the nkv client instance will be running\n");
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
@@ -1419,6 +1417,7 @@ void usage(char *program)
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-y      rnd_klen_dist   :  random key length distribution. n: Normal; e: Exponantial; u: Uniform \n");
+  printf("-S      rnd_seed        :  random seed  \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
   printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
   printf("-a      async_mode      :  Execution will be done in async mode  \n");
@@ -1451,6 +1450,7 @@ int main(int argc, char *argv[]) {
   uint32_t vlen = 4096;
   uint32_t klen = 16;
   char* rnd_klen_dist = NULL;
+  int rnd_seed = NKV_RANDOM_KEY_SEED;
   char* key_beginning = NULL;
   char* key_delimiter = NULL;
   int is_exclusive = 0;
@@ -1476,7 +1476,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
  
-  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:y:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:z:g:")) != -1) {
+  while ((c = getopt(argc, argv, "c:i:p:n:q:o:k:v:y:S:b:e:m:a:w:s:t:d:x:r:u:h:l:f:j:z:g:")) != -1) {
     switch(c) {
 
     case 'c':
@@ -1505,6 +1505,8 @@ int main(int argc, char *argv[]) {
       break;
     case 'y':
       rnd_klen_dist = optarg;
+    case 'S':
+      rnd_seed = atoi(optarg);
     case 'e':
       is_exclusive = atoi(optarg);
       break;
@@ -1632,7 +1634,7 @@ int main(int argc, char *argv[]) {
   int dist_klen[num_threads];
   if (rnd_klen_dist) {
     int dist_args[2];
-    srand(NKV_RANDOM_KEY_SEED);
+    srand(rnd_seed);
     dist_args[0] = klen;
     // hard code variance, 20% of mean
     dist_args[1] = klen * 0.2;
