@@ -50,17 +50,29 @@ extern std::string key_default_delimlist ;
 extern std::string NKV_ROOT_PREFIX ;
 
 void *list_find_instance_ctx(struct dfly_request *request);
-
+bool list_valid_prefix(struct dfly_request * req){
+    struct dfly_key *key = req->ops.get_key(req);
+    assert(key);
+    if(!strncmp(key->key, g_list_conf.list_prefix_head, 
+        strlen(g_list_conf.list_prefix_head)))
+        return true;
+    else
+        return false;
+}
 int dfly_list_req_process(void *ctx, struct dfly_request *req)
 {
-	int io_rc = list_io(ctx, req, g_list_conf.list_op_flag & DF_OP_MASK);
-	dfly_list_info_t *list_data = &req->list_data;
-	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
-	    || io_rc == DFLY_LIST_STORE_DONE
-	    || io_rc == DFLY_LIST_DEL_DONE
-	    || io_rc == DFLY_LIST_READ_DONE)
-		req->next_action = DFLY_REQ_IO_LIST_DONE;
-
+    if(list_valid_prefix(req)){       
+    	int io_rc = list_io(ctx, req, g_list_conf.list_op_flag & DF_OP_MASK);
+    	dfly_list_info_t *list_data = &req->list_data;
+    	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
+    	    || io_rc == DFLY_LIST_STORE_DONE
+    	    || io_rc == DFLY_LIST_DEL_DONE
+    	    || io_rc == DFLY_LIST_READ_DONE)
+    		req->next_action = DFLY_REQ_IO_LIST_DONE;
+    }else{
+        req->next_action = DFLY_REQ_IO_LIST_DONE;        
+    }
+    
 	req->state = DFLY_REQ_IO_NVMF_DONE;
 	//list_log("dfly_list_req_process req %p io_rc %x pe_cnt_tbd %x, state %x, next_action %x\n",
 	//	 req, io_rc, list_data->pe_cnt_tbd, req->state, req->next_action);
@@ -196,7 +208,7 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 		for (i = 0; i < nr_entries; i++) {
 			uint32_t h = hash_sdbm(prefixes[i].c_str(), prefixes[i].size());
 			zone_idx = h % g_list_conf.list_zone_per_pool;
-			list_log("list_get_module_ctx_on_change: i %d position %d\n", i, positions[i]);
+			list_log("list_get_module_ctx_on_change: zone %d i %d position %d\n", zone_idx, i, positions[i]);
 			req->list_data.prefix_key_info[i * 2] = zone_idx;
 			req->list_data.prefix_key_info[i * 2 + 1] = (int16_t)positions[i];
 			m_inst = list_ctx->zones[zone_idx].module_instance_ctx;
@@ -239,12 +251,34 @@ void *list_get_module_ctx_on_read(struct dfly_request *req)
 	std::string prefix = NKV_ROOT_PREFIX;
 	int offset = req->list_data.start_key_offset;
 	int list_option = req->list_data.options;
+    int payload_sz = key->length;
+    /*
 	if (!(list_option == DFLY_LIST_OPTION_ROOT_FROM_BEGIN
 	      || list_option == DFLY_LIST_OPTION_ROOT_FROM_START_KEY)) {
 		if (list_option == DFLY_LIST_OPTION_PREFIX_FROM_BEGIN)
 			prefix = std::string((const char *)(key->key));
 		else
 			prefix = std::string((const char *)(key->key), offset);
+	}
+	*/
+
+    if (offset && offset < payload_sz) {
+		req->list_data.options = DFLY_LIST_OPTION_PREFIX_FROM_START_KEY;
+		prefix = std::string((const char *)(key->key), offset);
+		//list_log("option: prefix '%s' start_key '%s'\n", prefix.c_str(), start_key.c_str());
+	} else if (offset && offset == payload_sz) {
+		req->list_data.options = DFLY_LIST_OPTION_PREFIX_FROM_BEGIN;
+		prefix = std::string((const char *)(key->key), payload_sz);
+		//list_log("option: prefix '%s' from begin\n", prefix.c_str());
+	} else if (!offset && payload_sz) {
+		req->list_data.options = DFLY_LIST_OPTION_ROOT_FROM_START_KEY;
+		//list_log("option: 'root/' start_key '%s'\n", start_key.c_str());
+	} else if (list_option == DFLY_LIST_OPTION_ROOT_FROM_BEGIN && !offset && !payload_sz) {
+		req->list_data.options = DFLY_LIST_OPTION_ROOT_FROM_BEGIN;
+		//list_log("option: 'root/' from begin\n");
+	} else {
+		DFLY_ERRLOG("list option %d does not match : offset %d, payload_sz %d, prefix %s\n",
+            list_option, offset, payload_sz, prefix.c_str());
 	}
 
 	uint32_t h = hash_sdbm(prefix.c_str(), prefix.size());
@@ -256,8 +290,9 @@ void *list_get_module_ctx_on_read(struct dfly_request *req)
 	m_inst = list_ctx->zones[zone_idx].module_instance_ctx;
 	req->list_data.list_zone_idx = zone_idx;
 	req->state = DFLY_REQ_IO_LIST_FORWARD;
-	//list_log("list_get_module_ctx_on_read: zone_idx %d m_inst %p prefix %s\n", zone_idx, m_inst,
-	//	 prefix.c_str());
+	list_log("list_get_module_ctx_on_read: list_option %d zone_idx %d m_inst %p key %s offset %d payload_sz %d prefix %s\n", 
+		 req->list_data.options, zone_idx, m_inst, key->key, offset, payload_sz, 
+		 prefix.c_str());
 	return m_inst;
 
 }
