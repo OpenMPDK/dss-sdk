@@ -36,6 +36,7 @@
 #include <malloc.h>
 
 #include "dragonfly.h"
+#include "rocksdb/dss_kv2blk_c.h"
 
 #define DSS_LIST_MAX_KLEN (1024)
 
@@ -50,7 +51,6 @@ dss_hsl_ctx_t *dss_hsl_new_ctx(char *root_prefix, char *delim_str, list_item_cb 
 		hsl_ctx->lnode.leaf = 0;
 		assert(list_cb);
 		hsl_ctx->process_listing_item = list_cb;
-		//hsl_ctx->lnode.tree_filled = 0;
 		hsl_ctx->lnode.subtree = NULL;
 
 		return hsl_ctx;
@@ -58,6 +58,95 @@ dss_hsl_ctx_t *dss_hsl_new_ctx(char *root_prefix, char *delim_str, list_item_cb 
 		return NULL;
 	}
 }
+
+void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
+{
+	uint8_t key_str[DSS_LIST_MAX_KLEN + 1];
+	Word_t * value;
+	dss_hslist_node_t *node;
+	int rc;
+
+	if(tnode->leaf) {
+		assert(tnode->subtree == NULL);
+		//Called to delete leaf_node directly assert
+		assert(0);
+	}
+
+	strcpy(key_str, "");
+	value = (Word_t *) JudySLFirst(tnode->subtree, key_str, PJE0);
+
+	while(value) {
+		node = *value;
+		if(node->leaf == 1) {
+			//Delete and return
+			assert(node->subtree == NULL);
+			//printf("Delete Leaf [%s]\n", key_str);
+			rc = JudySLDel(&tnode->subtree, key_str, PJE0);
+			assert(rc == 1);
+			hctx->node_count--;
+		} else {
+			//Recurse the tree to delete subtree
+			assert(node->subtree);
+			_dss_hsl_delete_subtree(hctx, node);
+
+			//printf("Delete non Leaf [%s]\n", key_str);
+			JudySLFreeArray(&node->subtree, PJE0);
+			node->subtree = NULL;
+			free(node);
+
+			hctx->node_count--;
+
+			//Not deleting the root itself
+		}
+		value = (Word_t *) JudySLNext(tnode->subtree, key_str, PJE0);
+	}
+
+	tnode->list_direct = 1;
+	return;
+}
+
+void dss_hsl_evict_levels(dss_hsl_ctx_t *hctx, int num_evict_levels, dss_hslist_node_t *node, int curr_level)
+{
+	int num_rem_levels;
+
+	Word_t *value;
+	uint8_t list_str[DSS_LIST_MAX_KLEN + 1];
+
+	assert(num_evict_levels >= 1);
+
+	if(hctx->tree_depth <= num_evict_levels) {
+		return;
+	}
+
+	assert(curr_level <= hctx->tree_depth);
+	num_rem_levels = hctx->tree_depth - curr_level + 1;
+
+	if (node->leaf) {
+		return; //Short keys
+	} else if(num_rem_levels == num_evict_levels) {
+		_dss_hsl_delete_subtree(hctx, node);
+	} else {
+		assert(num_rem_levels > num_evict_levels);
+		//Traverse tree
+		strcpy(list_str, "");
+
+		value = (Word_t *) JudySLFirst(node->subtree, list_str, PJE0);
+
+		while(value) {
+			dss_hslist_node_t *next_node = (dss_hslist_node_t *)*value;
+
+			//TODO: It's possible to encounter list_direct nodes if multiple evicts are run
+			assert(next_node->list_direct == 0);
+
+			//printf("Try evict for level %d for str [%s]\n", curr_level, list_str);
+			dss_hsl_evict_levels(hctx, num_evict_levels, next_node, curr_level + 1);
+
+			value = (Word_t *) JudySLNext(node->subtree, list_str, PJE0);
+		}
+	}
+
+}
+
 int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok, char **saveptr)
 {
 
@@ -65,6 +154,12 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 
 	Word_t *value;
 	int rc;
+
+	if(tnode->list_direct == 1) {
+		//printf("list direct skip token [%s]\n", tok);
+		assert(tnode->leaf == 0);
+		return 0;
+	}
 
 	token_next = strtok_r(NULL, hctx->delim_str, saveptr);
 	if(token_next) {
@@ -132,7 +227,6 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 		return 0;
 	}
 
-
 }
 
 int dss_hsl_delete(dss_hsl_ctx_t *hctx, const char *key)
@@ -179,6 +273,8 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 	strncpy((char *)key_str, key, DSS_LIST_MAX_KLEN);
 	key_str[DSS_LIST_MAX_KLEN] = '\0';
 
+	//printf("Insert key [%s]\n", key_str);
+
 	tnode = &hctx->lnode;
 	//Fist delmiter
 	tok =  strtok_r(key_str, hctx->delim_str, &saveptr);
@@ -193,6 +289,10 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 	while(tok) {
 
 		//printf("Insert token %s at node %p depth %d isleaf:%d \n", tok, tnode, depth, tnode->leaf);
+		if(tnode->list_direct) {
+			//printf("list direct skip token [%s]\n", tok);
+			return 0;
+		}
 
 		value = (Word_t *)JudySLIns(&tnode->subtree, tok, PJE0);
 
@@ -298,18 +398,22 @@ void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key
 		tnode = (dss_hslist_node_t *)*value;
 		assert(tnode != NULL);
 
+		if(tnode->list_direct) {
+			dss_rocksdb_direct_iter(hctx, prefix, start_key, listing_ctx);
+			return;
+		}
+
 		tok = strtok_r(NULL, hctx->delim_str, &saveptr);
 
 		if(!tok) {
 			if(tnode->leaf == 1) {
 				//printf("Not listing leaf str %s\n", prefix);
-				tnode = lnode;
+				//tnode = lnode;
+				assert(0);
 			}//Non leaf use node to list hierarchical entry
 		}
 	}
 
-	//TODO: Support start key (could be leaf or non leaf from between a JudySL
-	//Listing
 	strcpy(list_str, "");
 
 	value = (Word_t *) JudySLFirst(tnode->subtree, list_str, PJE0);

@@ -358,6 +358,16 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 
 	uint64_t load_time;
 
+	dss_hsl_ctx_t *hsl_ctx =  dss_get_hsl_context(pool);
+
+
+	if(g_dragonfly->dss_enable_judy_listing &&
+			g_dragonfly->rdb_direct_listing) {//Evict if direct listing
+		dss_hsl_print_info(hsl_ctx);
+		dss_hsl_evict_levels(hsl_ctx, g_dragonfly->rdb_direct_listing_evict_levels, &hsl_ctx->lnode, 0);
+		dss_hsl_print_info(hsl_ctx);
+	}
+
 	load_time = ((spdk_get_ticks() - list_cb_event.start_tick) * SPDK_SEC_TO_USEC )/ spdk_get_ticks_hz();
 
 
@@ -416,6 +426,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 		if(g_dragonfly->dss_enable_judy_listing) {
 			DFLY_ASSERT(zone->zone_idx == 0);
 			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, key_default_delimlist.c_str(), do_list_item_process);
+			zone->hsl_keys_ctx->dev_ctx = pool;
 		} else {
 			zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
 			(*zone->listing_keys).reserve(1048576);

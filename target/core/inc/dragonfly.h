@@ -291,6 +291,7 @@ struct dragonfly {
         uint32_t rdb_sim_io_post_timeout;
 
 	bool rdb_direct_listing;
+	uint32_t rdb_direct_listing_evict_levels;
     bool dss_enable_judy_listing;
 
 	uint32_t num_io_threads;

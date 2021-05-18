@@ -38,7 +38,7 @@
 
 typedef struct dss_hslist_node_s {
 	uint8_t leaf:1;
-	//uint8_t tree_filled:1;
+	uint8_t list_direct:1;
 	void  *subtree;
 } dss_hslist_node_t;
 
@@ -53,6 +53,7 @@ typedef struct dss_hsl_ctx_s {
 	uint64_t node_count;
 #endif
 	dss_hslist_node_t lnode;
+	void *dev_ctx;
 } dss_hsl_ctx_t;
 
 dss_hsl_ctx_t *dss_hsl_new_ctx(char *root_prefix, char *delim_str, list_item_cb list_cb);
@@ -60,5 +61,7 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key);
 int dss_hsl_delete(dss_hsl_ctx_t *hctx, const char *key);
 void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx);
 void dss_hsl_print_info(dss_hsl_ctx_t *hctx);
+
+void dss_hsl_evict_levels(dss_hsl_ctx_t *hctx, int num_evict_levels, dss_hslist_node_t *node, int curr_level);
 
 #endif //___DSS_HSL_H

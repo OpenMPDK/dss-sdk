@@ -282,7 +282,7 @@ add_library(dss_hsl STATIC	utils/dss_list_tree.c
 							utils/crc32.cc
 							utils/dss_keygen.c)
 target_link_libraries(dss_hsl -ljudyL)
-target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/rocksdb/include -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
 add_dependencies(dss_hsl judyL)
 
 add_custom_command(

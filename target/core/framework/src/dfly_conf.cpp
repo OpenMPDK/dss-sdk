@@ -201,7 +201,7 @@ void dfly_config_validate(void)
 	//rdb_direct listing cannot be enabled with memorry based listing
 	if(g_dragonfly->rdb_direct_listing == true) {
 		DFLY_ASSERT(g_dragonfly->blk_map ==true);
-		DFLY_ASSERT(g_list_conf.list_enabled == false);
+		//DFLY_ASSERT(g_list_conf.list_enabled == false);
 	}
 
 }
@@ -230,6 +230,8 @@ dfly_config_read(struct spdk_conf_section *sp)
    		g_dragonfly->rdb_sim_io_post_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_io_post_timeout", 0);
 
 	g_dragonfly->rdb_direct_listing = spdk_conf_section_get_boolval(sp, "rdb_direct_listing", false);
+	g_dragonfly->rdb_direct_listing_evict_levels = dfly_spdk_conf_section_get_intval_default(sp, "rdb_direct_listing_evict_levels", 2);
+
 	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", true);
         
 	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
