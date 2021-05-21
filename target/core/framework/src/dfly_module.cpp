@@ -272,7 +272,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id,
 		return NULL;
 	}
 
-	strncpy(module->name, name, MAX_MODULE_NAME_LEN - 1);
+	strncpy(module->name, stat_name, MAX_MODULE_NAME_LEN - 1);
 
 	module->ops = mops;
 	assert(module->ops->module_rpoll);
