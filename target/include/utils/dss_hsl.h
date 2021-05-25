@@ -40,6 +40,7 @@ typedef struct dss_hslist_node_s {
 	uint8_t leaf:1;
 	uint8_t list_direct:1;
 	void  *subtree;
+	TAILQ_ENTRY(dss_hslist_node_s) lru_link;
 } dss_hslist_node_t;
 
 typedef int (*list_item_cb)(void *ctx, const char *item_key, int is_leaf);
@@ -52,7 +53,11 @@ typedef struct dss_hsl_ctx_s {
 #if defined DSS_LIST_DEBUG_MEM_USE
 	uint64_t node_count;
 #endif
+	uint64_t mem_limit;
+	uint64_t mem_usage;
 	dss_hslist_node_t lnode;
+
+	TAILQ_HEAD(lru_list_head, dss_hslist_node_s) lru_list;
 	void *dev_ctx;
 	struct dfly_tpool_s *dlist_mod;
 } dss_hsl_ctx_t;

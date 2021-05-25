@@ -54,6 +54,9 @@ extern "C" {
 #define DFLY_LIST_OPTION_PREFIX_FROM_BEGIN		0x2
 #define DFLY_LIST_OPTION_PREFIX_FROM_START_KEY	0x3
 
+//Default 10G cache size limit in MB
+#define DSS_LISTING_CACHE_DEFAULT_MAX_LIMIT (1024 * 10)
+
 typedef struct list_conf_s {
 	int list_enabled ;
 	int list_zone_per_pool;

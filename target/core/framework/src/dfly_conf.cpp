@@ -235,6 +235,7 @@ dfly_config_read(struct spdk_conf_section *sp)
 	g_dragonfly->rdb_direct_listing_enable_tpool= spdk_conf_section_get_boolval(sp, "rdb_direct_listing_enable_tpool", false);
 
 	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", true);
+	g_dragonfly->dss_judy_listing_cache_limit_size = dfly_spdk_conf_section_get_intval_default(sp, "dss_judy_list_cache_sz_mb", DSS_LISTING_CACHE_DEFAULT_MAX_LIMIT);
         
 	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
    	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);

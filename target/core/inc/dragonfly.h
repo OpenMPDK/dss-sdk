@@ -294,6 +294,7 @@ struct dragonfly {
 	uint32_t rdb_direct_listing_evict_levels;
 	uint32_t rdb_direct_listing_nthreads;
     bool dss_enable_judy_listing;
+	uint64_t dss_judy_listing_cache_limit_size;
 	bool rdb_direct_listing_enable_tpool;
 
 	uint32_t num_io_threads;
