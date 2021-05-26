@@ -78,6 +78,8 @@ g_dfly_kvblock_perf_mode = """  block_translation_enabled Yes
   #block_translation_bg_core_start 4
   #block_translation_bg_job_cnt 4
   block_translation_blobfs_cache_size 20480
+  rdb_wal_enable No
+  rdb_sync_enable No
 """
 
 g_dfly_kvblock_vm_mode = """  block_translation_enabled Yes #vm mode
