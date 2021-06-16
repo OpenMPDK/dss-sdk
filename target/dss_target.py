@@ -360,6 +360,19 @@ def get_rdma_ips(mip, ip):
                 di[nic] = ip
     return di
 
+def get_numa_boundary():
+    ''' Get numa boundary to identify socket '''
+    r, out, err = exec_cmd("lscpu")
+    out = out.split("\n")
+    for i in out:
+        if "NUMA node(s)" in i:
+            numnodes = i.split(" ")[-1]
+
+    numb = int(numnodes) / 2
+
+    return numb
+
+
 def get_numa_ip(ip_list):
 
     all_ips = ip4_addresses()
@@ -367,13 +380,14 @@ def get_numa_ip(ip_list):
 
     #r_ips = get_rdma_ips(mtu_ips, ip_list)
     r_ips = get_rdma_ips(all_ips, ip_list)
+    numa_boundary = get_numa_boundary()
 
     s0 = {}
     s1 = {}
     for item in r_ips:
         cmd = 'cat /sys/class/net/' + item.split('.')[0] + '/device/numa_node'
         rc, ou, er = exec_cmd(cmd)
-        if int(ou) < 4:
+        if int(ou) < numa_boundary:
             s0[r_ips[item]] = int(ou)
         else:
             s1[r_ips[item]] = int(ou)
