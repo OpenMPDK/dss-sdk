@@ -436,6 +436,48 @@ def nkv_test_result(result_file):
     print("------------------------------")
 
 
+def subnet_drive_map():
+    '''
+    Get given subnet to device/numa map
+    '''
+    print("Gathering information from nvme list-subsys")
+
+    ret, out, err = exec_cmd("nvme list-subsys -o json")
+    subsystems = json.loads(out)
+    try:
+        subsystems = subsystems["Subsystems"]
+    except KeyError:
+        print("Error in finding Subsystems in nvme list-subsys output")
+        sys.exit(1)
+    subnet_device_map = {}
+    addrs = []
+    for subsys in subsystems:
+        if not "Paths" in subsys:
+            continue
+        for dev in subsys["Paths"]:
+            name = '/dev/' + dev["Name"] + 'n1'
+            transport = dev["Transport"]
+            addr = re.search("traddr=(\S+)", dev["Address"]).group(1)
+            subnet = getSubnet(addr)
+            if not subnet in subnet_device_map:
+                subnet_device_map[subnet] = []
+            subnet_device_map[subnet].append(name)
+            addrs.append(addr)
+
+    # We have IP octets now. Get interface and numa information for that octet.
+    for octet in subnet_device_map.keys():
+        # Find ip to interface mapping. Interface name is needed for finding numa.
+        cmd = "ip -brief -4 addr | grep " + octet + " | awk \'{ print $3 }\'"
+        ret, iname, err = exec_cmd(cmd)
+        # Get IP address part
+        iname = iname.split('/')[0]
+        # Replace old key name (e.g., 205.0.0) with new keyname (ip_addr) in dict.
+        subnet_device_map[iname] = subnet_device_map.pop(octet)
+
+    print(subnet_device_map)
+    return subnet_device_map
+
+
 def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
@@ -455,10 +497,11 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair
     # Connect to all discovered NQNs and their IPs.
     nvme_connect(nqn_infos_dedup, disc_qpair)
 
-    cmd = "nvme list | grep nvme | awk '{ print $1 }' | paste -sd, "
-    list_of_drives = get_drives_list(cmd)
+    ifname_drives = subnet_drive_map()
     # Create nkv_config.json file
-    create_config_file(nkv_kv_pair, list_of_drives)
+    for ifname in ifname_drives:
+        file_name = "nkv_config_" + ifname + ".json"
+        create_config_file(nkv_kv_pair, ifname_drives[ifname], file_name)
 
 
 def config_minio_sa(node, ec):
