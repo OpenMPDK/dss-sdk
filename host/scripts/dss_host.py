@@ -361,6 +361,8 @@ def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_conf
     '''
     Update nkv_config.json file in conf directory
     '''
+    if "../conf" not in nkv_conf_file:
+        nkv_conf_file = os.path.join("../conf", nkv_conf_file)
     print("----- Updating %s -----" %nkv_conf_file)
 
     # Loop through drives and add them in local mounts.
@@ -523,7 +525,7 @@ def config_minio_sa(node, ec):
     
 def getSubnet(addr):
     # FIXME: Find true subnet based on remote routing table
-    return addr.split(".")[0]
+    return addr.rsplit(".",1)[0]
 
 def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     '''
