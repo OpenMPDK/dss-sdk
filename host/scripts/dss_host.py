@@ -469,7 +469,7 @@ def subnet_drive_map():
     # We have IP octets now. Get interface and numa information for that octet.
     for octet in subnet_device_map.keys():
         # Find ip to interface mapping. Interface name is needed for finding numa.
-        cmd = "ip -brief -4 addr | grep " + octet + " | awk \'{ print $3 }\'"
+        cmd = "ip -4 addr | grep " + octet + " | awk \'{ print $2 }\'"
         ret, iname, err = exec_cmd(cmd)
         # Get IP address part
         iname = iname.split('/')[0]
