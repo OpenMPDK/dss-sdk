@@ -101,6 +101,7 @@
   extern int32_t nkv_in_memory_exec;
   extern std::atomic<uint32_t> nic_load_balance;
   extern std::atomic<uint32_t> nic_load_balance_policy;
+  extern int32_t nkv_device_support_iter;
 
   // Global lock used for boost read_json and cv_global
   extern std::mutex mtx_global;
@@ -239,6 +240,8 @@
     std::atomic<uint64_t> pending_io_value;
     std::condition_variable cv_path;
     nkv_lruCache<std::string, nkv_value_wrapper> *cnt_cache;
+    pthread_rwlock_t lru_rw_lock;
+    std::mutex lru_lock;
     std::atomic<uint64_t> nkv_num_dc_keys;
     stat_io_t* device_stat;
     vector<stat_io_t*> cpu_stats;
@@ -282,6 +285,7 @@
       //string device_name = (dev_path.substr(5, dev_path.size()));
       //nkv_init_path_io_stats(device_stat, )
       cpu_stat_initialized = false;
+      pthread_rwlock_init(&lru_rw_lock, NULL);
     }
 
     ~NKVTargetPath() {
@@ -335,6 +339,7 @@
         nkv_ustat_delete(cpu_stat);
       }
       cpu_stats.clear();
+      pthread_rwlock_destroy(&lru_rw_lock);
     }
 
     void add_device_path (std::string& p_dev_path) {
@@ -1100,7 +1105,7 @@
  
           if (one_path->get_target_path_status()) { 
             if (one_path->open_path(app_name)) {
-              if (listing_with_cached_keys && !nkv_remote_listing) {
+              if (listing_with_cached_keys && !nkv_remote_listing && nkv_device_support_iter ) {
                 one_path->start_thread();
               }
               is_container_valid = true;
@@ -1282,6 +1287,16 @@
       
       path_count = index;
       return;
+    }
+
+    void show_listing_stat() {
+      for(auto p_iter = pathMap.begin(); p_iter != pathMap.end(); p_iter++) {
+        NKVTargetPath* one_path = p_iter->second;
+        if (one_path) {
+          smg_alert(logger, "Cache based listing = %d, number of listing cache shards = %d, total number of listing cached keys = %u, total number of listing cached prefixes = %u, dev_path = %s",
+                    listing_with_cached_keys, nkv_listing_cache_num_shards, one_path->nkv_num_keys.load(), one_path->nkv_num_key_prefixes.load(), one_path->dev_path.c_str());
+        }
+      }
     }
 
     int32_t get_object_async(const char* key, uint32_t key_len,  char* buff, uint32_t buff_len, void* cb);
@@ -1747,6 +1762,19 @@
                           std::string node_name,
                           boost::property_tree::ptree& args,
                           int32_t remote_path_status);
+
+    void show_listing_stat() {
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        NKVTarget* one_cnt = m_iter->second;
+        if (one_cnt) {
+          one_cnt->show_listing_stat();
+        } else {
+          smg_error(logger, "Got NULL container while inspecting stat !!");
+          
+        }
+      }
+
+    }  
   };
 
 #endif

@@ -30,6 +30,7 @@
   "nkv_max_value_length" : 1048576,
   "nkv_check_alignment" : 0,
   "nkv_in_memory_exec" : 0,
+  "nkv_device_support_iterator" : 0,
   "nkv_local_mounts": [
     {
       "mount_point": "/dev/nvme0n1"

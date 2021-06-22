@@ -209,7 +209,15 @@ void nkv_thread_func (uint64_t nkv_handle) {
                 listing_with_cached_keys, nkv_listing_cache_num_shards, nkv_app_put_count.load(), nkv_app_get_count.load(), 
                 nkv_app_list_count.load(), nkv_app_del_count.load(), nkv_num_read_cache_miss.load());
     } else {
-      smg_alert(logger, "Cache based listing = %d, number of cache shards = %d", listing_with_cached_keys, nkv_listing_cache_num_shards);
+      if (nkv_remote_listing) {
+        /* To Do, some stats ?? */
+      } else {
+        
+        /*smg_alert(logger, "Cache based listing = %d, number of listing cache shards = %d, total number of listing cached keys = %u, total number of listing cached prefixes = %u", 
+                listing_with_cached_keys, nkv_listing_cache_num_shards, nkv_num_keys.load(), nkv_num_key_prefixes.load());*/
+        nkv_cnt_list->show_listing_stat();
+
+      }
     }
 
     //nkv_cnt_list->collect_nkv_stat();
@@ -319,6 +327,7 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
     nkv_max_value_length = (uint32_t)pt.get<int>("nkv_max_value_length", NKV_MAX_VALUE_LENGTH);
     nkv_in_memory_exec = pt.get<int>("nkv_in_memory_exec", 0);
     nkv_check_alignment = pt.get<int>("nkv_check_alignment", 0);
+    nkv_device_support_iter = pt.get<int>("nkv_device_support_iterator", 1);
     if (nkv_remote_listing) {
 
       transient_prefix = pt.get<std::string>("transient_prefix_to_filter", "meta/.minio.sys/tmp/" );
@@ -473,12 +482,14 @@ nkv_result nkv_open(const char *config_file, const char* app_uuid, const char* h
                                     );
   }
 
-  if (listing_with_cached_keys && !nkv_remote_listing && !nkv_in_memory_exec) {
+  if (listing_with_cached_keys && nkv_device_support_iter && !nkv_remote_listing && !nkv_in_memory_exec) {
     bool will_wait = nkv_listing_wait_till_cache_init ? true:false;
     auto start = std::chrono::steady_clock::now();
     nkv_cnt_list->wait_or_detach_thread (will_wait);
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-start);
     smg_alert(logger, "NKV index cache building took %u seconds", (uint32_t)(((long double)elapsed.count())/1000000.0) );     
+  } else {
+    smg_alert(logger,"### Not going for iteration and building the index ###");
   }
   smg_info(logger, "NKV open is successful for app = %s", app_uuid);
   pt.clear();

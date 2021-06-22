@@ -92,7 +92,7 @@ template<typename K, typename V>
     //void put (const K& key, const V& val) {
     void put (K& key, V val) {
       //std::lock_guard<std::mutex> lck (lru_lock);
-      pthread_rwlock_wrlock(&lru_rw_lock);
+      //pthread_rwlock_wrlock(&lru_rw_lock);
       auto it = _cache_map.find(key);
       if ( it != _cache_map.end()) {
         _cache_list.erase(it->second);
@@ -108,7 +108,7 @@ template<typename K, typename V>
         _cache_map.erase(last->first);
         _cache_list.pop_back();
       }
-      pthread_rwlock_unlock(&lru_rw_lock);
+      //pthread_rwlock_unlock(&lru_rw_lock);
     }
 
     /*const V& get(const K& key) {
@@ -126,20 +126,20 @@ template<typename K, typename V>
     V& get(const K& key, bool& exists) {
       //std::lock_guard<std::mutex> lck (lru_lock);
       if (_cache_map.size() > _threshold_size) {
-        pthread_rwlock_wrlock(&lru_rw_lock);
+        //pthread_rwlock_wrlock(&lru_rw_lock);
       } else {
-        pthread_rwlock_rdlock(&lru_rw_lock);
+        //pthread_rwlock_rdlock(&lru_rw_lock);
       }
       auto it = _cache_map.find(key);
       if (it == _cache_map.end()) {
         exists = false;
-        pthread_rwlock_unlock(&lru_rw_lock);  
+        //pthread_rwlock_unlock(&lru_rw_lock);  
       } else {
         if (_cache_map.size() > _threshold_size) {
           _cache_list.splice(_cache_list.begin(), _cache_list, it->second);
         }
         exists = true;
-        pthread_rwlock_unlock(&lru_rw_lock);
+        //pthread_rwlock_unlock(&lru_rw_lock);
         return it->second->second;
       }
     }
@@ -147,30 +147,30 @@ template<typename K, typename V>
 
     void del (const K& key, bool& exists) {
       //std::lock_guard<std::mutex> lck (lru_lock);
-      pthread_rwlock_wrlock(&lru_rw_lock);
+      //pthread_rwlock_wrlock(&lru_rw_lock);
       auto it = _cache_map.find(key);
       if ( it != _cache_map.end()) {
         _cache_list.erase(it->second);
         _cache_map.erase(it);
         exists = true;
       }
-      pthread_rwlock_unlock(&lru_rw_lock);
+      //pthread_rwlock_unlock(&lru_rw_lock);
     }
 
 
     bool exists(const K& key) {
       //std::lock_guard<std::mutex> lck (lru_lock);
-      pthread_rwlock_rdlock(&lru_rw_lock);
+      //pthread_rwlock_rdlock(&lru_rw_lock);
       bool do_exist = (_cache_map.find(key) == _cache_map.end());
-      pthread_rwlock_unlock(&lru_rw_lock);
+      //pthread_rwlock_unlock(&lru_rw_lock);
       return do_exist;
     }
 
     uint64_t size() {
       //std::lock_guard<std::mutex> lck (lru_lock);
-      pthread_rwlock_rdlock(&lru_rw_lock);
+      //pthread_rwlock_rdlock(&lru_rw_lock);
       uint64_t c_size = _cache_map.size();
-      pthread_rwlock_unlock(&lru_rw_lock);
+      //pthread_rwlock_unlock(&lru_rw_lock);
       return c_size;
     }
 
