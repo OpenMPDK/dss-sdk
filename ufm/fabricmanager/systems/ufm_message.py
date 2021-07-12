@@ -56,6 +56,7 @@ class Subscriber(threading.Thread):
 
     def run(self):
         socket = self.context.socket(zmq.SUB)
+        socket.setsockopt(zmq.IPV6, 1)
 
         for port in self.ports:
             socket.connect("tcp://localhost:{}".format(port))
@@ -91,6 +92,7 @@ class Publisher():
         self.port = port
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
+        self.socket.setsockopt(zmq.IPV6, 1)
         self.socket.bind("tcp://*:{}".format(self.port))
 
     def __del__(self):

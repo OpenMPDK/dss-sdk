@@ -66,6 +66,7 @@ class EventNotification:
         # print('RAIN: EVENTNOTIFICATION Connection')
         try:
             socket  = self.ctx.socket(zmq.REQ)
+            socket.setsockopt(zmq.IPV6, 1)
             socket.connect("{}:{}".format(self.address,self.port))
             self.logger.info("Connected: {}:{}".format(self.address,self.port))
         except Exception as e:

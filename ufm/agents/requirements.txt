@@ -10,6 +10,7 @@ itsdangerous==0.24
 Jinja2==2.10
 MarkupSafe==1.0
 monotonic==1.4
+netaddr==0.8.0
 protobuf==3.5.1
 six==1.11.0
 tenacity==4.8.0

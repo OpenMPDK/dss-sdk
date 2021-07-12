@@ -33,6 +33,7 @@
 """
 
 import collections
+import netaddr
 import pickle
 import socket
 import struct
@@ -84,8 +85,16 @@ class CarbonMessageManager:
                                  (self.ip, self.port))
                 if self.sock:
                     self.sock.close()
-                self.sock = socket.socket()
-                self.sock.connect((self.ip, self.port))
+                if netaddr.valid_ipv4(self.ip):
+                    self.sock = socket.socket()
+                    self.sock.connect((self.ip, self.port))
+                elif netaddr.valid_ipv6(self.ip):
+                    self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM, 0)
+                    self.sock.connect((self.ip, self.port, 0, 0))
+                else:
+                    self.logger.error('Invalid IP provided %s', self.ip)
+                    time.sleep(30)
+                    continue
                 self.logger.info("Connection established")
                 break
             except Exception as e:

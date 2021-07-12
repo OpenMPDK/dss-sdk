@@ -41,6 +41,7 @@ def post_to_switch(sw_uuid, payload):
         mq_port = ufmdb_util.get_mq_port(sw_uuid)
         ctx = zmq.Context()
         skt = ctx.socket(zmq.REQ)
+        skt.setsockopt(zmq.IPV6, 1)
         skt.connect("tcp://localhost:" + str(mq_port))
 
         json_request = json.dumps(payload, indent=4, sort_keys=True)

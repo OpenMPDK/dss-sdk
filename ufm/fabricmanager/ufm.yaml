@@ -5,7 +5,7 @@ ufm:
     messageQueuePort: 5510
     externalPublisher: 5509
     brokerPort: 6000
-    brokerIpFromDb: False
+    brokerIpFromDb: True
 
 nkv:
     enable: True

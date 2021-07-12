@@ -95,6 +95,7 @@ def subscribe(event, ip, port, listen_forever=False, timeout=0, expected_event_c
 
     context = zmq.Context()
     so = context.socket(zmq.SUB)
+    so.setsockopt(zmq.IPV6, 1)
 
     so.setsockopt_string(zmq.SUBSCRIBE,'')
     so.connect(connect_str)
