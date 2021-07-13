@@ -46,6 +46,7 @@ def subscribe(ip, port):
     print("Subscribing to ZMQ publisher %s from host %s: " % (fqdn, platform.node()))
     ctx = zmq.Context()
     sock = ctx.socket(zmq.SUB)
+    sock.setsockopt(zmq.IPV6, 1)
     sock.setsockopt_string(zmq.SUBSCRIBE,'')
     sock.connect(connect_str)    # FabricManager01
 

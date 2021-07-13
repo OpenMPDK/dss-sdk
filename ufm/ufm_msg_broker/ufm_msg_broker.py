@@ -122,7 +122,7 @@ def broker_main():
     proxy_ip = None
     if args.listen_on_any:
         # Listens to any IP address
-        proxy_ip = "tcp://" + "0.0.0.0"
+        proxy_ip = "tcp://" + "*"
     else:
         proxy_ip = "tcp://" + get_ip_of_nic()
 
@@ -132,10 +132,12 @@ def broker_main():
 
     # Frontend receive events from Cluster monitor
     frontend  = context.socket(zmq.REP)
+    frontend.setsockopt(zmq.IPV6, 1)
     frontend.bind("{}:{}".format(proxy_ip, PORT_FRONTEND))
 
     # Backend send the events to the subscribers.
     backend  = context.socket(zmq.PUB)
+    backend.setsockopt(zmq.IPV6, 1)
     backend.bind("{}:{}".format(proxy_ip, PORT_BACKEND))
     backend.getsockopt(zmq.SNDHWM)
     backend.getsockopt(zmq.RCVHWM)
