@@ -477,10 +477,151 @@ int do_list_io(void *ctx, struct dfly_key *key, struct dfly_request *req, int op
 	return rc;
 }
 
+struct dss_list_read_process_ctx_s {
+	struct dfly_value *val;
+	uint32_t *total_keys;
+	uint32_t max_keys;
+	uint32_t *key_sz;
+	void *key;
+	uint32_t rem_buffer_len;
+	char delim;
+};
+
+int do_list_item_process(void *ctx, const char *key, int is_leaf)
+{
+	struct dss_list_read_process_ctx_s *lp_ctx = (struct dss_list_read_process_ctx_s *) ctx;
+	uint32_t keylen = strlen(key);
+
+	int k_dw;
+
+	if(!is_leaf) {
+		keylen++;
+	}
+
+	k_dw = (keylen + 4 - 1) / 4 + 1;
+
+	if(lp_ctx->rem_buffer_len < k_dw * 4 ) {
+		return -1;//No room for more keys
+	}
+
+	if(is_leaf) {
+		memcpy(lp_ctx->key, key, keylen);
+	} else {
+		memcpy(lp_ctx->key, key, keylen - 1);
+		((char *)lp_ctx->key)[keylen - 1] = lp_ctx->delim;
+	}
+
+	*lp_ctx->key_sz = keylen;
+
+	lp_ctx->key_sz += k_dw;
+	lp_ctx->key = lp_ctx->key_sz + 1;// int size inc after key sz is start of next key
+
+	lp_ctx->rem_buffer_len -= (k_dw * 4);
+
+	(*lp_ctx->total_keys)++;
+
+	if(*lp_ctx->total_keys == lp_ctx->max_keys) {
+		return -1;
+	}
+
+	return 0;
+}
+
+int do_list_io_judy(void *ctx, struct dfly_request *req)
+{
+	int opc = req->ops.get_command(req);
+	struct dfly_key *key = req->ops.get_key(req);
+	list_thread_inst_ctx_t *list_inst_ctx = (list_thread_inst_ctx_t *) ctx;
+
+	dss_hsl_ctx_t *hsl_ctx = NULL;
+	struct dss_list_read_process_ctx_s lp_ctx;
+
+	std::string key_str((char *)key->key, (size_t)key->length);
+	int rc = DFLY_LIST_IO_RC_PASS_THROUGH;
+
+	if (!g_list_conf.list_enabled)
+		return rc;
+
+
+	hsl_ctx = list_inst_ctx->mctx->zones[0].hsl_keys_ctx;
+
+	switch(opc) {
+		case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
+			//DFLY_NOTICELOG("hsl insert key: %s\n", key_str.c_str());
+			dss_hsl_insert(hsl_ctx, key_str.c_str());
+			rc = DFLY_LIST_STORE_DONE;
+			break;
+		case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:
+			//DFLY_NOTICELOG("hsl delete key: %s\n", key_str.c_str());
+			dss_hsl_delete(hsl_ctx, key_str.c_str());
+			rc = DFLY_LIST_DEL_DONE;
+			break;
+		case SPDK_NVME_OPC_SAMSUNG_KV_LIST_READ:
+			int offset = req->list_data.start_key_offset;
+			std::string prefix((char *)key->key, (size_t)offset);
+
+			lp_ctx.val = req->ops.get_value(req);;
+			lp_ctx.max_keys = req->list_data.max_keys_requested;
+			lp_ctx.delim = hsl_ctx->delim_str[0];
+
+			lp_ctx.rem_buffer_len = lp_ctx.val->length;
+			if(lp_ctx.rem_buffer_len <= 2 * sizeof(uint32_t)) {
+				//Not enough value buffer to do listing
+				//Minimum to hold total keys plus one key length
+				//Return error code
+			}
+
+			lp_ctx.total_keys = (uint32_t *)((char *)lp_ctx.val->value + lp_ctx.val->offset);
+			lp_ctx.rem_buffer_len -= sizeof(uint32_t);
+
+			lp_ctx.key_sz = (uint32_t *)((void *)lp_ctx.val->value + lp_ctx.val->offset + sizeof(uint32_t));
+			//lp_ctx.rem_buffer_len -= sizeof(uint32_t); // include for calculation for next key write
+
+			lp_ctx.key    = lp_ctx.key_sz + 1;//Advance by int pointer
+
+			*lp_ctx.total_keys = 0;
+			*lp_ctx.key_sz = 0;
+
+			if(!offset) {
+				//Root listing not required
+				DFLY_NOTICELOG("hsl read list: root listing not supported\n");
+				dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
+				     SPDK_NVME_SC_KV_LIST_CMD_UNSUPPORTED_OPTION);
+			} else if (offset && offset < key->length) {
+				std::string start_key;
+				if(((char *)(key->key))[key->length - 1] == lp_ctx.delim) {
+					start_key = std::string((char *)(key->key + offset), key->length - offset - 1);
+				} else {
+					start_key = std::string((char *)(key->key + offset), key->length - offset);
+				}
+				dss_hsl_list(hsl_ctx, prefix.c_str(), start_key.c_str(), &lp_ctx);
+			} else {
+				dss_hsl_list(hsl_ctx, key_str.c_str(), NULL, &lp_ctx);
+			}
+			//DFLY_NOTICELOG("hsl read list: %s\n", key_str.c_str());
+			if (*lp_ctx.total_keys == 0) {
+				dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
+						     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
+			}
+			dfly_resp_set_cdw0(req, lp_ctx.val->length - lp_ctx.rem_buffer_len);
+			//TODO: List Read
+			rc = DFLY_LIST_READ_DONE;
+			break;
+		default:
+			list_log("do_list_io_judy: unsupported opc %x\n", opc);
+			assert(0);
+			break;
+	}
+
+	return rc;
+}
+
 int list_io(void *ctx, struct dfly_request *req, int list_op_flags)
 {
 	int pool_id = list_get_pool_id(req->req_dfly_ss);
 	int opc = req->ops.get_command(req);
+
+	int io_rc;
 
 	if (!(opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE
 	      || opc == SPDK_NVME_OPC_SAMSUNG_KV_DELETE
@@ -490,7 +631,12 @@ int list_io(void *ctx, struct dfly_request *req, int list_op_flags)
 		return DFLY_LIST_IO_RC_PASS_THROUGH;
 
 	struct dfly_key *key = req->ops.get_key(req);
-	int io_rc = do_list_io(ctx, key, req, opc, list_op_flags);
+
+	if(g_dragonfly->dss_enable_judy_listing) {
+		return do_list_io_judy(ctx, req);
+	}
+
+	io_rc = do_list_io(ctx, key, req, opc, list_op_flags);
 
 	return io_rc;
 }

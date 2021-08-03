@@ -253,6 +253,7 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS spdk_tcp_configure
   DEPENDS oss
   DEPENDS dss_lat
+  DEPENDS dss_hsl
   DEPENDS rocksdb_lib
 )
 
@@ -274,6 +275,27 @@ ADD_CUSTOM_TARGET(test_latency_counter
     WORKING_DIRECTORY test/test_latency_counter
     COMMAND make
     DEPENDS dss_lat
+)
+
+add_library(dss_hsl STATIC	utils/dss_list_tree.c
+							utils/keygen.cc
+							utils/crc32.cc
+							utils/dss_keygen.c)
+target_link_libraries(dss_hsl -ljudyL)
+target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+add_dependencies(dss_hsl judyL)
+
+add_custom_command(
+        TARGET dss_hsl PRE_BUILD
+        COMMENT ${CMAKE_SOURCE_DIR}
+        COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
+)
+
+ADD_CUSTOM_TARGET(test_hsl
+    COMMENT "Building test hsl"
+    WORKING_DIRECTORY test/test_hsl
+    COMMAND make
+    DEPENDS dss_hsl
 )
 
 execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -309,6 +331,6 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/
   DEPENDS spdk_tcp_configure
 )

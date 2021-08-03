@@ -86,6 +86,7 @@ extern "C" {
 
 #include "df_log.h"
 #include "utils/dss_count_latency.h"
+#include "utils/dss_hsl.h"
 
 #include "df_atomic.h"
 #include "df_counters.h"
@@ -289,6 +290,9 @@ struct dragonfly {
         uint32_t rdb_sim_io_pre_timeout;
         uint32_t rdb_sim_io_post_timeout;
 
+	bool rdb_direct_listing;
+    bool dss_enable_judy_listing;
+
 	uint32_t num_io_threads;
 	uint32_t num_nw_threads;
 
@@ -479,6 +483,8 @@ void dss_set_fs_ch_core(struct spdk_fs_thread_ctx *ctx, uint32_t core);
 
 int dfly_ustat_init_bdev_stat(const char *dev_name);
 stat_block_io_t *dfly_bdev_get_ustat_p(struct spdk_bdev *bdev);
+
+dss_hsl_ctx_t * dss_get_hsl_context(struct dfly_subsystem *pool);
 #ifdef __cplusplus
 }
 #endif

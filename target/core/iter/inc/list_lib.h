@@ -63,10 +63,13 @@ extern "C" {
 #include "df_io_module.h"
 #include <df_list.h>
 
+#include "utils/dss_hsl.h"
+
 typedef struct list_zone_s {
 	int					zone_idx;
 	void				*module_instance_ctx;
 	std::unordered_map<std::string, std::set<std::string> >* listing_keys;
+	dss_hsl_ctx_t *hsl_keys_ctx;
 	//char * listing_keys;
 } list_zone_t;
 

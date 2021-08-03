@@ -7,6 +7,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/JudyL")
 add_subdirectory(src)
 
 add_definitions(-DJUDYL)
+add_definitions(-DJUDYSL)
 add_definitions(-D__LIN__)
 add_definitions(-D__USER__)
 add_definitions(-D__X86_64__)
@@ -34,4 +35,5 @@ add_library(judyL STATIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src/JudyL/JudyLPrevEmpty.c"
         "${CMAKE_CURRENT_BINARY_DIR}/src/JudyL/JudyLTables_64.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/JudyCommon/JudyMalloc.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/JudySL/JudySL.c"
 )

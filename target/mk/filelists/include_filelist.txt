@@ -1,8 +1,10 @@
 #Auto Generated File do not modify
-configure_file(../../include/./css_latency.h ../../include/./css_latency.h COPYONLY)
-configure_file(../../include/./utils/dss_count_latency.h ../../include/./utils/dss_count_latency.h COPYONLY)
-configure_file(../../include/./version.h ../../include/./version.h COPYONLY)
+configure_file(../.././include/css_latency.h ../.././include/css_latency.h COPYONLY)
+configure_file(../.././include/utils/dss_count_latency.h ../.././include/utils/dss_count_latency.h COPYONLY)
+configure_file(../.././include/utils/dss_hsl.h ../.././include/utils/dss_hsl.h COPYONLY)
+configure_file(../.././include/utils/dss_keygen.h ../.././include/utils/dss_keygen.h COPYONLY)
+configure_file(../.././include/version.h ../.././include/version.h COPYONLY)
 #Symbolic links
 #TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference
-ADD_CUSTOM_TARGET(copy_._links
+ADD_CUSTOM_TARGET(copy_include_links
 )

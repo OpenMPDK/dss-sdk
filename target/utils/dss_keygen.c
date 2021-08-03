@@ -1,7 +1,7 @@
 /**
  *   BSD LICENSE
  *
- *   Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *   Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *   All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
@@ -31,59 +31,54 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DF_LIST_H
-#define __DF_LIST_H
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdio.h>
+#include "keygen.h"
 
-#define DFLY_LIST_SUCCESS 				0x0
-#define DFLY_LIST_IO_RC_PASS_THROUGH	0x1
-#define DFLY_LIST_FAIL					0x2
-#define DFLY_LIST_STORE_CONTINUE		0x4
-#define DFLY_LIST_STORE_DONE			0x8
+struct key_gen_ctx_s {
+	struct keygen keygen;
+	uint32_t gen_index;
+} g_keygen_ctx;
 
-#define DFLY_LIST_DEL_CONTINUE			0x10
-#define DFLY_LIST_DEL_DONE				0x20
 
-#define DFLY_LIST_READ_DONE				0x40
+void dss_keygen_init(uint32_t klen)
+{
+	struct rndinfo rnd_len[1];
+	struct rndinfo rnd_dist[1];
+	struct keygen_option opt;
 
-#define DFLY_LIST_OPTION_ROOT_FROM_BEGIN		0x0
-#define DFLY_LIST_OPTION_ROOT_FROM_START_KEY	0x1
-#define DFLY_LIST_OPTION_PREFIX_FROM_BEGIN		0x2
-#define DFLY_LIST_OPTION_PREFIX_FROM_START_KEY	0x3
+	// For key generate
+	rnd_len[0].type = RND_UNIFORM;
+	rnd_len[0].a = klen;
+	rnd_len[0].b = klen;
 
-typedef struct list_conf_s {
-	int list_enabled ;
-	int list_zone_per_pool;
-	int list_nr_cores ;
-	int list_debug_level;
-	int list_op_flag;
-	long long list_timeout_ms;
-	char list_prefix_head[256];    //prefix screen
-} list_conf_t;
+	rnd_dist[0].type = RND_NORMAL;
+	rnd_dist[0].a = 0;
+	rnd_dist[0].b = 0xfffffffffffffff;
 
-#define LIST_ENABLE_DEFAULT     0
-#define LIST_NR_ZONES_DEFAULT   8
-#define LIST_NR_CORES_DEFAULT   4
-#define LIST_DEBUG_LEVEL_DEFAULT    0
-#define LIST_TIMEOUT_DEFAULT_MS     0
-#define LIST_PREFIX_HEAD            "/meta"
+	opt.abt_only = 1;
+	opt.delimiter = 1;
 
-int list_finish(struct dfly_subsystem *pool);
-int list_key_update(struct dfly_subsystem *pool, const char *key_str, size_t key_sz, bool is_del,
-		    bool is_wal_recovery);
-int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, void *cb_arg);
-void dfly_list_module_destroy(struct dfly_subsystem *pool, void *args, void *cb, void *cb_arg);
+	memset(&g_keygen_ctx.keygen, 0, sizeof(g_keygen_ctx.keygen));
 
-int do_list_item_process(void *ctx, const char *key, int is_leaf);
+	keygen_init(&g_keygen_ctx.keygen, 1, rnd_len, rnd_dist, &opt);
 
-#define list_log(fmt, args...)\
-		DFLY_INFOLOG(DFLY_LOG_LIST, fmt, ##args)
+	g_keygen_ctx.gen_index = 0;
 
-#ifdef __cplusplus
+	return;
 }
-#endif
 
-#endif // __DF_LIST_H
+void dss_keygen_next_key(char *key)
+{
+	uint32_t  crc;
 
+
+	crc = keygen_idx2crc(g_keygen_ctx.gen_index, 0);
+
+	BDR_RNG_VARS_SET(crc);
+	keygen_seed2key(&g_keygen_ctx.keygen, g_keygen_ctx.gen_index, key);
+	BDR_RNG_NEXTPAIR;
+
+	g_keygen_ctx.gen_index++;
+
+	return;
+}

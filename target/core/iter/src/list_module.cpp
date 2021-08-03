@@ -40,6 +40,8 @@
 #include "module_hash.h"
 #include "list_lib.h"
 
+#include "utils/dss_hsl.h"
+
 //namespace std;
 
 extern list_conf_t g_list_conf;
@@ -50,6 +52,14 @@ extern std::string key_default_delimlist ;
 extern std::string NKV_ROOT_PREFIX ;
 
 void *list_find_instance_ctx(struct dfly_request *request);
+
+dss_hsl_ctx_t * dss_get_hsl_context(struct dfly_subsystem *pool)
+{
+	list_context_t *ctx = (list_context_t *)dfly_module_get_ctx(pool->mlist.dfly_list_module);
+
+	return ctx->zones[0].hsl_keys_ctx;
+}
+
 bool list_valid_prefix(struct dfly_request * req){
     struct dfly_key *key = req->ops.get_key(req);
     assert(key);
@@ -64,11 +74,15 @@ int dfly_list_req_process(void *ctx, struct dfly_request *req)
     if(list_valid_prefix(req)){       
     	int io_rc = list_io(ctx, req, g_list_conf.list_op_flag & DF_OP_MASK);
     	dfly_list_info_t *list_data = &req->list_data;
+		if(!g_dragonfly->dss_enable_judy_listing) {
     	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
     	    || io_rc == DFLY_LIST_STORE_DONE
     	    || io_rc == DFLY_LIST_DEL_DONE
     	    || io_rc == DFLY_LIST_READ_DONE)
     		req->next_action = DFLY_REQ_IO_LIST_DONE;
+		} else {
+			req->next_action = DFLY_REQ_IO_LIST_DONE;
+		}
     }else{
         req->next_action = DFLY_REQ_IO_LIST_DONE;        
     }
@@ -399,8 +413,13 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 		zone = &list_mctx->zones[i];
 		assert(zone);
 		zone->zone_idx = i;
-		zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
-		(*zone->listing_keys).reserve(1048576);
+		if(g_dragonfly->dss_enable_judy_listing) {
+			DFLY_ASSERT(zone->zone_idx == 0);
+			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, key_default_delimlist.c_str(), do_list_item_process);
+		} else {
+			zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
+			(*zone->listing_keys).reserve(1048576);
+		}
 	}
 
 	pthread_mutex_init(&list_mctx->io_ctx.ctx_lock, NULL);

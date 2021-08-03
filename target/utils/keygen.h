@@ -31,59 +31,45 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DF_LIST_H
-#define __DF_LIST_H
+
+#ifndef _JSAHN_KEYGEN_H
+#define _JSAHN_KEYGEN_H
+
+#include "adv_random.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DFLY_LIST_SUCCESS 				0x0
-#define DFLY_LIST_IO_RC_PASS_THROUGH	0x1
-#define DFLY_LIST_FAIL					0x2
-#define DFLY_LIST_STORE_CONTINUE		0x4
-#define DFLY_LIST_STORE_DONE			0x8
+struct keygen_option {
+	uint8_t delimiter;
+	uint8_t abt_only;
+};
 
-#define DFLY_LIST_DEL_CONTINUE			0x10
-#define DFLY_LIST_DEL_DONE				0x20
+struct keygen {
+	size_t nprefix;
+	size_t abt_array_size;
+	struct rndinfo *prefix_len;
+	struct rndinfo *prefix_dist;
+	struct keygen_option opt;
+};
 
-#define DFLY_LIST_READ_DONE				0x40
+void keygen_init(
+	struct keygen *keygen,
+	size_t nprefix,
+	struct rndinfo *prefix_len,
+	struct rndinfo *prefix_dist,
+	struct keygen_option *opt);
 
-#define DFLY_LIST_OPTION_ROOT_FROM_BEGIN		0x0
-#define DFLY_LIST_OPTION_ROOT_FROM_START_KEY	0x1
-#define DFLY_LIST_OPTION_PREFIX_FROM_BEGIN		0x2
-#define DFLY_LIST_OPTION_PREFIX_FROM_START_KEY	0x3
+uint64_t MurmurHash64A(const void *key, int len, unsigned int seed);
 
-typedef struct list_conf_s {
-	int list_enabled ;
-	int list_zone_per_pool;
-	int list_nr_cores ;
-	int list_debug_level;
-	int list_op_flag;
-	long long list_timeout_ms;
-	char list_prefix_head[256];    //prefix screen
-} list_conf_t;
-
-#define LIST_ENABLE_DEFAULT     0
-#define LIST_NR_ZONES_DEFAULT   8
-#define LIST_NR_CORES_DEFAULT   4
-#define LIST_DEBUG_LEVEL_DEFAULT    0
-#define LIST_TIMEOUT_DEFAULT_MS     0
-#define LIST_PREFIX_HEAD            "/meta"
-
-int list_finish(struct dfly_subsystem *pool);
-int list_key_update(struct dfly_subsystem *pool, const char *key_str, size_t key_sz, bool is_del,
-		    bool is_wal_recovery);
-int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, void *cb_arg);
-void dfly_list_module_destroy(struct dfly_subsystem *pool, void *args, void *cb, void *cb_arg);
-
-int do_list_item_process(void *ctx, const char *key, int is_leaf);
-
-#define list_log(fmt, args...)\
-		DFLY_INFOLOG(DFLY_LOG_LIST, fmt, ##args)
+void keygen_free(struct keygen *keygen);
+uint32_t keygen_idx2crc(uint64_t idx, uint32_t seed);
+size_t keygen_seed2key(struct keygen *keygen, uint64_t seed, char *buf);
+size_t keygen_seqfill(uint64_t idx, char *buf);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // __DF_LIST_H
-
+#endif
