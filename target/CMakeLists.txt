@@ -156,6 +156,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_kv_pool_dev.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_mm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_module.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dss_tpool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_io_thread.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_lock_service.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_req_handler.cpp

@@ -358,7 +358,7 @@ Word_t dss_hsl_list_all(dss_hslist_node_t *node)
 	return leaf_count;
 }
 
-void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx)
+int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx)
 {
 	Word_t *value;
 	uint8_t prefix_str[DSS_LIST_MAX_KLEN + 1];
@@ -368,9 +368,9 @@ void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key
 
 	dss_hslist_node_t *tnode, *lnode;
 
-	int rc;
+	int rc = DFLY_LIST_READ_DONE;
 
-	if(strlen(prefix) > DSS_LIST_MAX_KLEN) return;
+	if(strlen(prefix) > DSS_LIST_MAX_KLEN) return rc;
 
 	strncpy((char *)prefix_str, prefix, DSS_LIST_MAX_KLEN);
 	prefix_str[DSS_LIST_MAX_KLEN] = '\0';
@@ -392,15 +392,25 @@ void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key
 		if(!value) {
 			//Entry not found
 			printf("Coundn't find token %s\n", tok);
-			return;
+			return rc;
 		}
 
 		tnode = (dss_hslist_node_t *)*value;
 		assert(tnode != NULL);
 
 		if(tnode->list_direct) {
-			dss_rocksdb_direct_iter(hctx, prefix, start_key, listing_ctx);
-			return;
+			struct dss_list_read_process_ctx_s *lctx = (struct dss_list_read_process_ctx_s *)listing_ctx;
+			//TODO: Make call async to tpool
+			//dss_rocksdb_direct_iter(hctx, prefix, start_key, listing_ctx);
+			DFLY_ASSERT(lctx->parent_req);
+			if(g_dragonfly->rdb_direct_listing_enable_tpool) {
+				dss_tpool_post_request(hctx->dlist_mod, lctx->parent_req);
+				rc = DFLY_LIST_READ_PENDING;
+			} else {
+				dss_rocksdb_direct_iter(hctx, lctx->parent_req);
+				rc = DFLY_LIST_READ_DONE;
+			}
+			return rc;
 		}
 
 		tok = strtok_r(NULL, hctx->delim_str, &saveptr);
@@ -434,12 +444,12 @@ void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key
 		}
 
 		if(rc != 0) {
-			return;
+			return DFLY_LIST_READ_DONE;
 		}
 
 		value = (Word_t *) JudySLNext(tnode->subtree, list_str, PJE0);
 	}
 
-	return;
+	return DFLY_LIST_READ_DONE;//READ DONE
 
 }

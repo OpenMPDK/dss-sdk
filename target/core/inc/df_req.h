@@ -77,6 +77,19 @@ typedef struct dfly_list_info_s {
 	uint16_t start_key_offset;	// offset of the key payload to delimit the prefix and start_key
 } dfly_list_info_t;
 
+struct dss_list_read_process_ctx_s {
+	struct dfly_request *parent_req;
+	struct dfly_value *val;
+	uint32_t *total_keys;
+	uint32_t max_keys;
+	uint32_t *key_sz;
+	void *key;
+	uint32_t rem_buffer_len;
+	char delim;
+	char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
+	char start[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
+};
+
 typedef enum df_lat_states_e {
 	DF_LAT_REQ_START = 0,
 	DF_LAT_READY_TO_EXECUTE,
@@ -227,6 +240,7 @@ typedef struct dfly_request {
 		void *internal_cb;
 	} iter_data;
 	dfly_list_info_t list_data;
+	struct dss_list_read_process_ctx_s lp_ctx;
 	TAILQ_ENTRY(dfly_request)	fuse_delay; /**< request pool linkage for retry */
 	TAILQ_ENTRY(dfly_request)
 	fuse_pending; /**< request linkage in process, to be unlinked on completion */

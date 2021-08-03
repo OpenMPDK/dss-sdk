@@ -231,6 +231,8 @@ dfly_config_read(struct spdk_conf_section *sp)
 
 	g_dragonfly->rdb_direct_listing = spdk_conf_section_get_boolval(sp, "rdb_direct_listing", false);
 	g_dragonfly->rdb_direct_listing_evict_levels = dfly_spdk_conf_section_get_intval_default(sp, "rdb_direct_listing_evict_levels", 2);
+	g_dragonfly->rdb_direct_listing_nthreads = dfly_spdk_conf_section_get_intval_default(sp, "rdb_direct_listing_nthreads", 4);
+	g_dragonfly->rdb_direct_listing_enable_tpool= spdk_conf_section_get_boolval(sp, "rdb_direct_listing_enable_tpool", false);
 
 	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", true);
         

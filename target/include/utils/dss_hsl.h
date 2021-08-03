@@ -54,12 +54,13 @@ typedef struct dss_hsl_ctx_s {
 #endif
 	dss_hslist_node_t lnode;
 	void *dev_ctx;
+	struct dfly_tpool_s *dlist_mod;
 } dss_hsl_ctx_t;
 
 dss_hsl_ctx_t *dss_hsl_new_ctx(char *root_prefix, char *delim_str, list_item_cb list_cb);
 int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key);
 int dss_hsl_delete(dss_hsl_ctx_t *hctx, const char *key);
-void dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx);
+int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx);
 void dss_hsl_print_info(dss_hsl_ctx_t *hctx);
 
 void dss_hsl_evict_levels(dss_hsl_ctx_t *hctx, int num_evict_levels, dss_hslist_node_t *node, int curr_level);

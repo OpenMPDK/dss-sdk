@@ -292,7 +292,9 @@ struct dragonfly {
 
 	bool rdb_direct_listing;
 	uint32_t rdb_direct_listing_evict_levels;
+	uint32_t rdb_direct_listing_nthreads;
     bool dss_enable_judy_listing;
+	bool rdb_direct_listing_enable_tpool;
 
 	uint32_t num_io_threads;
 	uint32_t num_nw_threads;
@@ -486,6 +488,12 @@ int dfly_ustat_init_bdev_stat(const char *dev_name);
 stat_block_io_t *dfly_bdev_get_ustat_p(struct spdk_bdev *bdev);
 
 dss_hsl_ctx_t * dss_get_hsl_context(struct dfly_subsystem *pool);
+
+typedef int (*tpool_req_process_fn)(void *ctx, struct dfly_request *req);
+struct dfly_tpool_s *dss_tpool_start(const char *name, int id,
+					void *ctx, int num_threads,
+					tpool_req_process_fn f_proc_reqs);
+void dss_tpool_post_request(struct dfly_tpool_s *module, struct dfly_request *req);
 #ifdef __cplusplus
 }
 #endif

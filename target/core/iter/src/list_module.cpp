@@ -41,6 +41,7 @@
 #include "list_lib.h"
 
 #include "utils/dss_hsl.h"
+#include "rocksdb/dss_kv2blk_c.h"
 
 //namespace std;
 
@@ -241,6 +242,9 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 	if (m_inst) {
 		req->state = DFLY_REQ_IO_LIST_FORWARD;
 	} else {
+		if(io_rc == DFLY_LIST_READ_PENDING) {
+			return DFLY_MODULE_REQUEST_QUEUED;
+		}
 		req->next_action = DFLY_REQ_IO_LIST_DONE;
 		req->state = DFLY_REQ_IO_NVMF_DONE;
 		dfly_handle_request(req);
@@ -427,6 +431,12 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 			DFLY_ASSERT(zone->zone_idx == 0);
 			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, key_default_delimlist.c_str(), do_list_item_process);
 			zone->hsl_keys_ctx->dev_ctx = pool;
+			if(g_dragonfly->rdb_direct_listing) {
+				if(g_dragonfly->rdb_direct_listing_enable_tpool) {
+					zone->hsl_keys_ctx->dlist_mod = dss_tpool_start("list_tpool", pool->id, zone->hsl_keys_ctx,
+						g_dragonfly->rdb_direct_listing_nthreads, dss_rocksdb_direct_iter);
+				}
+			}
 		} else {
 			zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
 			(*zone->listing_keys).reserve(1048576);

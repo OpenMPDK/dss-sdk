@@ -477,16 +477,6 @@ int do_list_io(void *ctx, struct dfly_key *key, struct dfly_request *req, int op
 	return rc;
 }
 
-struct dss_list_read_process_ctx_s {
-	struct dfly_value *val;
-	uint32_t *total_keys;
-	uint32_t max_keys;
-	uint32_t *key_sz;
-	void *key;
-	uint32_t rem_buffer_len;
-	char delim;
-};
-
 int do_list_item_process(void *ctx, const char *key, int is_leaf)
 {
 	struct dss_list_read_process_ctx_s *lp_ctx = (struct dss_list_read_process_ctx_s *) ctx;
@@ -511,16 +501,16 @@ int do_list_item_process(void *ctx, const char *key, int is_leaf)
 		((char *)lp_ctx->key)[keylen - 1] = lp_ctx->delim;
 	}
 
-	*lp_ctx->key_sz = keylen;
+	*(lp_ctx->key_sz) = keylen;
 
 	lp_ctx->key_sz += k_dw;
 	lp_ctx->key = lp_ctx->key_sz + 1;// int size inc after key sz is start of next key
 
 	lp_ctx->rem_buffer_len -= (k_dw * 4);
 
-	(*lp_ctx->total_keys)++;
+	(*(lp_ctx->total_keys))++;
 
-	if(*lp_ctx->total_keys == lp_ctx->max_keys) {
+	if(*(lp_ctx->total_keys) == lp_ctx->max_keys) {
 		return -1;
 	}
 
@@ -534,7 +524,12 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 	list_thread_inst_ctx_t *list_inst_ctx = (list_thread_inst_ctx_t *) ctx;
 
 	dss_hsl_ctx_t *hsl_ctx = NULL;
-	struct dss_list_read_process_ctx_s lp_ctx;
+
+	//TODO:
+	//		IO completion handle sync/async
+	struct dss_list_read_process_ctx_s *lp_ctx = &req->lp_ctx;;
+
+	lp_ctx->parent_req = req;
 
 	std::string key_str((char *)key->key, (size_t)key->length);
 	int rc = DFLY_LIST_IO_RC_PASS_THROUGH;
@@ -560,27 +555,27 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 			int offset = req->list_data.start_key_offset;
 			std::string prefix((char *)key->key, (size_t)offset);
 
-			lp_ctx.val = req->ops.get_value(req);;
-			lp_ctx.max_keys = req->list_data.max_keys_requested;
-			lp_ctx.delim = hsl_ctx->delim_str[0];
+			lp_ctx->val = req->ops.get_value(req);;
+			lp_ctx->max_keys = req->list_data.max_keys_requested;
+			lp_ctx->delim = hsl_ctx->delim_str[0];
 
-			lp_ctx.rem_buffer_len = lp_ctx.val->length;
-			if(lp_ctx.rem_buffer_len <= 2 * sizeof(uint32_t)) {
+			lp_ctx->rem_buffer_len = lp_ctx->val->length;
+			if(lp_ctx->rem_buffer_len <= 2 * sizeof(uint32_t)) {
 				//Not enough value buffer to do listing
 				//Minimum to hold total keys plus one key length
 				//Return error code
 			}
 
-			lp_ctx.total_keys = (uint32_t *)((char *)lp_ctx.val->value + lp_ctx.val->offset);
-			lp_ctx.rem_buffer_len -= sizeof(uint32_t);
+			lp_ctx->total_keys = (uint32_t *)((char *)lp_ctx->val->value + lp_ctx->val->offset);
+			lp_ctx->rem_buffer_len -= sizeof(uint32_t);
 
-			lp_ctx.key_sz = (uint32_t *)((void *)lp_ctx.val->value + lp_ctx.val->offset + sizeof(uint32_t));
-			//lp_ctx.rem_buffer_len -= sizeof(uint32_t); // include for calculation for next key write
+			lp_ctx->key_sz = (uint32_t *)((void *)lp_ctx->val->value + lp_ctx->val->offset + sizeof(uint32_t));
+			//lp_ctx->rem_buffer_len -= sizeof(uint32_t); // include for calculation for next key write
 
-			lp_ctx.key    = lp_ctx.key_sz + 1;//Advance by int pointer
+			lp_ctx->key    = lp_ctx->key_sz + 1;//Advance by int pointer
 
-			*lp_ctx.total_keys = 0;
-			*lp_ctx.key_sz = 0;
+			*lp_ctx->total_keys = 0;
+			*lp_ctx->key_sz = 0;
 
 			if(!offset) {
 				//Root listing not required
@@ -589,23 +584,27 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 				     SPDK_NVME_SC_KV_LIST_CMD_UNSUPPORTED_OPTION);
 			} else if (offset && offset < key->length) {
 				std::string start_key;
-				if(((char *)(key->key))[key->length - 1] == lp_ctx.delim) {
+				if(((char *)(key->key))[key->length - 1] == lp_ctx->delim) {
 					start_key = std::string((char *)(key->key + offset), key->length - offset - 1);
 				} else {
 					start_key = std::string((char *)(key->key + offset), key->length - offset);
 				}
-				dss_hsl_list(hsl_ctx, prefix.c_str(), start_key.c_str(), &lp_ctx);
+				strcpy(lp_ctx->prefix, prefix.c_str());
+				strcpy(lp_ctx->start, start_key.c_str());
+				rc = dss_hsl_list(hsl_ctx, prefix.c_str(), start_key.c_str(), lp_ctx);
 			} else {
-				dss_hsl_list(hsl_ctx, key_str.c_str(), NULL, &lp_ctx);
+				strcpy(lp_ctx->prefix, key_str.c_str());
+				strcpy(lp_ctx->start, "");
+				rc = dss_hsl_list(hsl_ctx, key_str.c_str(), NULL, lp_ctx);
 			}
 			//DFLY_NOTICELOG("hsl read list: %s\n", key_str.c_str());
-			if (*lp_ctx.total_keys == 0) {
-				dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
-						     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
+			if(rc == DFLY_LIST_READ_DONE) {
+				if (*lp_ctx->total_keys == 0) {
+					dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
+							     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
+				}
+				dfly_resp_set_cdw0(req, lp_ctx->val->length - lp_ctx->rem_buffer_len);
 			}
-			dfly_resp_set_cdw0(req, lp_ctx.val->length - lp_ctx.rem_buffer_len);
-			//TODO: List Read
-			rc = DFLY_LIST_READ_DONE;
 			break;
 		default:
 			list_log("do_list_io_judy: unsupported opc %x\n", opc);
