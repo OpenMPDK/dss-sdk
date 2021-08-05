@@ -82,6 +82,9 @@ int dfly_list_req_process(void *ctx, struct dfly_request *req)
     	    || io_rc == DFLY_LIST_READ_DONE)
     		req->next_action = DFLY_REQ_IO_LIST_DONE;
 		} else {
+			if(io_rc == DFLY_LIST_READ_PENDING) {
+				return DFLY_MODULE_REQUEST_QUEUED;
+			}
 			req->next_action = DFLY_REQ_IO_LIST_DONE;
 		}
     }else{
@@ -242,9 +245,6 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 	if (m_inst) {
 		req->state = DFLY_REQ_IO_LIST_FORWARD;
 	} else {
-		if(io_rc == DFLY_LIST_READ_PENDING) {
-			return DFLY_MODULE_REQUEST_QUEUED;
-		}
 		req->next_action = DFLY_REQ_IO_LIST_DONE;
 		req->state = DFLY_REQ_IO_NVMF_DONE;
 		dfly_handle_request(req);
