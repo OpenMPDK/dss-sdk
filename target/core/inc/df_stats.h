@@ -61,6 +61,7 @@ extern "C" {
 
 
 #define STAT_GNAME_KVIO	"kvio"
+#define STAT_GNAME_KVLIST   "kvlist"
 #define STAT_GNAME_NAME	"id"
 #define STAT_GNAME_RDMA "rdma"
 
@@ -112,6 +113,11 @@ typedef struct stat_kvio {
 	ustat_named_t get_large_2MB;
 	ustat_named_t i_pending_reqs;
 } stat_kvio_t;
+
+typedef struct stat_kvlist {
+       ustat_named_t listDevBandwidth;
+       ustat_named_t listMemBandwidth;
+} stat_kvlist_t;
 
 typedef struct stat_rqpair {
 	ustat_named_t i_reqs;

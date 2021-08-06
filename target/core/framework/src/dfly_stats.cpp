@@ -119,6 +119,11 @@ const stat_kvio_t stat_subsys_io_table = {
 	{ "i_pending_reqs", USTAT_TYPE_UINT64, 0, NULL},
 };
 
+const stat_kvlist_t stat_subsys_list_table = {
+       { "listDevBandwidth", USTAT_TYPE_UINT64, 0, NULL},
+       { "listMemBandwidth", USTAT_TYPE_UINT64, 0, NULL},
+};
+
 const stat_rqpair_t stat_rqpair_io_table = {
 	{"i_reqs", USTAT_TYPE_UINT64, 0, NULL},
 	{"i_reqs_max", USTAT_TYPE_UINT64, 0, NULL},
@@ -140,6 +145,7 @@ void dfly_ustat_insert_stat_ses_rqp_table(ustat_struct_t **stat, int id, const s
 void dfly_ustat_insert_stat_subsys_table(ustat_struct_t **stat, int id, const stat_subsys_t *table);
 void dfly_ustat_insert_stat_rdma_table(ustat_struct_t **stat, int id, const stat_rdma_t *table);
 void dfly_ustat_insert_stat_subsys_kvio(void **stat, int id, const stat_kvio_t *table);
+void dfly_ustat_insert_stat_subsys_kvlist(void **stat, int id, const stat_kvlist_t *table);
 
 int
 dfly_ustats_get_ename(const char *ename, int id, char *buf, size_t len)
@@ -270,12 +276,18 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 
 	stat_subsys_t *s0;
 	stat_kvio_t *s1;
+	stat_kvlist_t *s2;
+
 	dfly_ustat_insert_stat_subsys_table((ustat_struct_t **)&s0, subsystem->id, &stat_subsys_nqn_table);
 	dfly_ustat_set_string(s0, &s0->name, nqn);
 
 	dfly_ustat_insert_stat_subsys_kvio(&s1, subsystem->id, &stat_subsys_io_table);
+
+	dfly_ustat_insert_stat_subsys_kvlist(&s2, subsystem->id, &stat_subsys_list_table);
+
 	subsystem->stat_name = s0;
 	subsystem->stat_kvio = s1;
+	subsystem->stat_kvlist = s2;
 
 	return (0);
 }
@@ -311,6 +323,14 @@ void dfly_ustat_reset_kvio_stat(stat_kvio_t *stat)
 	return;
 }
 
+void dfly_ustat_reset_kvlist_stat(stat_kvlist_t *stat)
+{
+       dfly_ustat_set_u64(stat, &stat->listDevBandwidth,    0);
+       dfly_ustat_set_u64(stat, &stat->listMemBandwidth,  0);
+
+       return;
+}
+
 void
 dfly_ustat_remove_subsys_stat(void *subsys)
 {
@@ -318,6 +338,7 @@ dfly_ustat_remove_subsys_stat(void *subsys)
 
 	dfly_ustat_delete(subsystem->stat_name);
 	dfly_ustat_delete(subsystem->stat_kvio);
+	dfly_ustat_delete(subsystem->stat_kvlist);
 }
 
 void
@@ -628,4 +649,16 @@ dfly_ustat_insert_stat_subsys_kvio(ustat_struct_t **stat, int id, const stat_kvi
 	(*stat) = (stat_subsys_t *)ustat_insert(h, ename, STAT_GNAME_KVIO, &ustat_class_test,
 						sizeof(*table) / sizeof(ustat_named_t), table, NULL);
 	return;
+}
+
+void
+dfly_ustat_insert_stat_subsys_kvlist(ustat_struct_t **stat, int id, const stat_kvlist_t *table)
+{
+       char *ename = alloca(STAT_ENAME_LEN);
+       (void) dfly_ustats_get_ename(STAT_ENAME_SUBSYS, id, ename, STAT_ENAME_LEN);
+       ustat_handle *h = dfly_ustats_get_handle();
+       assert(h);
+       (*stat) = (stat_subsys_t *)ustat_insert(h, ename, STAT_GNAME_KVLIST, &ustat_class_test,
+                                               sizeof(*table) / sizeof(ustat_named_t), table, NULL);
+       return;
 }

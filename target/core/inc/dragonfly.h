@@ -201,6 +201,7 @@ struct dfly_subsystem {
 	void *parent_ctx;//struct spdk_nvmf_subsystem
 
 	stat_kvio_t *stat_kvio;
+	stat_kvlist_t *stat_kvlist;
 	stat_subsys_t *stat_name;
 
 	bool shutting_down;
