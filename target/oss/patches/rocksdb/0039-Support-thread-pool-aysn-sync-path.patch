@@ -1,0 +1,104 @@
+From 89f2ba25d29b6b29ce027bbcba5ec0e301f24cf1 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 20 May 2021 17:15:39 -0700
+Subject: [PATCH 39/40] Support thread pool aysn/sync path
+
+---
+ db/dss_kv2blk_c.cc             | 36 +++++++++++++++++++++++++++++++-----
+ include/rocksdb/dss_kv2blk_c.h |  2 +-
+ 2 files changed, 32 insertions(+), 6 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index fc9e458..4ddef1b 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -463,11 +463,21 @@ typedef struct rocksdb_list_key_ctx_s{
+ 
+ typedef std::pair<std::string, int> dss_pool_iter_t;
+ 
+-void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing_ctx)
++//void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing_ctx)
++//{
++
++//	dss_hsl_ctx_t *hctx = (dss_hsl_ctx_t *)ctx;
++//	struct dfly_subsystem *pool = (struct dfly_subsystem *)hctx->dev_ctx;
++
++int dss_rocksdb_direct_iter(void *ctx, struct dfly_request *dfly_req)
+ {
+ 
++
+ 	dss_hsl_ctx_t *hctx = (dss_hsl_ctx_t *)ctx;
+-	struct dfly_subsystem *pool = (struct dfly_subsystem *)hctx->dev_ctx;
++	struct dfly_subsystem *pool       = dfly_get_subsystem_no_lock(dfly_req->req_ssid);
++	char * prefix = dfly_req->lp_ctx.prefix;
++	char * start = dfly_req->lp_ctx.start;
++	void *listing_ctx = (void *) &dfly_req->lp_ctx;
+ 
+ 	int i;
+ 
+@@ -512,7 +522,7 @@ void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing
+ 		prefix_buf[plen - 1] = hctx->delim_str[0]; //Buffer already reset with 0
+ 		plen++;
+ 	}
+-	if(start) {
++	if(strcmp(start, "")) {
+ 		memcpy(prefix_buf + strlen(prefix_buf), start, strlen(start));
+ 	}
+ 
+@@ -527,7 +537,7 @@ void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing
+ 	int rc;
+ 	char *tok, *saveptr;
+ 
+-	if(start) {
++	if(strcmp(start, "")) {
+ 		tok = strtok(start, hctx->delim_str);
+ 		strcpy(prev_key, tok); //Skip start key
+ 	}
+@@ -579,7 +589,9 @@ void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing
+ 			}
+ 
+ 			if(rc != 0) {
+-				return;
++				//TODO: skip to end and complete request
++				//return;
++				goto finish;
+ 			}
+ 		}
+ 
+@@ -608,6 +620,20 @@ void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing
+ 			break;
+ 		}
+ 	}
++
++finish:
++	if(g_dragonfly->rdb_direct_listing_enable_tpool) {
++		if (*dfly_req->lp_ctx.total_keys == 0) {
++			dfly_set_status_code(dfly_req, SPDK_NVME_SCT_KV_CMD,
++					     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
++		}
++		dfly_resp_set_cdw0(dfly_req, dfly_req->lp_ctx.val->length - dfly_req->lp_ctx.rem_buffer_len);
++
++		dfly_req->state = DFLY_REQ_IO_NVMF_DONE;
++		dfly_req->next_action = DFLY_REQ_IO_LIST_DONE;
++	}
++
++	return 0;
+ }
+ 
+ void * _dss_rocksdb_list_key(void *ctx)
+diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
+index c3f5482..b9fb13e 100644
+--- a/include/rocksdb/dss_kv2blk_c.h
++++ b/include/rocksdb/dss_kv2blk_c.h
+@@ -19,7 +19,7 @@ extern void dss_rocksdb_compaction(void *ctx);
+ typedef void (*list_done_cb)(void * ctx, int rc);
+ extern int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done_cb list_cb);
+ 
+-extern void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing_ctx);
++extern int dss_rocksdb_direct_iter(void *ctx,struct dfly_request *dfly_req);
+ #ifdef __cplusplus
+ }  /* end extern "C" */
+ #endif
+-- 
+1.8.3.1
+

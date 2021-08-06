@@ -1,17 +1,17 @@
-From 32b983f3776e83d639d94c6523b8e4497981ccb9 Mon Sep 17 00:00:00 2001
+From a254ebaf73c630b5ef6aab8ddb52fdc2badd57a3 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 6 May 2021 14:57:07 -0700
-Subject: [PATCH 46/46]  * blobstore abort io with specific errno.  * thin
+Subject: [PATCH 46/47] * blobstore abort io with specific errno. * thin
  provision check the enough space on resize
 
 ---
- lib/blob/blobstore.c | 25 ++++++++++++-------------
- lib/blob/request.c   | 11 ++++++-----
+ lib/blob/blobstore.c | 19 +++++++++----------
+ lib/blob/request.c   |  9 +++++----
  lib/blob/request.h   |  2 +-
- 3 files changed, 19 insertions(+), 19 deletions(-)
+ 3 files changed, 15 insertions(+), 15 deletions(-)
 
 diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
-index c1196ac..acc87fd 100644
+index c1196ac..d220d3c 100644
 --- a/lib/blob/blobstore.c
 +++ b/lib/blob/blobstore.c
 @@ -141,7 +141,6 @@ bs_allocate_cluster(struct spdk_blob *blob, uint32_t cluster_num,
@@ -22,7 +22,7 @@ index c1196ac..acc87fd 100644
  	pthread_mutex_lock(&blob->bs->used_clusters_mutex);
  	*lowest_free_cluster = spdk_bit_array_find_first_clear(blob->bs->used_clusters,
  			       *lowest_free_cluster);
-@@ -1597,13 +1596,12 @@ blob_persist_clear_clusters_cpl(spdk_bs_sequence_t *seq, void *cb_arg, int bserr
+@@ -1597,7 +1596,6 @@ blob_persist_clear_clusters_cpl(spdk_bs_sequence_t *seq, void *cb_arg, int bserr
  	struct spdk_blob		*blob = ctx->blob;
  	struct spdk_blob_store		*bs = blob->bs;
  	size_t				i;
@@ -30,22 +30,6 @@ index c1196ac..acc87fd 100644
  	if (bserrno != 0) {
  		blob_persist_complete(seq, ctx, bserrno);
  		return;
- 	}
- 
--	/* Release all clusters that were truncated */
-+  	/* Release all clusters that were truncated */
- 	for (i = blob->active.num_clusters; i < blob->active.cluster_array_size; i++) {
- 		uint32_t cluster_num = bs_lba_to_cluster(bs, blob->active.clusters[i]);
- 
-@@ -1613,7 +1611,7 @@ blob_persist_clear_clusters_cpl(spdk_bs_sequence_t *seq, void *cb_arg, int bserr
- 		}
- 	}
- 
--	if (blob->active.num_clusters == 0) {
-+    	if (blob->active.num_clusters == 0) {
- 		free(blob->active.clusters);
- 		blob->active.clusters = NULL;
- 		blob->active.cluster_array_size = 0;
 @@ -1886,7 +1884,7 @@ blob_resize(struct spdk_blob *blob, uint64_t sz)
  	 * and md pages, another to actually claim them.
  	 */
@@ -86,9 +70,8 @@ index c1196ac..acc87fd 100644
  	rc = bs_allocate_cluster(blob, cluster_number, &ctx->new_cluster, &ctx->new_extent_page,
  				 false);
  	if (rc != 0) {
--		spdk_free(ctx->buf);
-+        	SPDK_ERRLOG("bs_allocate_cluster failed rc %d\n", rc);
-+ 		spdk_free(ctx->buf);
++		SPDK_ERRLOG("bs_allocate_cluster failed rc %d\n", rc);
+ 		spdk_free(ctx->buf);
  		free(ctx);
 -		bs_user_op_abort(op);
 +		bs_user_op_abort(op, rc);
@@ -121,10 +104,10 @@ index c1196ac..acc87fd 100644
  
  	free(channel->req_mem);
 diff --git a/lib/blob/request.c b/lib/blob/request.c
-index 0975bcf..32c89ca 100644
+index 0975bcf..875b9ed 100644
 --- a/lib/blob/request.c
 +++ b/lib/blob/request.c
-@@ -166,16 +166,16 @@ bs_sequence_write_dev(spdk_bs_sequence_t *seq, void *payload,
+@@ -166,13 +166,13 @@ bs_sequence_write_dev(spdk_bs_sequence_t *seq, void *payload,
  {
  	struct spdk_bs_request_set      *set = (struct spdk_bs_request_set *)seq;
  	struct spdk_bs_channel       *channel = set->channel;
@@ -135,14 +118,10 @@ index 0975bcf..32c89ca 100644
  	set->u.sequence.cb_fn = cb_fn;
  	set->u.sequence.cb_arg = cb_arg;
  
-+    
++
  	channel->dev->write(channel->dev, channel->dev_channel, payload, lba, lba_count,
  			    &set->cb_args);
--}
-+}   
- 
- void
- bs_sequence_readv_bs_dev(spdk_bs_sequence_t *seq, struct spdk_bs_dev *bs_dev,
+ }
 @@ -494,13 +494,14 @@ bs_user_op_execute(spdk_bs_user_op_t *op)
  }
  
@@ -155,7 +134,7 @@ index 0975bcf..32c89ca 100644
  	set = (struct spdk_bs_request_set *)op;
 -
 -	set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, -EIO);
-+    	//-EIO by default
++	//-EIO by default
 +	//set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, -EIO);
 +	set->cpl.u.blob_basic.cb_fn(set->cpl.u.blob_basic.cb_arg, berrno);
  	TAILQ_INSERT_TAIL(&set->channel->reqs, set, link);

@@ -1,7 +1,7 @@
-From d379cda3b2deef6983758ece96088d562506813a Mon Sep 17 00:00:00 2001
+From 5aa09f770ee7ee8bf62ada6a5ee2861f7af6d5bf Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 23 Mar 2021 12:13:22 -0700
-Subject: [PATCH 38/46] Added config to enable/disable trim for blobstore
+Subject: [PATCH 38/47] Added config to enable/disable trim for blobstore
 
 ---
  include/spdk/blob.h  | 2 ++

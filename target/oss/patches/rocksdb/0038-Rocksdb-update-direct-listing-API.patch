@@ -1,0 +1,185 @@
+From 2bf3c4920bec10d680b471778219a73ab54a918b Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 3 Aug 2021 15:23:54 -0700
+Subject: [PATCH 38/40] Rocksdb update - direct listing API
+
+---
+ db/dss_kv2blk_c.cc             | 149 +++++++++++++++++++++++++++++++++++++++++
+ include/rocksdb/dss_kv2blk_c.h |   1 +
+ 2 files changed, 150 insertions(+)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 859eefa..fc9e458 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -461,6 +461,155 @@ typedef struct rocksdb_list_key_ctx_s{
+     size_t prefix_size;
+ } list_key_ctx_t;
+ 
++typedef std::pair<std::string, int> dss_pool_iter_t;
++
++void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing_ctx)
++{
++
++	dss_hsl_ctx_t *hctx = (dss_hsl_ctx_t *)ctx;
++	struct dfly_subsystem *pool = (struct dfly_subsystem *)hctx->dev_ctx;
++
++	int i;
++
++    rocksdb::Iterator* iter_arr[pool->num_io_devices] = {NULL};
++
++    rocksdb::DB* db;
++    std::vector<rocksdb::ColumnFamilyHandle*> handles;
++    rocksdb::ColumnFamilyHandle* data_handle; //TODO: support multi column familes
++
++	for(i=0; i < pool->num_io_devices; i++) {
++		db = (rocksdb::DB* ) pool->devices[i].rdb_handle->rdb_db_handle;
++
++		handles = rocksdb::g_db2cf[db];
++
++	    data_handle = handles[0]; //TODO: support multi column familes
++
++	    rocksdb::ReadOptions options(false, true);
++		options.tailing = false;
++		options.prefix_same_as_start = true;
++
++	    iter_arr[i] = db->NewIterator(options, data_handle);
++	}
++
++    char key[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1];
++
++	int plen = 0;
++
++	//DFLY_NOTICELOG("Direct listing for prefix [%s] with start [%s]\n", prefix, start);
++
++	plen = strlen(prefix);
++    memset(key, 0xff, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
++    memcpy(key, prefix, plen);
++    rocksdb::Slice key_upbound(key, SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1);
++
++	assert(1 == g_dragonfly->rdb_shard_cnt);//Remove after multi shard min heap support
++
++    bool use_prefix_iter = true;
++
++    char prefix_buf[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
++    memcpy(prefix_buf, prefix, plen);
++	if(prefix_buf[plen - 1] != hctx->delim_str[0]) {
++		prefix_buf[plen - 1] = hctx->delim_str[0]; //Buffer already reset with 0
++		plen++;
++	}
++	if(start) {
++		memcpy(prefix_buf + strlen(prefix_buf), start, strlen(start));
++	}
++
++    rocksdb::Slice key_prefix(prefix_buf, strlen(prefix_buf));
++
++	for(i=0; i < pool->num_io_devices; i++) {
++		iter_arr[i]->Seek(key_prefix);//Seek to Prefix + start
++	}
++
++    char prev_key[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
++    char list_str[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE+1]={0};
++	int rc;
++	char *tok, *saveptr;
++
++	if(start) {
++		tok = strtok(start, hctx->delim_str);
++		strcpy(prev_key, tok); //Skip start key
++	}
++
++	std::priority_queue<dss_pool_iter_t, std::vector<dss_pool_iter_t>, std::greater<dss_pool_iter_t> > piter;
++	bool found;
++	std::string populate_key;
++
++	for(i=0; i < pool->num_io_devices; i++) {
++		found = false;
++		if (iter_arr[i]->Valid() && iter_arr[i]->key().compare(key_upbound) <= 0) {
++			populate_key = std::string(iter_arr[i]->key().data(), iter_arr[i]->key().size());
++
++			strcpy(list_str, populate_key.c_str());
++			assert(plen != 0 && plen <= strlen(list_str));
++			iter_arr[i]->Next();
++		} else {
++			continue;
++		}
++		//DFLY_NOTICELOG("\t populate key [%s/] dev %d\n", populate_key.c_str(), i);
++		piter.push({populate_key, i});
++	}
++
++	while(piter.empty() == false) {
++		dss_pool_iter_t iter = piter.top();
++		piter.pop();
++
++		int dev_index;
++
++		dev_index = iter.second;
++
++		strcpy(list_str, iter.first.c_str());
++
++		int tok_len = 0;
++
++		assert(plen != 0 && plen <= strlen(list_str));
++		tok = strtok_r(list_str + plen, hctx->delim_str, &saveptr);
++		tok_len = strlen(tok);
++		memmove(list_str, tok, tok_len);
++		list_str[tok_len] = '\0';
++
++		if(strcmp(prev_key, list_str)) {
++			if(strtok_r(NULL, hctx->delim_str, &saveptr) != NULL) {
++				rc = hctx->process_listing_item(listing_ctx, list_str, 0);
++				//DFLY_NOTICELOG("\t key [%s/] dev %d\n", list_str, dev_index);
++			} else {
++				rc = hctx->process_listing_item(listing_ctx, list_str, 1);
++				//DFLY_NOTICELOG("\t key [%s] dev %d\n", list_str, dev_index);
++			}
++
++			if(rc != 0) {
++				return;
++			}
++		}
++
++		strcpy(prev_key, tok); //Skip start key
++
++		for (; iter_arr[dev_index]->Valid()
++			&& iter_arr[dev_index]->key().compare(key_upbound) <= 0;
++			iter_arr[dev_index]->Next()) {
++
++			strcpy(list_str, iter_arr[dev_index]->key().data());
++
++			assert(plen != 0 && plen <= strlen(list_str));
++			tok = strtok_r(list_str + plen, hctx->delim_str, &saveptr);
++			tok_len = strlen(tok);
++			memmove(list_str, tok, tok_len);
++			list_str[tok_len] = '\0';
++
++			if(strcmp(prev_key, list_str) == 0) {
++				continue;
++			}
++
++			std::string insert_key(iter_arr[dev_index]->key().data(), iter_arr[dev_index]->key().size());
++			//DFLY_NOTICELOG("\t replenish key [%s/] dev %d\n", insert_key.c_str(), dev_index);
++			piter.push({insert_key, dev_index});
++
++			break;
++		}
++	}
++}
++
+ void * _dss_rocksdb_list_key(void *ctx)
+ {
+     list_key_ctx_t * list_ctx = (list_key_ctx_t *)ctx;
+diff --git a/include/rocksdb/dss_kv2blk_c.h b/include/rocksdb/dss_kv2blk_c.h
+index bec6650..c3f5482 100644
+--- a/include/rocksdb/dss_kv2blk_c.h
++++ b/include/rocksdb/dss_kv2blk_c.h
+@@ -19,6 +19,7 @@ extern void dss_rocksdb_compaction(void *ctx);
+ typedef void (*list_done_cb)(void * ctx, int rc);
+ extern int dss_rocksdb_list_key(void *ctx, void * prefix, size_t prefix_size, list_done_cb list_cb);
+ 
++extern void dss_rocksdb_direct_iter(void *ctx, char *prefix, char *start, void *listing_ctx);
+ #ifdef __cplusplus
+ }  /* end extern "C" */
+ #endif
+-- 
+1.8.3.1
+

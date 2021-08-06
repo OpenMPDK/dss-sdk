@@ -1,0 +1,25 @@
+From abfadc3fbecbcd18361f1623a102e03b98e4f678 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 20 Apr 2021 16:04:12 -0700
+Subject: [PATCH 47/47] Add hsl lib to link
+
+---
+ mk/spdk.app.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
+index 51a3c5b..559396b 100644
+--- a/mk/spdk.app.mk
++++ b/mk/spdk.app.mk
+@@ -48,7 +48,7 @@ endif
+ 
+ LIBS += $(SPDK_LIB_LINKER_ARGS)
+ 
+-SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldss_lat -ljudyL -ldssd -lstdc++  -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
++SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldss_hsl -ldss_lat -ljudyL -ldssd -lstdc++  -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
+ 
+ CLEAN_FILES = $(APP)
+ 
+-- 
+1.8.3.1
+

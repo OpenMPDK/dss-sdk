@@ -1,0 +1,31 @@
+From bb6dde1d92fbf6283e042f3fb5f88a39991b61fb Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 20 Apr 2021 16:05:13 -0700
+Subject: [PATCH 37/40] Support judy based list loading
+
+---
+ db/dss_kv2blk_c.cc | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 69196b3..859eefa 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -696,7 +696,13 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+            && iter->key().compare(key_upbound) <= 0;
+           iter->Next()) {
+ 	    pthread_mutex_lock(&list_init_mutex);
+-        list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
++		if(g_dragonfly->dss_enable_judy_listing) {
++			std::string key_2_insert(iter->key().data(), iter->key().size());
++			//printf("hsl insert key: %s\n", key_2_insert.c_str());
++			dss_hsl_insert(dss_get_hsl_context(list_ctx->pool), key_2_insert.c_str());
++		} else {
++	        list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
++		}
+ 	    pthread_mutex_unlock(&list_init_mutex);
+         //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());
+         nr_keys ++;
+-- 
+1.8.3.1
+

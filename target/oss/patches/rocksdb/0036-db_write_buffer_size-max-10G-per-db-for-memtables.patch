@@ -1,19 +1,19 @@
-From 6023aaddeeddc124bc346d991767435410c415d1 Mon Sep 17 00:00:00 2001
+From 1cfcb0bd9f84672ee19f130d9308c1cf7643ff0f Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 6 May 2021 15:08:36 -0700
-Subject: [PATCH 36/36] * db_write_buffer_size max 10G per db for memtables *
+Subject: [PATCH 36/40] * db_write_buffer_size max 10G per db for memtables *
  manifest corruption poistion log on startup.
 
 ---
- db/dss_kv2blk_c.cc | 21 ++++++++++++++++-----
+ db/dss_kv2blk_c.cc | 19 +++++++++++++++----
  db/log_reader.cc   |  1 +
- 2 files changed, 17 insertions(+), 5 deletions(-)
+ 2 files changed, 16 insertions(+), 4 deletions(-)
 
 diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
-index 0a114b0..49094af 100644
+index 0a114b0..69196b3 100644
 --- a/db/dss_kv2blk_c.cc
 +++ b/db/dss_kv2blk_c.cc
-@@ -308,27 +308,38 @@ void *_dss_rocksdb_open(void *arg)
+@@ -308,25 +308,36 @@ void *_dss_rocksdb_open(void *arg)
      options.target_file_size_base = 1073741824; // 1GB
      options.disable_auto_compactions = !g_dragonfly->rdb_auto_compaction_enable;
      options.min_write_buffer_number_to_merge = g_dragonfly->rdb_min_mtable_to_merge;
@@ -26,7 +26,7 @@ index 0a114b0..49094af 100644
 -    //printf("ListColumnFamilies %s\n", s.ToString().c_str());
 +    if(g_dragonfly->rdb_io_debug_level > 0)
 +	    DFLY_NOTICELOG("ListColumnFamilies %s %s\n", dbname.c_str(), s.ToString().c_str());
-+    
++
 +    if(s.IsCorruption()){
 +	    DFLY_ERRLOG("ListColumnFamilies %s %s\n", dbname.c_str(), s.ToString().c_str());
 +	    abort();
@@ -51,11 +51,8 @@ index 0a114b0..49094af 100644
 -                printf("CreateColumnFamily db %p s %s\n", db, s.ToString().c_str());
 +                DFLY_NOTICELOG("CreateColumnFamily db %p s %s\n", db, s.ToString().c_str());
          }
--    }
-+    } 
+     }
      std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-     // have to open default column family
-     column_families.push_back(rocksdb::ColumnFamilyDescriptor(
 @@ -342,7 +353,7 @@ void *_dss_rocksdb_open(void *arg)
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
     s = rocksdb::DB::Open(options, dbname, column_families, &handles, &db);

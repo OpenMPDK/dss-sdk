@@ -1,7 +1,7 @@
-From 3568379d5838d1e905969283c76b21881dc42fa0 Mon Sep 17 00:00:00 2001
+From cc387b0fdfeef753c4399c632b03599197f396ce Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 13 Aug 2020 21:25:48 -0700
-Subject: [PATCH 02/46] DSS Integration
+Subject: [PATCH 02/47] DSS Integration
 
 ---
  configure                               |   2 +-
