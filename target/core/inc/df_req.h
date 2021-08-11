@@ -85,6 +85,8 @@ struct dss_list_read_process_ctx_s {
 	uint32_t *key_sz;
 	void *key;
 	uint32_t rem_buffer_len;
+	uint32_t repopulate:1;
+    uint32_t is_list_direct:1;
 	char delim;
 	char prefix[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];
 	char start[SAMSUNG_KV_MAX_FABRIC_KEY_SIZE + 1];

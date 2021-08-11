@@ -477,6 +477,13 @@ int do_list_io(void *ctx, struct dfly_key *key, struct dfly_request *req, int op
 	return rc;
 }
 
+void dss_list_set_repopulate(void *ctx)
+{
+	struct dss_list_read_process_ctx_s *lctx = (struct dss_list_read_process_ctx_s *)ctx;
+
+	lctx->repopulate = 1;
+}
+
 int do_list_item_process(void *ctx, const char *key, int is_leaf)
 {
 	struct dss_list_read_process_ctx_s *lp_ctx = (struct dss_list_read_process_ctx_s *) ctx;
@@ -491,6 +498,7 @@ int do_list_item_process(void *ctx, const char *key, int is_leaf)
 	k_dw = (keylen + 4 - 1) / 4 + 1;
 
 	if(lp_ctx->rem_buffer_len < k_dw * 4 ) {
+		//DFLY_NOTICELOG("Buffer not available %d\n", lp_ctx->rem_buffer_len);
 		return -1;//No room for more keys
 	}
 
@@ -511,6 +519,7 @@ int do_list_item_process(void *ctx, const char *key, int is_leaf)
 	(*(lp_ctx->total_keys))++;
 
 	if(*(lp_ctx->total_keys) == lp_ctx->max_keys) {
+		//DFLY_NOTICELOG("Max keys requested %d\n", lp_ctx->max_keys);
 		return -1;
 	}
 
@@ -529,7 +538,9 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 	//		IO completion handle sync/async
 	struct dss_list_read_process_ctx_s *lp_ctx = &req->lp_ctx;;
 
+	//Initialize
 	lp_ctx->parent_req = req;
+	lp_ctx->repopulate = 0;
 
 	std::string key_str((char *)key->key, (size_t)key->length);
 	int rc = DFLY_LIST_IO_RC_PASS_THROUGH;
@@ -558,12 +569,16 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 			lp_ctx->val = req->ops.get_value(req);;
 			lp_ctx->max_keys = req->list_data.max_keys_requested;
 			lp_ctx->delim = hsl_ctx->delim_str[0];
+			lp_ctx->is_list_direct = 0;
 
 			lp_ctx->rem_buffer_len = lp_ctx->val->length;
 			if(lp_ctx->rem_buffer_len <= 2 * sizeof(uint32_t)) {
 				//Not enough value buffer to do listing
 				//Minimum to hold total keys plus one key length
 				//Return error code
+				DFLY_NOTICELOG("hsl read list: value buffer len insufficient\n");
+				dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
+				     SPDK_NVME_SC_KV_INVALID_VALUE_SIZE);
 			}
 
 			lp_ctx->total_keys = (uint32_t *)((char *)lp_ctx->val->value + lp_ctx->val->offset);
@@ -602,6 +617,11 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 				if (*lp_ctx->total_keys == 0) {
 					dfly_set_status_code(req, SPDK_NVME_SCT_KV_CMD,
 							     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
+				}
+				if(!lp_ctx->is_list_direct) {
+					dfly_ustat_atomic_add_u64(req->req_dfly_ss->stat_kvlist, \
+									&req->req_dfly_ss->stat_kvlist->listMemBandwidth,
+									lp_ctx->val->length - lp_ctx->rem_buffer_len);
 				}
 				dfly_resp_set_cdw0(req, lp_ctx->val->length - lp_ctx->rem_buffer_len);
 			}

@@ -36,9 +36,17 @@
 
 #define DSS_LIST_DEBUG_MEM_USE
 
+enum dss_hlist_node_type {
+	DSS_HLIST_ROOT = 0x0,
+	DSS_HLIST_LEAF = 0x1,
+	DSS_HLIST_BRAN = 0x2,
+	DSS_HLIST_HYBR = 0x3
+};
+
 typedef struct dss_hslist_node_s {
-	uint8_t leaf:1;
+	uint8_t type:2;
 	uint8_t list_direct:1;
+	uint8_t in_lru:1;
 	void  *subtree;
 	TAILQ_ENTRY(dss_hslist_node_s) lru_link;
 } dss_hslist_node_t;

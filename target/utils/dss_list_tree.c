@@ -48,7 +48,7 @@ dss_hsl_ctx_t *dss_hsl_new_ctx(char *root_prefix, char *delim_str, list_item_cb 
 		hsl_ctx->root_prefix = strdup(root_prefix);
 		hsl_ctx->delim_str = strdup(delim_str);
 
-		hsl_ctx->lnode.leaf = 0;
+		hsl_ctx->lnode.type = DSS_HLIST_ROOT;
 		assert(list_cb);
 		hsl_ctx->process_listing_item = list_cb;
 		hsl_ctx->lnode.subtree = NULL;
@@ -69,7 +69,9 @@ void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
 	dss_hslist_node_t *node;
 	int rc;
 
-	if(tnode->leaf) {
+	DFLY_ASSERT(tnode->type != DSS_HLIST_ROOT);
+
+	if(tnode->type == DSS_HLIST_LEAF) {
 		assert(tnode->subtree == NULL);
 		//Called to delete leaf_node directly assert
 		assert(0);
@@ -82,7 +84,7 @@ void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
 
 	while(value) {
 		node = *value;
-		if(node->leaf == 1) {
+		if(node->type == DSS_HLIST_LEAF) {
 			//Delete and return
 			assert(node->subtree == NULL);
 			//printf("Delete Leaf [%s]\n", key_str);
@@ -101,15 +103,20 @@ void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
 
 			hctx->node_count--;
 		} else {
+			DFLY_ASSERT(node->type & DSS_HLIST_BRAN);
 			//Recurse the tree to delete subtree
-			assert(node->subtree);
-			_dss_hsl_delete_subtree(hctx, node);
+			if(node->subtree) {
+				//TODO: check and assert list direct??
+				_dss_hsl_delete_subtree(hctx, node);
 
-			//printf("Delete non Leaf [%s]\n", key_str);
-			JudySLFreeArray(&node->subtree, PJE0);
-			node->subtree = NULL;
+				//printf("Delete non Leaf [%s]\n", key_str);
+				JudySLFreeArray(&node->subtree, PJE0);
+				node->subtree = NULL;
+			}
 
 			//Remove from LRU list
+			//DFLY_NOTICELOG("Delete LRU tok[%s]\n", key_str);
+			tnode->in_lru = 0;
 			TAILQ_REMOVE(&hctx->lru_list, node, lru_link);
 
 			//Update memory usage on delete
@@ -125,6 +132,10 @@ void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
 		value = (Word_t *) JudySLNext(tnode->subtree, key_str, PJE0);
 	}
 
+	if(tnode->in_lru == 1) {
+		tnode->in_lru = 0;
+		TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
+	}
 	tnode->list_direct = 1;
 	return;
 }
@@ -133,7 +144,7 @@ void dss_hsl_evict_cache_threshold(dss_hsl_ctx_t *hctx)
 {
 	dss_hslist_node_t *node;
 
-	//DFLY_NOTICELOG("Before evict %ld/%ld \n", hctx->mem_usage, hctx->mem_limit);
+	DFLY_NOTICELOG("Before evict %ld/%ld \n", hctx->mem_usage, hctx->mem_limit);
 	//TODO: make this percentage upper and lower??
 	while(hctx->mem_usage > hctx->mem_limit) {
 
@@ -150,7 +161,7 @@ void dss_hsl_evict_cache_threshold(dss_hsl_ctx_t *hctx)
 			break;
 		}
 	}
-	//DFLY_NOTICELOG("After  evict %ld/%ld \n", hctx->mem_usage, hctx->mem_limit);
+	DFLY_NOTICELOG("After  evict %ld/%ld \n", hctx->mem_usage, hctx->mem_limit);
 }
 
 void dss_hsl_evict_levels(dss_hsl_ctx_t *hctx, int num_evict_levels, dss_hslist_node_t *node, int curr_level)
@@ -169,7 +180,7 @@ void dss_hsl_evict_levels(dss_hsl_ctx_t *hctx, int num_evict_levels, dss_hslist_
 	assert(curr_level <= hctx->tree_depth);
 	num_rem_levels = hctx->tree_depth - curr_level + 1;
 
-	if (node->leaf) {
+	if (!(node->type & DSS_HLIST_BRAN)) {
 		return; //Short keys
 	} else if(num_rem_levels == num_evict_levels) {
 		_dss_hsl_delete_subtree(hctx, node);
@@ -205,7 +216,10 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 
 	if(tnode->list_direct == 1) {
 		//printf("list direct skip token [%s]\n", tok);
-		assert(tnode->leaf == 0);
+		DFLY_ASSERT(!(tnode->type & DSS_HLIST_LEAF));
+		if(tnode->in_lru == 1) {
+			TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
+		}
 		return 0;
 	}
 
@@ -231,25 +245,33 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 				//Judy SL array not empty
 				return 0;
 			} else {
+				//Remove only non-leaf
+				//Remove from LRU list
+				if(next_node->type & DSS_HLIST_BRAN) {
+					//DFLY_NOTICELOG("Delete LRU tok[%s]\n", tok);
+					if(next_node->in_lru == 1) {
+						next_node->in_lru = 0;
+						TAILQ_REMOVE(&hctx->lru_list, next_node, lru_link);
+					}
+				}
+
 				JudySLFreeArray(&next_node->subtree, PJE0);
 				next_node->subtree = NULL;
 
-				rc = JudySLDel(&tnode->subtree, tok, PJE0);
-				assert(rc == 1);//Found Key should be deleted
+				if(next_node->type == DSS_HLIST_HYBR) {
+					next_node->type = DSS_HLIST_LEAF; 
+				} else {
+					rc = JudySLDel(&tnode->subtree, tok, PJE0);
+					assert(rc == 1);//Found Key should be deleted
 
-				//Remove only non-leaf
-				//Remove from LRU list
-				if(next_node->leaf != 1) {
-					TAILQ_REMOVE(&hctx->lru_list, next_node, lru_link);
+					//Update memory usage on delete
+					hctx->mem_usage -= sizeof(dss_hslist_node_t);
+					hctx->mem_usage -= strlen(tok);
+
+					free(next_node);
+
+					hctx->node_count--;
 				}
-
-				//Update memory usage on delete
-				hctx->mem_usage -= sizeof(dss_hslist_node_t);
-				hctx->mem_usage -= strlen(tok);
-
-				free(next_node);
-
-				hctx->node_count--;
 
 				return 1;
 			}
@@ -267,24 +289,27 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 		if(value) {
 			leaf_node = (dss_hslist_node_t *)*value;
 
-			rc = JudySLDel(&tnode->subtree, tok, PJE0);
-			assert(rc == 1);//Found Key should be deleted
+			if(leaf_node->type == DSS_HLIST_HYBR) {
+				leaf_node->type = DSS_HLIST_BRAN;
+			} else {
+				rc = JudySLDel(&tnode->subtree, tok, PJE0);
+				assert(rc == 1);//Found Key should be deleted
 
-			assert(leaf_node->leaf == 1);
-			assert(leaf_node->subtree == NULL);
+				assert(leaf_node->type == DSS_HLIST_LEAF);
+				assert(leaf_node->subtree == NULL);
 
-			//Remove only non-leaf
-			//Remove from LRU list
-			//TAILQ_REMOVE(&hctx->lru_list, leaf_node, lru_link);
+				//Remove only non-leaf
+				//Remove from LRU list
+				//TAILQ_REMOVE(&hctx->lru_list, leaf_node, lru_link);
 
-			//Update memory usage on delete
-			hctx->mem_usage -= sizeof(dss_hslist_node_t);
-			hctx->mem_usage -= strlen(tok);
+				//Update memory usage on delete
+				hctx->mem_usage -= sizeof(dss_hslist_node_t);
+				hctx->mem_usage -= strlen(tok);
 
-			free(leaf_node);
+				free(leaf_node);
 
-			hctx->node_count--;
-
+				hctx->node_count--;
+			}
 			return 1;
 		} else {
 			//Key not found
@@ -310,6 +335,8 @@ int dss_hsl_delete(dss_hsl_ctx_t *hctx, const char *key)
 
 	strncpy((char *)key_str, key, DSS_LIST_MAX_KLEN);
 	key_str[DSS_LIST_MAX_KLEN] = '\0';
+
+	//DFLY_NOTICELOG("key [%s]\n", key_str);
 
 	tnode = &hctx->lnode;
 	//Fist delmiter
@@ -341,7 +368,7 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 	strncpy((char *)key_str, key, DSS_LIST_MAX_KLEN);
 	key_str[DSS_LIST_MAX_KLEN] = '\0';
 
-	//printf("Insert key [%s]\n", key_str);
+	//DFLY_NOTICELOG("key [%s]\n", key_str);
 
 	tnode = &hctx->lnode;
 	//Fist delmiter
@@ -388,21 +415,27 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 		}
 
 
+		char *update_tok = tok;
+
 		tok = strtok_r(NULL, hctx->delim_str, &saveptr);
 
-		if(tok) {
+		if(tok) { //Non-Leaf
 		//if(tok || key[strlen(key) - 1] == hctx->delim) {
-			tnode->leaf = 0;
+			tnode->in_lru = 1;
 			if(new_node == 1) {
+				//DFLY_NOTICELOG("Insert LRU tok[%s]\n", update_tok);
 				//Insert only Non-Leaf
 				TAILQ_INSERT_HEAD(&hctx->lru_list, tnode, lru_link);
 			} else {
-				//Re-Insert to head only Non-Leaf
-				TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
+				//DFLY_NOTICELOG("Update LRU tok[%s]\n", update_tok);
+				if(tnode->type & DSS_HLIST_BRAN) {
+					TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
+				}
 				TAILQ_INSERT_HEAD(&hctx->lru_list, tnode, lru_link);
 			}
-		} else {
-			tnode->leaf = 1;
+			tnode->type |= DSS_HLIST_BRAN;
+		} else {//Leaf
+			tnode->type |= DSS_HLIST_LEAF;
 		}
 
 		if(tok) depth++;//Root node is depth 0
@@ -442,8 +475,12 @@ Word_t dss_hsl_list_all(dss_hslist_node_t *node)
 	uint64_t leaf_count = 0;
 	uint8_t list_str[DSS_LIST_MAX_KLEN + 1];
 
-	if (node->leaf == 1) {
+	if (node->type == DSS_HLIST_LEAF) {
 		return 1;
+	}
+
+	if(node->type & DSS_HLIST_LEAF) {
+		leaf_count++;
 	}
 
 	strcpy(list_str, "");
@@ -459,6 +496,74 @@ Word_t dss_hsl_list_all(dss_hslist_node_t *node)
 	return leaf_count;
 }
 
+void dss_hsl_repop_node(dss_hsl_ctx_t *hctx, dss_hslist_node_t *node, struct dfly_request *req)
+{
+
+	DFLY_ASSERT(node->list_direct);
+
+	uint32_t *tmp_ptr;
+	struct dfly_value *val;
+
+	uint32_t total_keys, i;
+	char *key;
+	char tok[DSS_LIST_MAX_KLEN];
+	uint32_t *key_sz;
+	dss_hslist_node_t *inode;
+	Word_t *value;
+
+	val = req->ops.get_value(req);
+
+	total_keys = *(uint32_t *)((char *)val->value + val->offset);
+	key_sz     = (uint32_t *)((char *)val->value + val->offset + sizeof(uint32_t));
+	key     = key_sz + 1;
+
+	DFLY_NOTICELOG("Repopulating %d entries \n", total_keys);
+	for(i=0; i< total_keys; i++) {
+		DFLY_ASSERT(key + *key_sz <= (char *)val->value + val->offset + val->length);
+
+		DFLY_ASSERT(*key_sz < DSS_LIST_MAX_KLEN);
+
+		strncpy(tok, key, *key_sz);
+		tok[*key_sz] = '\0';
+
+		value = (Word_t *)JudySLIns(&node->subtree, tok, PJE0);
+
+		if(*value == NULL) {
+			*value = (Word_t) calloc(1, sizeof(dss_hslist_node_t));
+#if defined DSS_LIST_DEBUG_MEM_USE
+			hctx->node_count++;
+#endif
+			//Update memory usage on new insert
+			hctx->mem_usage += sizeof(dss_hslist_node_t);
+			hctx->mem_usage += strlen(tok);
+		}
+
+		DFLY_ASSERT(*value);
+
+		inode = (dss_hslist_node_t *)*value;
+
+		if(key[(*key_sz) - 1] == hctx->delim_str[0]) {
+			//Non-Leaf node
+			if(inode->in_lru == 1) {
+				inode->in_lru = 0;
+				TAILQ_REMOVE(&hctx->lru_list, inode, lru_link);
+			}
+			inode->list_direct = 1;
+			inode->type |= DSS_HLIST_BRAN;
+		} else {
+			//Leaf Node
+			inode->type |= DSS_HLIST_LEAF;
+		}
+
+		//Update for next iteration
+		key_sz = (uint32_t *)(key + *key_sz);
+		key = key_sz + 1;
+	}
+
+	node->list_direct = 0;
+	return;
+}
+
 int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key, void *listing_ctx)
 {
 	Word_t *value;
@@ -470,6 +575,9 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 	dss_hslist_node_t *tnode, *lnode;
 
 	int rc = DFLY_LIST_READ_DONE;
+	int level_matched = 0;
+
+	//DFLY_NOTICELOG("prefix [%s] start [%s]\n", prefix, start_key);
 
 	if(strlen(prefix) > DSS_LIST_MAX_KLEN) return rc;
 
@@ -492,7 +600,7 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 
 		if(!value) {
 			//Entry not found
-			printf("Coundn't find token %s\n", tok);
+			DFLY_NOTICELOG("Couldn't find token %s\n", tok);
 			return rc;
 		}
 
@@ -500,10 +608,13 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 		assert(tnode != NULL);
 
 		//Re-Insert only Non-Leaf
-		if(tnode->leaf != 1) {
+		if(tnode->type & DSS_HLIST_BRAN) {
+			//DFLY_NOTICELOG("Update LRU tok[%s]\n", tok);
 			//Update LRU - move to head of List
-			TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
-			TAILQ_INSERT_HEAD(&hctx->lru_list, tnode, lru_link);
+			if(tnode->in_lru == 1) {
+				TAILQ_REMOVE(&hctx->lru_list, tnode, lru_link);
+				TAILQ_INSERT_HEAD(&hctx->lru_list, tnode, lru_link);
+			}
 		}
 
 		if(tnode->list_direct) {
@@ -515,7 +626,26 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 				dss_tpool_post_request(hctx->dlist_mod, lctx->parent_req);
 				rc = DFLY_LIST_READ_PENDING;
 			} else {
+
 				dss_rocksdb_direct_iter(hctx, lctx->parent_req);
+				//TODO: Repopulation path for async
+				if(lctx->repopulate) {
+					uint32_t mem_threshold_percent = 0;
+
+					if(hctx->mem_usage < hctx->mem_limit) {
+						mem_threshold_percent = hctx->mem_limit - hctx->mem_usage;
+						mem_threshold_percent *= 100;
+						mem_threshold_percent /= hctx->mem_limit;
+
+						if(mem_threshold_percent > 10) {//Repopulate if threshold less than 10% of mem limit
+							if(!strtok_r(NULL, hctx->delim_str, &saveptr)) {
+								DFLY_NOTICELOG("Repopulating prefix %s\n", prefix);
+								dss_hsl_repop_node(hctx, tnode, lctx->parent_req);
+							}
+						}
+					}
+					lctx->repopulate = 0;//Repopulation done
+				}
 				rc = DFLY_LIST_READ_DONE;
 			}
 			return rc;
@@ -524,10 +654,8 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 		tok = strtok_r(NULL, hctx->delim_str, &saveptr);
 
 		if(!tok) {
-			if(tnode->leaf == 1) {
-				//printf("Not listing leaf str %s\n", prefix);
-				//tnode = lnode;
-				assert(0);
+            if(tnode->type == DSS_HLIST_LEAF) {
+               return DFLY_LIST_READ_DONE;
 			}//Non leaf use node to list hierarchical entry
 		}
 	}
@@ -536,22 +664,48 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 
 	value = (Word_t *) JudySLFirst(tnode->subtree, list_str, PJE0);
 
+	int skip_leaf_if_hybrid = 0;
+	//DFLY_NOTICELOG("Start key recieved %s\n", start_key);
+	//DFLY_NOTICELOG("Skipped to key %s\n", list_str);
 	if(value && start_key) {
-		strcpy(list_str, start_key);
-		value = (Word_t *) JudySLNext(tnode->subtree, list_str, PJE0);
+		int start_key_len = strlen(start_key);
+		if(start_key[start_key_len - 1] == hctx->delim_str[0]) {
+			//Non-Leaf
+			strncpy(list_str, start_key, start_key_len - 1);
+			list_str[start_key_len - 1] = '\0';
+			//Skip this node as it's with delim start
+			//value = (Word_t *) JudySLNext(tnode->subtree, list_str, PJE0);
+			value = (Word_t *) JudySLFirst(tnode->subtree, list_str, PJE0);
+			//DFLY_NOTICELOG("Skipped to key %s\n", list_str);
+		} else {
+			//Leaf
+			strncpy(list_str, start_key, start_key_len);
+			list_str[start_key_len] = '\0';
+			skip_leaf_if_hybrid = 1;
+
+			//DFLY_NOTICELOG("Skipped to key %s\n", list_str);
+			value = (Word_t *) JudySLNext(tnode->subtree, list_str, PJE0);
+		}
 	}
 
 	while (value) {
+		int ret = 0;
 		assert(*value);
 		lnode = (dss_hslist_node_t *)*value;
 
-		if(lnode->leaf) {
-			rc = hctx->process_listing_item(listing_ctx, list_str, 1);
+		if(lnode->type & DSS_HLIST_LEAF) {
+			if(!skip_leaf_if_hybrid || lnode->type == DSS_HLIST_LEAF) {
+				ret = hctx->process_listing_item(listing_ctx, list_str, 1);
+			}
+			skip_leaf_if_hybrid = 0; //Process all upcoming leaf nodes
+			if((ret == 0) && (lnode->type & DSS_HLIST_BRAN)) {
+				ret = hctx->process_listing_item(listing_ctx, list_str, 0);
+			}
 		} else {
-			rc = hctx->process_listing_item(listing_ctx, list_str, 0);
+			ret = hctx->process_listing_item(listing_ctx, list_str, 0);
 		}
 
-		if(rc != 0) {
+		if(ret != 0) {
 			return DFLY_LIST_READ_DONE;
 		}
 

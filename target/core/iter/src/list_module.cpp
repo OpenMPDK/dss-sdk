@@ -72,24 +72,25 @@ bool list_valid_prefix(struct dfly_request * req){
 }
 int dfly_list_req_process(void *ctx, struct dfly_request *req)
 {
-    if(list_valid_prefix(req)){       
+    //if(list_valid_prefix(req)){       
     	int io_rc = list_io(ctx, req, g_list_conf.list_op_flag & DF_OP_MASK);
     	dfly_list_info_t *list_data = &req->list_data;
 		if(!g_dragonfly->dss_enable_judy_listing) {
     	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
     	    || io_rc == DFLY_LIST_STORE_DONE
     	    || io_rc == DFLY_LIST_DEL_DONE
-    	    || io_rc == DFLY_LIST_READ_DONE)
+    	    || io_rc == DFLY_LIST_READ_DONE) {
     		req->next_action = DFLY_REQ_IO_LIST_DONE;
+			}
 		} else {
 			if(io_rc == DFLY_LIST_READ_PENDING) {
 				return DFLY_MODULE_REQUEST_QUEUED;
 			}
 			req->next_action = DFLY_REQ_IO_LIST_DONE;
 		}
-    }else{
-        req->next_action = DFLY_REQ_IO_LIST_DONE;        
-    }
+    //}else{
+    //    req->next_action = DFLY_REQ_IO_LIST_DONE;        
+    //}
     
 	req->state = DFLY_REQ_IO_NVMF_DONE;
 	//list_log("dfly_list_req_process req %p io_rc %x pe_cnt_tbd %x, state %x, next_action %x\n",
@@ -270,7 +271,7 @@ void *list_get_module_ctx_on_read(struct dfly_request *req)
 	int offset = req->list_data.start_key_offset;
 	int list_option = req->list_data.options;
     int payload_sz = key->length;
-    /*
+ 
 	if (!(list_option == DFLY_LIST_OPTION_ROOT_FROM_BEGIN
 	      || list_option == DFLY_LIST_OPTION_ROOT_FROM_START_KEY)) {
 		if (list_option == DFLY_LIST_OPTION_PREFIX_FROM_BEGIN)
@@ -278,8 +279,8 @@ void *list_get_module_ctx_on_read(struct dfly_request *req)
 		else
 			prefix = std::string((const char *)(key->key), offset);
 	}
-	*/
 
+	/*
     if (offset && offset < payload_sz) {
 		req->list_data.options = DFLY_LIST_OPTION_PREFIX_FROM_START_KEY;
 		prefix = std::string((const char *)(key->key), offset);
@@ -298,6 +299,7 @@ void *list_get_module_ctx_on_read(struct dfly_request *req)
 		DFLY_ERRLOG("list option %d does not match : offset %d, payload_sz %d, prefix %s\n",
             list_option, offset, payload_sz, prefix.c_str());
 	}
+	*/
 
 	uint32_t h = hash_sdbm(prefix.c_str(), prefix.size());
 	DFLY_ASSERT(req->req_dfly_ss->id != 0);
