@@ -1,7 +1,7 @@
-From d60de0952fbe262b15d8a2393220a592713e0921 Mon Sep 17 00:00:00 2001
+From 582f73f4f902e374f692fac6f1056741f272c8e9 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 11:48:25 -0800
-Subject: [PATCH 11/40] Fixed rockdb shutdown issues
+Subject: [PATCH 11/41] Fixed rockdb shutdown issues
 
 ---
  db/dss_kv2blk_c.cc             | 6 +++++-

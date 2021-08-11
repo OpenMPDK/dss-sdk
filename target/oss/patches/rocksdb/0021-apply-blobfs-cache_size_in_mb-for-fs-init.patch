@@ -1,7 +1,7 @@
-From e770438ac25a1feabc7eaa2641a2a8c02c802fa1 Mon Sep 17 00:00:00 2001
+From 8a03626d986452503943a361374b882fd3a81e59 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 12:39:25 -0800
-Subject: [PATCH 21/40] * apply blobfs cache_size_in_mb for fs init.
+Subject: [PATCH 21/41] * apply blobfs cache_size_in_mb for fs init.
 
 ---
  db/dss_kv2blk_c.cc | 10 ++++++++--

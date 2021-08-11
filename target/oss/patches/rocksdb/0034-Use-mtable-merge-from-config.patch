@@ -1,7 +1,7 @@
-From 488e518eb928370b50d2a73663e36be95697a4eb Mon Sep 17 00:00:00 2001
+From 4dc34529e6ad9f953cd400deeb95fb9ac6757414 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 23 Mar 2021 15:36:07 -0700
-Subject: [PATCH 34/40] Use mtable merge from config
+Subject: [PATCH 34/41] Use mtable merge from config
 
 ---
  db/dss_kv2blk_c.cc | 2 +-

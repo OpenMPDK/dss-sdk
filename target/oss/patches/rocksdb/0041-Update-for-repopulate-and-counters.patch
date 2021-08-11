@@ -1,0 +1,67 @@
+From 19b621fb99d44968f6d131a3f3fa9ca3916d4601 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 10 Aug 2021 17:17:29 -0700
+Subject: [PATCH 41/41] Update for repopulate and counters
+
+---
+ db/dss_kv2blk_c.cc | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index 76949a8..ae179be 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -479,13 +479,15 @@ int dss_rocksdb_direct_iter(void *ctx, struct dfly_request *dfly_req)
+ 	char * start = dfly_req->lp_ctx.start;
+ 	void *listing_ctx = (void *) &dfly_req->lp_ctx;
+ 
++	bool list_from_start = true;
++
+ 	int i;
+ 
+     rocksdb::Iterator* iter_arr[pool->num_io_devices] = {NULL};
+ 
+     rocksdb::DB* db;
+     std::vector<rocksdb::ColumnFamilyHandle*> handles;
+-    rocksdb::ColumnFamilyHandle* data_handle; //TODO: support multi column familes
++    rocksdb::ColumnFamilyHandle* data_handle; //Colum Family 0 stores prefix'ed keys
+ 
+ 	for(i=0; i < pool->num_io_devices; i++) {
+ 		db = (rocksdb::DB* ) pool->devices[i].rdb_handle->rdb_db_handle;
+@@ -523,6 +525,7 @@ int dss_rocksdb_direct_iter(void *ctx, struct dfly_request *dfly_req)
+ 		plen++;
+ 	}
+ 	if(strcmp(start, "")) {
++		list_from_start = false;
+ 		memcpy(prefix_buf + strlen(prefix_buf), start, strlen(start));
+ 	}
+ 
+@@ -621,13 +624,24 @@ int dss_rocksdb_direct_iter(void *ctx, struct dfly_request *dfly_req)
+ 		}
+ 	}
+ 
++	if(list_from_start) {
++		dss_list_set_repopulate(listing_ctx);
++	}
++
+ finish:
++	int list_data_len = dfly_req->lp_ctx.val->length - dfly_req->lp_ctx.rem_buffer_len;
++	dfly_req->lp_ctx.is_list_direct = 1;
++	dfly_ustat_atomic_add_u64(pool->stat_kvlist, \
++							&pool->stat_kvlist->listDevBandwidth,
++							list_data_len);
++
+ 	if(g_dragonfly->rdb_direct_listing_enable_tpool) {
+ 		if (*dfly_req->lp_ctx.total_keys == 0) {
+ 			dfly_set_status_code(dfly_req, SPDK_NVME_SCT_KV_CMD,
+ 					     SPDK_NVME_SC_KV_LIST_CMD_END_OF_LIST);
+ 		}
+-		dfly_resp_set_cdw0(dfly_req, dfly_req->lp_ctx.val->length - dfly_req->lp_ctx.rem_buffer_len);
++
++		dfly_resp_set_cdw0(dfly_req, list_data_len);
+ 
+ 		dfly_req->state = DFLY_REQ_IO_NVMF_DONE;
+ 		dfly_req->next_action = DFLY_REQ_IO_LIST_DONE;
+-- 
+1.8.3.1
+

@@ -1,7 +1,7 @@
-From 902c461fd4943b5e0c51c3714afef089ef233617 Mon Sep 17 00:00:00 2001
+From 596f9c2abfc80eabfefcca28986fc201d25d854b Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 18 Nov 2020 22:31:59 -0800
-Subject: [PATCH 12/40] Added manual compaction api
+Subject: [PATCH 12/41] Added manual compaction api
 
     * Disabled auto compaction
     * New api for manual compaction
