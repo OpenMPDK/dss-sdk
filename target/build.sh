@@ -3,26 +3,28 @@
 #
 # set -o xtrace
 
-# Build/install GCC 5.1.0 RPM from gcc-builder: https://github.com/BobSteagall/gcc-builder
+die()
+{
+    echo "$*"
+    exit 1
+}
+
+GCCERRMSG="Build/install GCC 5.1.0 RPM from gcc-builder: https://github.com/BobSteagall/gcc-builder"
 GCCSETENV=/usr/local/bin/setenv-for-gcc510.sh
 GCCRESTORE=/usr/local/bin/restore-default-paths-gcc510.sh
 
 # Load GCC 5.1.0 paths
-if test -f "$GCCSETENV"; then
+if test -f "$GCCSETENV"
+then
     source $GCCSETENV
+else
+    die "GCC 5.1.0 RPM is not installed. ${GCCERRMSG}"
 fi
 
 target_dir=$(readlink -f "$(dirname "$0")")
 build_dir="${target_dir}/../df_out"
 rpm_build_dir="${build_dir}/rpm-build"
 rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
-
-
-die()
-{
-    echo "$*"
-    exit 1
-}
 
 updateVersionInHeaderFile()
 {
@@ -184,7 +186,7 @@ parse_options()
 BUILD_ROCKSDB=false
 TARGET_VER="0.5.0"
 
-parse_options $@
+parse_options "$@"
 echo "Build rockdb: $BUILD_ROCKSDB"
 echo "Target Version: $TARGET_VER"
 
@@ -194,21 +196,18 @@ mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"
 
 packageName="nkv-target"
-# packageRevision=1
-# TODO(ER) - Add switch to Job number
-jenkingJobnumber=0
 targetVersion=${TARGET_VER}
 gitVersion="$(git describe --abbrev=4 --always --tags)"
 
 
-pushd "${target_dir}"/oss
+pushd "${target_dir}/oss" || die "Can't change to ${target_dir}/oss dir"
     ./apply-patch.sh
-popd
+popd || die "Can't change exit ${target_dir}/oss dir"
 
-pushd "${build_dir}"
-    pushd "${target_dir}"
+pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
+    pushd "${target_dir}" || die "Can't change to ${target_dir} dir"
         updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
-    popd
+    popd || die "Can't exit ${target_dir} dir"
 
     cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
 	if $BUILD_ROCKSDB;then
@@ -228,7 +227,7 @@ pushd "${build_dir}"
 
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
 
-popd
+popd || die "Can't exit ${build_dir} dir"
 
 # Restore default GCC paths
 if test -f "$GCCRESTORE"; then
