@@ -1,8 +1,0 @@
----
-
-- name: Deploy HAProxy
-  hosts: ha_proxy[0]
-  gather_facts: true
-  any_errors_fatal: true
-  roles:
-    - ufm_haproxy

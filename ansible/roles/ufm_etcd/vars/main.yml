@@ -1,8 +1,0 @@
----
-
-ufm_etcd_packages:
-  - fping
-  - python-pip
-  - python-setuptools
-  - python3-pip
-  - etcd

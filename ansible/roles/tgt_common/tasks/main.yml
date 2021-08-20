@@ -1,5 +1,0 @@
----
-
-- include_tasks: prerequisites.yml
-
-- include_tasks: ntp.yml
