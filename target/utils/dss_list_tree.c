@@ -83,7 +83,7 @@ void _dss_hsl_delete_subtree(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode)
 	//DFLY_NOTICELOG("Sample delete str [%s]\n", key_str);
 
 	while(value) {
-		node = *value;
+		node = (dss_hslist_node_t *)*value;
 		if(node->type == DSS_HLIST_LEAF) {
 			//Delete and return
 			assert(node->subtree == NULL);
@@ -450,7 +450,7 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 
 Word_t dss_hsl_list_all(dss_hslist_node_t *node);
 
-dss_hsl_print_info(dss_hsl_ctx_t *hctx)
+void dss_hsl_print_info(dss_hsl_ctx_t *hctx)
 {
 	int count = 0;
 	dss_hslist_node_t *node = NULL;
@@ -515,7 +515,7 @@ void dss_hsl_repop_node(dss_hsl_ctx_t *hctx, dss_hslist_node_t *node, struct dfl
 
 	total_keys = *(uint32_t *)((char *)val->value + val->offset);
 	key_sz     = (uint32_t *)((char *)val->value + val->offset + sizeof(uint32_t));
-	key     = key_sz + 1;
+	key     = (char *)(key_sz + 1);
 
 	DFLY_NOTICELOG("Repopulating %d entries \n", total_keys);
 	for(i=0; i< total_keys; i++) {
@@ -528,7 +528,7 @@ void dss_hsl_repop_node(dss_hsl_ctx_t *hctx, dss_hslist_node_t *node, struct dfl
 
 		value = (Word_t *)JudySLIns(&node->subtree, tok, PJE0);
 
-		if(*value == NULL) {
+		if((dss_hslist_node_t *)*value == NULL) {
 			*value = (Word_t) calloc(1, sizeof(dss_hslist_node_t));
 #if defined DSS_LIST_DEBUG_MEM_USE
 			hctx->node_count++;
@@ -557,7 +557,7 @@ void dss_hsl_repop_node(dss_hsl_ctx_t *hctx, dss_hslist_node_t *node, struct dfl
 
 		//Update for next iteration
 		key_sz = (uint32_t *)(key + *key_sz);
-		key = key_sz + 1;
+		key = (char *)(key_sz + 1);
 	}
 
 	node->list_direct = 0;

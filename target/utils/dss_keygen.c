@@ -32,6 +32,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include "keygen.h"
 
 struct key_gen_ctx_s {
