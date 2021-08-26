@@ -415,7 +415,7 @@ dfly_cpu_group_context_t *dfly_lookup_add_group(char *name, int num_cpu)
 	if (!grp_info) {
 		int numa_node;
 
-		grp_info = calloc(1, sizeof(dfly_numa_group_list_item_t));
+		grp_info = (struct dfly_numa_group_list_item_s *)calloc(1, sizeof(dfly_numa_group_list_item_t));
 		if (!grp_info) {
 			assert(0);
 			pthread_mutex_unlock(&g_dfly_numa_ctx.ctx_lock);//LOCK RELEASE
@@ -464,7 +464,7 @@ dfly_cpu_info_t *dfly_get_next_available_cpu(dfly_cpu_group_context_t *cpu_group
 
 		if(!peer_grp) {
 			//Alloc new
-			peer_grp = calloc(1, sizeof(struct dfly_peer_alloc_s) + \
+			peer_grp = (struct dfly_peer_alloc_s *)calloc(1, sizeof(struct dfly_peer_alloc_s) + \
 								(sizeof(uint32_t) * cpu_group->num_cpus));
 			DFLY_ASSERT(peer_grp);
 

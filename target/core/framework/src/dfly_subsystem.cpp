@@ -61,7 +61,7 @@ struct df_ss_cb_event_s * df_ss_cb_event_allocate(struct dfly_subsystem *ss, df_
 {
 	struct df_ss_cb_event_s *ss_cb_event;
 
-	ss_cb_event = calloc(1, sizeof(struct df_ss_cb_event_s));
+	ss_cb_event = (struct df_ss_cb_event_s *)calloc(1, sizeof(struct df_ss_cb_event_s));
 	DFLY_ASSERT(ss);
 	DFLY_ASSERT(ss_cb_event);
 
@@ -146,7 +146,7 @@ extern list_conf_t g_list_conf;
 
 
 struct df_ss_mod_init_s {
-	void (*mod_init_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+	int (*mod_init_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
 	void (*mod_deinit_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
 	void *arg;
 	df_ss_init_next_fn cb;

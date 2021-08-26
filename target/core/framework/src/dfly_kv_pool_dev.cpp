@@ -97,7 +97,7 @@ static void _nvme_kv_cmd_setup_large_key(struct spdk_nvme_cmd *cmd, void *src_ke
 			printf("key split across two prp PRP1:%p PRP2:%p \n", *prp1, *prp2);
 			assert(0);
 		} else {
-			*prp2 = NULL;
+			*prp2 = (uint64_t)NULL;
 		}
 	} else {
 		if (src_key) {
@@ -107,7 +107,7 @@ static void _nvme_kv_cmd_setup_large_key(struct spdk_nvme_cmd *cmd, void *src_ke
 }
 
 
-dfly_iterator_info *dfly_iter_info_setup(struct df_device *device,
+void *dfly_iter_info_setup(struct df_device *device,
 		struct dfly_request *req)
 {
 	dfly_kv_pool_t *kv_pool_dev_ctx = (dfly_kv_pool_t *)device;
@@ -150,7 +150,7 @@ dfly_iterator_info *dfly_iter_info_setup(struct df_device *device,
 
 	iter_info->nr_dev = nr_dev_per_pool;
 
-	return iter_info;
+	return (void *)iter_info;
 }
 
 static void
@@ -391,12 +391,12 @@ dfly_kv_pool_io_completion_cb(struct spdk_bdev_io *bdev_io,
 			       || req->ops.complete_req == iter_ctrl_complete);
 
 			if (req->ops.complete_req == iter_ctrl_complete) {
-				spdk_bdev_io_get_nvme_status(bdev_io, &req->rsp_cdw0, &req->rsp_sct, &req->rsp_sc);
+				spdk_bdev_io_get_nvme_status(bdev_io, &req->rsp_cdw0, (int*)&req->rsp_sct, (int *)&req->rsp_sc);
 			}
 
 			resp.rc = success;
 			resp.opc = req->ops.get_command(req);
-			spdk_bdev_io_get_nvme_status(bdev_io, &resp.cdw0, &resp.nvme_sct, &resp.nvme_sc);
+			spdk_bdev_io_get_nvme_status(bdev_io, &resp.cdw0, (int *)&resp.nvme_sct, (int *)&resp.nvme_sc);
 
 			req->ops.complete_req(resp, req->req_private);
 			dfly_io_put_req(NULL, req);
@@ -561,7 +561,7 @@ int dfly_kv_execute_iter2(struct df_device *device, int opc,
 	}
 
 	if (!iter_info->nr_pending_dev) {
-		req = iter_info->dfly_req;
+		req = (struct dfly_request *)iter_info->dfly_req;
 		dfly_resp_set_cdw0(req, 0);
 		dfly_nvmf_complete(req);
 		req->state = DFLY_REQ_IO_NVMF_DONE;
@@ -753,11 +753,11 @@ dfly_kv_pool_dev_test_completion_cb(bool success, void *arg)
 	case TEST_DELETE_COMPLETE:
 		//Read back
 		memset(test_value.value, 0, 4095);
-		dfly_device_retrieve(test_kv_fhandle, &test_key, &test_value, dfly_kv_pool_dev_test_completion_cb,
+		dfly_device_retrieve(test_kv_fhandle, &test_key, &test_value, (df_dev_io_completion_cb)dfly_kv_pool_dev_test_completion_cb,
 				     &test_req);
 		break;
 	case TEST_READ_BACK_COMPLETE:
-		dfly_device_delete(test_kv_fhandle, &test_key, dfly_kv_pool_dev_test_completion_cb, &test_req);
+		dfly_device_delete(test_kv_fhandle, &test_key, (df_dev_io_completion_cb)dfly_kv_pool_dev_test_completion_cb, &test_req);
 		break;
 	};
 }
@@ -773,7 +773,7 @@ void dfly_kv_pool_dev_test_io(void)
 
 	memset(test_value.value, 'C', 4095);
 
-	dfly_device_store(test_kv_fhandle, &test_key, &test_value, dfly_kv_pool_dev_test_completion_cb,
+	dfly_device_store(test_kv_fhandle, &test_key, &test_value, (df_dev_io_completion_cb)dfly_kv_pool_dev_test_completion_cb,
 			  &test_req);
 	DFLY_NOTICELOG("Issued test Write IO to block0 with 4kB\n");
 
