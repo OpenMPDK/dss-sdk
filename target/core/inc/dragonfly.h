@@ -383,7 +383,7 @@ struct dfly_subsystem *dfly_put_subsystem(uint32_t ssid);
 int dfly_get_nvmf_ssid(struct spdk_nvmf_subsystem *ss);
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
-				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg);
+				   void *ops, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/*Not Used*/,
 					df_module_event_complete_cb cb, void *cb_arg);
 

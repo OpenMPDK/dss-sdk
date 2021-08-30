@@ -281,9 +281,9 @@ dfly_ustat_init_subsys_stat(void *subsys, const char *nqn)
 	dfly_ustat_insert_stat_subsys_table((ustat_struct_t **)&s0, subsystem->id, &stat_subsys_nqn_table);
 	dfly_ustat_set_string(s0, &s0->name, nqn);
 
-	dfly_ustat_insert_stat_subsys_kvio(&s1, subsystem->id, &stat_subsys_io_table);
+	dfly_ustat_insert_stat_subsys_kvio((ustat_struct_t **)&s1, subsystem->id, &stat_subsys_io_table);
 
-	dfly_ustat_insert_stat_subsys_kvlist(&s2, subsystem->id, &stat_subsys_list_table);
+	dfly_ustat_insert_stat_subsys_kvlist((ustat_struct_t **)&s2, subsystem->id, &stat_subsys_list_table);
 
 	subsystem->stat_name = s0;
 	subsystem->stat_kvio = s1;
@@ -373,7 +373,7 @@ dfly_ustat_init_qpair_stat(void *qpair)
 	//TODO: add session information, make the naming as sessionx.subsystemx.ctrlrx_rpairx
 	snprintf(gname, STAT_ENAME_LEN, "ctrlr%u_rpair%u", cid, dqpair->parent_qpair->qid);
 
-	dfly_ustat_insert_stat_ses_rqp_table(&st_rqpair, id_num, &stat_rqpair_io_table, gname);
+	dfly_ustat_insert_stat_ses_rqp_table((ustat_struct_t **)&st_rqpair, id_num, &stat_rqpair_io_table, gname);
 	// Note: since when we initialize qpair. There are actually two initialize called. One is nreqs, another is 1
 	// Thus, the max qd is nreqs+1
 	dfly_ustat_set_u64(st_rqpair, &st_rqpair->c_max_qd, dqpair->nreqs + 1);
@@ -406,7 +406,7 @@ dfly_ustat_update_rqpair_stat(void *qpair, int ops)
 	}
 
 	if(dqpair->parent_qpair->state != SPDK_NVMF_QPAIR_ACTIVE) {
-		return 0;
+		return;
 	}
 
 	if (ops == 0) {
@@ -467,7 +467,7 @@ dfly_ustat_init_module_inst_stat(void *poller_inst, char *name, int id)
 			poller_inst;
 	stat_module_t *st_module;
 
-	dfly_ustat_insert_stat_thread_table(&st_module, id, &stat_module_req_table, name);
+	dfly_ustat_insert_stat_thread_table((ustat_struct_t **)&st_module, id, &stat_module_req_table, name);
 	assert(st_module);
 	module_inst->stat_module = st_module;
 

@@ -408,7 +408,7 @@ void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
 }
 
 //int dfly_list_module_init(int ssid, int nr_cores, void *cb, void *cb_arg)
-int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, void *cb_arg)
+int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_event_complete_cb cb, void *cb_arg)
 {
 	list_context_t  *list_mctx;
 	int nr_cores, nr_zones;

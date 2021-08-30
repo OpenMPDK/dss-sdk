@@ -2194,7 +2194,7 @@ int wal_post_store(struct dfly_request *req)
 }
 
 int wal_init_by_conf(struct dfly_subsystem *pool, void *arg/*Not used*/,
-		     void *cb, void *cb_arg)
+		     df_module_event_complete_cb cb, void *cb_arg)
 {
 	if (!g_wal_conf.wal_cache_enabled)
 		return WAL_INIT_DONE;

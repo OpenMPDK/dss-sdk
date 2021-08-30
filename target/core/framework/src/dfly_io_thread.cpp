@@ -593,11 +593,13 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 }
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
-				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg)
+				   dfly_spdk_nvmf_io_ops_t *ops, df_module_event_complete_cb cb, void *cb_arg)
 {
 
 	int rc = 0;
 	struct io_thread_ctx_s *io_thrd_ctx;
+
+	dfly_spdk_nvmf_io_ops_t *io_ops = (dfly_spdk_nvmf_io_ops_t *)ops;
 
 	io_thrd_ctx = (struct io_thread_ctx_s *)calloc(1, sizeof(struct io_thread_ctx_s));
 	assert(io_thrd_ctx);

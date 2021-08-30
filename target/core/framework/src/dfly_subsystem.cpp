@@ -146,8 +146,8 @@ extern list_conf_t g_list_conf;
 
 
 struct df_ss_mod_init_s {
-	int (*mod_init_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
-	void (*mod_deinit_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+	int (*mod_init_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+	void (*mod_deinit_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
 	void *arg;
 	df_ss_init_next_fn cb;
 	bool mod_enabled;
@@ -219,7 +219,7 @@ static struct df_ss_mod_init_s module_initializers[DF_MODULE_END + 1] = {
 
 void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 {
-	struct df_subsys_process_event_s *ss_event = vctx;
+	struct df_subsys_process_event_s *ss_event = (struct df_subsys_process_event_s *)vctx;
 	int mod_index = 0;
 
 	DFLY_ASSERT(ss_event->src_core == spdk_env_get_current_core());
@@ -242,7 +242,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		}
 		DFLY_INFOLOG(DFLY_LOG_SUBSYS, "Init module without cb index:%d\n", mod_index);
 	}
-	ss_event->curr_module = mod_index;
+	ss_event->curr_module = (df_module_type_t)mod_index;
 	if (mod_index == DF_MODULE_END) {
 		if(ss_event->initialize) {
 			pthread_mutex_init(&ss_event->subsys->subsys_lock, NULL);
@@ -250,7 +250,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		} else {
 			ss_event->subsys->initialized = false;
 		}
-		ss_event->cb(ss_event->subsys->parent_ctx,
+		ss_event->cb((struct spdk_nvmf_subsystem *)ss_event->subsys->parent_ctx,
 				  ss_event->cb_arg, ss_event->cb_status);
 	}
 	return;
@@ -262,7 +262,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 			df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status)
 {
 
-	struct spdk_nvmf_subsystem *spdk_nvmf_ss = vctx;
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)vctx;
 	struct dfly_subsystem *dfly_subsystem = NULL;
 	int rc = 0;
 
@@ -342,7 +342,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 
 int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status)
 {
-	struct spdk_nvmf_subsystem *spdk_nvmf_ss = vctx;
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)vctx;
 	struct dfly_subsystem *dfly_subsystem = NULL;
 	int rc = 0;
 
@@ -369,7 +369,7 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 			   sizeof(struct df_subsys_process_event_s));
 	if (!ss_mod_deinit_next) {
 		DFLY_ASSERT(0);
-		return;
+		return DFLY_DEINIT_DONE;
 	}
 
 	ss_mod_deinit_next->subsys = dfly_subsystem;

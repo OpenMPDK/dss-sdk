@@ -1288,12 +1288,14 @@ int fuse_io(struct dfly_request *req, int fuse_op_flags)
 	return io_rc;
 }
 
-int fuse_init_by_conf(struct dfly_subsystem *pool, fuse_conf_t *conf,
-		      void *cb, void *cb_arg)
+int fuse_init_by_conf(struct dfly_subsystem *pool, void *conf,
+		      df_module_event_complete_cb cb, void *cb_arg)
 {
+	fuse_conf_t *fconf = (fuse_conf_t *)conf;
+
 	if (g_fuse_conf.fuse_enabled) {
 		snprintf(__fuse_nqn_name, strlen(g_fuse_conf.fuse_nqn_name) + 1, "%s", g_fuse_conf.fuse_nqn_name);
-		return fuse_init(pool, conf->nr_maps_per_pool, conf->fuse_nr_cores, 0, cb, cb_arg);
+		return fuse_init(pool, fconf->nr_maps_per_pool, fconf->fuse_nr_cores, 0, cb, cb_arg);
 	}
 	return 0;
 }
