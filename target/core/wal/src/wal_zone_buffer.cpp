@@ -410,7 +410,7 @@ wal_buffer_t *wal_buffer_create(wal_device_info_t *dev_info,
 		//printf("wal_buffer_create spdk_dma_malloc\n");
 		buffer = (wal_buffer_t *)spdk_dma_malloc(buffer_sz_4k << WAL_PAGESIZE_SHIFT, WAL_PAGESIZE, NULL);
 	} else if (dev_info->dev_type == WAL_DEV_TYPE_DRAM) {
-		buffer = df_calloc(1, buffer_sz_4k << WAL_PAGESIZE_SHIFT);
+		buffer = (wal_buffer_t *)df_calloc(1, buffer_sz_4k << WAL_PAGESIZE_SHIFT);
 	} else {
 		assert(0);
 	}
@@ -540,7 +540,7 @@ int wal_buffer_write_hdr(wal_buffer_t *buffer)
 {
 	buffer->hdr_io_ctx.io_type = LOG_IO_TYPE_BUFF_HDR_WR;
 	size_t sz = buffer->ops->dev_io->write(buffer->fh, &buffer->hdr,
-					       buffer->hdr.start_addr, WAL_BUFFER_HDR_SZ, log_format_io_write_comp, &buffer->hdr_io_ctx);
+					       buffer->hdr.start_addr, WAL_BUFFER_HDR_SZ, (void *)log_format_io_write_comp, &buffer->hdr_io_ctx);
 	wal_debug("wal_buffer_write_hdr zone id %d pos 0x%llx sz %d\n",
 		  buffer->zone->zone_id, buffer->hdr.start_addr, sz);
 	return (sz == WAL_BUFFER_HDR_SZ) ? 0 : -1;

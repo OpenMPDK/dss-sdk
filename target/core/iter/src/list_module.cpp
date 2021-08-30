@@ -64,7 +64,7 @@ dss_hsl_ctx_t * dss_get_hsl_context(struct dfly_subsystem *pool)
 bool list_valid_prefix(struct dfly_request * req){
     struct dfly_key *key = req->ops.get_key(req);
     assert(key);
-    if(!strncmp(key->key, g_list_conf.list_prefix_head, 
+    if(!strncmp((char *)key->key, g_list_conf.list_prefix_head,
         strlen(g_list_conf.list_prefix_head)))
         return true;
     else
@@ -117,7 +117,7 @@ void *list_module_store_inst_context(void *mctx, void *inst_ctx, int inst_index)
 		return NULL;
 	}
 
-	list_thrd_ctx = calloc(1, sizeof(struct list_thread_inst_ctx) + sizeof(list_zone_t *) * max_zones);
+	list_thrd_ctx = (struct list_thread_inst_ctx *)calloc(1, sizeof(struct list_thread_inst_ctx) + sizeof(list_zone_t *) * max_zones);
 	if (!list_thrd_ctx) {
 		assert(list_thrd_ctx);
 	}
@@ -419,7 +419,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_ev
 
 	list_debug_level = g_list_conf.list_debug_level;
 
-	list_mctx = calloc(1, sizeof(list_context_t) + (nr_zones * sizeof(list_zone_t)));
+	list_mctx = (list_context_t  *)calloc(1, sizeof(list_context_t) + (nr_zones * sizeof(list_zone_t)));
 	if (!list_mctx) {
 		DFLY_ERRLOG("Failed to allocate module ctx memory\n");
 		return -1;
@@ -432,7 +432,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_ev
 		zone->zone_idx = i;
 		if(g_dragonfly->dss_enable_judy_listing) {
 			DFLY_ASSERT(zone->zone_idx == 0);
-			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, key_default_delimlist.c_str(), do_list_item_process);
+			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, (char *)key_default_delimlist.c_str(), do_list_item_process);
 			zone->hsl_keys_ctx->dev_ctx = pool;
 			if(g_dragonfly->rdb_direct_listing) {
 				if(g_dragonfly->rdb_direct_listing_enable_tpool) {
@@ -459,7 +459,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_ev
 	list_cb_event.start_tick = spdk_get_ticks();
 
 	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, &list_module_ops,
-				       list_mctx, nr_cores, list_module_started_cb, pool);
+				       list_mctx, nr_cores, (df_module_event_complete_cb)list_module_started_cb, pool);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);
@@ -468,14 +468,14 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_ev
 
 void dfly_list_module_destroy_compelete(void *event, void *list_arg)
 {
-	struct df_ss_cb_event_s *list_cb_event = event;
+	struct df_ss_cb_event_s *list_cb_event = (struct df_ss_cb_event_s *)event;
 
 	struct dfly_subsystem *ss = list_cb_event->ss;
 
 	list_context_t  *list_mctx;
 
 	DFLY_ASSERT(ss);
-	list_mctx = ss->mlist.dfly_list_module->ctx;
+	list_mctx = (list_context_t  *)ss->mlist.dfly_list_module->ctx;
 
 	free(list_mctx);
 
@@ -486,7 +486,7 @@ void dfly_list_module_destroy_compelete(void *event, void *list_arg)
 void dfly_list_module_destroy(struct dfly_subsystem *pool, void *args, void *cb, void *cb_arg)
 {
 
-	struct df_ss_cb_event_s *list_cb_event = df_ss_cb_event_allocate(pool, cb, cb_arg, args);
+	struct df_ss_cb_event_s *list_cb_event = df_ss_cb_event_allocate(pool, (df_module_event_complete_cb)cb, cb_arg, args);
 
 	dfly_module_stop(pool->mlist.dfly_list_module, dfly_list_module_destroy_compelete, list_cb_event, NULL);
 

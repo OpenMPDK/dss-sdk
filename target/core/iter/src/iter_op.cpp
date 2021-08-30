@@ -73,7 +73,7 @@ int iter_sg_read_data(struct dfly_request *req, dfly_iterator_info *dfly_iter_in
 	void *req_buf = req->req_value.value + req->req_value.offset;
 	int iter_sz = 0;
 	dev_iterator_info *dev_iter_info = NULL;
-	uint32_t *nr_ret = (int *)req_buf;
+	uint32_t *nr_ret = (uint32_t *)req_buf;
 	req_sz -= sizeof(uint32_t);
 	req_buf += sizeof(uint32_t);
 	char dump[4096];
@@ -174,8 +174,8 @@ void iter_ctrl_complete(struct df_dev_response_s resp, void *args)
 {
 	//assert(success);
 
-	dev_iterator_info *dev_iter_info = args;
-	dfly_iterator_info *dfly_iter_info = dev_iter_info->iter_ctx;
+	dev_iterator_info *dev_iter_info = (dev_iterator_info *)args;
+	dfly_iterator_info *dfly_iter_info = (dfly_iterator_info *)dev_iter_info->iter_ctx;
 	if (resp.opc == SPDK_NVME_OPC_SAMSUNG_KV_ITERATE_CTRL
 	    && (dfly_iter_info->type & NVME_OPC_SAMSUNG_KV_ITERATE_OPTION_OPEN)) {
 		dev_iter_info->iter_handle = resp.cdw0;
@@ -198,7 +198,7 @@ void iter_ctrl_complete(struct df_dev_response_s resp, void *args)
 	if (!ATOMIC_DEC_FETCH(dfly_iter_info->nr_pending_dev)) {
 		iter_update_status(dfly_iter_info);
 
-		struct dfly_request *dfly_iter_req = dfly_iter_info->dfly_req;
+		struct dfly_request *dfly_iter_req = (struct dfly_request *)dfly_iter_info->dfly_req;
 		iter_log("iter_ctrl_complete done: opc 0x%x rsp_cdw0 %d dfly_iter_req %p\n",
 			 resp.opc, resp.cdw0, dfly_iter_req);
 

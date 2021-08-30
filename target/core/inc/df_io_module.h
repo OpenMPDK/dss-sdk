@@ -77,17 +77,28 @@ struct dfly_io_module_object_s {
 typedef struct dfly_io_module_object_s wal_object_t;
 typedef struct dfly_io_module_object_s fuse_object_t;
 
+typedef int (* dfly_io_mod_store)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_retrieve)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_delete)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_iter_ctrl)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_iter_read)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_fuse_f1)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_fuse_f2)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_list_open)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_list_close)(void *ctx, void *obj, int flags);
+typedef int (* dfly_io_mod_list_read)(void *ctx, void *obj, int flags);
+
 typedef struct dfly_io_module_handler_s {
-	int (* store_handler)(void *ctx, void *obj, int flags);
-	int (* retrieve_handler)(void *ctx, void *obj, int flags);
-	int (* delete_handler)(void *ctx, void *obj, int flags);
-	int (* iter_ctrl_handler)(void *ctx, void *obj, int flags);
-	int (* iter_read_handler)(void *ctx, void *obj, int flags);
-	int (* fuse_f1_handler)(void *ctx, void *obj, int flags);
-	int (* fuse_f2_handler)(void *ctx, void *obj, int flags);
-	int (* list_open_handler)(void *ctx, void *obj, int flags);
-	int (* list_close_handler)(void *ctx, void *obj, int flags);
-	int (* list_read_handler)(void *ctx, void *obj, int flags);
+	dfly_io_mod_store store_handler        ;
+	dfly_io_mod_retrieve retrieve_handler     ;
+	dfly_io_mod_delete delete_handler       ;
+	dfly_io_mod_iter_ctrl iter_ctrl_handler    ;
+	dfly_io_mod_iter_read iter_read_handler    ;
+	dfly_io_mod_fuse_f1 fuse_f1_handler      ;
+	dfly_io_mod_fuse_f2 fuse_f2_handler      ;
+	dfly_io_mod_list_open list_open_handler    ;
+	dfly_io_mod_list_close list_close_handler   ;
+	dfly_io_mod_list_read list_read_handler    ;
 } dfly_io_module_handler_t;
 
 typedef struct dfly_io_module_stats_s {

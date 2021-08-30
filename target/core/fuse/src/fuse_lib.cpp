@@ -62,8 +62,6 @@ int fuse_debug_level = 1;
 int fuse_get_pool_id(struct dfly_subsystem *pool);
 int do_fuse_F1_op(fuse_map_item_t *item, int flags);
 int do_fuse_F2_op(fuse_map_item_t *item, int flags);
-void *fuse_get_value_buff(struct dfly_value *val);
-void fuse_release_value_buff(struct dfly_value *val);
 
 int fuse_get_pool_id(struct dfly_subsystem *pool)
 {
@@ -91,13 +89,13 @@ fuse_conf_t g_fuse_conf = {
 
 ///////////////////////// fuse module /////////////////////
 dfly_io_module_handler_t fuse_io_handlers = {
-	fuse_handle_store_op,
+	(dfly_io_mod_store)fuse_handle_store_op,
 	NULL,   //  retrieve_handler
-	fuse_handle_delete_op,
+	(dfly_io_mod_delete) fuse_handle_delete_op,
 	NULL,   //  iter_ctrl_handler
 	NULL,   //  iter_read_handler
-	fuse_handle_F1_op,
-	fuse_handle_F2_op,
+	(dfly_io_mod_fuse_f1) fuse_handle_F1_op,
+	(dfly_io_mod_fuse_f2) fuse_handle_F2_op,
 };
 
 static fuse_context_t __fuse_ctx = {0, NULL, 0, NULL, 0};
@@ -106,12 +104,12 @@ dfly_io_module_context_t fuse_module_ctx =
 ///////////////////////// fuse module end ////////////////
 
 fuse_map_ops_t fuse_map_ops = {
-	hash_sdbm,
-	fuse_map_lookup,
-	fuse_key_compare,
+	(hash_func_t) hash_sdbm,
+	(lookup_func_t) fuse_map_lookup,
+	(hash_key_comp_t) fuse_key_compare,
 	NULL,
 	NULL,
-	fuse_map_cleanup
+	(cleanup_func_t) fuse_map_cleanup
 };
 
 int fuse_key_compare(fuse_key_t *k1, fuse_key_t *k2)
@@ -140,7 +138,7 @@ int fuse_object_compare(fuse_object_t *obj1, fuse_object_t *obj2)
 fuse_map_t *fuse_get_object_map(int pool_id, fuse_object_t *obj)
 {
 	if (!obj->key_hashed) {
-		obj->key_hash = hash_sdbm(obj->key->key, obj->key->length);
+		obj->key_hash = hash_sdbm((const char*)obj->key->key, obj->key->length);
 		obj->key_hashed = 1;
 	}
 	dfly_io_module_pool_t *fuse_pool = __fuse_ctx.pools[pool_id];
@@ -181,7 +179,7 @@ void fuse_context_deinit(struct dfly_subsystem *pool)
 	for (i = 0; i < nr_maps; i++) {
 		map = __fuse_ctx.maps[i + map_idx];
 		dfly_device_close(map->tgt_fh);
-		map->ops->clean_up(&map);
+		map->ops->clean_up((void **)&map);
 	}
 
 	df_free(fuse_pool);
@@ -291,6 +289,29 @@ int fuse_compare_on_complete(fuse_map_item_t *item)
 	return fuse_compare_value(read_val, f1_val);
 }
 
+static void *fuse_get_value_buff(struct dfly_value *val)
+{
+	void *buff = dfly_io_get_buff(NULL, val->length);
+
+	if (!buff) {
+		uint32_t dma_buff_pages = (val->length + PAGE_SIZE - 1) >> 12 ;
+		buff = spdk_dma_malloc(dma_buff_pages << 12, PAGE_SIZE, NULL);
+	}
+
+	return buff;
+}
+
+static void fuse_release_value_buff(struct dfly_value *val)
+{
+	void *buff = dfly_io_get_buff(NULL, val->length);
+
+	if (val->length < DFLY_BDEV_BUF_MAX_SIZE) {
+		dfly_io_put_buff(NULL, val->value);
+	} else {
+		spdk_dma_free(val->value);
+	}
+}
+
 static void f1_buffer_release(fuse_map_item_t *item)
 {
 	assert(item && item->f1_read_val);
@@ -393,7 +414,7 @@ void dfly_fuse_release(struct dfly_request *request)
 {
 	fuse_log("dfly_fuse_release %p with item %p\n", request, request->req_fuse_data);
 
-	fuse_map_item_t *item = request->req_fuse_data;
+	fuse_map_item_t *item = (fuse_map_item_t *)request->req_fuse_data;
 	if (!item)
 		return ;
 
@@ -599,7 +620,7 @@ int fuse_handle_store_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 
 	struct dfly_request *req = (struct dfly_request *)obj->obj_private;
 
-	int rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_STORE, &item);
+	int rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_STORE, (void **)&item);
 	assert(rc == FUSE_SUCCESS && item);
 
 	if (item) {
@@ -629,7 +650,7 @@ int fuse_handle_delete_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 	assert(map && obj);
 	struct dfly_request *req = (struct dfly_request *)obj->obj_private;
 
-	rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_DELETE, &item);
+	rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_DELETE, (void **)&item);
 	assert(rc == FUSE_SUCCESS && item);
 
 	if (item) {
@@ -723,7 +744,7 @@ int fuse_handle_F1_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 		printf("fuse_handle_F1_op: retry req f1 %p f2 %p\n", f1, f1->next_req);
 
 		assert(f1->req_fuse_data);
-		item = f1->req_fuse_data;
+		item = (fuse_map_item_t *)f1->req_fuse_data;
 		item->fuse_req = NULL;
 		TAILQ_INSERT_TAIL(&item->fuse_waiting_head, f1, fuse_waiting);
 		io_rc = fuse_start_fuse(item, f1, f1, flags, 1);
@@ -731,7 +752,7 @@ int fuse_handle_F1_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 		return io_rc;
 	}
 
-	rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_FUSE_1, &item);
+	rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_FUSE_1, (void **)&item);
 	if (rc == FUSE_SUCCESS) {
 		assert(item);
 		f1->req_fuse_data = item;
@@ -792,7 +813,7 @@ int fuse_handle_F2_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 	}
 #endif
 
-	int rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_FUSE_2, &item);
+	int rc = map->ops->lookup(map, obj, FUSE_MAP_LOOKUP_FUSE_2, (void **)&item);
 	if (rc == FUSE_SUCCESS) {
 		assert(item);
 		TAILQ_FOREACH(req, &item->fuse_waiting_head, fuse_waiting) {
@@ -863,30 +884,7 @@ struct dfly_request *create_req_for_wal(struct dfly_key *key,
 //return FUSE_IO_RC_F1_FAIL if wal cache read and compare mismatch.
 //return FUSE_IO_RC_F1_MATCH if wal cache read and compare match.
 
-static void *fuse_get_value_buff(struct dfly_value *val)
-{
-	void *buff = dfly_io_get_buff(NULL, val->length);
-
-	if (!buff) {
-		uint32_t dma_buff_pages = (val->length + PAGE_SIZE - 1) >> 12 ;
-		buff = spdk_dma_malloc(dma_buff_pages << 12, PAGE_SIZE, NULL);
-	}
-
-	return buff;
-}
-
-static void fuse_release_value_buff(struct dfly_value *val)
-{
-	void *buff = dfly_io_get_buff(NULL, val->length);
-
-	if (val->length < DFLY_BDEV_BUF_MAX_SIZE) {
-		dfly_io_put_buff(NULL, val->value);
-	} else {
-		spdk_dma_free(val->value);
-	}
-}
-
-static int do_fuse_F1_op(fuse_map_item_t *item, int flags)
+int do_fuse_F1_op(fuse_map_item_t *item, int flags)
 {
 	int io_rc = FUSE_IO_RC_FUSE_IN_PROGRESS;
 	int rc = FUSE_SUCCESS;
@@ -989,7 +987,7 @@ f1_done:
 	return io_rc;
 }
 
-static int do_fuse_F2_op(fuse_map_item_t *item, int flags)
+int do_fuse_F2_op(fuse_map_item_t *item, int flags)
 {
 	int rc = FUSE_SUCCESS;
 	int io_rc = FUSE_IO_RC_FUSE_IN_PROGRESS;
@@ -1201,7 +1199,7 @@ int do_fuse_io(int pool_id, fuse_object_t *obj, int opc, int op_flags)
 
 		}
 		//printf("\n");
-		assert(req_map.find(obj->obj_private) == req_map.end());
+		assert(req_map.find((struct dfly_request *)obj->obj_private) == req_map.end());
 		TAILQ_INSERT_HEAD(&map->io_pending_queue, ((struct dfly_request *)obj->obj_private),
 				  fuse_pending_list);
 		//printf("do new req %p cnt %d\n", obj->obj_private, nr_io_pending);
@@ -1295,7 +1293,7 @@ int fuse_init_by_conf(struct dfly_subsystem *pool, void *conf,
 
 	if (g_fuse_conf.fuse_enabled) {
 		snprintf(__fuse_nqn_name, strlen(g_fuse_conf.fuse_nqn_name) + 1, "%s", g_fuse_conf.fuse_nqn_name);
-		return fuse_init(pool, fconf->nr_maps_per_pool, fconf->fuse_nr_cores, 0, cb, cb_arg);
+		return fuse_init(pool, fconf->nr_maps_per_pool, fconf->fuse_nr_cores, 0, (void *)cb, cb_arg);
 	}
 	return 0;
 }
@@ -1315,7 +1313,7 @@ int fuse_init(struct dfly_subsystem *pool, int nr_maps, int nr_of_cores, int fus
 	rc = fuse_context_init(&__fuse_ctx, pool, nr_maps, fuse_flag);
 
 	if (rc == FUSE_SUCCESS) {
-		dfly_fuse_module_init(pool->id, g_fuse_conf.fuse_nr_cores, cb, cb_arg);
+		dfly_fuse_module_init(pool->id, g_fuse_conf.fuse_nr_cores, (df_module_event_complete_cb)cb, cb_arg);
 	}
 
 	df_unlock(&fuse_module_ctx.ctx_lock);

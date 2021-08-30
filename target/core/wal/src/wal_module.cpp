@@ -228,7 +228,7 @@ void *wal_module_store_inst_context(void *mctx, void *inst_ctx, int inst_index)
 		return NULL;
 	}
 
-	wal_thrd_ctx = calloc(1, sizeof(struct wal_thread_inst_ctx) + sizeof(wal_zone_t *) * max_zones);
+	wal_thrd_ctx = (struct wal_thread_inst_ctx *) calloc(1, sizeof(struct wal_thread_inst_ctx) + sizeof(wal_zone_t *) * max_zones);
 	if (!wal_thrd_ctx) {
 		assert(wal_thrd_ctx);
 	}
@@ -265,7 +265,7 @@ int dfly_wal_module_init(int ssid, int nr_cores, void *cb, void *cb_arg)
 
 	ss->mlist.dfly_wal_module = dfly_module_start("WAL", ssid, &wal_module_ops,
 				    &g_wal_ctx.pool_array[ssid],
-				    nr_cores, cb, cb_arg);
+				    nr_cores, (df_module_event_complete_cb)cb, cb_arg);
 
 	return 0;
 }

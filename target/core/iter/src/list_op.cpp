@@ -91,11 +91,11 @@ int list_get_pool_id(struct dfly_subsystem *pool)
 #define list_TIMEOUT_DEFAULT_MS 2000
 #define list_NQN_NAME		"nqn.2018-01.dragonfly:test1"
 
-int list_handle_store_op(list_zone_t *zone, void *obj, int flags);
-int list_handle_delete_op(list_zone_t *zone, void *obj, int flags);
-int list_handle_open_op(list_zone_t *zone, void *obj, int flags);
-int list_handle_close_op(list_zone_t *zone, void *obj, int flags);
-int list_handle_read_op(list_zone_t *zone, void *obj, int flags);
+int list_handle_store_op(void *zone_ctx, void *obj, int flags);
+int list_handle_delete_op(void  *zone_ctx, void *obj, int flags);
+int list_handle_open_op(void *zone_ctx, void *obj, int flags);
+int list_handle_close_op(void *zone_ctx, void *obj, int flags);
+int list_handle_read_op(void *zone_ctx, void *obj, int flags);
 
 void list_init_load_cb(struct df_dev_response_s resp, void *args,
 		       dfly_iterator_info *dfly_iter_info);
@@ -150,9 +150,11 @@ extern wal_conf_t g_wal_conf;
 
 // * return DFLY_LIST_SUCCESS: insert new prefix/entry pair. new prefix
 // * return DFLY_LIST_STORE_PREFIX_EXISTED: insert prefix/entry pair, prefix existed.
-int list_handle_store_op(list_zone_t *zone, void *obj, int flags)
+int list_handle_store_op(void *zone_ctx, void *obj, int flags)
 {
 	int io_rc = DFLY_LIST_STORE_CONTINUE;
+	list_zone_t *zone = (list_zone_t *)zone_ctx;
+
 	assert(zone && obj);
 
 	//std::shared_mutex write; //c++ 14
@@ -194,9 +196,10 @@ int list_handle_store_op(list_zone_t *zone, void *obj, int flags)
 
 // * return list_SUCCESS: new item, status = list_DELETE_PENDING
 // * return list_ERROR_IO_RETRY if item existed with other status.
-int list_handle_delete_op(list_zone_t *zone, void *obj, int flags)
+int list_handle_delete_op(void *zone_ctx, void *obj, int flags)
 {
 	int io_rc = DFLY_LIST_DEL_CONTINUE;
+	list_zone_t *zone = (list_zone_t *)zone_ctx;
 	assert(zone && obj);
 
 	//pthread_rwlock_t lock_rw = PTHREAD_RWLOCK_INITIALIZER;
@@ -224,24 +227,27 @@ int list_handle_delete_op(list_zone_t *zone, void *obj, int flags)
 	return io_rc;
 }
 
-int list_handle_open_op(list_zone_t *zone, void *obj, int flags)
+int list_handle_open_op(void *zone_ctx, void *obj, int flags)
 {
 	int io_rc = DFLY_LIST_SUCCESS;
+	list_zone_t *zone = (list_zone_t *)zone_ctx;
 	assert(zone && obj);
 
 	return io_rc;
 }
 
-int list_handle_close_op(list_zone_t *zone, void *obj, int flags)
+int list_handle_close_op(void *zone_ctx, void *obj, int flags)
 {
 	int io_rc = DFLY_LIST_SUCCESS;
+	list_zone_t *zone = (list_zone_t *)zone_ctx;
 	assert(zone && obj);
 	return io_rc;
 }
 
-int list_handle_read_op(list_zone_t *zone, void *obj, int flags)
+int list_handle_read_op(void *zone_ctx, void *obj, int flags)
 {
 	int io_rc = DFLY_LIST_READ_DONE;
+	list_zone_t *zone = (list_zone_t *)zone_ctx;
 	assert(zone && obj);
 	struct dfly_request *req = (struct dfly_request *) obj;
 	assert(zone->zone_idx == req->list_data.list_zone_idx);
@@ -402,7 +408,7 @@ bool list_find_key_prefix(void *ctx, struct dfly_key *key, dfly_list_info_t *lis
 			next_pos = key->length;
 
 		if (pos) {
-			pe.prefix = key->key;
+			pe.prefix = (char *)key->key;
 			pe.prefix_size = pos;
 		} else {
 			//NKV_ROOT_PREFIX
@@ -719,7 +725,7 @@ int list_send_iter_cmd(struct dfly_request *req, int opc, dfly_iterator_info *it
 	}
 
 	//req->iter_data.iter_option = cdw11->cdwb2;
-	req->iter_data.internal_cb = list_init_load_cb;
+	req->iter_data.internal_cb = (void *)list_init_load_cb;
 
 	return iter_io(req->req_dfly_ss, req, iter_info);
 
@@ -883,7 +889,7 @@ void list_load_iter_read_keys(struct dfly_request *req)
 		key_unit_sz = (key_sz + ITER_LIST_ALIGN - 1) & ITER_LIST_ALIGN_MASK;
 		sz -= (sizeof(uint32_t) + key_unit_sz);
 
-		if (!list_key_update_helper(req->req_dfly_ss, data, key_sz, false, false, prefixes, entries, positions))
+		if (!list_key_update_helper(req->req_dfly_ss, (const char *)data, key_sz, false, false, prefixes, entries, positions))
 			nr_keys_updated ++;
 
 
@@ -969,7 +975,7 @@ int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
     } 
     for(int i = 0; i< pool->num_io_devices; i++){
      printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
-     rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, list_module_load_done_blk_cb);
+     rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, (list_done_cb)list_module_load_done_blk_cb);
      printf("list_init_load_by_blk_iter [%d] rc = %d\n", i, rc);
     }
     

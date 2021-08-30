@@ -97,16 +97,18 @@ wal_conf_t g_wal_conf = {
 	WAL_OPEN_FORMAT,
 	WAL_CACHE_OBJECT_SIZE_LIMIT_KB_DEFAULT,
 	WAL_LOG_BATCH_NR_OBJ,
+	WAL_LOG_BATCH_NR_OBJ_ADJUST,
 	WAL_LOG_BATCH_TIMEOUT_US,
+	WAL_LOG_BATCH_TIMEOUT_US_ADJUST,
 	WAL_NR_LOG_DEV_DEFAULT,
 	WAL_LOG_CRASH_TEST,
 	WAL_NQN_NAME,
 };
 
 dfly_io_module_handler_t wal_io_handlers = {
-	wal_handle_store_op,
-	wal_handle_retrieve_op,
-	wal_handle_delete_op,
+	(dfly_io_mod_store) wal_handle_store_op,
+	(dfly_io_mod_retrieve) wal_handle_retrieve_op,
+	(dfly_io_mod_delete) wal_handle_delete_op,
 	NULL,   //iter_ctrl_handler
 	NULL,   //iter_read_handler
 	NULL,   //fuse_f1_handler
@@ -125,7 +127,7 @@ void *wal_set_zone_module_ctx(int ssid, int zone_idx, void *set_ctx)
 	return zone;
 }
 
-static inline wal_get_full_record_size(wal_object_t *obj)
+static inline int wal_get_full_record_size(wal_object_t *obj)
 {
 	int record_sz = obj->key->length + obj->val->length +
 			sizeof(wal_obj_hdr_t) + sizeof(wal_obj_checksum_t);
@@ -212,7 +214,7 @@ int mem_cache_read(int handle, void *buff, uint64_t offset, uint64_t nbytes,
 #ifdef WAL_DFLY_BDEV
 inline int wal_dfly_bdev_open(const char *pathname, int flags)
 {
-	return dfly_device_open(pathname, flags, true);
+	return dfly_device_open((char *)pathname, (devtype_t)flags, true);
 }
 
 inline int wal_dfly_bdev_close(int dev_handle)
@@ -224,7 +226,7 @@ inline int wal_dfly_bdev_close(int dev_handle)
 static int dfly_bdev_write_wrap(int handle, const void *buff, uint64_t offset, uint64_t nbytes,
 				void *cb, void *cb_arg)
 {
-	int dfly_rc = dfly_device_write(handle, buff, offset, nbytes, cb, cb_arg);
+	int dfly_rc = dfly_device_write(handle, (void *)buff, offset, nbytes, (df_dev_io_completion_cb)cb, cb_arg);
 	if (dfly_rc == 0)
 		return nbytes;
 	else
@@ -234,7 +236,7 @@ static int dfly_bdev_write_wrap(int handle, const void *buff, uint64_t offset, u
 static int dfly_bdev_read_wrap(int handle, const void *buff, uint64_t offset, uint64_t nbytes,
 			       void *cb, void *cb_arg)
 {
-	int dfly_rc = dfly_device_read(handle, buff, offset, nbytes, cb, cb_arg);
+	int dfly_rc = dfly_device_read(handle, (void *)buff, offset, nbytes, (df_dev_io_completion_cb)cb, cb_arg);
 	if (dfly_rc == 0)
 		return nbytes;
 	else
@@ -244,7 +246,7 @@ static int dfly_bdev_read_wrap(int handle, const void *buff, uint64_t offset, ui
 wal_device_io_ops_t wal_log_bdev_io = {
 	wal_dfly_bdev_open,
 	wal_dfly_bdev_close,
-	dfly_bdev_read_wrap,
+	(wal_bdev_read_t) dfly_bdev_read_wrap,
 	dfly_bdev_write_wrap,
 };
 #else //PMEM
@@ -280,19 +282,19 @@ wal_device_io_ops_t wal_cache_dev_io = {
 };
 
 wal_map_ops_t wal_log_map_ops = {
-	hash_sdbm,
-	wal_key_compare,
-	wal_log_insert_object,
-	wal_log_map_read,
-	wal_map_invalidate_item,
+	(hash_func_t) hash_sdbm,
+	(hash_key_comp_t) wal_key_compare,
+	(insert_func_t) wal_log_insert_object,
+	(read_func_t) wal_log_map_read,
+	(invalidate_item_t) wal_map_invalidate_item,
 };
 
 wal_map_ops_t wal_cache_map_ops = {
-	hash_sdbm,
-	wal_key_compare,
-	wal_cache_insert_object,
-	wal_cache_map_read,
-	wal_map_invalidate_item,
+	(hash_func_t) hash_sdbm,
+	(hash_key_comp_t) wal_key_compare,
+	(insert_func_t) wal_cache_insert_object,
+	(read_func_t) wal_cache_map_read,
+	(invalidate_item_t) wal_map_invalidate_item,
 };
 
 wal_buffer_ops_t wal_log_buffer_ops = {
@@ -319,9 +321,9 @@ int wal_cache_map_read(void *context, wal_map_item_t *map_item, wal_object_t *ob
 	int rd_sz = MIN(map_item->val_size, obj->val->length);
 	assert(map_item->key->length == obj->key->length);
 	assert(obj->val->length);
-	void *val_addr = map_item->addr;
+	void *val_addr = (void *)map_item->addr;
 	if (__log_enabled) {
-		wal_obj_hdr_t *obj_hdr = (void *)map_item->addr;
+		wal_obj_hdr_t *obj_hdr = (wal_obj_hdr_t *)map_item->addr;
 		val_addr = (void *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz;
 	}
 	return wal_cache_read_object(buffer, obj, (int64_t)val_addr, rd_sz, 1);
@@ -504,7 +506,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 	struct dfly_key large_key;
 	large_key.key = NULL;
 
-	const char *buffer_data = (const char *)recovery_buffer;
+	char *buffer_data = recovery_buffer;
 	int rc = 0, dfly_rc = 0;
 	int buffer_size = ctx_io_size;
 	int is_last_chunk = (ctx_io_size < RECOVER_DATA_SZ);
@@ -525,7 +527,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 		int cache_rc = wal_zone_insert_object(cache_zone, &obj, is_del, &dummy_map_item, NULL);
 
 		//TODO: Update pool information for list update
-		list_key_update(NULL, obj.key->key, obj.key->length, is_del, true);
+		list_key_update(NULL, (const char *)obj.key->key, obj.key->length, is_del, true);
 
 		//recovery stats
 		ATOMIC_INC(zone->zone_recovery_stats.nr_obj_record);
@@ -597,7 +599,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 			buffer->hdr_io_ctx.data = buffer;
 			buffer->hdr_io_ctx.io_size = MIN(RECOVER_DATA_SZ, rest_buffer_space_sz);
 			bdev_read(log_dev_info->fh, recovery_buffer, buffer->hdr.curr_pos, buffer->hdr_io_ctx.io_size,
-				  log_recover_data_read_comp, &buffer->hdr_io_ctx);
+				  (void *)log_recover_data_read_comp, &buffer->hdr_io_ctx);
 		}
 	} else if (rc == -WAL_ERROR_BAD_CHKSUM) {
 		// done the current buffer read.
@@ -614,7 +616,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 			buffer->hdr_io_ctx.io_size = RECOVER_DATA_SZ;
 			buffer->hdr_io_ctx.data = buffer;
 			bdev_read(log_dev_info->fh, recovery_buffer, pos, buffer->hdr_io_ctx.io_size,
-				  log_recover_data_read_comp, &buffer->hdr_io_ctx);
+				  (void *)log_recover_data_read_comp, &buffer->hdr_io_ctx);
 		} else {
 			//done the both flush and log buffer of this zone.
 			//continue to recover the next zone
@@ -641,7 +643,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 
 }
 
-void log_recover_buffer_read_comp(struct df_dev_response_s resp, void *arg)
+int log_recover_buffer_read_comp(struct df_dev_response_s resp, void *arg)
 {
 	log_cb_ctx_t *ctx = (log_cb_ctx_t *)arg;
 	assert(ctx->io_type == LOG_IO_TYPE_BUFF_HDR_RD && resp.rc);
@@ -690,8 +692,10 @@ void log_recover_buffer_read_comp(struct df_dev_response_s resp, void *arg)
 		buffer->hdr_io_ctx.io_size = RECOVER_DATA_SZ;
 		buffer->hdr_io_ctx.data = buffer;
 		bdev_read(log_dev_info->fh, recovery_buffer, pos, buffer->hdr_io_ctx.io_size,
-			  log_recover_data_read_comp, &buffer->hdr_io_ctx);
+			  (void *)log_recover_data_read_comp, &buffer->hdr_io_ctx);
 	}
+
+	return 0;
 
 }
 
@@ -720,7 +724,7 @@ int wal_log_recover_zone_buffer(wal_device_info_t *dev_info, off64_t pos, int32_
 	buffer1->hdr_io_ctx.io_size = WAL_BUFFER_HDR_SZ;
 	buffer1->hdr_io_ctx.data = buffer1;
 	int read_sz = bdev_read(dev_info->fh, &buffer1->hdr, pos, WAL_BUFFER_HDR_SZ,
-				log_recover_buffer_read_comp, &buffer1->hdr_io_ctx);
+				(void *)log_recover_buffer_read_comp, &buffer1->hdr_io_ctx);
 
 	assert(read_sz == WAL_BUFFER_HDR_SZ);
 
@@ -730,7 +734,7 @@ int wal_log_recover_zone_buffer(wal_device_info_t *dev_info, off64_t pos, int32_
 	buffer2->hdr_io_ctx.io_size = WAL_BUFFER_HDR_SZ;
 	buffer2->hdr_io_ctx.data = buffer2;
 	read_sz = bdev_read(dev_info->fh, &buffer2->hdr, next_pos, WAL_BUFFER_HDR_SZ,
-			    log_recover_buffer_read_comp, &buffer2->hdr_io_ctx);
+			    (void *)log_recover_buffer_read_comp, &buffer2->hdr_io_ctx);
 
 	assert(read_sz == WAL_BUFFER_HDR_SZ);
 
@@ -781,7 +785,7 @@ void wal_log_recover_zones(wal_device_info_t *dev_info, wal_sb_t *sb, int zone_i
 	pos = sb->zone_space[i].addr_mb;
 	pos <<= 20;
 	zone = (wal_zone_t *)df_calloc(1, sizeof(wal_zone_t));
-	zone->recovery_buffer = spdk_dma_malloc(RECOVER_DATA_SZ, WAL_PAGESIZE, NULL);//for log data recovery
+	zone->recovery_buffer = (char *)spdk_dma_malloc(RECOVER_DATA_SZ, WAL_PAGESIZE, NULL);//for log data recovery
 	df_lock_init(&zone->uio_lock, NULL);
 	zone->zone_id = i;
 	dev_info->zones[i] = zone;
@@ -802,7 +806,7 @@ int wal_log_sb_read(wal_device_info_t *dev_info, wal_sb_t *sb)
 	dev_info->log_io_ctx.io_size = sb_sz;
 
 	if ((dev_info->dev_io->read(dev_info->fh, sb, WAL_SB_OFFSET, sb_sz,
-				    log_recover_sb_read_comp, &dev_info->log_io_ctx)) < sb_sz)
+				    (void *)log_recover_sb_read_comp, &dev_info->log_io_ctx)) < sb_sz)
 		return -WAL_ERROR_IO;
 
 	return rc;
@@ -1030,7 +1034,7 @@ int32_t wal_log_dump_objs(wal_zone_t *log_zone, wal_dump_info_t *dump_info)
 	new_cache_dump_info->dump_ts = {0};
 	cache_zone->log->hdr.curr_pos += WAL_DUMP_HDR_SZ;
 	*/
-	int rc = wal_log_insert_object(log_zone, NULL, NULL, 0, dump_info);
+	int rc = wal_log_insert_object(log_zone, NULL, NULL, (wal_map_insert_t)0, dump_info);
 	return rc;
 }
 
@@ -1074,11 +1078,11 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 
 	if (p_dump_info->dump_flags & DUMP_BATCH) {
 		wal_dump_hdr_t *dump_hdr = (wal_dump_hdr_t *)p_dump_info->dump_addr;
-		void *dump_data_addr = ((off64_t)dump_hdr + WAL_DUMP_HDR_SZ + WAL_ALIGN - 1) & WAL_ALIGN_MASK;
+		void *dump_data_addr = (void *)(((off64_t)dump_hdr + WAL_DUMP_HDR_SZ + WAL_ALIGN - 1) & WAL_ALIGN_MASK);
 		uint32_t dump_data_size = p_dump_info->dump_blk << WAL_ALIGN_OFFSET;
 
 		void *src_addr = dump_data_addr;
-		wal_obj_hdr_t *oh = src_addr;
+		wal_obj_hdr_t *oh = (wal_obj_hdr_t *)src_addr;
 		int nr_updated = 0;
 		while (nr_updated < dump_hdr->nr_batch_reqs) {
 			wal_obj_checksum_t *ch =
@@ -1086,7 +1090,7 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 
 			ch->chksum = zone->log->hdr.sequence;
 			src_addr += (oh->sz_blk << WAL_ALIGN_OFFSET);
-			oh = src_addr;
+			oh = (wal_obj_hdr_t *)src_addr;
 			struct dfly_request *req = (struct dfly_request *) dump_hdr->req_list[nr_updated];
 			nr_updated ++;
 #ifdef WAL_DFLY_TRACK
@@ -1097,7 +1101,7 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 
 		if (dump_hdr->nr_batch_reqs) {
 			rc = buffer_write(fh, dump_data_addr, pos, dump_data_size,
-					  wal_log_complete_batch, p_dump_info->dump_addr);
+					  (void *)wal_log_complete_batch, (void *)p_dump_info->dump_addr);
 			assert(rc == dump_data_size);
 			//printf("wal_log_insert_object zone[%d] pos 0x%llx size 0x%x\n",
 			//    log_buffer->zone->zone_id, pos, dump_data_size);
@@ -1123,7 +1127,7 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 
 		ch->chksum = zone->log->hdr.sequence;
 
-		rc = buffer_write(fh, src_addr, pos, cache_item_size, wal_log_complete_single, obj->obj_private);
+		rc = buffer_write(fh, src_addr, pos, cache_item_size, (void *)wal_log_complete_single, obj->obj_private);
 		assert(rc == cache_item_size);
 		total_log_size += cache_item_size;
 		if (oh->state == WAL_ITEM_VALID)
@@ -1170,7 +1174,7 @@ void crash_test(int completed_cnt)
 	}
 
 }
-static void wal_log_complete_single(struct df_dev_response_s resp, void *arg)
+void wal_log_complete_single(struct df_dev_response_s resp, void *arg)
 {
 	struct dfly_request *req = (struct dfly_request *) arg;
 	struct dfly_request *parent_req = req->parent;
@@ -1263,7 +1267,7 @@ log_complete_single_done:
 
 }
 
-static void wal_log_complete_batch(struct df_dev_response_s resp, void *arg)
+void wal_log_complete_batch(struct df_dev_response_s resp, void *arg)
 {
 	wal_dump_hdr_t *dump_hdr = (wal_dump_hdr_t *)arg;
 	wal_debug("wal_log_complete_batch entry %d reqs at %p\n",
@@ -1290,7 +1294,7 @@ struct dfly_request dummy_req[256];
 void wal_flush_complete(struct df_dev_response_s resp, void *arg)
 {
 	wal_map_item_t *item = (wal_map_item_t *)arg;
-	wal_buffer_t *buffer = item->buffer_ptr;
+	wal_buffer_t *buffer = (wal_buffer_t *)item->buffer_ptr;
 	if (item->key->length > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
 		dfly_put_key_buff(NULL, item->large_key_buff);
 		item->large_key_buff = NULL;
@@ -1346,7 +1350,7 @@ int wal_cache_read_object(wal_buffer_t *buffer, wal_object_t *obj,
 	if (is_data_read) {
 		rc = buffer_read(buffer->fh, (void *)obj->val->value + obj->val->offset, addr, sz, NULL, NULL);
 	} else {
-		obj->val->value = addr;
+		obj->val->value = (void *)addr;
 	}
 
 	//printf("v_size %d v:0x%llx\n", rc, *(long long *)obj->val->value);
@@ -1466,7 +1470,7 @@ int wal_log_sb_write(wal_device_info_t *dev_info)
 	dev_info->log_io_ctx.io_type = LOG_IO_TYPE_SB_WR;
 	dev_info->log_io_ctx.data = dev_info->pool;
 	sz = dev_info->dev_io->write(dev_info->fh, (const char *)dev_info->sb,
-				     WAL_SB_OFFSET, sz, log_format_io_write_comp, &dev_info->log_io_ctx);
+				     WAL_SB_OFFSET, sz, (void *)log_format_io_write_comp, &dev_info->log_io_ctx);
 	if (sz != sizeof(wal_sb_t))
 		rc = - WAL_ERROR_WR_LESS;
 
@@ -1510,7 +1514,7 @@ wal_zone_t * wal_log_get_object_zone(wal_object_t * obj)
 wal_zone_t *wal_log_get_object_zone2(wal_subsystem_t *pool, wal_object_t *obj)
 {
 	if (!obj->key_hashed) {
-		obj->key_hash = hash_sdbm(obj->key->key, obj->key->length);
+		obj->key_hash = hash_sdbm((const char *)obj->key->key, obj->key->length);
 		obj->key_hashed = 1;
 	}
 	//* (long long *)(obj->key->key + 8);
@@ -1523,7 +1527,7 @@ wal_zone_t *wal_log_get_object_zone2(wal_subsystem_t *pool, wal_object_t *obj)
 wal_zone_t *wal_cache_get_object_zone2(wal_subsystem_t *pool, wal_object_t *obj)
 {
 	if (!obj->key_hashed) {
-		obj->key_hash = hash_sdbm(obj->key->key, obj->key->length);
+		obj->key_hash = hash_sdbm((const char *)obj->key->key, obj->key->length);
 		obj->key_hashed = 1;
 	}
 	//* (long long *)(obj->key->key + 8);
@@ -1655,7 +1659,7 @@ int wal_log_dev_open_2(void *pool, wal_log_device_init_ctx_t *ctx, wal_sb_t **pp
 	int rc = WAL_LOG_INIT_FAILED;
 
 
-	char *dev_name = ctx->device_name;
+	char *dev_name = (char *)ctx->device_name;
 	size_t nanme_sz = strlen(ctx->device_name);
 	wal_device_info_t *dev_info = ctx->log_dev_info;
 	int nr_zone = ctx->nr_zones_per_device;
@@ -1677,7 +1681,7 @@ int wal_log_dev_open_2(void *pool, wal_log_device_init_ctx_t *ctx, wal_sb_t **pp
 		return rc;
 
 	log_sb_pg = (sizeof(wal_sb_t) + WAL_PAGESIZE - 1) >> WAL_PAGESIZE_SHIFT;
-	log_sb = spdk_dma_malloc(log_sb_pg << WAL_PAGESIZE_SHIFT, WAL_PAGESIZE, NULL);
+	log_sb = (wal_sb_t *)spdk_dma_malloc(log_sb_pg << WAL_PAGESIZE_SHIFT, WAL_PAGESIZE, NULL);
 	if (!log_sb) {
 		wal_debug("spdk_dma_malloc fail to alloc sb with size of %d \n", log_sb_pg << WAL_PAGESIZE_SHIFT);
 		goto fail;
@@ -1727,7 +1731,7 @@ fail:
 	return rc;
 }
 
-static int wal_cache_flush_buffer_sync(wal_buffer_t *buffer)
+static void wal_cache_flush_buffer_sync(wal_buffer_t *buffer)
 {
 	wal_zone_t *zone = buffer->zone;
 
@@ -1766,7 +1770,7 @@ keep_flushing:
 				obj.key = entry->key;
 				obj.val->length = entry->val_size;
 				obj.val->offset = 0;
-				obj.val->value = entry->addr;
+				obj.val->value = (void *)entry->addr;
 
 				struct dfly_key large_key;
 				if (entry->key->length > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
@@ -1814,14 +1818,14 @@ keep_flushing:
 	return;
 }
 
-static void wal_cache_flush_zone(wal_zone_t *zone)
+void wal_cache_flush_zone(wal_zone_t *zone)
 {
 	wal_cache_flush_buffer_sync(zone->flush);
 	zone->flush->map->flush_head = NULL;
 	wal_cache_flush_buffer_sync(zone->log);
 }
 
-static int wal_prepare_large_key(struct dfly_key *large_key, wal_map_item_t *item)
+int wal_prepare_large_key(struct dfly_key *large_key, wal_map_item_t *item)
 {
 	assert(!item->large_key_buff && item->key->length <= SAMSUNG_KV_MAX_FABRIC_KEY_SIZE);
 	item->large_key_buff = dfly_get_key_buff(NULL,
@@ -1889,7 +1893,7 @@ void wal_cache_flush_spdk_proc(void *context)
 				obj.key = entry->key;
 				obj.val->length = entry->val_size;
 				obj.val->offset = 0;
-				obj.val->value = entry->addr;
+				obj.val->value = (void *)entry->addr;
 
 				struct dfly_key large_key;
 				if (entry->key->length > SAMSUNG_KV_MAX_EMBED_KEY_SIZE) {
@@ -1903,8 +1907,8 @@ void wal_cache_flush_spdk_proc(void *context)
 				}
 
 				if (__log_enabled) {
-					void *val_addr = entry->addr;
-					wal_obj_hdr_t *obj_hdr = (void *)entry->addr;
+					void *val_addr = (void *)entry->addr;
+					wal_obj_hdr_t *obj_hdr = (wal_obj_hdr_t *)entry->addr;
 					obj.val->value = (void *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz;
 				}
 
@@ -2204,7 +2208,7 @@ int wal_init_by_conf(struct dfly_subsystem *pool, void *arg/*Not used*/,
 	return wal_init(pool, NULL, NULL,
 			g_wal_conf.wal_nr_zone_per_pool_default, g_wal_conf.wal_zone_sz_mb_default, 0,
 			g_wal_conf.wal_open_flag,
-			cb, cb_arg);
+			(void *)cb, cb_arg);
 }
 
 //Assumes subsystems are initialized one by one
@@ -2334,9 +2338,9 @@ int wal_init(struct dfly_subsystem *pool, struct dragonfly_ops *dops,
 
 	if (g_wal_conf.wal_cache_enabled) {
 		if (g_wal_conf.wal_log_enabled) {
-			wal_cb_event.df_ss_cb = cb;
+			wal_cb_event.df_ss_cb = (df_module_event_complete_cb)cb;
 			wal_cb_event.df_ss_cb_arg = cb_arg;
-			dfly_wal_module_init(pool_id, g_wal_conf.wal_nr_cores, wal_module_started_cb,
+			dfly_wal_module_init(pool_id, g_wal_conf.wal_nr_cores, (void *)wal_module_started_cb,
 					     pool);//Pool ID should be dfly subsystem id
 		} else {
 			dfly_wal_module_init(pool_id, g_wal_conf.wal_nr_cores, cb,
@@ -2443,7 +2447,7 @@ finish_skip:
 void inline wal_lookup_zone(int pool_id, wal_object_t *obj, wal_zone_t **pp_cache_zone,
 			    wal_zone_t  **pp_log_zone)
 {
-	wal_context_t *wal_ctx = wal_module_ctx.ctx;
+	wal_context_t *wal_ctx = (wal_context_t *)wal_module_ctx.ctx;
 
 	if (__log_enabled) {
 		*pp_log_zone = wal_log_get_object_zone2(&wal_ctx->pool_array[pool_id], obj);
@@ -2464,7 +2468,7 @@ int wal_handle_store_op(struct dfly_subsystem *pool,
 	wal_map_item_t *cached_map_item = NULL;
 	int cache_rc = WAL_SUCCESS, log_rc = WAL_SUCCESS, rc;
 	int pool_id = pool->id;
-	wal_conf_t *wal_conf = wal_module_ctx.conf;
+	wal_conf_t *wal_conf = (wal_conf_t *)wal_module_ctx.conf;
 	wal_zone_t *cache_zone = NULL, * log_zone = NULL;
 	wal_dump_info_t  dump_info = {0, 0, DUMP_NOT_READY};
 
@@ -2558,8 +2562,8 @@ int wal_handle_delete_op(struct dfly_subsystem *pool,
 	int pool_id = pool->id;
 	wal_map_item_t *cached_map_item = NULL, * log_map_item = NULL;
 	int rc = WAL_SUCCESS, cache_rc = WAL_SUCCESS;
-	struct dfly_request *req = obj->obj_private;
-	wal_conf_t *wal_conf = wal_module_ctx.conf;
+	struct dfly_request *req = (struct dfly_request *)obj->obj_private;
+	wal_conf_t *wal_conf = (wal_conf_t *)wal_module_ctx.conf;
 	wal_zone_t *cache_zone = NULL, * log_zone = NULL;
 	wal_dump_info_t  dump_info = {0, 0, DUMP_NOT_READY};
 
@@ -2664,8 +2668,8 @@ int wal_handle_retrieve_op(struct dfly_subsystem *pool,
 
 	wal_map_item_t *item = NULL;
 	int rc = WAL_ERROR_READ_MISS;
-	wal_context_t *wal_ctx = wal_module_ctx.ctx;
-	wal_conf_t *wal_conf = wal_module_ctx.conf;
+	wal_context_t *wal_ctx = (wal_context_t *)wal_module_ctx.ctx;
+	wal_conf_t *wal_conf = (wal_conf_t *)wal_module_ctx.conf;
 
 	//cache io first
 	if (wal_conf->wal_cache_enabled) {
