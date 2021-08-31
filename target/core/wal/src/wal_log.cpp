@@ -324,7 +324,7 @@ int wal_cache_map_read(void *context, wal_map_item_t *map_item, wal_object_t *ob
 	void *val_addr = (void *)map_item->addr;
 	if (__log_enabled) {
 		wal_obj_hdr_t *obj_hdr = (wal_obj_hdr_t *)map_item->addr;
-		val_addr = (void *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz;
+		val_addr = (void *)((char *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz);
 	}
 	return wal_cache_read_object(buffer, obj, (int64_t)val_addr, rd_sz, 1);
 }
@@ -563,7 +563,7 @@ void log_recover_data_read_comp(struct df_dev_response_s resp, void *arg)
 
 		wal_debug("log_object_parse: flush %d log_zone[%d] key 0x%llx%llx val_size 0x%x rc %d cache_rc %d buffer_size %d nr_record %d pos 0x%llx\n",
 			  zone->zone_id, cache_zone->poll_flush_flag, *(long long *)obj.key->key,
-			  *(long long *)(obj.key->key + 8),
+			  *(long long *)((char *)obj.key->key + 8),
 			  obj.val->length, rc, cache_rc, buffer_size, zone->zone_recovery_stats.nr_obj_record,
 			  buffer->hdr.curr_pos);
 
@@ -867,8 +867,8 @@ int wal_object_compare(wal_object_t *obj1, wal_object_t *obj2)
 	if (memcmp(obj1->key->key, obj2->key->key, obj1->key->length))
 		return -1;
 
-	if (memcmp(obj1->val->value + obj1->val->offset,
-		   obj2->val->value + obj2->val->offset, obj1->val->length))
+	if (memcmp((void *)((char *)obj1->val->value + obj1->val->offset),
+		   (void *)((char *)obj2->val->value + obj2->val->offset), obj1->val->length))
 		return -1;
 
 	return 0;
@@ -951,7 +951,7 @@ int32_t wal_cache_insert_object(void *context, wal_object_t *obj,
 	//copy the object
 	if (!__log_enabled) {
 		//cache only record [val]
-		record_size = buffer_write(fh, obj->val->value + obj->val->offset,  pos, obj->val->length, NULL,
+		record_size = buffer_write(fh, (void *)((char *)obj->val->value + obj->val->offset),  pos, obj->val->length, NULL,
 					   NULL);
 		obj_hdr.sz_blk = (record_size + __buffer_alignment - 1) >> WAL_ALIGN_OFFSET;
 	} else {
@@ -961,7 +961,7 @@ int32_t wal_cache_insert_object(void *context, wal_object_t *obj,
 		write_size = buffer_write(fh, obj->key->key, pos, obj->key->length, NULL, NULL);
 		pos += write_size;
 		if (obj_hdr.val_sz) {
-			write_size = buffer_write(fh, obj->val->value + obj->val->offset, pos, obj->val->length, NULL,
+			write_size = buffer_write(fh, (void *)((char *)obj->val->value + obj->val->offset), pos, obj->val->length, NULL,
 						  NULL);
 			pos += write_size;
 		}
@@ -1081,7 +1081,7 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 		void *dump_data_addr = (void *)(((off64_t)dump_hdr + WAL_DUMP_HDR_SZ + WAL_ALIGN - 1) & WAL_ALIGN_MASK);
 		uint32_t dump_data_size = p_dump_info->dump_blk << WAL_ALIGN_OFFSET;
 
-		void *src_addr = dump_data_addr;
+		char *src_addr = (char *)dump_data_addr;
 		wal_obj_hdr_t *oh = (wal_obj_hdr_t *)src_addr;
 		int nr_updated = 0;
 		while (nr_updated < dump_hdr->nr_batch_reqs) {
@@ -1123,7 +1123,7 @@ int32_t wal_log_insert_object(void *context, wal_object_t *obj,
 		uint32_t cache_item_size = oh->sz_blk << WAL_ALIGN_OFFSET;
 
 		wal_obj_checksum_t *ch =
-			(wal_obj_checksum_t *)(src_addr + sizeof(wal_obj_hdr_t) + oh->key_sz + oh->val_sz);
+			(wal_obj_checksum_t *)((char *)src_addr + sizeof(wal_obj_hdr_t) + oh->key_sz + oh->val_sz);
 
 		ch->chksum = zone->log->hdr.sequence;
 
@@ -1226,7 +1226,7 @@ void wal_log_complete_single(struct df_dev_response_s resp, void *arg)
 
 		struct dfly_key *key = req->ops.get_key(req);
 		wal_debug("wal_log_complete_single write_miss req %p, state %d, key: 0x%llx%llx\n",
-			  req, req->state, *(long long *)key->key, *(long long *)(key->key + 8));
+			  req, req->state, *(long long *)key->key, *(long long *)((char *)key->key + 8));
 
 		req->state = DFLY_REQ_IO_SUBMITTED_TO_WAL;
 		req->next_action = DFLY_FORWARD_TO_IO_THREAD;
@@ -1307,7 +1307,7 @@ void wal_flush_complete(struct df_dev_response_s resp, void *arg)
 	}
 
 	wal_debug("flushed item %p key 0x%llx%llx\n", item,
-		  *(long long *)item->key->key, *(long long *)(item->key->key + 8));
+		  *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8));
 
 	if (!ATOMIC_DEC_FETCH(buffer->nr_objects_inserted)) {
 		printf("zone %d flush %lld completed write_miss %lld overwrite %lld invalidate %lld\n",
@@ -1348,7 +1348,7 @@ int wal_cache_read_object(wal_buffer_t *buffer, wal_object_t *obj,
 	int rc = 0;
 
 	if (is_data_read) {
-		rc = buffer_read(buffer->fh, (void *)obj->val->value + obj->val->offset, addr, sz, NULL, NULL);
+		rc = buffer_read(buffer->fh, (void *)((char *)obj->val->value + obj->val->offset), addr, sz, NULL, NULL);
 	} else {
 		obj->val->value = (void *)addr;
 	}
@@ -1909,7 +1909,7 @@ void wal_cache_flush_spdk_proc(void *context)
 				if (__log_enabled) {
 					void *val_addr = (void *)entry->addr;
 					wal_obj_hdr_t *obj_hdr = (wal_obj_hdr_t *)entry->addr;
-					obj.val->value = (void *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz;
+					obj.val->value = (void *)((char *)obj_hdr + __wal_obj_hdr_sz + obj_hdr->key_sz);
 				}
 
 #if 0
@@ -2172,7 +2172,7 @@ int wal_io(struct dfly_request *req, int wal_op_flags)
 	int rc = wal_dfly_object_io(&wal_module_ctx, req->req_dfly_ss, &obj, opc, wal_op_flags);
 
 	wal_debug("wal_io req %p opc 0x%x key: 0x%llx%llx rc %d\n",
-		  req, opc, *(long long *)obj.key->key, *(long long *)(obj.key->key + 8), rc);
+		  req, opc, *(long long *)obj.key->key, *(long long *)((char *)obj.key->key + 8), rc);
 	return rc;
 
 }
@@ -2551,7 +2551,7 @@ int wal_handle_store_op(struct dfly_subsystem *pool,
 store_done:
 	wal_debug("map_item %p key: 0x%llx%llx  cache_rc %d log_rc %d rc %d\n",
 		  cached_map_item,
-		  *(long long *)obj->key->key, *(long long *)(obj->key->key + 8),
+		  *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8),
 		  cache_rc, log_rc, rc);
 	return rc;
 }

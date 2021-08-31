@@ -267,8 +267,8 @@ int list_handle_read_op(void *zone_ctx, void *obj, int flags)
 	std::string start_key;
 	std::set<std::string>::iterator iter;
 
-	uint32_t *value_buffer_nr_key = (uint32_t *)((void *)val->value + val->offset);
-	uint32_t *key_sz = (uint32_t *)((void *)val->value + val->offset + sizeof(uint32_t));
+	uint32_t *value_buffer_nr_key = (uint32_t *)((char *)val->value + val->offset);
+	uint32_t *key_sz = (uint32_t *)((char *)val->value + val->offset + sizeof(uint32_t));
 	void *key_ptr = key_sz + 1;
 	int list_buffer_sz = req->list_data.list_size - sizeof(*value_buffer_nr_key);
 	uint32_t nr_keys = 0;
@@ -280,7 +280,7 @@ int list_handle_read_op(void *zone_ctx, void *obj, int flags)
 		req->list_data.options = DFLY_LIST_OPTION_PREFIX_FROM_START_KEY;
 		list_from_begining = false;
 		prefix = std::string((const char *)(key->key), offset);
-		start_key = std::string((const char *)(key->key + offset), payload_sz - offset);
+		start_key = std::string((const char *)((char *)key->key + offset), payload_sz - offset);
 		//list_log("option: prefix '%s' start_key '%s'\n", prefix.c_str(), start_key.c_str());
 	} else if (offset && offset == payload_sz) {
 		req->list_data.options = DFLY_LIST_OPTION_PREFIX_FROM_BEGIN;
@@ -415,7 +415,7 @@ bool list_find_key_prefix(void *ctx, struct dfly_key *key, dfly_list_info_t *lis
 			pe.prefix = NKV_ROOT_PREFIX.c_str();
 			pe.prefix_size = NKV_ROOT_PREFIX.size();
 		}
-		pe.entry = key->key + pos;
+		pe.entry = (const char *)key->key + pos;
 		pe.entry_size = next_pos - pos;
 
 		zone_idx = zone_ids[list_data->prefix_key_info[i * 2]];
@@ -590,7 +590,7 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 			lp_ctx->total_keys = (uint32_t *)((char *)lp_ctx->val->value + lp_ctx->val->offset);
 			lp_ctx->rem_buffer_len -= sizeof(uint32_t);
 
-			lp_ctx->key_sz = (uint32_t *)((void *)lp_ctx->val->value + lp_ctx->val->offset + sizeof(uint32_t));
+			lp_ctx->key_sz = (uint32_t *)((char *)lp_ctx->val->value + lp_ctx->val->offset + sizeof(uint32_t));
 			//lp_ctx->rem_buffer_len -= sizeof(uint32_t); // include for calculation for next key write
 
 			lp_ctx->key    = lp_ctx->key_sz + 1;//Advance by int pointer
@@ -606,9 +606,9 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 			} else if (offset && offset < key->length) {
 				std::string start_key;
 				if(((char *)(key->key))[key->length - 1] == lp_ctx->delim) {
-					start_key = std::string((char *)(key->key + offset), key->length - offset - 1);
+					start_key = std::string((char *)((char *)key->key + offset), key->length - offset - 1);
 				} else {
-					start_key = std::string((char *)(key->key + offset), key->length - offset);
+					start_key = std::string((char *)((char *)key->key + offset), key->length - offset);
 				}
 				strcpy(lp_ctx->prefix, prefix.c_str());
 				strcpy(lp_ctx->start, start_key.c_str());
@@ -862,7 +862,7 @@ void list_load_iter_read_keys(struct dfly_request *req)
 	assert(req);
 	struct dfly_value *val = req->ops.get_value(req);
 	assert(val && val->value);
-	void *data = val->value + val->offset;
+	char *data = (char *)val->value + val->offset;
 	int sz = val->length;
 	int nr_keys_tbd = *(uint32_t *)data;
 	int nr_keys = nr_keys_tbd;

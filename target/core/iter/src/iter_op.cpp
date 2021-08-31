@@ -40,7 +40,7 @@ static int get_iter_list_unit(dev_iterator_info *info,
 {
 	int nr_unit = 0;
 	int read_sz = 0;
-	void *buff = info->it_buff;
+	char *buff = (char *)info->it_buff;
 	int buff_sz = info->it_data_sz;
 
 	assert(info->read_pos >= 0 && info->read_pos < info->it_data_sz);
@@ -59,7 +59,7 @@ static int get_iter_list_unit(dev_iterator_info *info,
 	int data_sz = *(uint32_t *) buff;
 	data_sz = (data_sz + ITER_LIST_ALIGN - 1) & ITER_LIST_ALIGN_MASK;
 	* unit_sz = data_sz + sizeof(uint32_t);
-	* unit_ptr = buff;
+	* unit_ptr = (void *)buff;
 	read_sz += (*unit_sz);
 
 	return read_sz;
@@ -70,7 +70,7 @@ int iter_sg_read_data(struct dfly_request *req, dfly_iterator_info *dfly_iter_in
 {
 	int i = 0;
 	int req_sz = req->req_value.length;
-	void *req_buf = req->req_value.value + req->req_value.offset;
+	char *req_buf = ((char *)req->req_value.value) + req->req_value.offset;
 	int iter_sz = 0;
 	dev_iterator_info *dev_iter_info = NULL;
 	uint32_t *nr_ret = (uint32_t *)req_buf;
@@ -103,10 +103,10 @@ int iter_sg_read_data(struct dfly_request *req, dfly_iterator_info *dfly_iter_in
 				if (data_sz < req_sz) {
 					int key_sz = *(int *)pdata;
 					assert(key_sz > 0 && key_sz <= 255);
-					snprintf(dump, data_sz - 4, "%s", (pdata + 4));
+					snprintf(dump, data_sz - 4, "%s", (((char *)pdata) + 4));
 					//if(data_sz < 36)
 					//    iter_log("sz %d %d %s, ", data_sz, *(int *)pdata, dump);
-					memcpy(req_buf, pdata, data_sz);
+					memcpy((void *)req_buf, pdata, data_sz);
 					req_buf += data_sz;
 					req_sz -= data_sz;
 					nr_unit ++;

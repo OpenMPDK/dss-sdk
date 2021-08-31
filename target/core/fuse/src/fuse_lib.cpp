@@ -128,8 +128,8 @@ int fuse_object_compare(fuse_object_t *obj1, fuse_object_t *obj2)
 	if (memcmp(obj1->key->key, obj2->key->key, obj1->key->length))
 		return -1;
 
-	if (memcmp(obj1->val->value + obj1->val->offset,
-		   obj2->val->value + obj2->val->offset, obj1->val->length))
+	if (memcmp((void *)((char *)obj1->val->value + obj1->val->offset),
+		   (void *)((char *)obj2->val->value + obj2->val->offset), obj1->val->length))
 		return -1;
 
 	return 0;
@@ -258,7 +258,7 @@ int fuse_compare_value(struct dfly_value *v1, struct dfly_value *v2)
 	if (v1->length - v1->offset != v2->length - v2->offset)
 		return -1;
 
-	return (memcmp(v1->value + v1->offset, v2->value + v2->offset, v1->length));
+	return (memcmp((void *)((char *)v1->value + v1->offset), (void *)((char *)v2->value + v2->offset), v1->length));
 }
 
 struct dfly_request *find_get_linked_fuse(fuse_map_item_t *item)
@@ -603,7 +603,7 @@ void dfly_fuse_complete(void *arg, bool success = true)
 
 comp_done:
 	fuse_log("complete done with key %llx%llx r_cnt %d io_rc %d\n",
-		 *(long long *)item->key->key, *(long long *)(item->key->key + 8), r_cnt, io_rc);
+		 *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8), r_cnt, io_rc);
 	//df_unlock(&item->map->map_lock);
 
 	return;
@@ -635,7 +635,7 @@ int fuse_handle_store_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 	}
 
 	fuse_log("fuse_handle_store_op req %p key %llx%llx, io_rc %x\n",
-		 req, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8), io_rc);
+		 req, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8), io_rc);
 
 	return io_rc;
 }
@@ -665,7 +665,7 @@ int fuse_handle_delete_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 	}
 
 	fuse_log("fuse_handle_delete_op req %p key %x%x, io_rc %x\n",
-		 req, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8), io_rc);
+		 req, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8), io_rc);
 
 	return io_rc;
 }
@@ -707,12 +707,12 @@ static int fuse_start_fuse(fuse_map_item_t *item,
 		item->fuse_req = f1;
 		TAILQ_REMOVE_INIT(&item->fuse_waiting_head, wait_req, fuse_waiting);
 		fuse_log("fuse_start_fuse_by_f%d find both f1 %p f2 %p item %p on key 0x%llx%llx\n",
-			 src, f1, f1->next_req, item, *(long long *)item->key->key, *(long long *)(item->key->key + 8));
+			 src, f1, f1->next_req, item, *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8));
 
 		io_rc = do_fuse_handle_fuse_op(f1, item, flags);
 
 		fuse_log("fuse_start_fuse_by_f%d f1 %p f2 %p item %p key 0x%llx%llx, io_rc %x\n",
-			 src, f1, f1->next_req, item, *(long long *)item->key->key, *(long long *)(item->key->key + 8),
+			 src, f1, f1->next_req, item, *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8),
 			 io_rc);
 	} else {
 		fuse_log("fuse_start_fuse_by_f%d queueing both f1 %p f2 %p item %p with its fuse_req %p ref_cnt %d\n",
@@ -782,7 +782,7 @@ int fuse_handle_F1_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 			io_rc = FUSE_IO_RC_WAIT_FOR_F2;
 			TAILQ_INSERT_TAIL(&item->fuse_waiting_head, f1, fuse_waiting);
 			fuse_log("fuse_handle_F1_op f1 %p item %p key 0x%llx%llx, io_rc %x\n",
-				 f1, item, *(long long *)item->key->key, *(long long *)(item->key->key + 8), io_rc);
+				 f1, item, *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8), io_rc);
 		} else {
 			found_f2->f1_req = f1;
 			io_rc = fuse_start_fuse(item, f1, f1, flags, 1);
@@ -835,10 +835,10 @@ int fuse_handle_F2_op(fuse_map_t *map, fuse_object_t *obj, int flags)
 			f2->req_fuse_data = item;
 			TAILQ_INSERT_TAIL(&item->fuse_waiting_head, f2, fuse_waiting);
 			fuse_log("fuse_handle_F2_op f2 %p comes first, key 0x%llx%llx, io_rc %x\n",
-				 f2, *(long long *)item->key->key, *(long long *)(item->key->key + 8), io_rc);
+				 f2, *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8), io_rc);
 		} else {
 			fuse_log("fuse_handle_F2_op f1 %p item %p key 0x%llx%llx, io_rc %x\n",
-				 found_f1, item, *(long long *)item->key->key, *(long long *)(item->key->key + 8), io_rc);
+				 found_f1, item, *(long long *)item->key->key, *(long long *)((char *)item->key->key + 8), io_rc);
 
 			f2->req_fuse_data = item;
 			f2->f1_req = found_f1;

@@ -267,7 +267,7 @@ int wal_zone_insert_object(wal_zone_t *zone, wal_object_t *obj,
 					       invalidated_item);
 					rc = WAL_ERROR_IO_RETRY;	//object is under flushing.rare case!!!
 					wal_debug("found a io retry case for flushing object 0x%llx%llx. retry it ...\n",
-						  *(long long *)obj->key->key, *(long long *)(obj->key->key + 8));
+						  *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 				} else {
 					if (!(*pp_map_item))
 						*pp_map_item = invalidated_item;
@@ -278,7 +278,7 @@ int wal_zone_insert_object(wal_zone_t *zone, wal_object_t *obj,
 				}
 
 				wal_debug("wal_zone_insert_object busy: item %p for key 0x%llx%llx\n",
-					  * pp_map_item, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8));
+					  * pp_map_item, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 
 				return rc;
 			}
