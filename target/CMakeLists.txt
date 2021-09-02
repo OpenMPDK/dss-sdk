@@ -140,7 +140,7 @@ ADD_CUSTOM_TARGET(dssd
 #
 SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_log.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_spdk.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_subsystem.cpp
@@ -149,7 +149,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_request.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_numa.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_qpair.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ctrl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_poller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_dev.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_bdev.cpp
@@ -162,7 +162,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_req_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ops.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_counters.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dragonfly.cpp
 )
 SET(FW_HEADERS

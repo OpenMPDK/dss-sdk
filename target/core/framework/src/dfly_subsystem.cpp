@@ -145,9 +145,12 @@ extern wal_conf_t g_wal_conf;
 extern list_conf_t g_list_conf;
 
 
+typedef int (*dss_mod_init_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+typedef void (*dss_mod_deinit_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+
 struct df_ss_mod_init_s {
-	int (*mod_init_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
-	void (*mod_deinit_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+	dss_mod_init_fn mod_init_fn;
+	dss_mod_deinit_fn mod_deinit_fn;
 	void *arg;
 	df_ss_init_next_fn cb;
 	bool mod_enabled;
@@ -210,10 +213,10 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/);
 static struct df_ss_mod_init_s module_initializers[DF_MODULE_END + 1] = {
 	{NULL,NULL, NULL, NULL, false},
 	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_LOCK
-	{fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
+	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
 	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_IO
-	{dfly_list_module_init, dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
-	{wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_WAL
+	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
+	{(dss_mod_init_fn)wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_WAL
 	{NULL, NULL, NULL, NULL, false}
 };
 

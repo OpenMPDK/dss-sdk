@@ -42,6 +42,8 @@
 #define DFLY_LTAG(req)    (req)->qos_tags[DFLY_QOS_LIM]
 #define DFLY_PTAG(req)    (req)->qos_tags[DFLY_QOS_PROP]
 
+typedef struct spdk_nvmf_rdma_poller dss_rdma_poler;
+
 typedef struct dfly_poller {
 	TAILQ_HEAD(qos_q, dfly_request)    	po_qos_q[DFLY_QOS_ATTRS];
 	uint32_t                            	po_qos_qc;
@@ -275,12 +277,15 @@ dfly_poller_init(size_t bsize)
 	return (&p->po_base);
 }
 
+typedef int (*rmda_poller_ops_qos_recv)(struct dfly_request *r,  void *rp, void *c);
+typedef size_t (*rmda_poller_ops_qos_sched)(struct spdk_nvmf_rdma_poller *poller, void **shuttle, size_t max_seats);
+
 typedef struct spdk_rdma_poller_ops {
 	void *(*init)(size_t bsize);
 	void (*fini)(void *base);
 	int (*qos_recv)(struct dfly_request *r,
-			struct spdk_nvmf_rdma_poller *rp,
-			struct spdk_nvmf_ctrlr *c);
+			void *rp,
+			void *c);
 	size_t (*qos_sched)(struct spdk_nvmf_rdma_poller *poller,
 			    void **shuttle,
 			    size_t max_seats);
@@ -290,15 +295,15 @@ typedef struct spdk_rdma_poller_ops {
 struct spdk_rdma_poller_ops poller_qos_ops = {
 	.init      = dfly_poller_init,
 	.fini      = dfly_poller_fini,
-	.qos_recv  = dfly_poller_qos_recv,
-	.qos_sched = dfly_poller_qos_sched,
+	.qos_recv  = (rmda_poller_ops_qos_recv)dfly_poller_qos_recv,
+	.qos_sched = (rmda_poller_ops_qos_sched)dfly_poller_qos_sched,
 	.qos_flush = NULL,
 };
 
 dfly_qos_request_ops_t qos_request_ops = {
 	.init      = dfly_poller_init,
 	.fini      = dfly_poller_fini,
-	.qos_recv  = dfly_poller_qos_recv,
+	.qos_recv  = (rmda_poller_ops_qos_recv)dfly_poller_qos_recv,
 	.qos_sched = dfly_poller_qos_sched,
 	.qos_flush = NULL,
 };

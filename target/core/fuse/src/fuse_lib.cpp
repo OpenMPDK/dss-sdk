@@ -1287,7 +1287,7 @@ int fuse_io(struct dfly_request *req, int fuse_op_flags)
 }
 
 int fuse_init_by_conf(struct dfly_subsystem *pool, void *conf,
-		      df_module_event_complete_cb cb, void *cb_arg)
+		      void *cb, void *cb_arg)
 {
 	fuse_conf_t *fconf = (fuse_conf_t *)conf;
 

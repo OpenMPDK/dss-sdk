@@ -499,6 +499,8 @@ struct dfly_tpool_s *dss_tpool_start(const char *name, int id,
 					tpool_req_process_fn f_proc_reqs);
 void dss_tpool_post_request(struct dfly_tpool_s *module, struct dfly_request *req);
 void dss_list_set_repopulate(void *ctx);
+
+int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
 #ifdef __cplusplus
 }
 #endif

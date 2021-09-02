@@ -68,7 +68,7 @@ static char __wal_log_dev_name[256] = {0};
 static char __wal_nqn_name[256] = {0};
 
 static wal_device_info_t __log_dev[WAL_MAX_LOG_DEV] = {0};
-static wal_device_info_t __cache_dev = {0, 0, 0, 0, 0, {0}, -1, NULL, NULL, NULL, NULL};
+static wal_device_info_t __cache_dev = {0};
 static int __cache_nr_zone = 0;
 void *__wal_cache_buffer[MAX_ZONE] = {0};
 
@@ -2198,7 +2198,7 @@ int wal_post_store(struct dfly_request *req)
 }
 
 int wal_init_by_conf(struct dfly_subsystem *pool, void *arg/*Not used*/,
-		     df_module_event_complete_cb cb, void *cb_arg)
+		     void *cb, void *cb_arg)
 {
 	if (!g_wal_conf.wal_cache_enabled)
 		return WAL_INIT_DONE;
@@ -2208,7 +2208,7 @@ int wal_init_by_conf(struct dfly_subsystem *pool, void *arg/*Not used*/,
 	return wal_init(pool, NULL, NULL,
 			g_wal_conf.wal_nr_zone_per_pool_default, g_wal_conf.wal_zone_sz_mb_default, 0,
 			g_wal_conf.wal_open_flag,
-			(void *)cb, cb_arg);
+			cb, cb_arg);
 }
 
 //Assumes subsystems are initialized one by one

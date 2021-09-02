@@ -282,7 +282,7 @@ wal_map_item_t *wal_map_lookup(void *context, wal_map_t *map, wal_object_t *obj,
 								wal_debug("deletion item %p status %x  key 0x%llx%llx failed\n", item, item->status,
 									  *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 								assert(0);
-								return WAL_ERROR_DELETE_FAIL;
+								return NULL;//WAL_ERROR_DELETE_FAIL;
 							} else {
 								return NULL;
 							}

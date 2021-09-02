@@ -593,7 +593,7 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 }
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
-				   dfly_spdk_nvmf_io_ops_t *ops, df_module_event_complete_cb cb, void *cb_arg)
+				   void *ops, df_module_event_complete_cb cb, void *cb_arg)
 {
 
 	int rc = 0;

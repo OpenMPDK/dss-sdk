@@ -408,7 +408,7 @@ void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
 }
 
 //int dfly_list_module_init(int ssid, int nr_cores, void *cb, void *cb_arg)
-int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_event_complete_cb cb, void *cb_arg)
+int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, void *cb_arg)
 {
 	list_context_t  *list_mctx;
 	int nr_cores, nr_zones;
@@ -453,7 +453,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, df_module_ev
 	list_mctx->nr_zones = nr_zones;
 
 	//Initialize subsystem call backs
-	list_cb_event.df_ss_cb = cb;
+	list_cb_event.df_ss_cb = (df_module_event_complete_cb)cb;
 	list_cb_event.df_ss_cb_arg = cb_arg;
 	list_cb_event.src_core = spdk_env_get_current_core();
 	list_cb_event.start_tick = spdk_get_ticks();

@@ -51,5 +51,3 @@ void df_update_lat_us(struct dfly_request *dreq)
 }
 
 #endif
-
-

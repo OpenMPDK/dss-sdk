@@ -73,6 +73,7 @@ list_conf_t g_list_conf = {
 	LIST_NR_ZONES_DEFAULT,
 	LIST_NR_CORES_DEFAULT,
 	LIST_DEBUG_LEVEL_DEFAULT,
+	DF_OP_LOCKLESS,
 	LIST_TIMEOUT_DEFAULT_MS,
 	LIST_PREFIX_HEAD,
 };
@@ -537,6 +538,8 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 	int opc = req->ops.get_command(req);
 	struct dfly_key *key = req->ops.get_key(req);
 	list_thread_inst_ctx_t *list_inst_ctx = (list_thread_inst_ctx_t *) ctx;
+	int offset;
+	std::string prefix;
 
 	dss_hsl_ctx_t *hsl_ctx = NULL;
 
@@ -556,6 +559,8 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 
 
 	hsl_ctx = list_inst_ctx->mctx->zones[0].hsl_keys_ctx;
+	offset = req->list_data.start_key_offset;
+	prefix = std::string((char *)key->key, (size_t)offset);
 
 	switch(opc) {
 		case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
@@ -569,8 +574,6 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 			rc = DFLY_LIST_DEL_DONE;
 			break;
 		case SPDK_NVME_OPC_SAMSUNG_KV_LIST_READ:
-			int offset = req->list_data.start_key_offset;
-			std::string prefix((char *)key->key, (size_t)offset);
 
 			lp_ctx->val = req->ops.get_value(req);;
 			lp_ctx->max_keys = req->list_data.max_keys_requested;
