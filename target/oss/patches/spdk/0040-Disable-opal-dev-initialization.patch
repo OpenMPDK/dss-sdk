@@ -1,7 +1,7 @@
-From eb528238d5c3c8d27e37a49f7a1fc8163198875b Mon Sep 17 00:00:00 2001
+From c5ac3057a034a86a48e436dba638d1ec1d9e31ea Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 25 Mar 2021 00:06:24 -0700
-Subject: [PATCH 40/47] Disable opal dev initialization
+Subject: [PATCH 40/48] Disable opal dev initialization
 
 ---
  module/bdev/nvme/bdev_nvme.c | 4 ++++
