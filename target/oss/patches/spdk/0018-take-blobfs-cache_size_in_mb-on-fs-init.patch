@@ -1,7 +1,7 @@
-From 7c58ac2f37b55a5e21656fe8c3703748c6361893 Mon Sep 17 00:00:00 2001
+From a888126700821ad3a0f4b9441efac89737feb6a4 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 12:41:01 -0800
-Subject: [PATCH 18/47] * take blobfs cache_size_in_mb on fs init.
+Subject: [PATCH 18/48] * take blobfs cache_size_in_mb on fs init.
 
 ---
  lib/blobfs/blobfs.c    | 5 +++--
