@@ -3,26 +3,88 @@
 #
 # set -o xtrace
 
-# Build/install GCC 5.1.0 RPM from gcc-builder: https://github.com/BobSteagall/gcc-builder
+# Minimum and Maximum GCC versions
+GCCMINVER=5.1.0
+GCCMAXVER=5.5.0
+
+# GCC Setenv scripts for CentOS
 GCCSETENV=/usr/local/bin/setenv-for-gcc510.sh
 GCCRESTORE=/usr/local/bin/restore-default-paths-gcc510.sh
-
-# Load GCC 5.1.0 paths
-if test -f "$GCCSETENV"; then
-    source $GCCSETENV
-fi
-
-target_dir=$(readlink -f "$(dirname "$0")")
-build_dir="${target_dir}/../df_out"
-rpm_build_dir="${build_dir}/rpm-build"
-rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
-
 
 die()
 {
     echo "$*"
     exit 1
 }
+
+vercomp () {
+    if [[ "$1" == "$2" ]]
+    then
+        return 0
+    fi
+    local IFS=.
+    # shellcheck disable=SC2206
+    local i ver1=($1) ver2=($2)
+    # fill empty fields in ver1 with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+    do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++))
+    do
+        if [[ -z ${ver2[i]} ]]
+        then
+            # fill empty fields in ver2 with zeros
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]}))
+        then
+            return 1
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]}))
+        then
+            return 2
+        fi
+    done
+    return 0
+}
+
+testvercomp () {
+    vercomp "$1" "$2"
+    case $? in
+        0) op='=';;
+        1) op='>';;
+        2) op='<';;
+    esac
+    if [[ "$op" != "$3" ]]
+    then
+        return 1
+    else
+        return 0
+    fi
+}
+
+# Load GCC 5.1.0 paths
+if test -f "$GCCSETENV"
+then
+    source $GCCSETENV
+fi
+
+# Check gcc version
+GCCVER=$(gcc --version | grep -oP '^gcc \([^)]+\) \K[^ ]+')
+
+# Validate GCC version is supported
+if testvercomp "$GCCVER" "$GCCMINVER" '<' || testvercomp "$GCCVER" "$GCCMAXVER" '>'
+then
+    die "ERROR - Found GCC version: $GCCVER. Must be between $GCCMINVER and $GCCMAXVER."
+else
+    echo "Supported GCC version found: $GCCVER"
+fi
+
+target_dir=$(readlink -f "$(dirname "$0")")
+build_dir="${target_dir}/../df_out"
+rpm_build_dir="${build_dir}/rpm-build"
+rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
 
 updateVersionInHeaderFile()
 {
@@ -184,7 +246,7 @@ parse_options()
 BUILD_ROCKSDB=false
 TARGET_VER="0.5.0"
 
-parse_options $@
+parse_options "$@"
 echo "Build rockdb: $BUILD_ROCKSDB"
 echo "Target Version: $TARGET_VER"
 
@@ -194,21 +256,18 @@ mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"
 
 packageName="nkv-target"
-# packageRevision=1
-# TODO(ER) - Add switch to Job number
-jenkingJobnumber=0
 targetVersion=${TARGET_VER}
 gitVersion="$(git describe --abbrev=4 --always --tags)"
 
 
-pushd "${target_dir}"/oss
+pushd "${target_dir}/oss" || die "Can't change to ${target_dir}/oss dir"
     ./apply-patch.sh
-popd
+popd || die "Can't change exit ${target_dir}/oss dir"
 
-pushd "${build_dir}"
-    pushd "${target_dir}"
+pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
+    pushd "${target_dir}" || die "Can't change to ${target_dir} dir"
         updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
-    popd
+    popd || die "Can't exit ${target_dir} dir"
 
     cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
 	if $BUILD_ROCKSDB;then
@@ -228,7 +287,7 @@ pushd "${build_dir}"
 
     cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
 
-popd
+popd || die "Can't exit ${build_dir} dir"
 
 # Restore default GCC paths
 if test -f "$GCCRESTORE"; then

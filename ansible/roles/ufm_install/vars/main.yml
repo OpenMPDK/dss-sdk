@@ -1,8 +1,0 @@
----
-
-# Remove prior to releasing to open source
-install_ufm_key_url: http://ssg-nexus.ssi.samsung.com:8081/repository/testrepo/keys/fabricmanager.asc
-install_ufm_apt_url: http://ssg-nexus.ssi.samsung.com:8081/repository/fabricmanager_apt/
-install_ufm_yum_url: http://ssg-nexus.ssi.samsung.com:8081/repository/fabricmanager_yum/
-
-ufm_devtest_staging_dir: /tmp

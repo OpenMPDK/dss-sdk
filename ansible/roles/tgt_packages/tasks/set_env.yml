@@ -1,8 +1,0 @@
----
-
-- name: Set PATH & PYTHONPATH in .bashrc
-  shell: "echo export {{ item }} >> ~/.bashrc"
-  loop:
-    - "PYTHONPATH={{ cm_dir }}:$PYTHONPATH"
-    - "PATH={{ product_dir }}:{{ ansible_env.PATH }}"
-    - ETCDCTL_API=3

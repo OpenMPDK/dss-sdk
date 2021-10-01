@@ -1,8 +1,0 @@
----
-
-- name: Test Fabric Mananger
-  hosts: targets:fm_hosts
-  gather_facts: true
-  any_errors_fatal: true
-  roles:
-    - test_events

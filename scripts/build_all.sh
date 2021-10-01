@@ -32,7 +32,7 @@ script_dir=$(readlink -f "$(dirname "$0")")
 
 pushd "${script_dir}"
 
-  if [ $1 == 'kdd' ] || [ $1 == 'emul' ] || [ $1 == 'kdd-samsung' ] || [ $1 == 'kdd-samsung-remote' ]
+  if [ "$1" == 'kdd' ] || [ "$1" == 'emul' ] || [ "$1" == 'kdd-samsung' ] || [ "$1" == 'kdd-samsung-remote' ]
   then
     if [ "$2" == "-p" ]; then
       openmpdk_url=$3
@@ -49,7 +49,7 @@ pushd "${script_dir}"
         echo "###############################"
         sleep 4
         pushd "${script_dir}/../host"
-        ./build.sh $1 $2 ${openmpdk_url} 
+        ./build.sh "$1" "$2" "${openmpdk_url} "
         popd
         sleep 5
       else
@@ -72,7 +72,7 @@ pushd "${script_dir}"
       echo "###############################"
       sleep 4
       pushd "${script_dir}/../host"
-      ./build.sh $1
+      ./build.sh "$1"
       popd
       sleep 5
     fi

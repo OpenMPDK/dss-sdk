@@ -1,9 +1,0 @@
----
-
-- include_tasks: basic.yml
-
-- include_tasks: install-fmhost.yml
-  when: ansible_hostname in groups['fm_hosts']
-
-- include_tasks: install-target.yml
-  when: ansible_hostname in groups['targets']

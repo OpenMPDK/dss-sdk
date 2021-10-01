@@ -1,7 +1,0 @@
----
-
-- name: Remove UFM Packages (apt)
-  apt:
-    name: "{{ ufm_install_packages + [ 'etcd'] }}"
-    state: absent
-  become: yes

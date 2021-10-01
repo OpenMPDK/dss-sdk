@@ -1,4 +1,0 @@
----
-
-ufm_reset_dirs:
-  - /var/lib/etcd
