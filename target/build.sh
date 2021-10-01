@@ -18,11 +18,12 @@ die()
 }
 
 vercomp () {
-    if [[ $1 == $2 ]]
+    if [[ "$1" == "$2" ]]
     then
         return 0
     fi
     local IFS=.
+    # shellcheck disable=SC2206
     local i ver1=($1) ver2=($2)
     # fill empty fields in ver1 with zeros
     for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
@@ -49,13 +50,13 @@ vercomp () {
 }
 
 testvercomp () {
-    vercomp $1 $2
+    vercomp "$1" "$2"
     case $? in
         0) op='=';;
         1) op='>';;
         2) op='<';;
     esac
-    if [[ $op != $3 ]]
+    if [[ "$op" != "$3" ]]
     then
         return 1
     else
@@ -73,7 +74,7 @@ fi
 GCCVER=$(gcc --version | grep -oP '^gcc \([^)]+\) \K[^ ]+')
 
 # Validate GCC version is supported
-if testvercomp $GCCVER $GCCMINVER '<' || testvercomp $GCCVER $GCCMAXVER '>'
+if testvercomp "$GCCVER" "$GCCMINVER" '<' || testvercomp "$GCCVER" "$GCCMAXVER" '>'
 then
     die "ERROR - Found GCC version: $GCCVER. Must be between $GCCMINVER and $GCCMAXVER."
 else
