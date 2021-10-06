@@ -277,12 +277,14 @@ def get_pcie_address_firmware_mapping():
         for fw_file in fw_revision_files:
             dirs = fw_file.split("/")
             pcie_address = dirs[-4]
-            with open(fw_file, "r") as FR:
-                fw_revision = FR.readline().strip()
-                if fw_revision in g_kv_firmware:
-                    address_kv_firmware[pcie_address] = fw_revision
-                elif fw_revision in g_block_firmware:
-                    address_block_firmware[pcie_address] = fw_revision
+            pci_blacklist = os.environ.get('PCI_BLACKLIST')
+            if pcie_address not in pci_blacklist:
+                with open(fw_file, "r") as FR:
+                    fw_revision = FR.readline().strip()
+                    if fw_revision in g_kv_firmware:
+                        address_kv_firmware[pcie_address] = fw_revision
+                    elif fw_revision in g_block_firmware:
+                        address_block_firmware[pcie_address] = fw_revision
     return address_kv_firmware, address_block_firmware
 
 def get_pcie_address_serial_mapping(list_of_pci_dev):
