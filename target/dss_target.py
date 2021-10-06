@@ -278,7 +278,7 @@ def get_pcie_address_firmware_mapping():
             dirs = fw_file.split("/")
             pcie_address = dirs[-4]
             pci_blacklist = os.environ.get('PCI_BLACKLIST')
-            if not pci_blacklist or pcie_address not in pci_blacklist:
+            if not pci_blacklist or pcie_address not in pci_blacklist.split(' '):
                 with open(fw_file, "r") as FR:
                     fw_revision = FR.readline().strip()
                     if fw_revision in g_kv_firmware:
