@@ -195,6 +195,8 @@ struct dfly_subsystem {
 	pthread_mutex_t ctrl_lock;
 	unsigned ref_cnt;
 
+	uint32_t blocklen;//Blocksize in bytes reported by kvpool nvmf controller
+
 	int num_io_devices;
 	struct dfly_io_device_s *devices;
 
