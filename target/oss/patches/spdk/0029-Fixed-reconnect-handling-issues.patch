@@ -1,7 +1,7 @@
-From d10eaa21f259bfbceab151c05186af4fc57ad5d5 Mon Sep 17 00:00:00 2001
+From aa4ff28a0146b7c909903d62b551fb3930f6b19f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 9 Feb 2021 10:25:49 -0800
-Subject: [PATCH 29/48] Fixed reconnect handling issues
+Subject: [PATCH 29/49] Fixed reconnect handling issues
 
     * Added trace logging for key transfer states
 ---

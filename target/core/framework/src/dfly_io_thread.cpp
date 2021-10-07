@@ -407,6 +407,7 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 				     struct spdk_nvmf_subsystem *nvmf_subsys)
 {
 	int i;
+	uint32_t device_blocklen;
 
 	if(subsystem->devices) {
 		free(subsystem->devices);
@@ -430,6 +431,16 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 		subsystem->devices[i].ns = nvmf_subsys->ns[i];
 		subsystem->devices[i].index = i;
 		subsystem->devices[i].numa_node = df_get_pcie_numa_node(nvmf_subsys->ns[i]->bdev);
+
+		if(i == 0) {
+			subsystem->blocklen = spdk_bdev_get_block_size(nvmf_subsys->ns[i]->bdev);
+		} else {
+			device_blocklen = spdk_bdev_get_block_size(nvmf_subsys->ns[i]->bdev);
+			if(device_blocklen < subsystem->blocklen) {
+				subsystem->blocklen = device_blocklen;
+			}
+			DFLY_ASSERT(device_blocklen % subsystem->blocklen == 0);
+		}
 
 		dfly_ustat_init_dev_stat(subsystem->id, bdev_name, &subsystem->devices[i]);
 		dfly_kd_add_device(subsystem->id, bdev_name, strlen(bdev_name), &subsystem->devices[i]);

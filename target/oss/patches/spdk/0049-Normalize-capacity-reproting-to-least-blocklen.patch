@@ -1,0 +1,180 @@
+From 7159903ab992ec5671e730f83b77880157f2106c Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 7 Oct 2021 09:53:06 -0700
+Subject: [PATCH 49/49] Normalize capacity reproting to least blocklen
+
+---
+ lib/nvmf/ctrlr.c      |  7 ++++-
+ lib/nvmf/ctrlr_bdev.c | 79 ++++++++++++++++++++++++++++++++++++++++++++-------
+ 2 files changed, 74 insertions(+), 12 deletions(-)
+
+diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
+index 7bcc525..5050d02 100644
+--- a/lib/nvmf/ctrlr.c
++++ b/lib/nvmf/ctrlr.c
+@@ -401,7 +401,12 @@ nvmf_ctrlr_create(struct spdk_nvmf_subsystem *subsystem,
+ 	SPDK_DEBUGLOG(SPDK_LOG_NVMF, "cc 0x%x\n", ctrlr->vcprop.cc.raw);
+ 	SPDK_DEBUGLOG(SPDK_LOG_NVMF, "csts 0x%x\n", ctrlr->vcprop.csts.raw);
+ 
+-	ctrlr->dif_insert_or_strip = transport->opts.dif_insert_or_strip;
++	if(subsystem->oss_target_enabled) {
++		SPDK_WARNLOG("Diff insert or strip disabled when KV pool is enabled for subsys%d\n", subsystem->id);
++		ctrlr->dif_insert_or_strip = false;
++	} else {
++		ctrlr->dif_insert_or_strip = transport->opts.dif_insert_or_strip;
++	}
+ 
+ 	req->qpair->ctrlr = ctrlr;
+ 	spdk_thread_send_msg(subsystem->thread, _nvmf_subsystem_add_ctrlr, req);
+diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
+index b0677c2..bf9741d 100644
+--- a/lib/nvmf/ctrlr_bdev.c
++++ b/lib/nvmf/ctrlr_bdev.c
+@@ -146,6 +146,7 @@ void dss_fill_ns_blobfs(uint32_t ssid, uint64_t *ncap, uint64_t *nsze, uint64_t
+     uint64_t tcap_blocks = 0;
+     uint64_t tfree_blocks = 0;
+     uint64_t blk_sze = 0;
++	uint64_t block_mul_factor = 1;
+ 
+     struct dfly_subsystem *df_ss = dfly_get_subsystem_no_lock(ssid);
+     struct dfly_io_device_s *df_dev;
+@@ -157,14 +158,20 @@ void dss_fill_ns_blobfs(uint32_t ssid, uint64_t *ncap, uint64_t *nsze, uint64_t
+     assert(df_ss->initialized  == true);
+     assert(df_ss->num_io_devices > 0);
+ 
++    blk_sze = df_ss->blocklen;//Same blocksize is used for all calculations
++
+ 	for(i=0; i < df_ss->num_io_devices; i++) {
+         df_dev = &df_ss->devices[i];
+         df_bs = spdk_fs_get_bs(df_dev->rdb_handle->rdb_fs_handle);
+ 
+-        blk_sze = spdk_bs_get_io_unit_size(df_bs);
++		if(spdk_bs_get_cluster_size(df_bs) % blk_sze) {
++			SPDK_WARNLOG("Reported blobfs cluster size  %d not multiple of subsytem%d blocklen %d for device %s\n", spdk_bs_get_cluster_size(df_bs), blk_sze, ssid, spdk_bdev_get_name(df_dev->ns->bdev));
++		}
++		block_mul_factor = spdk_bs_get_cluster_size(df_bs)/blk_sze;
++		assert(block_mul_factor != 0);
+ 
+-        tcap_blocks += (spdk_bs_get_cluster_size(df_bs) * spdk_bs_total_data_cluster_count(df_bs))/blk_sze;
+-        tfree_blocks += (spdk_bs_get_cluster_size(df_bs) * spdk_bs_free_cluster_count(df_bs))/blk_sze;
++        tcap_blocks  += block_mul_factor * spdk_bs_total_data_cluster_count(df_bs);
++        tfree_blocks += block_mul_factor * spdk_bs_free_cluster_count(df_bs);
+     }
+ 
+     *nsze = tcap_blocks;
+@@ -175,19 +182,37 @@ void dss_fill_ns_blobfs(uint32_t ssid, uint64_t *ncap, uint64_t *nsze, uint64_t
+     return;
+ }
+ 
++static inline uint32_t dss_get_subsys_blocklen(uint32_t ssid)
++{
++	struct dfly_subsystem *df_ss = dfly_get_subsystem_no_lock(ssid);
++
++	return df_ss->blocklen;
++}
++
+ void
+ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *nsdata,
+ 			    bool dif_insert_or_strip)
+ {
+ 	struct spdk_bdev *bdev = ns->bdev;
+ 	uint64_t num_blocks;
++	uint32_t subsys_blocklen;
++    struct spdk_nvmf_subsystem *subsystem = NULL;
++
++	uint64_t dev_nsze = 0;
++	uint64_t dev_ncap = 0;
++	uint64_t dev_nuse = 0;
++
++	uint32_t dev_blocklen;
+ 
+-	num_blocks = spdk_bdev_get_num_blocks(bdev);
+ 
+ 	//SPDK_CONFIG_OSS_TARGET
+-    if(ns->subsystem->oss_target_enabled &&
+-			ns->subsystem->state == SPDK_NVMF_SUBSYSTEM_ACTIVE) {
+-        struct spdk_nvmf_subsystem *subsystem = ns->subsystem;
++    if(ns->subsystem->oss_target_enabled) {
++        subsystem = ns->subsystem;
++        subsys_blocklen = dss_get_subsys_blocklen(subsystem->id);
++	}
++
++    if(subsystem && /* Subsystem initialized only for oss_target_enabled */
++			subsystem->state == SPDK_NVMF_SUBSYSTEM_ACTIVE) {
+         int i;
+         struct spdk_nvmf_ns *device_ns = NULL;
+ 
+@@ -201,19 +226,41 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+             device_ns = spdk_nvmf_subsystem_get_first_ns(subsystem);
+             while(device_ns) {
+                 struct spdk_nvme_ctrlr *nvme_ctrlr;
++
+                 nvme_ctrlr = bdev_nvme_get_ctrlr(device_ns->bdev);
+                 if(nvme_ctrlr) {
+ 				    //TODO: Update capacity from identify disk
+                    //dfly_nvme_ctrlr_update_namespaces(nvme_ctrlr);
+                 }
+-                nsdata->nsze += spdk_bdev_get_num_blocks(device_ns->bdev);
+-                nsdata->ncap += spdk_bdev_get_capacity_blocks(device_ns->bdev);
+-                nsdata->nuse += spdk_bdev_get_use_blocks(device_ns->bdev);
++
++				dev_blocklen = spdk_bdev_get_block_size(device_ns->bdev);
++
++                dev_nsze = spdk_bdev_get_num_blocks(device_ns->bdev);
++                dev_ncap = spdk_bdev_get_capacity_blocks(device_ns->bdev);
++                dev_nuse = spdk_bdev_get_use_blocks(device_ns->bdev);
++
++                if(subsys_blocklen != dev_blocklen) {
++                    if(dev_blocklen % subsys_blocklen != 0) {
++						SPDK_WARNLOG("Reported device blocklen %d not multiple of subsytem%d blocklen %d for device %s\n", dev_blocklen, subsys_blocklen, subsystem->id, spdk_bdev_get_name(device_ns->bdev));
++                    }
++
++					dev_nsze *= (dev_blocklen / subsys_blocklen);
++                    dev_ncap *= (dev_blocklen / subsys_blocklen);
++					dev_nuse *= (dev_blocklen / subsys_blocklen);
++				}
++
++
++                nsdata->nsze += dev_nsze;
++                nsdata->ncap += dev_ncap;
++                nsdata->nuse += dev_nuse;
++
+                 device_ns = spdk_nvmf_subsystem_get_next_ns(subsystem, device_ns);
+             }
+         }
+         //TODO: To check all disks are uniform
+     } else {
++		num_blocks = spdk_bdev_get_num_blocks(bdev);
++
+         nsdata->nsze = num_blocks;
+         nsdata->ncap = num_blocks;
+         nsdata->nuse = num_blocks;
+@@ -224,7 +271,14 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+ 	nsdata->nacwu = spdk_bdev_get_acwu(bdev);
+ 	if (!dif_insert_or_strip) {
+ 		nsdata->lbaf[0].ms = spdk_bdev_get_md_size(bdev);
+-		nsdata->lbaf[0].lbads = spdk_u32log2(spdk_bdev_get_block_size(bdev));
++	//SPDK_CONFIG_OSS_TARGET
++		if(subsystem->oss_target_enabled) {
++			//Already initialized for oss_target_enabled
++			nsdata->lbaf[0].lbads = spdk_u32log2(subsys_blocklen);
++		} else {
++			nsdata->lbaf[0].lbads = spdk_u32log2(spdk_bdev_get_block_size(bdev));
++		}
++	//END - SPDK_CONFIG_OSS_TARGET
+ 		if (nsdata->lbaf[0].ms != 0) {
+ 			nsdata->flbas.extended = 1;
+ 			nsdata->mc.extended = 1;
+@@ -251,6 +305,9 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+ 			}
+ 		}
+ 	} else {
++	//SPDK_CONFIG_OSS_TARGET
++		assert(!ns->subsystem->oss_target_enabled);
++	//END - SPDK_CONFIG_OSS_TARGET
+ 		nsdata->lbaf[0].ms = 0;
+ 		nsdata->lbaf[0].lbads = spdk_u32log2(spdk_bdev_get_data_block_size(bdev));
+ 	}
+-- 
+1.8.3.1
+
