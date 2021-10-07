@@ -54,7 +54,7 @@ patch_folder=${base}/patches/${patch_folder_name}
 
 mkdir -p ${patch_folder}
 
-echo "Rmoving following patch files"
+echo "Removing following patch files"
 ls ${patch_folder}/[0-9]*
 rm ${patch_folder}/[0-9]*
 
@@ -66,3 +66,19 @@ git am --abort
 git format-patch -o ../../${patch_folder} ${commit_hash}
 popd
 
+declare -A new_files=()
+
+del_file_names=(`git ls-files -d ${patch_folder}`)
+new_file_names=(`git ls-files -o ${patch_folder}`)
+
+for name in ${new_file_names[@]}; do
+	idx_str=`echo $name | cut -d- -f 1`
+	new_files[$idx_str]=$name
+done
+
+echo "Restoring deleted files"
+for name in ${del_file_names[@]}; do
+	idx_str=`echo $name | cut -d- -f 1`
+	echo "${new_files[$idx_str]} --> $name"
+	`mv ${new_files[$idx_str]} $name`
+done
