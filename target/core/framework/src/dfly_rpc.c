@@ -737,6 +737,7 @@ void free_rpc_latency_profile(struct dss_rpc_lat_profile_req_s *req)
 static void dss_rpc_get_latency_profile(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
+#ifdef SPDK_CONFIG_DSS_OSS
 	struct spdk_nvmf_subsystem *subsystem;
 	dfly_ctrl_t *ctrlr;
 	struct spdk_json_write_ctx *w;
@@ -812,6 +813,9 @@ invalid:
 	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
 	free_rpc_latency_profile(&req);
 	return;
+#else
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_METHOD_NOT_FOUND, "Method not supported");
+#endif
 }
 SPDK_RPC_REGISTER("dss_get_latency_profile", dss_rpc_get_latency_profile, SPDK_RPC_RUNTIME)
 

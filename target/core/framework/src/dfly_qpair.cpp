@@ -104,7 +104,9 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 			strncpy(nvmf_qpair->dqpair->peer_addr, trid.traddr, INET6_ADDRSTRLEN);
 		}
 
+#ifndef DSS_OPEN_SOURCE_RELEASE
 		dqpair->lat_ctx = dss_lat_new_ctx(nvmf_qpair->dqpair->peer_addr);
+#endif
 
 		DFLY_DEBUGLOG(DFLY_LOG_QOS, "dqpair %p initialized\n", dqpair);
 	} else {
@@ -147,6 +149,7 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 
 	dfly_ustat_remove_qpair_stat(dqpair);
 	if(g_dragonfly->enable_latency_profiling && dqpair->parent_qpair->qid != 0) {
+#ifndef DSS_OPEN_SOURCE_RELEASE
 		dss_lat_get_percentile(dqpair->lat_ctx, &tmp);
 		DFLY_DEBUGLOG(DLFY_LOG_CORE, "nReqs:%lu ,num Percentiles:%d [", nsamples, (tmp)->n_part);
 		int i;
@@ -154,13 +157,16 @@ int dfly_qpair_destroy(struct dfly_qpair_s *dqpair)
 			DFLY_DEBUGLOG(DLFY_LOG_CORE, "%d:%lu%s", tmp->prof[i].pVal,  tmp->prof[i].pLat, (i < tmp->n_part -1)?"|":"");
 		}
 		DFLY_DEBUGLOG(DLFY_LOG_CORE, "]\n");
+#endif
 	}
 	dqpair->qid = -1;
 
+#ifndef DSS_OPEN_SOURCE_RELEASE
 	if(dqpair->lat_ctx) {
 		dss_lat_del_ctx(dqpair->lat_ctx);
 		dqpair->lat_ctx = NULL;
 	}
+#endif
 
 	if(dqpair->df_poller) {
 		dfly_poller_fini(dqpair->df_poller);

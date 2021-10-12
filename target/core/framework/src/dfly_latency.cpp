@@ -45,7 +45,9 @@ void df_update_lat_us(struct dfly_request *dreq)
 	latency_us = req_ticks/ticks_per_us;
 
 	if(dreq->dqpair) {
+#ifndef DSS_OPEN_SOURCE_RELEASE
 		dss_lat_inc_count(dreq->dqpair->lat_ctx, latency_us);
+#endif
 	}
 
 }

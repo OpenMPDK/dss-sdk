@@ -533,6 +533,7 @@ int do_list_item_process(void *ctx, const char *key, int is_leaf)
 	return 0;
 }
 
+#ifndef DSS_OPEN_SOURCE_RELEASE
 int do_list_io_judy(void *ctx, struct dfly_request *req)
 {
 	int opc = req->ops.get_command(req);
@@ -643,6 +644,7 @@ int do_list_io_judy(void *ctx, struct dfly_request *req)
 
 	return rc;
 }
+#endif
 
 int list_io(void *ctx, struct dfly_request *req, int list_op_flags)
 {
@@ -660,9 +662,11 @@ int list_io(void *ctx, struct dfly_request *req, int list_op_flags)
 
 	struct dfly_key *key = req->ops.get_key(req);
 
+#ifndef DSS_OPEN_SOURCE_RELEASE
 	if(g_dragonfly->dss_enable_judy_listing) {
 		return do_list_io_judy(ctx, req);
 	}
+#endif
 
 	io_rc = do_list_io(ctx, key, req, opc, list_op_flags);
 
