@@ -89,9 +89,9 @@ def exec_cmd(cmd):
    print("Executing cmd %s..." %(cmd))
    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
-   out = out.decode()
+   out = out.decode('utf8')
    out = out.strip()
-   err = err.decode()
+   err = err.decode('utf8')
    ret = p.returncode
 
    return ret, out, err
@@ -107,8 +107,8 @@ def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
     stdin, stdout, stderr = client.exec_command(cmd)
     status = stdout.channel.recv_exit_status()
     client.close()
-    stdout_result = [x.strip().decode() for x in stdout.readlines()]
-    stderr_result = [x.strip().decode() for x in stderr.readlines()]
+    stdout_result = [x.strip().decode('utf8') for x in stdout.readlines()]
+    stderr_result = [x.strip().decode('utf8') for x in stderr.readlines()]
     return status, stdout_result, stderr_result
 
 def get_list_diff(li1, li2): 
