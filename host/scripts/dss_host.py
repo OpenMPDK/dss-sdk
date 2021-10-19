@@ -81,6 +81,17 @@ g_etc_hosts = """
 %(IP)s    dssminio%(node)s 
 """
 
+def decode(bytes):
+    '''
+    Decode shell STDOUT/STDERR and handle non-ASCII characters if present
+    @return: Return decoded bytes
+    '''
+    try:
+        result = bytes.decode('utf8', 'ignore')
+    except UnicodeDecodeError as e:
+        print(e)
+    return result
+
 def exec_cmd(cmd):
    '''
    Execute any given command on shell
@@ -89,9 +100,9 @@ def exec_cmd(cmd):
    print("Executing cmd %s..." %(cmd))
    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
    out, err = p.communicate()
-   out = out.decode('utf8')
+   out = decode(out)
    out = out.strip()
-   err = err.decode('utf8')
+   err = decode(err)
    ret = p.returncode
 
    return ret, out, err
@@ -107,8 +118,8 @@ def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
     stdin, stdout, stderr = client.exec_command(cmd)
     status = stdout.channel.recv_exit_status()
     client.close()
-    stdout_result = [x.strip().decode('utf8') for x in stdout.readlines()]
-    stderr_result = [x.strip().decode('utf8') for x in stderr.readlines()]
+    stdout_result = [decode(x.strip()) for x in stdout.readlines()]
+    stderr_result = [decode(x.strip()) for x in stderr.readlines()]
     return status, stdout_result, stderr_result
 
 def get_list_diff(li1, li2): 
