@@ -1,7 +1,7 @@
-From 387b478de4b71f0737d7370d3a13f085b2da28d4 Mon Sep 17 00:00:00 2001
+From 053002bc10e8c2414c28ac1f85aee9d615e89098 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 6 May 2021 15:08:36 -0700
-Subject: [PATCH 36/41] * db_write_buffer_size max 10G per db for memtables *
+Subject: [PATCH 36/42] * db_write_buffer_size max 10G per db for memtables *
  manifest corruption poistion log on startup.
 
 ---

@@ -1,7 +1,7 @@
-From aac75f714eca6b7e64350311fe14287430b15aea Mon Sep 17 00:00:00 2001
+From 4e4a63c359d95ba53971befc847f46b6a7b3fa64 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 15:04:05 -0800
-Subject: [PATCH 11/49] - commen the data offset check on object size in case
+Subject: [PATCH 11/50] - commen the data offset check on object size in case
  of small object.
 
 ---

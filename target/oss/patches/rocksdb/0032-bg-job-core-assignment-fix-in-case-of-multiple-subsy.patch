@@ -1,7 +1,7 @@
-From d3391ba923294a5dfc812148d116c29f834825b4 Mon Sep 17 00:00:00 2001
+From a622c14eb8d613cc22298323f866e8ba9b594e0e Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 26 Feb 2021 11:58:12 -0800
-Subject: [PATCH 32/41] * bg job core assignment fix in case of multiple
+Subject: [PATCH 32/42] * bg job core assignment fix in case of multiple
  subsystems
 
 ---

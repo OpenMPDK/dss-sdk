@@ -1,7 +1,7 @@
-From d1f8cd13b8f2f18a1afe2c3c7573e290be3cea13 Mon Sep 17 00:00:00 2001
+From d7abb5af3298bba20d85f74422aee9c9dd63e1b9 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 23 Dec 2020 23:21:26 -0800
-Subject: [PATCH 20/41] * adjust flush bg job limit (1/4 -> 1/2 of thread pool)
+Subject: [PATCH 20/42] * adjust flush bg job limit (1/4 -> 1/2 of thread pool)
 
 ---
  db/db_impl_compaction_flush.cc | 3 ++-
