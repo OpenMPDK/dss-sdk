@@ -48,7 +48,6 @@ if (in_source)
 endif ()
 
 add_subdirectory(mk/filelists)
-add_subdirectory(oss)
 #add_subdirectory(common)
 
 set(CMAKE_C_FLAGS_DEBUG "-DDEBUG -O0 -fno-omit-frame-pointer")
@@ -250,7 +249,7 @@ target_compile_options(kv_stats PRIVATE ${KV_STATS_CFLAGS})
 
 endif(WITH_KV_STATS)
 
-option(WITH_DSS_OPEN_SOURCE_RELEASE "Open source release build" OFF)
+option(WITH_DSS_OPEN_SOURCE_RELEASE "Open source release build" ON)
 
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
