@@ -31,55 +31,19 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include "keygen.h"
 
-struct key_gen_ctx_s {
-	struct keygen keygen;
-	uint32_t gen_index;
-} g_keygen_ctx;
+#ifndef DSS_SPDK_H
+#define DSS_SPDK_H
 
 
-void dss_keygen_init(uint32_t klen)
-{
-	struct rndinfo rnd_len[1];
-	struct rndinfo rnd_dist[1];
-	struct keygen_option opt;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-	// For key generate
-	rnd_len[0].type = RND_UNIFORM;
-	rnd_len[0].a = klen;
-	rnd_len[0].b = klen;
+void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp);
 
-	rnd_dist[0].type = RND_NORMAL;
-	rnd_dist[0].a = 0;
-	rnd_dist[0].b = 0xfffffffffffffff;
-
-	opt.abt_only = 1;
-	opt.delimiter = 1;
-
-	memset(&g_keygen_ctx.keygen, 0, sizeof(g_keygen_ctx.keygen));
-
-	keygen_init(&g_keygen_ctx.keygen, 1, rnd_len, rnd_dist, &opt);
-
-	g_keygen_ctx.gen_index = 0;
-
-	return;
+#ifdef __cplusplus
 }
+#endif
 
-void dss_keygen_next_key(char *key)
-{
-	uint32_t  crc;
-
-
-	crc = keygen_idx2crc(g_keygen_ctx.gen_index, 0);
-
-	BDR_RNG_VARS_SET(crc);
-	keygen_seed2key(&g_keygen_ctx.keygen, g_keygen_ctx.gen_index, key);
-	BDR_RNG_NEXTPAIR;
-
-	g_keygen_ctx.gen_index++;
-
-	return;
-}
+#endif // DSS_SPDK_H

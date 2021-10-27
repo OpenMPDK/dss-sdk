@@ -1,7 +1,7 @@
-From 9a839b0d9bb158df47bbe00a0c8436b999d19008 Mon Sep 17 00:00:00 2001
+From 60f1fb7fbee74dfd890e709570ec200265ee51ca Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 20 Apr 2021 16:04:12 -0700
-Subject: [PATCH 47/49] Add hsl lib to link
+Subject: [PATCH 47/50] Add hsl lib to link
 
 ---
  mk/spdk.app.mk | 2 +-

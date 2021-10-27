@@ -1,7 +1,7 @@
-From 52953222e785710805bc02eedef8a7725a9b6e80 Mon Sep 17 00:00:00 2001
+From 44dd57da09ceea15e64a27db4bb1a0ff24cd7389 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 13 Apr 2021 00:31:05 -0700
-Subject: [PATCH 35/41] * close iteration properly
+Subject: [PATCH 35/42] * close iteration properly
 
 ---
  db/dss_kv2blk_c.cc | 7 ++++---

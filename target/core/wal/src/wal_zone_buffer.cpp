@@ -267,7 +267,7 @@ int wal_zone_insert_object(wal_zone_t *zone, wal_object_t *obj,
 					       invalidated_item);
 					rc = WAL_ERROR_IO_RETRY;	//object is under flushing.rare case!!!
 					wal_debug("found a io retry case for flushing object 0x%llx%llx. retry it ...\n",
-						  *(long long *)obj->key->key, *(long long *)(obj->key->key + 8));
+						  *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 				} else {
 					if (!(*pp_map_item))
 						*pp_map_item = invalidated_item;
@@ -278,7 +278,7 @@ int wal_zone_insert_object(wal_zone_t *zone, wal_object_t *obj,
 				}
 
 				wal_debug("wal_zone_insert_object busy: item %p for key 0x%llx%llx\n",
-					  * pp_map_item, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8));
+					  * pp_map_item, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 
 				return rc;
 			}
@@ -410,7 +410,7 @@ wal_buffer_t *wal_buffer_create(wal_device_info_t *dev_info,
 		//printf("wal_buffer_create spdk_dma_malloc\n");
 		buffer = (wal_buffer_t *)spdk_dma_malloc(buffer_sz_4k << WAL_PAGESIZE_SHIFT, WAL_PAGESIZE, NULL);
 	} else if (dev_info->dev_type == WAL_DEV_TYPE_DRAM) {
-		buffer = df_calloc(1, buffer_sz_4k << WAL_PAGESIZE_SHIFT);
+		buffer = (wal_buffer_t *)df_calloc(1, buffer_sz_4k << WAL_PAGESIZE_SHIFT);
 	} else {
 		assert(0);
 	}
@@ -540,7 +540,7 @@ int wal_buffer_write_hdr(wal_buffer_t *buffer)
 {
 	buffer->hdr_io_ctx.io_type = LOG_IO_TYPE_BUFF_HDR_WR;
 	size_t sz = buffer->ops->dev_io->write(buffer->fh, &buffer->hdr,
-					       buffer->hdr.start_addr, WAL_BUFFER_HDR_SZ, log_format_io_write_comp, &buffer->hdr_io_ctx);
+					       buffer->hdr.start_addr, WAL_BUFFER_HDR_SZ, (void *)log_format_io_write_comp, &buffer->hdr_io_ctx);
 	wal_debug("wal_buffer_write_hdr zone id %d pos 0x%llx sz %d\n",
 		  buffer->zone->zone_id, buffer->hdr.start_addr, sz);
 	return (sz == WAL_BUFFER_HDR_SZ) ? 0 : -1;

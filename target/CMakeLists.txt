@@ -140,7 +140,7 @@ ADD_CUSTOM_TARGET(dssd
 #
 SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_log.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_latency.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_spdk.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_subsystem.cpp
@@ -149,7 +149,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_request.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_numa.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_qpair.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ctrl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ctrl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_poller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_dev.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_bdev.cpp
@@ -162,7 +162,7 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_req_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_ops.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_counters.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dragonfly.cpp
 )
 SET(FW_HEADERS
@@ -218,6 +218,8 @@ target_compile_options(kv_stats PRIVATE ${KV_STATS_CFLAGS})
 
 endif(WITH_KV_STATS)
 
+option(WITH_DSS_OPEN_SOURCE_RELEASE "Open source release build" OFF)
+
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
 set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
@@ -245,6 +247,24 @@ ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMAND make include/spdk/config.h
 )
 
+if(WITH_DSS_OPEN_SOURCE_RELEASE)
+
+target_compile_definitions(oss PRIVATE -DDSS_OPEN_SOURCE_RELEASE)
+set(DSS_RDB_OSS_EXTRACXXFLAGS EXTRA_CXXFLAGS=-DDSS_OPEN_SOURCE_RELEASE)
+
+ADD_CUSTOM_TARGET(spdk_tcp
+  COMMENT "Building SPDK with NVMEoTCP Support"
+  WORKING_DIRECTORY oss/spdk_tcp
+  COMMAND make V=2 -j16 CONFIG_DSS_OSS=y
+  COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y
+  DEPENDS dssd
+  DEPENDS spdk_tcp_configure
+  DEPENDS oss
+  DEPENDS rocksdb_lib
+)
+
+else(WITH_DSS_OPEN_SOURCE_RELEASE)
+
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
@@ -257,9 +277,42 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS dss_hsl
   DEPENDS rocksdb_lib
 )
+endif(WITH_DSS_OPEN_SOURCE_RELEASE)
 
 # cmake file is missing in this directory - ER
 # add_subdirectory(test)
+
+
+execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
+add_custom_command(
+        TARGET spdk_tcp POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/dss_rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk/
+        COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+        COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
+        COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
+)
+
+ADD_CUSTOM_TARGET(rocksdb
+  COMMENT "Building rocksdb async"
+  WORKING_DIRECTORY oss/rocksdb
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
+  DEPENDS spdk_tcp
+)
+
+if(NOT WITH_DSS_OPEN_SOURCE_RELEASE)
 
 add_library(dss_lat STATIC	utils/dss_count_latency.c)
 target_link_libraries(dss_lat -ljudyL)
@@ -299,39 +352,12 @@ ADD_CUSTOM_TARGET(test_hsl
     DEPENDS dss_hsl
 )
 
-execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
-add_custom_command(
-        TARGET spdk_tcp POST_BUILD
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
-        COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/dss_rpc.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/include/spdk/pci_ids.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk/
-        COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
-        COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
-)
-
-ADD_CUSTOM_TARGET(rocksdb
-  COMMENT "Building rocksdb async"
-  WORKING_DIRECTORY oss/rocksdb
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
-  DEPENDS spdk_tcp
-)
+endif(NOT WITH_DSS_OPEN_SOURCE_RELEASE)
 
 ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )

@@ -1,7 +1,7 @@
-From 8225325a11777f80bc12affe009be0ea5dafba88 Mon Sep 17 00:00:00 2001
+From ec8f339f4ae5385f616e91a25af05bfbc65605fe Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 26 Feb 2021 11:59:34 -0800
-Subject: [PATCH 33/41] * track the compaction status, do sync read on pending
+Subject: [PATCH 33/42] * track the compaction status, do sync read on pending
  or failure case.
 
 ---

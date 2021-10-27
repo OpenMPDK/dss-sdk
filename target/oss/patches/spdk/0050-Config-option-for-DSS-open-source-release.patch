@@ -1,0 +1,41 @@
+From da9e3c6d97ec7b9de5870cbbac284b8fa7ab49a9 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 12 Oct 2021 13:56:33 -0700
+Subject: [PATCH 50/50] Config option for DSS open source release
+
+---
+ CONFIG         | 3 +++
+ mk/spdk.app.mk | 6 +++++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/CONFIG b/CONFIG
+index d947909..c8fd1a8 100644
+--- a/CONFIG
++++ b/CONFIG
+@@ -170,3 +170,6 @@ CONFIG_RAID5=n
+ 
+ # Build with IDXD support
+ CONFIG_IDXD=n
++
++#Build for DSS Open Source Release
++CONFIG_DSS_OSS=n
+diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
+index 559396b..80569b7 100644
+--- a/mk/spdk.app.mk
++++ b/mk/spdk.app.mk
+@@ -48,7 +48,11 @@ endif
+ 
+ LIBS += $(SPDK_LIB_LINKER_ARGS)
+ 
+-SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldss_hsl -ldss_lat -ljudyL -ldssd -lstdc++  -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
++SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldssd -lstdc++  -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
++
++ifeq ($(CONFIG_DSS_OSS),n)
++SYS_LIBS += -ldss_hsl -ldss_lat -ljudyL
++endif
+ 
+ CLEAN_FILES = $(APP)
+ 
+-- 
+1.8.3.1
+

@@ -61,7 +61,7 @@ struct df_ss_cb_event_s * df_ss_cb_event_allocate(struct dfly_subsystem *ss, df_
 {
 	struct df_ss_cb_event_s *ss_cb_event;
 
-	ss_cb_event = calloc(1, sizeof(struct df_ss_cb_event_s));
+	ss_cb_event = (struct df_ss_cb_event_s *)calloc(1, sizeof(struct df_ss_cb_event_s));
 	DFLY_ASSERT(ss);
 	DFLY_ASSERT(ss_cb_event);
 
@@ -145,9 +145,12 @@ extern wal_conf_t g_wal_conf;
 extern list_conf_t g_list_conf;
 
 
+typedef int (*dss_mod_init_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+typedef void (*dss_mod_deinit_fn)(struct dfly_subsystem *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+
 struct df_ss_mod_init_s {
-	void (*mod_init_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
-	void (*mod_deinit_fn)(void *arg1, void *arg2, df_module_event_complete_cb cb, void *cb_arg);
+	dss_mod_init_fn mod_init_fn;
+	dss_mod_deinit_fn mod_deinit_fn;
 	void *arg;
 	df_ss_init_next_fn cb;
 	bool mod_enabled;
@@ -210,16 +213,16 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/);
 static struct df_ss_mod_init_s module_initializers[DF_MODULE_END + 1] = {
 	{NULL,NULL, NULL, NULL, false},
 	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_LOCK
-	{fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
+	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
 	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_IO
-	{dfly_list_module_init, dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
-	{wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_WAL
+	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
+	{(dss_mod_init_fn)wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_WAL
 	{NULL, NULL, NULL, NULL, false}
 };
 
 void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 {
-	struct df_subsys_process_event_s *ss_event = vctx;
+	struct df_subsys_process_event_s *ss_event = (struct df_subsys_process_event_s *)vctx;
 	int mod_index = 0;
 
 	DFLY_ASSERT(ss_event->src_core == spdk_env_get_current_core());
@@ -242,7 +245,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		}
 		DFLY_INFOLOG(DFLY_LOG_SUBSYS, "Init module without cb index:%d\n", mod_index);
 	}
-	ss_event->curr_module = mod_index;
+	ss_event->curr_module = (df_module_type_t)mod_index;
 	if (mod_index == DF_MODULE_END) {
 		if(ss_event->initialize) {
 			pthread_mutex_init(&ss_event->subsys->subsys_lock, NULL);
@@ -250,7 +253,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		} else {
 			ss_event->subsys->initialized = false;
 		}
-		ss_event->cb(ss_event->subsys->parent_ctx,
+		ss_event->cb((struct spdk_nvmf_subsystem *)ss_event->subsys->parent_ctx,
 				  ss_event->cb_arg, ss_event->cb_status);
 	}
 	return;
@@ -262,7 +265,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 			df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status)
 {
 
-	struct spdk_nvmf_subsystem *spdk_nvmf_ss = vctx;
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)vctx;
 	struct dfly_subsystem *dfly_subsystem = NULL;
 	int rc = 0;
 
@@ -342,7 +345,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 
 int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status)
 {
-	struct spdk_nvmf_subsystem *spdk_nvmf_ss = vctx;
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)vctx;
 	struct dfly_subsystem *dfly_subsystem = NULL;
 	int rc = 0;
 
@@ -369,7 +372,7 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 			   sizeof(struct df_subsys_process_event_s));
 	if (!ss_mod_deinit_next) {
 		DFLY_ASSERT(0);
-		return;
+		return DFLY_DEINIT_DONE;
 	}
 
 	ss_mod_deinit_next->subsys = dfly_subsystem;

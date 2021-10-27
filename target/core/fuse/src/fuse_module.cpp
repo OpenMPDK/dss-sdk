@@ -260,7 +260,7 @@ void *fuse_module_store_inst_context(void *mctx, void *inst_ctx, int inst_index)
 		return NULL;
 	}
 
-	fuse_thrd_ctx = calloc(1, sizeof(struct fuse_thread_inst_ctx) + sizeof(fuse_map_t *) * max_zones);
+	fuse_thrd_ctx = (struct fuse_thread_inst_ctx *)calloc(1, sizeof(struct fuse_thread_inst_ctx) + sizeof(fuse_map_t *) * max_zones);
 	if (!fuse_thrd_ctx) {
 		assert(fuse_thrd_ctx);
 	}

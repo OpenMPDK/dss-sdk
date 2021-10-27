@@ -246,7 +246,11 @@ dfly_ses_try_lookup(dfly_ses_id_t *sid)
 {
 	dfly_session_t *s, *ses;
 
-	s = calloc(1, sizeof(*s));
+	char *buf = NULL;
+	stat_kvio_t *st_io;
+	stat_ses_t *st_ses;
+
+	s = (dfly_session_t *)calloc(1, sizeof(*s));
 	if (!s)
 		goto ERROR;
 
@@ -278,11 +282,9 @@ dfly_ses_try_lookup(dfly_ses_id_t *sid)
 
 	DFLY_DEBUGLOG(DFLY_LOG_QOS, "Alloc session id %u\n", s->dfs_id.dfsi_num);
 
-	char *buf = alloca(STAT_ENAME_LEN);
+	buf = alloca(STAT_ENAME_LEN);
 	(void) dfly_ustats_get_ename(STAT_ENAME_SES, s->dfs_id.dfsi_num,
 				     buf, STAT_ENAME_LEN);
-	stat_kvio_t *st_io;
-	stat_ses_t *st_ses;
 	/*
 		st_ses = ustat_insert(dfly_ustats_get_handle(), buf, STAT_GNAME_NAME,
 				      &ustat_class_test,
@@ -337,7 +339,7 @@ dfly_ctrl_create(char *name, struct spdk_nvmf_qpair *qp, size_t bsize)
 
 	assert(name);
 
-	ctrl = calloc(1, sizeof(*ctrl) + bsize);
+	ctrl = (dfly_ctrl_t *)calloc(1, sizeof(*ctrl) + bsize);
 	assert(ctrl);
 
 	sid.dfsi_name = name;
@@ -426,7 +428,7 @@ dfly_ctrl_t *df_init_ctrl(struct dfly_qpair_s *dqpair, uint16_t cntlid, uint32_t
 		}
 	}
 
-	ctrl = calloc(1, sizeof(dfly_ctrl_t));
+	ctrl = (dfly_ctrl_t *)calloc(1, sizeof(dfly_ctrl_t));
 	DFLY_ASSERT(ctrl);
 
 	ctrl->ct_cntlid = cntlid;

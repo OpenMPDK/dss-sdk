@@ -96,7 +96,7 @@ extern fuse_conf_t g_fuse_conf;
 
 int fuse_init(struct dfly_subsystem *pool, int nr_maps,
 	      int nr_of_cores, int fuse_flag, void *cb, void *cb_arg);
-int fuse_init_by_conf(struct dfly_subsystem *pool, fuse_conf_t *conf, void *cb, void *cb_arg);
+int fuse_init_by_conf(struct dfly_subsystem *pool, void *conf, void *cb, void *cb_arg);
 
 int fuse_finish(struct dfly_subsystem *pool);
 int fuse_io(struct dfly_request *req, int fuse_op_flags);

@@ -413,7 +413,7 @@ int dfly_nvmf_lock_svc_process_req(void *mctx, struct dfly_request *req)
 
 	if (dfly_nvmf_is_valid_lock_req(req)) {
 		//Process Lock request;
-		lobj =  dfly_ht_find((void *)ls_ss_ctx->active_locks, (char *)&lock_cmd->key,
+		lobj =  (lock_object_t *)dfly_ht_find((void *)ls_ss_ctx->active_locks, (char *)&lock_cmd->key,
 				     lock_cmd->opt.lock.keylen + 1);
 
 		if (lock_cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_UNLOCK && !lobj) {
@@ -427,7 +427,7 @@ int dfly_nvmf_lock_svc_process_req(void *mctx, struct dfly_request *req)
 
 		if (!lobj) {
 			lobj_found = false;
-			lobj = dfly_mempool_get(ls_ss_ctx->lobj_mp);
+			lobj = (lock_object_t *)dfly_mempool_get(ls_ss_ctx->lobj_mp);
 			if (!lobj) {
 				//Return failure;
 				DFLY_WARNLOG("Alloc for lock object failed\n");
@@ -582,8 +582,8 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 
 void _dfly_lock_service_subsystem_stop(void *event, void *ctx)
 {
-	struct df_ss_cb_event_s *lock_cb_event = event;
-	struct lock_service_subsys_s *ls_ss_ctx = ctx;
+	struct df_ss_cb_event_s *lock_cb_event = (struct df_ss_cb_event_s *)event;
+	struct lock_service_subsys_s *ls_ss_ctx = (struct lock_service_subsys_s *)ctx;
 
 	dfly_mempool_destroy(ls_ss_ctx->lobj_mp, LOBJ_MPOOL_COUNT);
 	ls_ss_ctx->active_locks = NULL;
@@ -601,7 +601,7 @@ void dfly_lock_service_subsystem_stop(struct dfly_subsystem *subsys, void *arg/*
 	struct lock_service_subsys_s *ls_ss_ctx;
 	struct df_ss_cb_event_s *lock_cb_event;
 
-	ls_ss_ctx = subsys->mlist.lock_service->ctx;
+	ls_ss_ctx = (struct lock_service_subsys_s *)subsys->mlist.lock_service->ctx;
 	lock_cb_event = df_ss_cb_event_allocate(subsys, cb, cb_arg, arg);
 
 	DFLY_ASSERT(ls_ss_ctx);

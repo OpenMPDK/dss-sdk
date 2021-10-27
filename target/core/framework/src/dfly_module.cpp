@@ -152,7 +152,7 @@ void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_requ
 	struct dfly_module_poller_instance_s *m_inst;
 
 	if (module->ops->find_instance_context) {
-		m_inst = module->ops->find_instance_context(req);
+		m_inst = (struct dfly_module_poller_instance_s *)module->ops->find_instance_context(req);
 	} else {
 		//Default to round robin across module instance
 		m_inst = dfly_get_module_instance(module);
@@ -240,7 +240,7 @@ void dfly_module_thread_start(void *inst, void *cb_event)
 		event = spdk_event_allocate(m_inst->icore, dfly_module_thread_start, m_inst, cb_event);
 		spdk_event_call(event);
 	} else {
-		dfly_module_event_processed(cb_event, strdup(module->name));
+		dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
 	}
 
 	pthread_mutex_unlock(&module->module_lock);
@@ -369,7 +369,7 @@ void dfly_module_thread_stop(void *ctx, void *cb_event)
 		event = spdk_event_allocate(m_inst_next->icore, dfly_module_thread_stop, m_inst_next, cb_event);
 		spdk_event_call(event);
 	} else {
-		dfly_module_event_processed(cb_event, strdup(module->name));
+		dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
 		m_inst_next = TAILQ_FIRST(&module->active_threads);
 		free(m_inst_next);
 		memset(module, 0, sizeof(dfly_module_t));

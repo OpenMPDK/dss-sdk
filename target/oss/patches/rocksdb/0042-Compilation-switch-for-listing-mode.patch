@@ -1,0 +1,34 @@
+From 82d62524574124abb24b7415957eaed10c0806b3 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 12 Oct 2021 13:58:02 -0700
+Subject: [PATCH 42/42] Compilation switch for listing mode
+
+---
+ db/dss_kv2blk_c.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/db/dss_kv2blk_c.cc b/db/dss_kv2blk_c.cc
+index ae179be..eb116eb 100644
+--- a/db/dss_kv2blk_c.cc
++++ b/db/dss_kv2blk_c.cc
+@@ -901,6 +901,9 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+            && iter->key().compare(key_upbound) <= 0;
+           iter->Next()) {
+ 	    pthread_mutex_lock(&list_init_mutex);
++#ifdef DSS_OPEN_SOURCE_RELEASE
++	    list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
++#else
+ 		if(g_dragonfly->dss_enable_judy_listing) {
+ 			std::string key_2_insert(iter->key().data(), iter->key().size());
+ 			//printf("hsl insert key: %s\n", key_2_insert.c_str());
+@@ -908,6 +911,7 @@ int dss_rocksdb_iter_read(void * ctx, void ** piter,
+ 		} else {
+ 	        list_key_update(list_ctx->pool, iter->key().data(), iter->key().size(), false, false);
+ 		}
++#endif
+ 	    pthread_mutex_unlock(&list_init_mutex);
+         //printf("iter_read key_size %d: %s\n", iter->key().size(), iter->key().data());
+         nr_keys ++;
+-- 
+1.8.3.1
+

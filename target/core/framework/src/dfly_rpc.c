@@ -46,6 +46,30 @@
 
 #define DSS_MAX_SIM_IO_TIMEOUT (10)
 
+struct dss_rpc_lat_profile_req_s {
+	char *nqn;
+	uint16_t cntlid;
+	uint16_t qid;
+};
+
+struct dss_rpc_lat_profile_resp_entry_s {
+	uint32_t percentile;
+	uint32_t latency;
+};
+
+struct dss_rpc_nqn_req_s {
+	char *nqn;
+	bool get_status;
+};
+
+struct dss_rpc_reset_ustat_counters_req_s {
+	char *nqn;
+};
+
+void free_rpc_latency_profile(struct dss_rpc_lat_profile_req_s *req);
+void free_rpc_reset_ustat_counters(struct dss_rpc_reset_ustat_counters_req_s *req);
+void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req);
+
 struct dss_stall_io {
 	uint16_t timeout;
 };
@@ -699,17 +723,6 @@ SPDK_RPC_REGISTER("dfly_get_statistics", dragonfly_statistics, SPDK_RPC_RUNTIME)
 
 #endif // SPDK_CONFIG_SAMSUNG_COUNTERS
 
-struct dss_rpc_lat_profile_req_s {
-	char *nqn;
-	uint16_t cntlid;
-	uint16_t qid;
-};
-
-struct dss_rpc_lat_profile_resp_entry_s {
-	uint32_t percentile;
-	uint32_t latency;
-};
-
 static const struct spdk_json_object_decoder dss_rpc_lat_prof_decoders[] = {
 	{"nqn", offsetof(struct dss_rpc_lat_profile_req_s, nqn), spdk_json_decode_string},
 	{"cid", offsetof(struct dss_rpc_lat_profile_req_s, cntlid), spdk_json_decode_uint16},
@@ -724,6 +737,7 @@ void free_rpc_latency_profile(struct dss_rpc_lat_profile_req_s *req)
 static void dss_rpc_get_latency_profile(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
+#ifdef SPDK_CONFIG_DSS_OSS
 	struct spdk_nvmf_subsystem *subsystem;
 	dfly_ctrl_t *ctrlr;
 	struct spdk_json_write_ctx *w;
@@ -799,12 +813,11 @@ invalid:
 	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
 	free_rpc_latency_profile(&req);
 	return;
+#else
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_METHOD_NOT_FOUND, "Method not supported");
+#endif
 }
 SPDK_RPC_REGISTER("dss_get_latency_profile", dss_rpc_get_latency_profile, SPDK_RPC_RUNTIME)
-
-struct dss_rpc_reset_ustat_counters_req_s {
-	char *nqn;
-};
 
 static const struct spdk_json_object_decoder dss_rpc_reset_ustat_counters_decoders[] = {
 	{"nqn", offsetof(struct dss_rpc_reset_ustat_counters_req_s, nqn), spdk_json_decode_string},
@@ -858,7 +871,7 @@ static void dss_rpc_reset_ustat_counters(struct spdk_jsonrpc_request *request,
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_result(request, w);
-	free_rpc_latency_profile(&req);
+	free_rpc_reset_ustat_counters(&req);
 	return;
 
 invalid:
@@ -867,11 +880,6 @@ invalid:
 	return;
 }
 SPDK_RPC_REGISTER("dss_reset_ustat_counters", dss_rpc_reset_ustat_counters, SPDK_RPC_RUNTIME)
-
-struct dss_rpc_nqn_req_s {
-	char *nqn;
-	bool get_status;
-};
 
 static const struct spdk_json_object_decoder dss_rpc_nqn_decoder[] = {
 	{"nqn", offsetof(struct dss_rpc_nqn_req_s, nqn), spdk_json_decode_string},
@@ -969,7 +977,7 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_result(request, w);
-	free_rpc_latency_profile(&req);
+	free_rpc_nqn_req(&req);
 	return;
 
 invalid:

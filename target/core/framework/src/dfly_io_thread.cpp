@@ -263,7 +263,7 @@ void dfly_rdb_close_blobfs(void *ctx, void *arg2)
 void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 {
 	struct io_thread_ctx_s *io_mod_ctx = (struct io_thread_ctx_s *)mctx;
-	struct io_thread_inst_ctx_s *thread_instance = inst_ctx;
+	struct io_thread_inst_ctx_s *thread_instance = (struct io_thread_inst_ctx_s *)inst_ctx;
 	int i;
 
    if(g_dragonfly->blk_map) {
@@ -278,7 +278,7 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
            assert(event != NULL);
            spdk_event_call(event);
        }
-       return;
+       return NULL;
    }
 
 	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
@@ -292,7 +292,7 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 		}
 	}
 
-	return;
+	return NULL;
 }
 
 struct dfly_module_ops io_module_ops {
@@ -314,7 +314,7 @@ dfly_nvme_submit_io_cmd(struct io_thread_inst_ctx_s *thrd_inst, struct dfly_requ
 	if (!req->io_device)
 		io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
 	else
-		io_device = req->io_device; // for iterator
+		io_device = (struct dfly_io_device_s *)req->io_device; // for iterator
 
 	DFLY_ASSERT(io_device);
 
@@ -365,7 +365,7 @@ void nvme_kv_cmd_setup_key(struct spdk_nvme_cmd *cmd, void *src_key, uint32_t ke
 			SPDK_WARNLOG("key split across two prp PRP1:%p PRP2:%p \n", *prp1, *prp2);
 			assert(0);
 		} else {
-			*prp2 = NULL;
+			*prp2 = (uint64_t)NULL;
 		}
 	} else {
 		if (src_key) {
@@ -477,7 +477,7 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 void _all_dev_init_complete(void *arg1, void *arg2)
 {
-	struct init_multi_dev_s *dev_cb_event = arg1;
+	struct init_multi_dev_s *dev_cb_event = (struct init_multi_dev_s *)arg1;
 	DFLY_NOTICELOG("All device initialized starting module from core %d\n", spdk_env_get_current_core());
 	dev_cb_event->cb(dev_cb_event->cb_arg, NULL);
 
@@ -488,7 +488,7 @@ void _all_dev_init_complete(void *arg1, void *arg2)
 
 void _dev_init_done (void *cb_event)
 {
-	struct init_multi_dev_s *dev_cb_event = cb_event;
+	struct init_multi_dev_s *dev_cb_event = (struct init_multi_dev_s *)cb_event;
 	struct spdk_event *event;
 	pthread_mutex_lock(&dev_cb_event->l);
 	DFLY_ASSERT(dev_cb_event->pending_count);
@@ -502,19 +502,21 @@ void _dev_init_done (void *cb_event)
 	return;
 }
 
-__call_fn_dss(void *arg1, void *arg2)
+void __call_fn_dss(void *arg1, void *arg2)
 {
 	fs_request_fn fn;
 
 	fn = (fs_request_fn)arg1;
 	fn(arg2);
+
+	return;
 }
 
 static void
 __send_request_dss(fs_request_fn fn, void *arg)
 {
 	struct spdk_event *event;
-	struct spdk_fs_request *req = arg;
+	struct spdk_fs_request *req = (struct spdk_fs_request *)arg;
 
 	event = spdk_event_allocate(dfly_get_master_core(), __call_fn_dss, (void *)fn, arg);
 	spdk_event_call(event);
@@ -524,7 +526,7 @@ static void
 dss_rdb_fs_load_cb(void *ctx,
 	   struct spdk_filesystem *fs, int fserrno)
 {
-	struct dfly_io_device_s *dss_dev = ctx;
+	struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)ctx;
 
 	if (fserrno == 0) {
 		dss_dev->rdb_handle->rdb_fs_handle = fs;
@@ -540,10 +542,10 @@ dss_rdb_fs_load_cb(void *ctx,
 
 void _dev_init(void *device, void *cb_event)
 {
-	struct dfly_io_device_s *dss_dev = device;
+	struct dfly_io_device_s *dss_dev = (struct dfly_io_device_s *)device;
 
 	dss_dev->rdb_handle->dev_name = spdk_bdev_get_name(dss_dev->ns->bdev);
-	dss_dev->rdb_handle->tmp_init_back_ptr = cb_event;
+	dss_dev->rdb_handle->tmp_init_back_ptr = (struct init_multi_dev_s *)cb_event;
 
 	dss_dev->rdb_handle->rdb_bs_handle = spdk_bdev_create_bs_dev(dss_dev->ns->bdev, NULL, NULL);
 	dss_dev->rdb_handle->rdb_bs_handle->icore = dss_dev->icore;
@@ -558,7 +560,7 @@ void _dev_init(void *device, void *cb_event)
 }
 
 void _dfly_rdb_init_devices( void *ctx, void * dummy) {
-	struct init_multi_dev_s *event_ctx = ctx;;
+	struct init_multi_dev_s *event_ctx = (struct init_multi_dev_s *)ctx;;
 	struct spdk_event *event;
 	int i;
 
@@ -566,7 +568,7 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 	for(i=0; i < event_ctx->ss->num_io_devices; i++) {
 		event_ctx->pending_count++;
 		//Event call device init on core
-		event_ctx->ss->devices[i].rdb_handle = calloc(1, sizeof(struct rdb_dev_ctx_s));
+		event_ctx->ss->devices[i].rdb_handle = (struct rdb_dev_ctx_s *)calloc(1, sizeof(struct rdb_dev_ctx_s));
 		event_ctx->ss->devices[i].rdb_handle->ss = event_ctx->ss;
 		event = spdk_event_allocate(dfly_get_master_core(),_dev_init, &event_ctx->ss->devices[i], event_ctx);
 		spdk_event_call(event);
@@ -576,7 +578,7 @@ void _dfly_rdb_init_devices( void *ctx, void * dummy) {
 
 void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_complete_cb cb, void *cb_arg, struct io_thread_ctx_s *io_thrd_ctx)
 {
-	struct init_multi_dev_s *event_ctx = calloc(1, sizeof(struct init_multi_dev_s));
+	struct init_multi_dev_s *event_ctx = (struct init_multi_dev_s *)calloc(1, sizeof(struct init_multi_dev_s));
 
 	DFLY_ASSERT(event_ctx);
 	pthread_mutex_init(&event_ctx->l, NULL);
@@ -591,11 +593,13 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 }
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
-				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg)
+				   void *ops, df_module_event_complete_cb cb, void *cb_arg)
 {
 
 	int rc = 0;
 	struct io_thread_ctx_s *io_thrd_ctx;
+
+	dfly_spdk_nvmf_io_ops_t *io_ops = (dfly_spdk_nvmf_io_ops_t *)ops;
 
 	io_thrd_ctx = (struct io_thread_ctx_s *)calloc(1, sizeof(struct io_thread_ctx_s));
 	assert(io_thrd_ctx);
@@ -622,7 +626,7 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 void _dfly_io_module_stop(void *event, void *dummy)
 {
-	struct df_ss_cb_event_s *io_mod_cb_event = event;
+	struct df_ss_cb_event_s *io_mod_cb_event = (struct df_ss_cb_event_s *)event;
 
 	struct dfly_subsystem *subsystem = io_mod_cb_event->ss;
 

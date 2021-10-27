@@ -64,7 +64,7 @@ dss_hsl_ctx_t * dss_get_hsl_context(struct dfly_subsystem *pool)
 bool list_valid_prefix(struct dfly_request * req){
     struct dfly_key *key = req->ops.get_key(req);
     assert(key);
-    if(!strncmp(key->key, g_list_conf.list_prefix_head, 
+    if(!strncmp((char *)key->key, g_list_conf.list_prefix_head,
         strlen(g_list_conf.list_prefix_head)))
         return true;
     else
@@ -75,6 +75,14 @@ int dfly_list_req_process(void *ctx, struct dfly_request *req)
     //if(list_valid_prefix(req)){       
     	int io_rc = list_io(ctx, req, g_list_conf.list_op_flag & DF_OP_MASK);
     	dfly_list_info_t *list_data = &req->list_data;
+#ifdef DSS_OPEN_SOURCE_RELEASE
+	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
+	    || io_rc == DFLY_LIST_STORE_DONE
+	    || io_rc == DFLY_LIST_DEL_DONE
+	    || io_rc == DFLY_LIST_READ_DONE) {
+		req->next_action = DFLY_REQ_IO_LIST_DONE;
+		}
+#else
 		if(!g_dragonfly->dss_enable_judy_listing) {
     	if (!ATOMIC_READ(list_data->pe_cnt_tbd)
     	    || io_rc == DFLY_LIST_STORE_DONE
@@ -91,6 +99,7 @@ int dfly_list_req_process(void *ctx, struct dfly_request *req)
     //}else{
     //    req->next_action = DFLY_REQ_IO_LIST_DONE;        
     //}
+#endif
     
 	req->state = DFLY_REQ_IO_NVMF_DONE;
 	//list_log("dfly_list_req_process req %p io_rc %x pe_cnt_tbd %x, state %x, next_action %x\n",
@@ -117,7 +126,7 @@ void *list_module_store_inst_context(void *mctx, void *inst_ctx, int inst_index)
 		return NULL;
 	}
 
-	list_thrd_ctx = calloc(1, sizeof(struct list_thread_inst_ctx) + sizeof(list_zone_t *) * max_zones);
+	list_thrd_ctx = (struct list_thread_inst_ctx *)calloc(1, sizeof(struct list_thread_inst_ctx) + sizeof(list_zone_t *) * max_zones);
 	if (!list_thrd_ctx) {
 		assert(list_thrd_ctx);
 	}
@@ -367,6 +376,7 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 	dss_hsl_ctx_t *hsl_ctx =  dss_get_hsl_context(pool);
 
 
+#ifndef DSS_OPEN_SOURCE_RELEASE
 	if(g_dragonfly->dss_enable_judy_listing &&
 			g_dragonfly->rdb_direct_listing) {//Evict if direct listing
 		dss_hsl_print_info(hsl_ctx);
@@ -374,6 +384,7 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 		//dss_hsl_evict_levels(hsl_ctx, g_dragonfly->rdb_direct_listing_evict_levels, &hsl_ctx->lnode, 0);
 		//dss_hsl_print_info(hsl_ctx);
 	}
+#endif
 
 	load_time = ((spdk_get_ticks() - list_cb_event.start_tick) * SPDK_SEC_TO_USEC )/ spdk_get_ticks_hz();
 
@@ -419,7 +430,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 
 	list_debug_level = g_list_conf.list_debug_level;
 
-	list_mctx = calloc(1, sizeof(list_context_t) + (nr_zones * sizeof(list_zone_t)));
+	list_mctx = (list_context_t  *)calloc(1, sizeof(list_context_t) + (nr_zones * sizeof(list_zone_t)));
 	if (!list_mctx) {
 		DFLY_ERRLOG("Failed to allocate module ctx memory\n");
 		return -1;
@@ -430,9 +441,13 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 		zone = &list_mctx->zones[i];
 		assert(zone);
 		zone->zone_idx = i;
+#ifdef DSS_OPEN_SOURCE_RELEASE
+		zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
+		(*zone->listing_keys).reserve(1048576);
+#else
 		if(g_dragonfly->dss_enable_judy_listing) {
 			DFLY_ASSERT(zone->zone_idx == 0);
-			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, key_default_delimlist.c_str(), do_list_item_process);
+			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, (char *)key_default_delimlist.c_str(), do_list_item_process);
 			zone->hsl_keys_ctx->dev_ctx = pool;
 			if(g_dragonfly->rdb_direct_listing) {
 				if(g_dragonfly->rdb_direct_listing_enable_tpool) {
@@ -444,6 +459,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 			zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();
 			(*zone->listing_keys).reserve(1048576);
 		}
+#endif
 	}
 
 	pthread_mutex_init(&list_mctx->io_ctx.ctx_lock, NULL);
@@ -453,13 +469,13 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 	list_mctx->nr_zones = nr_zones;
 
 	//Initialize subsystem call backs
-	list_cb_event.df_ss_cb = cb;
+	list_cb_event.df_ss_cb = (df_module_event_complete_cb)cb;
 	list_cb_event.df_ss_cb_arg = cb_arg;
 	list_cb_event.src_core = spdk_env_get_current_core();
 	list_cb_event.start_tick = spdk_get_ticks();
 
 	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, &list_module_ops,
-				       list_mctx, nr_cores, list_module_started_cb, pool);
+				       list_mctx, nr_cores, (df_module_event_complete_cb)list_module_started_cb, pool);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);
@@ -468,14 +484,14 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 
 void dfly_list_module_destroy_compelete(void *event, void *list_arg)
 {
-	struct df_ss_cb_event_s *list_cb_event = event;
+	struct df_ss_cb_event_s *list_cb_event = (struct df_ss_cb_event_s *)event;
 
 	struct dfly_subsystem *ss = list_cb_event->ss;
 
 	list_context_t  *list_mctx;
 
 	DFLY_ASSERT(ss);
-	list_mctx = ss->mlist.dfly_list_module->ctx;
+	list_mctx = (list_context_t  *)ss->mlist.dfly_list_module->ctx;
 
 	free(list_mctx);
 
@@ -486,7 +502,7 @@ void dfly_list_module_destroy_compelete(void *event, void *list_arg)
 void dfly_list_module_destroy(struct dfly_subsystem *pool, void *args, void *cb, void *cb_arg)
 {
 
-	struct df_ss_cb_event_s *list_cb_event = df_ss_cb_event_allocate(pool, cb, cb_arg, args);
+	struct df_ss_cb_event_s *list_cb_event = df_ss_cb_event_allocate(pool, (df_module_event_complete_cb)cb, cb_arg, args);
 
 	dfly_module_stop(pool->mlist.dfly_list_module, dfly_list_module_destroy_compelete, list_cb_event, NULL);
 

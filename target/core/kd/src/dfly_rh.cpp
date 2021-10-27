@@ -211,7 +211,7 @@ struct dfly_kd_context_s *dfly_init_kd_rh_context(void)
 
 void dfly_deinit_kd_rh_context(void *vctx)
 {
-	dfly_rh_instance_t *kd_rh_ctx = vctx;
+	dfly_rh_instance_t *kd_rh_ctx = (dfly_rh_instance_t *)vctx;
 
 	memset(kd_rh_ctx, 0, sizeof(dfly_rh_instance_t));
 

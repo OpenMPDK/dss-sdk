@@ -265,7 +265,7 @@ wal_map_item_t *wal_map_lookup(void *context, wal_map_t *map, wal_object_t *obj,
 
 						insert_rc = map->ops->insert(context, obj, item, map_insert_type);
 						wal_debug("wal_map_lookup obj map %p [%d] bucket %p 0x%llx%llx insert_type=%d, insert_rc %d\n",
-							  map, bucket_idx, bucket, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8),
+							  map, bucket_idx, bucket, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8),
 							  map_insert_type, insert_rc);
 
 						if (WAL_SUCCESS == insert_rc) {
@@ -280,9 +280,9 @@ wal_map_item_t *wal_map_lookup(void *context, wal_map_t *map, wal_object_t *obj,
 						} else {
 							if (map_insert_type == WAL_MAP_OVERWRITE_DELETE) {
 								wal_debug("deletion item %p status %x  key 0x%llx%llx failed\n", item, item->status,
-									  *(long long *)obj->key->key, *(long long *)(obj->key->key + 8));
+									  *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8));
 								assert(0);
-								return WAL_ERROR_DELETE_FAIL;
+								return NULL;//WAL_ERROR_DELETE_FAIL;
 							} else {
 								return NULL;
 							}
@@ -336,7 +336,7 @@ wal_map_item_t *wal_map_lookup(void *context, wal_map_t *map, wal_object_t *obj,
 					return NULL;
 				}
 				wal_debug("wal_map_lookup obj map[%d] bucket %p 0x%llx%llx insert_type=%d insert_rc %d\n",
-					  bucket_idx, bucket, *(long long *)obj->key->key, *(long long *)(obj->key->key + 8), map_insert_type,
+					  bucket_idx, bucket, *(long long *)obj->key->key, *(long long *)((char *)obj->key->key + 8), map_insert_type,
 					  insert_rc);
 			} else {
 				item->addr = addr;

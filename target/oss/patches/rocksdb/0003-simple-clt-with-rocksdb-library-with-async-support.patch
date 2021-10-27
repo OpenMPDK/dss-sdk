@@ -1,7 +1,7 @@
-From 74985d92ebd59aad72e201a1e73d65963a340336 Mon Sep 17 00:00:00 2001
+From 52b476687d53c42242fe8ca5eee245bf32ba69b9 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Wed, 14 Oct 2020 14:08:45 -0700
-Subject: [PATCH 03/41] * simple clt with rocksdb library with async support
+Subject: [PATCH 03/42] * simple clt with rocksdb library with async support
 
 ---
  Makefile                 |   3 +
