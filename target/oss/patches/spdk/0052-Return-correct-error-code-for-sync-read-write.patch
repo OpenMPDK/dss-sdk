@@ -1,0 +1,178 @@
+From fc1d78e491d95abecdb46d3c2c8240a5dc541205 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 28 Oct 2021 10:40:44 -0700
+Subject: [PATCH 52/54] Return correct error code for sync read/write
+
+---
+ lib/blobfs/blobfs.c | 63 +++++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 44 insertions(+), 19 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 9854c132..91abd44 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -192,6 +192,7 @@ struct spdk_fs_cb_args {
+ 	struct spdk_filesystem *fs;
+ 	struct spdk_file *file;
+ 	int rc;
++	int *rw_rc;
+ 	struct iovec *iovs;
+ 	uint32_t iovcnt;
+ 	struct iovec iov;
+@@ -455,6 +456,10 @@ free_fs_request(struct spdk_fs_request *req)
+ 		free(req->args.iovs);
+ 	}
+ 
++	if(req->args.rw_rc) {
++		req->args.rw_rc = NULL;
++	}
++
+ 	if (channel->sync) {
+ 		pthread_spin_lock(&channel->lock);
+ 	}
+@@ -685,6 +690,9 @@ __wake_caller(void *arg, int fserrno)
+     struct spdk_sem * spdk_s = container_of(args->sem, struct spdk_sem, sem);
+     assert(spdk_s);
+     args->rc = fserrno;
++	if(args->rw_rc) {
++		*args->rw_rc = fserrno;
++	}
+ 	sem_post(args->sem);
+     fs_channel_put_sem(spdk_s->channel, spdk_s);
+ }
+@@ -2615,27 +2623,36 @@ __send_rw_from_file_async(struct spdk_file *file, void *payload,
+ 	return 0;
+ }
+ 
++struct spdk_rw_cb_args {
++	int rw_errno;
++	sem_t *psem;
++};
++
+ static int
+ __send_rw_from_file(struct spdk_file *file, void *payload,
+ 		    uint64_t offset, uint64_t length, bool is_read,
+-		    struct spdk_fs_channel *channel, sem_t * psem)
++		    struct spdk_fs_channel *channel, struct spdk_rw_cb_args *rw_cb_args)
+ {
+ 	struct spdk_fs_request *req;
+ 	struct spdk_fs_cb_args *args;
+ 
+ 	req = alloc_fs_request_with_iov(channel, 1);
+ 	if (req == NULL) {
+-        assert(psem);
+-        struct spdk_sem * spdk_s = container_of(psem, struct spdk_sem, sem);
++        assert(rw_cb_args->psem);
++        struct spdk_sem * spdk_s = container_of(rw_cb_args->psem, struct spdk_sem, sem);
+         assert(spdk_s);
+-		sem_post(psem);
++		sem_post(rw_cb_args->psem);
+         fs_channel_put_sem(spdk_s->channel, spdk_s);
+ 		return -ENOMEM;
+ 	}
+ 
++	assert(rw_cb_args);
++	rw_cb_args->rw_errno = 0;
++
+ 	args = &req->args;
+ 	args->file = file;
+-	args->sem = psem;
++	args->sem = rw_cb_args->psem;
++	args->rw_rc = &rw_cb_args->rw_errno;//Needs to be valid till IO is completed
+ 	args->iovs[0].iov_base = payload;
+ 	args->iovs[0].iov_len = (size_t)length;
+ 	args->op.rw.offset = offset;
+@@ -2655,7 +2672,8 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	uint32_t cache_buffers_filled = 0;
+ 	uint8_t *cur_payload;
+ 	struct cache_buffer *last;
+-    sem_t * psem = NULL;
++    struct spdk_rw_cb_args rw_cb_args = {0, NULL};
++	int rc;
+ 
+ 	BLOBFS_TRACE_RW(file, "offset=%jx length=%jx\n", offset, length);
+ 
+@@ -2680,17 +2698,18 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	}
+ 
+ 	if (file->last == NULL) {
+-		int rc;
+-
+ 		file->append_pos += length;
+ 		file->length_flushed = file->append_pos;
+ 
+ 		pthread_spin_unlock(&file->lock);
+-        psem = fs_channel_get_sem(channel);
++        rw_cb_args.psem = fs_channel_get_sem(channel);
+ 		//printf("spdk_file_write send_request for __send_rw_from_file on core %d\n", sched_getcpu());
+-		rc = __send_rw_from_file(file, payload, offset, length, false, channel, psem);
+-		sem_wait(psem);
+-		return rc;
++		rc = __send_rw_from_file(file, payload, offset, length, false, channel, &rw_cb_args);
++		if (rc != 0) {
++			return rc;
++		}
++		sem_wait(rw_cb_args.psem);
++		return rw_cb_args.rw_errno;//Return code from IO completion
+ 	}
+ 
+ 	blob_size = __file_get_blob_size(file);
+@@ -2699,8 +2718,8 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 		struct spdk_fs_cb_args extend_args = {};
+ 
+ 		cluster_sz = file->fs->bs_opts.cluster_sz;
+-        psem = fs_channel_get_sem(channel);
+-		extend_args.sem = psem;
++        rw_cb_args.psem = fs_channel_get_sem(channel);
++		extend_args.sem = rw_cb_args.psem;
+ 		extend_args.op.resize.num_clusters = __bytes_to_clusters((offset + length), cluster_sz);
+ 		extend_args.file = file;
+ 		BLOBFS_TRACE(file, "start resize to %u clusters\n", extend_args.op.resize.num_clusters);
+@@ -2708,7 +2727,7 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 
+ 		//printf("spdk_file_write send_request for file_extend on core %d\n", sched_getcpu());
+ 		file->fs->send_request(__file_extend_blob, &extend_args);
+-		sem_wait(psem);
++		sem_wait(rw_cb_args.psem);
+ 		if (extend_args.rc) {
+ 			return extend_args.rc;
+ 		}
+@@ -2892,7 +2911,7 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	uint64_t read_len;
+ 	static int cache_hit = 0;
+ 	int rc = 0;
+-    sem_t * psem[CHANNEL_SEM_MAX] = {NULL};
++    struct spdk_rw_cb_args rw_cb_args[CHANNEL_SEM_MAX];
+ 
+ 	pthread_spin_lock(&file->lock);
+ 
+@@ -2932,9 +2951,11 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 
+ 		buf = tree_find_filled_buffer(file->tree, offset);
+ 		if (buf == NULL) {
++            rw_cb_args[sub_reads].rw_errno = 0;
++            rw_cb_args[sub_reads].psem = fs_channel_get_sem(channel);
++
+ 			pthread_spin_unlock(&file->lock);
+-            psem[sub_reads] = fs_channel_get_sem(channel);
+-			rc = __send_rw_from_file(file, payload, offset, length, true, channel, psem[sub_reads]);
++			rc = __send_rw_from_file(file, payload, offset, length, true, channel, &rw_cb_args[sub_reads]);
+ 			pthread_spin_lock(&file->lock);
+ 			if (rc == 0) {
+ 				sub_reads++;
+@@ -2966,7 +2987,11 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	}
+ 	pthread_spin_unlock(&file->lock);
+ 	while (sub_reads > 0) {
+-		spdk_sem_wait(psem[sub_reads-1]);
++		spdk_sem_wait(rw_cb_args[sub_reads-1].psem);
++		if(rc == 0) {
++			//Returns first error that occured
++			rc = rw_cb_args[sub_reads-1].rw_errno;
++		}
+ 		sub_reads--;
+ 	}
+ 	if (rc == 0) {
+-- 
+1.8.3.1
+

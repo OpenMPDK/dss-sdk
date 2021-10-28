@@ -1,0 +1,55 @@
+From ec96a7e89790c262c2f8b030e6e039071345bb11 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 28 Oct 2021 10:44:36 -0700
+Subject: [PATCH 53/54] Handle cache alloc failure during mid write
+
+---
+ lib/blobfs/blobfs.c | 24 +++++++++++++++++++++---
+ 1 file changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index 91abd44..a3ba661 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -2674,6 +2674,7 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 	struct cache_buffer *last;
+     struct spdk_rw_cb_args rw_cb_args = {0, NULL};
+ 	int rc;
++	uint32_t write_offset;
+ 
+ 	BLOBFS_TRACE_RW(file, "offset=%jx length=%jx\n", offset, length);
+ 
+@@ -2762,10 +2763,27 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 			cache_buffers_filled++;
+ 			last = cache_append_buffer(file);
+ 			if (last == NULL) {
+-				BLOBFS_TRACE(file, "nomem\n");
+-				free_fs_request(flush_req);
++				write_offset = file->append_pos;
++				file->append_pos += rem_length;
++				file->length_flushed = file->append_pos;
++
++				file->last = NULL;
++
+ 				pthread_spin_unlock(&file->lock);
+-				return -ENOMEM;
++
++				free_fs_request(flush_req);
++
++				spdk_file_sync(file, channel);
++				rw_cb_args.rw_errno = 0;
++				rw_cb_args.psem = fs_channel_get_sem(channel);
++
++				rc = __send_rw_from_file(file, cur_payload, write_offset, rem_length, false, channel, &rw_cb_args);
++				if (rc != 0) {
++					return rc;
++				}
++				sem_wait(rw_cb_args.psem);
++
++				return rw_cb_args.rw_errno;//Return code from IO completion
+ 			}
+ 		}
+ 	}
+-- 
+1.8.3.1
+

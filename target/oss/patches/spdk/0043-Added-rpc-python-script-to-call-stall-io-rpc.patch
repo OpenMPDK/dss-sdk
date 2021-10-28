@@ -1,7 +1,7 @@
-From 59d989e59c50d55994bdb4d7420c9207c5f96bbc Mon Sep 17 00:00:00 2001
+From 327f136232ad20f6145b24ed318a4f0a0f9b8b66 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 2 Apr 2021 14:03:38 -0700
-Subject: [PATCH 43/50] Added rpc python script to call stall io rpc
+Subject: [PATCH 43/54] Added rpc python script to call stall io rpc
 
 ---
  scripts/dss_rpc.py             |  7 +++++++
