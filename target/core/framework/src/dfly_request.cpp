@@ -186,6 +186,8 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	req->io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
 	DFLY_ASSERT(req->io_device);
 
+	req->data_direct = 0;
+
 	return;
 }
 
@@ -385,4 +387,9 @@ int dfly_nvmf_qpair_deinit_requests(void *req_arr)
 	free(req_arr);
 	//dfly_fuse_release(req);
 	//req->req_ss->nvmf_complete_cb((struct spdk_nvmf_request *)req->req_ctx);
+}
+
+void dss_set_rdd_transfer(struct dfly_request *req)
+{
+	req->data_direct = 1;
 }

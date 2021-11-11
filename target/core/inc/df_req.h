@@ -178,6 +178,8 @@ typedef struct dfly_request {
 	bool		status;
 	bool		abort_cmd;
 
+	int data_direct:1;
+
 	//From nvme command
 	uint8_t nvme_opcode;
 
@@ -303,6 +305,7 @@ void dfly_req_init_nvme_info(struct dfly_request *req);
 bool dfly_cmd_sequential(struct dfly_request *req1, struct dfly_request *req2);
 void dfly_set_status_code(struct dfly_request *req, int sct, int sc);
 
+void dss_set_rdd_transfer(struct dfly_request *req);
 #ifdef __cplusplus
 }
 #endif
