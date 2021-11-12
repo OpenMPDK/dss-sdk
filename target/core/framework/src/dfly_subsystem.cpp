@@ -269,6 +269,9 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 	struct dfly_subsystem *dfly_subsystem = NULL;
 	int rc = 0;
 
+	struct spdk_nvmf_subsystem_listener *listener = TAILQ_FIRST(&spdk_nvmf_ss->listeners);
+	rdd_params_t rdd_params;
+
 	struct df_subsys_process_event_s *ss_mod_init_next = NULL;
 
 	assert(spdk_nvmf_ss);
@@ -338,6 +341,15 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 		module_initializers[DF_MODULE_WAL].arg = &g_wal_conf;
 	}
 
+	if(listener->trid->adrfam == SPDK_NVMF_ADRFAM_IPV4 &&
+			listener->trid->trtype == SPDK_NVMF_TRTYPE_RDMA) {
+		dfly_subsystem->rdd_ctx = rdd_init(listener->trid->traddr, "1234", rdd_params);
+		DFLY_ASSERT(dfly_subsystem->rdd_ctx);
+	} else {
+		DFLY_NOTICELOG("RDMA direct not supprted for address family %d type %d\n",
+				listener->trid->adrfam, listener->trid->trtype);
+	}
+
 	_dfly_subsystem_process_next(ss_mod_init_next, NULL);
 
 	return DFLY_INIT_PENDING;
@@ -391,6 +403,10 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 	//dfly_lock_service_subsystem_stop(dfly_subsystem);
 
 	//dfly_io_module_subsystem_stop(dfly_subsystem);
+
+	if(dfly_subsystem->rdd_ctx) {
+		rdd_destroy(dfly_subsystem->rdd_ctx);
+	}
 
 	_dfly_subsystem_process_next(ss_mod_deinit_next, NULL);
 	return DFLY_DEINIT_PENDING;

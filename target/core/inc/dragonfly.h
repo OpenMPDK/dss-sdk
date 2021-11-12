@@ -92,6 +92,8 @@ extern "C" {
 #include "df_counters.h"
 #include "uthash.h"
 
+#include "rdd_api.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -187,6 +189,7 @@ struct dfly_subsystem {
 	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
+	rdd_ctx_t *rdd_ctx;
 
 	int id;
 	char *name;//spdk_nvmf_subsystem subnqn
