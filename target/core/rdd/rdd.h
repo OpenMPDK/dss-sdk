@@ -53,7 +53,10 @@ extern "C" {
 
 
 #define RDD_DEFAULT_LISTEN_BACKLOG (10)
-#define RDD_DEFAULT_CM_POLL_PERIOD_IN_US (1000ULL)
+#define RDD_DEFAULT_CM_POLL_PERIOD_IN_US (10ULL)
+
+#define RDD_MAX_CHANDLE_CNT (65535)
+#define RDD_DEFAULT_MIN_CHANDLE_COUNT (1024)
 
 struct rdd_ctx_s {
     struct addrinfo *ai;
@@ -73,6 +76,13 @@ struct rdd_ctx_s {
             struct pollfd cm_poll_fd;
         } spdk;
     } th;//Thread
+	struct {
+		pthread_rwlock_t rwlock;
+		uint32_t nuse;
+		uint32_t nhandles;
+		struct rdd_rdma_queue_s **handle_arr;
+		uint16_t hmask;
+	} handle_ctx;
     TAILQ_HEAD(, rdd_rdma_queue_s) queues;
 };
 
@@ -86,11 +96,14 @@ struct rdd_rdma_queue_s {
     uint32_t host_qid;
     uint32_t recv_qd;
     uint32_t send_qd;
+	uint32_t outstanding_qd;
     //Internal
+    uint16_t qhandle;
     enum rdd_queue_state_e state;
     rdd_rdma_cmd_t *cmds;
     struct rdd_rsp_s *rsps;
     struct rdd_req_s *reqs;
+    TAILQ_HEAD(, dfly_request) pending_reqs;
     TAILQ_HEAD(, rdd_req_s) free_reqs;
     TAILQ_HEAD(, rdd_req_s) outstanding_reqs;
     union {
@@ -106,6 +119,7 @@ struct rdd_rdma_queue_s {
     struct ibv_mr *rsp_mr;
 
     struct spdk_mem_map *map;
+	struct spdk_ring *req_submit_ring;
 
     struct ibv_comp_channel *comp_ch;
     struct ibv_qp *qp;
@@ -113,6 +127,10 @@ struct rdd_rdma_queue_s {
     int ncqe;
 
     TAILQ_ENTRY(rdd_rdma_queue_s) link;
+
+	//Debug
+	uint64_t submit_latency;
+	uint64_t submit_count;
 };
 
 enum rdd_wr_type_e {
@@ -151,11 +169,16 @@ struct rdd_req_s {
     
     rdd_req_state_t state;
     struct rdd_rdma_queue_s *q;
+	void *ctx;
     // struct ibv_mr *data_mr;
+	uint64_t start_tick;
     TAILQ_ENTRY(rdd_req_s) link;
 };
 
 int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, void *local_val, void *remote_val, uint32_t vlen, void *ctx);
+
+void rdd_dss_submit_request(void * arg);
+int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *req);
 
 #ifdef __cplusplus
 }

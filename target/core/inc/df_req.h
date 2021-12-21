@@ -178,7 +178,7 @@ typedef struct dfly_request {
 	bool		status;
 	bool		abort_cmd;
 
-	int data_direct:1;
+	bool  data_direct;
 
 	//From nvme command
 	uint8_t nvme_opcode;
@@ -243,6 +243,17 @@ typedef struct dfly_request {
 		void *dev_iter_info;
 		void *internal_cb;
 	} iter_data;
+	struct {
+		struct rdd_rdma_queue_s *q;
+		uint64_t payload_len;
+		uint64_t cmem;
+		uint64_t hmem;
+		uint32_t ckey;
+		uint32_t hkey;
+		uint16_t qhandle;
+		uint8_t  opc;
+		TAILQ_ENTRY(dfly_request)	pending;
+	} rdd_info;
 	dfly_list_info_t list_data;
 	struct dss_list_read_process_ctx_s lp_ctx;
 	TAILQ_ENTRY(dfly_request)	fuse_delay; /**< request pool linkage for retry */

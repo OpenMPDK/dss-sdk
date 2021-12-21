@@ -33,6 +33,18 @@
 
 #include "rdd_cl.h"
 
+#define _GNU_SOURCE
+#include <sched.h>
+
+
+int stick_this_thread_to_core(pthread_t th_h, int core_id) {
+   cpu_set_t cpuset;
+   CPU_ZERO(&cpuset);
+   CPU_SET(core_id, &cpuset);
+
+   return pthread_setaffinity_np(th_h, sizeof(cpu_set_t), &cpuset);
+}
+
 struct rdd_cl_dev_s *rdd_cl_find_dev(struct rdd_client_ctx_s *cl_ctx, const char *name)
 {
     struct rdd_cl_dev_s *dev;
@@ -154,7 +166,7 @@ static int rdd_cl_init_ib_queue(rdd_cl_queue_t *q)
 
      //TODO
      rc = rdd_cl_queue_alloc_reqs(q);
-     //TODO: Hand;e error case
+     //TODO: Handle error case
 
  	return 0;
 }
@@ -168,7 +180,7 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
 
     struct ibv_send_wr *bad_wr = NULL;
 
-    fprintf(stdout, "Got wc opcode %d status %s\n", wc->opcode, ibv_wc_status_str(wc->status));
+    //fprintf(stdout, "Got wc opcode %d status %s\n", wc->opcode, ibv_wc_status_str(wc->status));
 
     if (wc->status != IBV_WC_SUCCESS) {
 		fprintf(stderr, "wc error %d\n", wc->status);
@@ -180,10 +192,10 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
     {
     case RDD_CL_WR_TYPE_REQ_RECV:
         rdd_cl_req = containerof(rdd_cl_wr, struct rdd_cl_req_s, req);
-        fprintf(stdout,"Recieved cmd with cid %d opc %x state %x caddr %p ckey %x haddr %p len %x\n",
-                    rdd_cl_req->rdd_cl_cmd->cid, rdd_cl_req->rdd_cl_cmd->opc, rdd_cl_req->state,
-                    rdd_cl_req->rdd_cl_cmd->cmd.hread.caddr, rdd_cl_req->rdd_cl_cmd->cmd.hread.ckey,
-                    rdd_cl_req->rdd_cl_cmd->cmd.hread.haddr, rdd_cl_req->rdd_cl_cmd->cmd.hread.len);
+        //fprintf(stdout,"Recieved cmd with cid %d opc %x state %x caddr %p ckey %x haddr %p len %x\n",
+          //          rdd_cl_req->rdd_cl_cmd->cid, rdd_cl_req->rdd_cl_cmd->opc, rdd_cl_req->state,
+            //        rdd_cl_req->rdd_cl_cmd->cmd.hread.caddr, rdd_cl_req->rdd_cl_cmd->cmd.hread.ckey,
+              //      rdd_cl_req->rdd_cl_cmd->cmd.hread.haddr, rdd_cl_req->rdd_cl_cmd->cmd.hread.len);
 
         assert(rdd_cl_req->state == RDD_CL_REQ_FREE);
         rdd_cl_req->rdd_cl_rsp->cid = rdd_cl_req->rdd_cl_cmd->cid;
@@ -191,10 +203,11 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
         rdd_cl_req->state = RDD_CL_REQ_RECV;
 
         //TODO: Check max length supportred
-        rdd_cl_req->temp_data = calloc(1, rdd_cl_req->rdd_cl_cmd->cmd.hread.len);//TMP alloc
-        assert(rdd_cl_req->temp_data != NULL); //TMP
+        //rdd_cl_req->temp_data = calloc(1, rdd_cl_req->rdd_cl_cmd->cmd.hread.len);//TMP alloc
+        //assert(rdd_cl_req->temp_data != NULL); //TMP
         rdd_cl_req->data_mr = ibv_reg_mr(rdd_cl_req->q->pd,
-                                            rdd_cl_req->temp_data,
+                                            //rdd_cl_req->temp_data,
+                                            rdd_cl_req->rdd_cl_cmd->cmd.hread.haddr,
                                             rdd_cl_req->rdd_cl_cmd->cmd.hread.len,
                                             IBV_ACCESS_LOCAL_WRITE |
 						                    IBV_ACCESS_REMOTE_WRITE |
@@ -202,17 +215,18 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
         assert(rdd_cl_req->data_mr != NULL);
         rdd_cl_req->data.data_wr.wr.rdma.remote_addr = rdd_cl_req->rdd_cl_cmd->cmd.hread.caddr;
         rdd_cl_req->data.data_wr.wr.rdma.rkey = rdd_cl_req->rdd_cl_cmd->cmd.hread.ckey;
-        rdd_cl_req->data.data_sge.addr = rdd_cl_req->temp_data;
+        //rdd_cl_req->data.data_sge.addr = rdd_cl_req->temp_data;
+        rdd_cl_req->data.data_sge.addr = rdd_cl_req->rdd_cl_cmd->cmd.hread.haddr;
         rdd_cl_req->data.data_sge.lkey = rdd_cl_req->data_mr->lkey;
         rdd_cl_req->data.data_wr.next = NULL;
         rdd_cl_req->data.data_sge.length = rdd_cl_req->rdd_cl_cmd->cmd.hread.len;
 
         //TODO: Send data read Request
         //rc = ibv_post_send(rdd_cl_req->q->qp, &rdd_cl_req->rsp.send_wr, &bad_wr);
-        fprintf(stdout, "Initate data transfer from %p to %p for %d size\n",
-                        rdd_cl_req->data.data_wr.wr.rdma.remote_addr,
-                        rdd_cl_req->data.data_sge.addr,
-                        rdd_cl_req->data.data_sge.length);
+        //fprintf(stdout, "Initate data transfer from %p to %p for %d size\n",
+          //              rdd_cl_req->data.data_wr.wr.rdma.remote_addr,
+            //            rdd_cl_req->data.data_sge.addr,
+              //          rdd_cl_req->data.data_sge.length);
 
         rc = ibv_post_send(rdd_cl_req->q->qp, &rdd_cl_req->data.data_wr, NULL);
         assert(rc == 0);
@@ -222,22 +236,22 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
     case RDD_CL_WR_TYPE_DATA_READ:
         rdd_cl_req = containerof(rdd_cl_wr, struct rdd_cl_req_s, data);
 
-        fprintf(stdout, "Data transfer completed from %p to %p for %d size\n",
-                        rdd_cl_req->data.data_wr.wr.rdma.remote_addr,
-                        rdd_cl_req->data.data_sge.addr,
-                        rdd_cl_req->data.data_sge.length);
+ //       fprintf(stdout, "Data transfer completed from %p to %p for %d size\n",
+   //                     rdd_cl_req->data.data_wr.wr.rdma.remote_addr,
+     //                   rdd_cl_req->data.data_sge.addr,
+       //                 rdd_cl_req->data.data_sge.length);
         //TODO: Temp check data
         ibv_dereg_mr(rdd_cl_req->data_mr); //TODO: Verify performance impact
-        free(rdd_cl_req->temp_data); //TMP free data
+        //free(rdd_cl_req->temp_data); //TMP free data
 
         rc = ibv_post_send(rdd_cl_req->q->qp, &rdd_cl_req->rsp.send_wr, &bad_wr);
-        fprintf(stdout, "Response Sent\n");
+     //   fprintf(stdout, "Response Sent\n");
         assert(rc == 0);
         assert(bad_wr == NULL);
 
         break;
     case RDD_CL_WR_TYPE_RSP_SEND:
-        fprintf(stdout, "Response acknowledged\n");
+       // fprintf(stdout, "Response acknowledged\n");
         rdd_cl_req = containerof(rdd_cl_wr, struct rdd_cl_req_s, rsp);
         assert(rdd_cl_req->state == RDD_CL_REQ_RECV);
         rdd_cl_req->state = RDD_CL_REQ_FREE;
@@ -314,6 +328,9 @@ int rdd_cl_cm_addr_resolved(struct rdma_cm_id *id)
         pthread_create(&conn_ctx->th.pt.cq_poll_thread, NULL, poll_cq, conn_ctx->ch);
     }
 
+	stick_this_thread_to_core(conn_ctx->th.pt.cq_poll_thread, 30);
+	pthread_setschedprio(conn_ctx->th.pt.cq_poll_thread, sched_get_priority_max(SCHED_OTHER));
+
     pthread_mutex_unlock(&conn_ctx->conn_lock);
 
 	rc = rdd_cl_init_ib_queue(queue);
@@ -366,6 +383,13 @@ int rdd_cl_cm_route_resolved(struct rdma_cm_id *id)
 	return 0;
 }
 
+uint16_t rdd_cl_conn_get_qhandle(void *arg)
+{
+	rdd_cl_conn_ctx_t *conn = (rdd_cl_conn_ctx_t *)arg;
+
+	return conn->qhandle;
+}
+
 int rdd_cl_cm_conn_established(struct rdma_cm_event *ev) {
     struct rdma_cm_id *id = ev->id;
 	rdd_cl_queue_t *q = (rdd_cl_queue_t *)id->context;
@@ -377,6 +401,8 @@ int rdd_cl_cm_conn_established(struct rdma_cm_event *ev) {
 
 	fprintf(stdout, "qid %u connection established\n", q->qid);
     fprintf(stdout, "qid %u client handle %8x\n", q->qid, priv->data.server.qhandle);
+
+	conn->qhandle = priv->data.server.qhandle;
 
     //TODO: Post commands
 	//for (unsigned i=0; i<tgt->qdepth; i++)
@@ -615,6 +641,8 @@ struct rdd_client_ctx_s *rdd_cl_init(void)
         rdd_cl_destroy(ctx);
         return NULL;
     }
+
+	stick_this_thread_to_core(ctx->th.pt.cm_thread, 25);
 
     return ctx;
 

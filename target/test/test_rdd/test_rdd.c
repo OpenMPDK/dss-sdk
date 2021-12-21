@@ -88,6 +88,8 @@ void run_test(void *ctx)/*ctx --> queue*/
 
     void *cmem = NULL;
 	uint32_t i = 0;
+	dfly_request_t *req = NULL;
+
     // void *cmem = calloc(1, vlen);
 
     if(queue->th.spdk.cq_thread != spdk_get_thread()) {
@@ -95,10 +97,19 @@ void run_test(void *ctx)/*ctx --> queue*/
         return;
     }
 
-	for(i=0; i < queue->send_qd; i++) {
+	for(i=0; i < 4 * queue->send_qd; i++) {
+		req = calloc(1, sizeof(dfly_request_t));
 		cmem = (void *)spdk_zmalloc(vlen /*1MB*/,
                       0x1000 /*4k Align*/, NULL, SPDK_ENV_LCORE_ID_ANY, SPDK_MALLOC_DMA);
-    	rdd_post_cmd_host_read(queue, cmem, (void *)0xEDCBA987654321F0, vlen, NULL);
+    	//rdd_post_cmd_host_read(queue, cmem, (void *)0xEDCBA987654321F0, vlen, NULL);
+    	req->rdd_info.q = queue;
+		req->rdd_info.opc = RDD_CMD_HOST_READ;
+		req->rdd_info.cmem = (uint64_t) cmem;
+		req->rdd_info.hmem = (uint64_t) 0xEDCBA987654321F0;
+		req->rdd_info.payload_len = vlen;
+
+		rdd_dss_submit_request((void *)req);
+
 	}
 
     return;

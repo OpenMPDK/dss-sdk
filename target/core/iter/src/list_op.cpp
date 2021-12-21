@@ -981,9 +981,9 @@ int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
         prefix_size = g_list_prefix_head_size;
     } 
     for(int i = 0; i< pool->num_io_devices; i++){
-     printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
+     //printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
      rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, (list_done_cb)list_module_load_done_blk_cb);
-     printf("list_init_load_by_blk_iter [%d] rc = %d\n", i, rc);
+     //printf("list_init_load_by_blk_iter [%d] rc = %d\n", i, rc);
     }
     
 	return rc;

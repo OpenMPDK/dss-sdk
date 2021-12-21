@@ -53,7 +53,7 @@ extern "C" {
 #define containerof(ptr, type, member) ((type *)((uintptr_t)ptr - offsetof(type, member)))
 
 
-#define RDD_CL_MAX_DEFAULT_QUEUEC (2)
+#define RDD_CL_MAX_DEFAULT_QUEUEC (1)
 #define RDD_CL_DEFAULT_QDEPTH (128)
 #define RDD_CL_DEFAULT_SEND_WR_NUM RDD_CL_DEFAULT_QDEPTH
 #define RDD_CL_DEFAULT_RECV_WR_NUM RDD_CL_DEFAULT_SEND_WR_NUM
@@ -103,6 +103,7 @@ typedef struct rdd_cl_queue_s {
 struct rdd_cl_conn_ctx_s {
     int conn_id;
     struct addrinfo *ai;
+	uint16_t qhandle;
     uint32_t qd;
     uint32_t queuec;
     rdd_cl_queue_t *queues;
@@ -177,6 +178,8 @@ void rdd_cl_destroy(struct rdd_client_ctx_s *ctx);
 
 rdd_cl_conn_ctx_t *rdd_cl_create_conn(struct rdd_client_ctx_s *cl_ctx, rdd_cl_conn_params_t params);
 void rdd_cl_destroy_connection(rdd_cl_conn_ctx_t *ctx);
+
+uint16_t rdd_cl_conn_get_qhandle(void * arg);
 
 #ifdef __cplusplus
 }

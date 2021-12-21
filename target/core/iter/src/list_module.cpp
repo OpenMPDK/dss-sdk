@@ -379,7 +379,7 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 #ifndef DSS_OPEN_SOURCE_RELEASE
 	if(g_dragonfly->dss_enable_judy_listing &&
 			g_dragonfly->rdb_direct_listing) {//Evict if direct listing
-		dss_hsl_print_info(hsl_ctx);
+		//dss_hsl_print_info(hsl_ctx);
 		//Using cache threshold with LRU eviction
 		//dss_hsl_evict_levels(hsl_ctx, g_dragonfly->rdb_direct_listing_evict_levels, &hsl_ctx->lnode, 0);
 		//dss_hsl_print_info(hsl_ctx);

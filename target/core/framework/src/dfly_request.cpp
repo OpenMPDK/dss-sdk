@@ -84,6 +84,8 @@ int dfly_req_fini(struct dfly_request *req)
 	req->zone_flush_flags = -1;
 #endif
 
+	req->data_direct = false;
+
 	return 0;
 }
 
@@ -185,8 +187,6 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	}
 	req->io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
 	DFLY_ASSERT(req->io_device);
-
-	req->data_direct = 0;
 
 	return;
 }
@@ -391,5 +391,5 @@ int dfly_nvmf_qpair_deinit_requests(void *req_arr)
 
 void dss_set_rdd_transfer(struct dfly_request *req)
 {
-	req->data_direct = 1;
+	req->data_direct = true;
 }
