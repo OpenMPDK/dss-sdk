@@ -136,6 +136,7 @@ struct rdd_rdma_queue_s {
 enum rdd_wr_type_e {
     RDD_WR_TYPE_REQ_SEND = 0,
     RDD_WR_TYPE_RSP_RECV,
+	RDD_WR_TYPE_DATA_WRITE,
 };
 
 struct rdd_wr_s {
@@ -145,6 +146,7 @@ struct rdd_wr_s {
 typedef enum rdd_req_state_e {
     RDD_REQ_FREE = 0,
     RDD_REQ_SENT,
+	RDD_REQ_DATA_PENDING,
     RDD_REQ_DONE,
 } rdd_req_state_t;
 
@@ -163,6 +165,11 @@ struct rdd_req_s {
         struct ibv_send_wr	send_wr;
 	    struct ibv_sge		send_sge;
     } req;
+    struct {
+        struct rdd_wr_s rdd_wr;
+     	struct ibv_send_wr	data_wr;
+	    struct ibv_sge		data_sge;
+    } data;
     uint16_t rsp_idx;
     uint16_t id;
     rdd_rdma_cmd_t *rdd_cmd;
