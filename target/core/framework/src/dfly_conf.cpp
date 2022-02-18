@@ -33,6 +33,7 @@
 
 #include <limits.h>
 #include "dragonfly.h"
+#include "spdk/string.h"
 
 extern int DFLY_LOG_LEVEL;
 
@@ -355,6 +356,66 @@ dfly_config_read(struct spdk_conf_section *sp)
 
 }
 
+void
+dfly_config_parse_rdd(struct spdk_conf_section *sp) {
+
+	int i;
+	int nips = 0;
+	char *listen_info;
+
+	char *tlip;
+	char *tlhost, *tlport;
+
+	DFLY_ASSERT(g_dragonfly->rddcfg == NULL);
+
+	for(i=0; ;i++) {//Count Number of Listen Sections
+		listen_info = spdk_conf_section_get_nmval(sp, "Listen", i, 0);
+		if(!listen_info) {
+			break;
+		}
+		nips++;
+	}
+
+	if(nips == 0) {
+		//No Listen IPs in the section
+		DFLY_ERRLOG("Did not find any Listen info in rdd section\n");
+		return;
+	}
+
+	g_dragonfly->rddcfg = calloc(1, sizeof(rdd_cfg_t) + (nips *sizeof(rdd_cinfo_t))); 
+
+	g_dragonfly->rddcfg->n_ip = 0;
+
+	g_dragonfly->rddcfg->conn_info = (rdd_cinfo_t *)(g_dragonfly->rddcfg + 1);
+
+	for(i=0; ;i++) {//Parse Listen IPs
+		listen_info = spdk_conf_section_get_nmval(sp, "Listen", i, 0);
+		if(!listen_info) {
+			break;
+		}
+
+		tlip = strdup(listen_info);
+
+		if(spdk_parse_ip_addr(tlip, &tlhost, &tlport) < 0) {
+			DFLY_ERRLOG("Unable to Parse listen address %d %s\n", i, tlip);
+
+			free(tlip);
+			for(int j =0; j < i; j++) {
+				free(g_dragonfly->rddcfg->conn_info[j].ip);
+				free(g_dragonfly->rddcfg->conn_info[j].port);
+			}
+			free(g_dragonfly->rddcfg);
+		}
+
+		g_dragonfly->rddcfg->n_ip++;
+		g_dragonfly->rddcfg->conn_info[i].ip = strdup(tlhost);
+		g_dragonfly->rddcfg->conn_info[i].port = strdup(tlport);
+		free(tlip);
+	}
+
+	return;
+}
+
 int
 dfly_config_parse(void)
 {
@@ -367,6 +428,11 @@ dfly_config_parse(void)
 	sp = spdk_conf_find_section(NULL, "DFLY");
 	if (sp != NULL) {
 		dfly_config_read(sp);
+	}
+
+	sp = spdk_conf_find_section(NULL, "RDD");
+	if (sp != NULL) {
+		dfly_config_parse_rdd(sp);
 	}
 
 	dfly_config_validate();

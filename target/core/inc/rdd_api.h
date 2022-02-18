@@ -51,6 +51,16 @@ extern "C" {
 
 typedef struct rdd_ctx_s rdd_ctx_t;
 
+typedef struct rdd_cinfo_s {
+	char *ip;
+	char *port;
+} rdd_cinfo_t;
+
+typedef struct rdd_cfg_s {
+	int n_ip;
+	rdd_cinfo_t *conn_info;
+} rdd_cfg_t;
+
 /**
  * @brief Parameters structure passed for RDMA data direct initializtion
  * 
@@ -101,12 +111,11 @@ typedef struct rdd_rdma_rsp_s {
 /**
  * @brief RDMA Data Direct initialization function
  * 
- * @param listen_ip IP address string to listen for new connections
- * @param listen_port Port string to listen for new connections
+ * @param c config of multiple ip ports to listen
  * @param params 
  * @return rdd_ctx_t* Context pointer to be used in reference to request to the module
  */
-rdd_ctx_t *rdd_init(const char *listen_ip, const char *listen_port, rdd_params_t params);
+rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params);
 
 /**
  * @brief RDMA Data Direct cleanup function

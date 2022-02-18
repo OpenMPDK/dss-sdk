@@ -83,12 +83,17 @@ int dragonfly_finish(void)
 	dfly_mm_deinit();
 	dfly_deleteAllItems(&g_dragonfly->disk_stat_table);
 
+	if(g_dragonfly->rdd_ctx) {
+		rdd_destroy(g_dragonfly->rdd_ctx);
+	}
+
 	return 0;
 }
 
 int dfly_init(void)
 {
 	int rc = 0;
+	rdd_params_t rdd_params;
 
 	DFLY_NOTICELOG("DSS target software version: %s\n", OSS_TARGET_GIT_VER);
 
@@ -118,6 +123,13 @@ int dfly_init(void)
 
 	//Initialize devices
 	dfly_dev_init();
+
+	if(g_dragonfly->rddcfg) {
+		g_dragonfly->rdd_ctx = rdd_init(g_dragonfly->rddcfg, rdd_params);
+		if(!g_dragonfly->rdd_ctx) {
+			DFLY_ERRLOG("Failed to intialize RDMA direct context\n");
+		}
+	}
 
 	return 0;
 }

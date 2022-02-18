@@ -191,7 +191,7 @@ const struct spdk_mem_map_ops g_rdd_rdma_map_ops = {
 	.are_contiguous = rdd_rdma_check_contiguous_entries
 };
 
-int rdd_cl_queue_established(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
+int rdd_cl_queue_established(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_rdma_queue_s *queue = (struct rdd_rdma_queue_s *)id->context;
@@ -200,13 +200,13 @@ int rdd_cl_queue_established(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
 
     queue->state = RDD_QUEUE_LIVE;
 
-    TAILQ_INSERT_TAIL(&ctx->queues, queue, link);
+    TAILQ_INSERT_TAIL(&l->queues, queue, link);
 
     return 0;
 }
 
 
-int rdd_cl_queue_disconnect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
+int rdd_cl_queue_disconnect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_rdma_queue_s *queue = (struct rdd_rdma_queue_s *)id->context;
@@ -227,9 +227,10 @@ int rdd_cl_queue_disconnect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
 //		queue->req_submit_ring = NULL;
 //	}
 
-	avg_sub_latency = (queue->submit_latency/queue->submit_count);
-	DFLY_NOTICELOG("Average submit latency %lu/%lu =%lu\n", queue->submit_latency, queue->submit_count, avg_sub_latency);
-
+	if(queue->submit_count) {
+		avg_sub_latency = (queue->submit_latency/queue->submit_count);
+		DFLY_NOTICELOG("Average submit latency %lu/%lu =%lu\n", queue->submit_latency, queue->submit_count, avg_sub_latency);
+	}
     return 0;
 }
 struct rdd_req_s *rdd_get_free_request(struct rdd_rdma_queue_s *q)
@@ -706,7 +707,7 @@ static int rdd_queue_alloc_reqs(struct rdd_rdma_queue_s *queue)
     return 0;
 }
 
-int rdd_queue_accept(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
+int rdd_queue_accept(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdma_conn_param conn_param = {};
@@ -724,9 +725,9 @@ int rdd_queue_accept(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
         return -1;
     }
 
-	queue->qhandle = rdd_reg_queue2ctx(ctx, queue);
-	if(queue->qhandle == RDD_INVALID_CHANDLE(ctx)) {
-		DFLY_ERRLOG("Qhandle generate failed for ctx %p\n", ctx);
+	queue->qhandle = rdd_reg_queue2ctx(l->prctx, queue);
+	if(queue->qhandle == RDD_INVALID_CHANDLE(l->prctx)) {
+		DFLY_ERRLOG("Qhandle generate failed for ctx %p\n", l->prctx);
 		return -1;
 	}
 
@@ -753,7 +754,7 @@ int rdd_queue_accept(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
     return 0;
 }
 
-int rdd_queue_connect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
+int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_queue_priv_s *priv = (struct rdd_queue_priv_s *)ev->param.conn.private_data;
@@ -763,7 +764,7 @@ int rdd_queue_connect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
     int rc = 0;
 
     //DFLY_ASSERT(ctx->tr.rdma.cm_id == id);//TODO: This could be differnt
-    DFLY_ASSERT(spdk_get_thread() == ctx->th.spdk.cm_thread);
+    DFLY_ASSERT(spdk_get_thread() == l->th.spdk.cm_thread);
 
     if(priv->data.client.proto_ver != RDD_PROTOCOL_VERSION) {
         DFLY_ERRLOG("Unsupported client version %x\n", priv->data.client.proto_ver);
@@ -776,7 +777,7 @@ int rdd_queue_connect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
         return -1;
     }
 
-    queue->ctx = ctx;
+    queue->ctx = l->prctx;//TODO: Check if this needs to be listener
     queue->cm_id = id;
     queue->host_qid = priv->data.client.qid;
     queue->recv_qd = priv->data.client.hsqsize;
@@ -817,7 +818,7 @@ int rdd_queue_connect(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
         return -1;
     }
 
-    rc = rdd_queue_accept(ctx, ev);
+    rc = rdd_queue_accept(l, ev);
     DFLY_ASSERT(rc == 0);
     
     return 0;
@@ -855,40 +856,40 @@ int rdd_queue_destroy(struct rdd_rdma_queue_s *queue)
     return rc;
 }
 
-int rdd_cm_event_handler(rdd_ctx_t *ctx, struct rdma_cm_event *ev)
+int rdd_cm_event_handler(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
 	int r = 0;
 
     DFLY_NOTICELOG("Processing event %s\n", rdma_event_str(ev->event));
 	switch (ev->event) {
         case RDMA_CM_EVENT_CONNECT_REQUEST:
-            r = rdd_queue_connect(ctx, ev);
+            r = rdd_queue_connect(l, ev);
             //Connect queue
             break;
         case RDMA_CM_EVENT_ESTABLISHED:
-            r = rdd_cl_queue_established(ctx, ev);
+            r = rdd_cl_queue_established(l, ev);
             break;
         case RDMA_CM_EVENT_DISCONNECTED:
 			//TODO : destroy queues 
 			//			deregister qhandles
 		    //DFLY_ERRLOG("Disconnect event %p for ctx %p\n", ev, ctx);
-			rdd_cl_queue_disconnect(ctx, ev);
+			rdd_cl_queue_disconnect(l, ev);
             break;
 	    default:
-		    DFLY_ERRLOG("Unhandled event %d for %p\n", ev->event, ctx);
+		    DFLY_ERRLOG("Unhandled event %d for %p\n", ev->event, l);
 	}
 	return r;    
 }
 
 int rdd_cm_event_task(void *arg)
 {
-    rdd_ctx_t *ctx = (rdd_ctx_t *)arg;
+    struct rdd_rdma_listener_s  *l = (struct rdd_rdma_listener_s  *)arg;
 
-	struct rdma_event_channel *ch = ctx->tr.rdma.ev_channel;
+	struct rdma_event_channel *ch = l->tr.rdma.ev_channel;
 	struct rdma_cm_event *event;
     int rc;
 
-    rc = poll(&ctx->th.spdk.cm_poll_fd, 1, 0);
+    rc = poll(&l->th.spdk.cm_poll_fd, 1, 0);
     if (rc == 0) {
         return SPDK_POLLER_IDLE;
     }
@@ -902,12 +903,12 @@ int rdd_cm_event_task(void *arg)
 	    rc = rdma_get_cm_event(ch, &event);
         if (rc) {
 			if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                DFLY_ERRLOG("Rdma event retrieval failed for %p with error [%d]: [%s]\n", ctx, errno, spdk_strerror(errno));
+                DFLY_ERRLOG("Rdma event retrieval failed for %p with error [%d]: [%s]\n", l, errno, spdk_strerror(errno));
 			}
 			break;
 		}
-        if(rdd_cm_event_handler(ctx, event)) {
-            DFLY_ERRLOG("CM event handler failed for %p event %p\n", ctx, event);
+        if(rdd_cm_event_handler(l, event)) {
+            DFLY_ERRLOG("CM event handler failed for %p event %p\n", l, event);
                 //TODO: Connect Error stop poller and exit
         }
 		rdma_ack_cm_event(event);
@@ -917,74 +918,160 @@ int rdd_cm_event_task(void *arg)
 
 static void _rdd_start_cm_event_poller(void *arg)
 {
-    rdd_ctx_t *ctx = (rdd_ctx_t *)arg;
+    struct rdd_rdma_listener_s  *l = (struct rdd_rdma_listener_s  *)arg;
 
     int flags, rc;
 
-    flags = fcntl(ctx->tr.rdma.ev_channel->fd, F_GETFL);
-    rc = fcntl(ctx->tr.rdma.ev_channel->fd, F_SETFL, flags | O_NONBLOCK);
+    flags = fcntl(l->tr.rdma.ev_channel->fd, F_GETFL);
+    rc = fcntl(l->tr.rdma.ev_channel->fd, F_SETFL, flags | O_NONBLOCK);
     if (rc < 0) {
         DFLY_ERRLOG("Failed to change file descriptor of cm event channel\n");
         abort();
         return; //Handle error scenario
     }
 
-    ctx->th.spdk.cm_poll_fd.fd = ctx->tr.rdma.ev_channel->fd;
-    ctx->th.spdk.cm_poll_fd.events = POLLIN;
-    ctx->th.spdk.cm_poll_fd.revents = 0;
+    l->th.spdk.cm_poll_fd.fd = l->tr.rdma.ev_channel->fd;
+    l->th.spdk.cm_poll_fd.events = POLLIN;
+    l->th.spdk.cm_poll_fd.revents = 0;
 
-    DFLY_ASSERT(spdk_get_thread() == ctx->th.spdk.cm_thread);
-    DFLY_ASSERT(ctx->th.spdk.cm_poller == NULL);
-    ctx->th.spdk.cm_poller = SPDK_POLLER_REGISTER(rdd_cm_event_task, ctx, RDD_DEFAULT_CM_POLL_PERIOD_IN_US);
-    DFLY_ASSERT(ctx->th.spdk.cm_poller != NULL);
+    DFLY_ASSERT(spdk_get_thread() == l->th.spdk.cm_thread);
+    DFLY_ASSERT(l->th.spdk.cm_poller == NULL);
+    l->th.spdk.cm_poller = SPDK_POLLER_REGISTER(rdd_cm_event_task, l, RDD_DEFAULT_CM_POLL_PERIOD_IN_US);
+    DFLY_ASSERT(l->th.spdk.cm_poller != NULL);
 
-    DFLY_NOTICELOG("Started cm event poll thread for %p on core %d \n", ctx, spdk_env_get_current_core());
+    DFLY_NOTICELOG("Started cm event poll thread for %p on core %d \n", l, spdk_env_get_current_core());
 }
 
 static void _rdd_stop_cm_event_poller(void *arg)
 {
-    rdd_ctx_t *ctx = (rdd_ctx_t *)arg;
+    struct rdd_rdma_listener_s  *l = (struct rdd_rdma_listener_s  *)arg;
 
-    DFLY_ASSERT(ctx->th.spdk.cm_poller != NULL);
-    DFLY_ASSERT(ctx->th.spdk.cm_thread != NULL);
-    DFLY_ASSERT(spdk_get_thread() == ctx->th.spdk.cm_thread);
+    DFLY_ASSERT(l->th.spdk.cm_poller != NULL);
+    DFLY_ASSERT(l->th.spdk.cm_thread != NULL);
+    DFLY_ASSERT(spdk_get_thread() == l->th.spdk.cm_thread);
 
-    spdk_poller_unregister(&ctx->th.spdk.cm_poller);
-    ctx->th.spdk.cm_poller = NULL;
-    spdk_thread_exit(ctx->th.spdk.cm_thread);
-    ctx->th.spdk.cm_thread = NULL;
+    spdk_poller_unregister(&l->th.spdk.cm_poller);
+    l->th.spdk.cm_poller = NULL;
+    spdk_thread_exit(l->th.spdk.cm_thread);
+    l->th.spdk.cm_thread = NULL;
 
     return;
 }
 
-void _rdd_init(void *arg, void *dummy);
+void _rdd_listener_init(void *arg, void *dummy);
 
-//Call this function on the core where the cm_event thread needs to run
-rdd_ctx_t *rdd_init(const char *listen_ip, const char *listen_port, rdd_params_t params)
+int rdd_listener_add(rdd_ctx_t *ctx, char *ip, char *port)
 {
-    rdd_ctx_t *ctx;
-
+	int rc = 0;
     struct addrinfo hints;
-    int rc;
 
-    ctx = (rdd_ctx_t *)calloc(1, sizeof(rdd_ctx_t));
-    if(!ctx) {//Context alloc failed
-        DFLY_ERRLOG("context alloc failed for ip %s port %s\n",
-                listen_ip, listen_port);
-        return NULL;
-    }
+	struct rdd_rdma_listener_s *l;
 
     memset(&hints, 0, sizeof(hints));
     //hints.ai_family = AF_UNSPEC;//Try to resolve IPV4 or IPV6 address
-    hints.ai_family = AF_INET;
+    //hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;//Try to resolve IPV4 or IPV6 address
     hints.ai_flags = AI_NUMERICSERV;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = 0;
 
-    ctx->listen_ip = strdup(listen_ip);
-    ctx->listen_port = strdup(listen_port);
+	l = calloc(1, sizeof(struct rdd_rdma_listener_s));
+	if(!l) {
+		return -1;
+	}
 
-    TAILQ_INIT(&ctx->queues);
+	//TODO: Alloc listener and change variable names
+    l->listen_ip = strdup(ip);
+    l->listen_port = strdup(port);
+
+    TAILQ_INIT(&l->queues);
+
+	l->prctx = ctx;
+
+	rc = getaddrinfo(ip, port, &hints, &l->ai);
+    if(rc) {
+        DFLY_ERRLOG("Failed to get addrinfo ip %s port %s error '%s' (%d)\n", 
+                        ip, port, gai_strerror(rc), rc);
+        goto err;
+    }
+
+    l->tr.rdma.ev_channel = rdma_create_event_channel();
+    if(!l->tr.rdma.ev_channel) {
+        DFLY_ERRLOG("rdma_create_event_channel failed for ip %s port %s %d\n",
+                        ip, port, errno);
+        goto err;
+    }
+
+    rc = rdma_create_id(l->tr.rdma.ev_channel, &l->tr.rdma.cm_id, NULL, RDMA_PS_TCP);
+    if (rc) {
+        //rc == -1
+        DFLY_ERRLOG("rdma_create_id failed for ip %s port %s %d\n",
+                ip, port, errno);
+        goto err;
+    }
+
+    //TODO: bind/listen to all available addr in ai
+    //Now binding only to the first
+    rc = rdma_bind_addr(l->tr.rdma.cm_id, l->ai->ai_addr);
+    if(rc) {
+        //rc == -1
+        DFLY_ERRLOG("rdma_bind_addr failed for ip %s port %s %d\n",
+                ip, port, errno);
+        goto err;
+    }
+
+    rc = rdma_listen(l->tr.rdma.cm_id, RDD_DEFAULT_LISTEN_BACKLOG);
+    if(rc) {
+        //rc == -1
+        DFLY_ERRLOG("rdma_listen failed for ip %s port %s %d\n",
+                ip, port, errno);
+        goto err;
+    }
+
+    TAILQ_INSERT_TAIL(&ctx->listeners, l, link);
+	//TODO : Track Listener context live/destroying
+
+	_rdd_listener_init(l, NULL);
+
+	return 0;
+
+err:
+	if(l->ai) {
+		free(l->ai);
+	}
+
+    if(l->tr.rdma.cm_id) {
+        rc = rdma_destroy_id(l->tr.rdma.cm_id);
+        if(!rc) {
+            //rc == -1
+            //ALL QP need to be free and all events acked before destroy
+            DFLY_ERRLOG("rdma_destroy_id failed for ip %s port %s %d\n",
+                l->listen_ip, l->listen_port, errno);
+        }
+    }
+
+    if(l->tr.rdma.ev_channel) {
+        rdma_destroy_event_channel(l->tr.rdma.ev_channel);
+	}
+
+	if(l)
+		free(l);
+
+	return rc;
+}
+
+//Call this function on the core where the cm_event thread needs to run
+rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
+{
+    rdd_ctx_t *ctx;
+
+    int i, rc;
+
+    ctx = (rdd_ctx_t *)calloc(1, sizeof(rdd_ctx_t));
+    if(!ctx) {//Context alloc failed
+        DFLY_ERRLOG("context alloc failed\n");
+        return NULL;
+    }
 
 	rc = pthread_rwlock_init(&ctx->handle_ctx.rwlock, NULL);
 	DFLY_ASSERT(rc == 0);//TODO: Process error code
@@ -993,75 +1080,41 @@ rdd_ctx_t *rdd_init(const char *listen_ip, const char *listen_port, rdd_params_t
 	ctx->handle_ctx.nhandles = RDD_DEFAULT_MIN_CHANDLE_COUNT;
 	ctx->handle_ctx.handle_arr = calloc(RDD_DEFAULT_MIN_CHANDLE_COUNT, sizeof(ctx->handle_ctx.handle_arr));
 	DFLY_NOTICELOG("ctx array element size %d\n", sizeof(ctx->handle_ctx.handle_arr));
-	//TODO: Generate initial random mask
+
 	srand(time(NULL));
 	ctx->handle_ctx.hmask = (uint16_t)rand();
 	DFLY_NOTICELOG("Generated handle mask %x\n", ctx->handle_ctx.hmask);
 
-	rc = getaddrinfo(listen_ip, listen_port, &hints, &ctx->ai);
-    if(rc) {
-        DFLY_ERRLOG("Failed to get addrinfo ip %s port %s error '%s' (%d)\n", 
-                        listen_ip, listen_port, gai_strerror(rc), rc);
-        rdd_destroy(ctx);
-        return NULL;
-    }
+	TAILQ_INIT(&ctx->listeners);
 
-    ctx->tr.rdma.ev_channel = rdma_create_event_channel();
-    if(!ctx->tr.rdma.ev_channel) {
-        DFLY_ERRLOG("rdma_create_event_channel failed for ip %s port %s %d\n",
-                        listen_ip, listen_port, errno);
-        rdd_destroy(ctx);
-        return NULL;
-    }
-
-    rc = rdma_create_id(ctx->tr.rdma.ev_channel, &ctx->tr.rdma.cm_id, NULL, RDMA_PS_TCP);
-    if (rc) {
-        //rc == -1
-        DFLY_ERRLOG("rdma_create_id failed for ip %s port %s %d\n",
-                listen_ip, listen_port, errno);
-        rdd_destroy(ctx);
-        return NULL;
-    }
-
-    //TODO: bind/listen to all available addr in ai
-    //Now binding only to the first
-    rc = rdma_bind_addr(ctx->tr.rdma.cm_id, ctx->ai->ai_addr);
-    if(rc) {
-        //rc == -1
-        DFLY_ERRLOG("rdma_bind_addr failed for ip %s port %s %d\n",
-                listen_ip, listen_port, errno);
-        rdd_destroy(ctx);
-        return NULL;
-    }
-
-    rc = rdma_listen(ctx->tr.rdma.cm_id, RDD_DEFAULT_LISTEN_BACKLOG);
-    if(rc) {
-        //rc == -1
-        DFLY_ERRLOG("rdma_listen failed for ip %s port %s %d\n",
-                listen_ip, listen_port, errno);
-        rdd_destroy(ctx);
-        return NULL;
-    }
-
-	_rdd_init(ctx, NULL);
+	for(i=0; i < c->n_ip; i++) {
+		rc = rdd_listener_add(ctx, c->conn_info[i].ip, c->conn_info[i].port);
+		if(rc != 0) {
+			DFLY_ERRLOG("Error Listening on $s ip %s port\n", \
+							c->conn_info[i].ip, \
+							c->conn_info[i].port);
+			rdd_destroy(ctx);
+			return NULL;
+		}
+	}
 
 	return ctx;
 }
 
-void _rdd_init(void *arg, void *dummy)
+void _rdd_listener_init(void *arg, void *dummy)
 {
 	uint32_t icore;
 	struct spdk_event *event;
 
-    rdd_ctx_t *ctx;
+    struct rdd_rdma_listener_s  *listener;
     char thread_name[256] = {0};
 
-	ctx = (rdd_ctx_t *)arg;
+	listener = (struct rdd_rdma_listener_s *)arg;
 
 	icore = dfly_get_next_core("RDD_CQ_POLLER", 1, NULL);
 
 	if (spdk_env_get_current_core() != icore) {
-		event = spdk_event_allocate(icore, _rdd_init , arg, NULL);
+		event = spdk_event_allocate(icore, _rdd_listener_init, arg, NULL);
 		assert(event != NULL);
 		spdk_event_call(event);
 
@@ -1070,61 +1123,74 @@ void _rdd_init(void *arg, void *dummy)
 
     DFLY_NOTICELOG("Starting cm thread on %u core\n", icore);
 
-    sprintf(thread_name, "rdd_%p", ctx->tr.rdma.cm_id);
+    sprintf(thread_name, "rdd_%p", listener->tr.rdma.cm_id);
     //Created thread in the current core
-    ctx->th.spdk.cm_thread = spdk_thread_create(thread_name, NULL);
-    if(!ctx->th.spdk.cm_thread) {
+    listener->th.spdk.cm_thread = spdk_thread_create(thread_name, NULL);
+    if(!listener->th.spdk.cm_thread) {
         DFLY_ERRLOG("Failed to create cm event thread %s\n", thread_name);
-        rdd_destroy(ctx);
+        rdd_destroy(listener->prctx);
         return NULL;
     }
 
-    spdk_thread_send_msg(ctx->th.spdk.cm_thread, _rdd_start_cm_event_poller, (void *)ctx);
+    spdk_thread_send_msg(listener->th.spdk.cm_thread, _rdd_start_cm_event_poller, (void *)listener);
     //TODO: Wait for initialization
 
-    DFLY_NOTICELOG("Listening on IP %s port %s\n", ctx->listen_ip, ctx->listen_port);
+    DFLY_NOTICELOG("Listening on IP %s port %s\n", listener->listen_ip, listener->listen_port);
     return;
 }
 
-void rdd_destroy(rdd_ctx_t *ctx)
+void rdd_stop_listener(struct rdd_rdma_listener_s  *l)
 {
     int rc;
 
-    DFLY_NOTICELOG("Stop Listening on IP %s port %s\n", ctx->listen_ip, ctx->listen_port);
+    DFLY_NOTICELOG("Stop Listening on IP %s port %s\n", l->listen_ip, l->listen_port);
 
-	//TODO: Make sure all queues exited
-	pthread_rwlock_destroy(&ctx->handle_ctx.rwlock);
-
-    if(ctx->th.spdk.cm_thread) {
-        spdk_thread_send_msg(ctx->th.spdk.cm_thread, _rdd_stop_cm_event_poller, (void *) ctx);
+    if(l->th.spdk.cm_thread) {
+        spdk_thread_send_msg(l->th.spdk.cm_thread, _rdd_stop_cm_event_poller, (void *) l);
         //TODO: Synchronize Stop thread and poller
     }
 
-    if(ctx->tr.rdma.ev_channel) {
-        rdma_destroy_event_channel(ctx->tr.rdma.ev_channel);
+    if(l->tr.rdma.ev_channel) {
+        rdma_destroy_event_channel(l->tr.rdma.ev_channel);
     }
 
-    if(ctx->tr.rdma.cm_id) {
-        rc = rdma_destroy_id(ctx->tr.rdma.cm_id);
+    if(l->tr.rdma.cm_id) {
+        rc = rdma_destroy_id(l->tr.rdma.cm_id);
         if(!rc) {
             //rc == -1
             //ALL QP need to be free and all events acked before destroy
             DFLY_ERRLOG("rdma_destroy_id failed for ip %s port %s %d\n",
-                ctx->listen_ip, ctx->listen_port, errno);
+                l->listen_ip, l->listen_port, errno);
         }
     }
     
-    if(ctx->ai) {
-        freeaddrinfo(ctx->ai);
+    if(l->ai) {
+        freeaddrinfo(l->ai);
     }
 
-    if(ctx->listen_ip) {
-        free(ctx->listen_ip);
+    if(l->listen_ip) {
+        free(l->listen_ip);
     }
 
-    if(ctx->listen_port) {
-        free(ctx->listen_port);
+    if(l->listen_port) {
+        free(l->listen_port);
     }
+
+	free(l);
+
+	return;
+}
+
+void rdd_destroy(rdd_ctx_t *ctx)
+{
+	struct rdd_rdma_listener_s *l, *tl;
+
+	TAILQ_FOREACH_SAFE(l, &ctx->listeners, link, tl) {
+		TAILQ_REMOVE(&ctx->listeners, l, link);
+		rdd_stop_listener(l);
+	}
+	//TODO: Make sure all queues exited
+	pthread_rwlock_destroy(&ctx->handle_ctx.rwlock);
 
     if(ctx) {
         free(ctx);

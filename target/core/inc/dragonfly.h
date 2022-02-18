@@ -331,6 +331,9 @@ struct dragonfly {
 	dict_t	 			*disk_stat_table;
 	uint64_t req_lat_to;//Request latency timeout
 	bool enable_latency_profiling;
+
+	rdd_cfg_t *rddcfg;
+	rdd_ctx_t *rdd_ctx;
 };
 
 struct dfly_qpair_s {

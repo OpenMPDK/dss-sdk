@@ -58,11 +58,12 @@ extern "C" {
 #define RDD_MAX_CHANDLE_CNT (65535)
 #define RDD_DEFAULT_MIN_CHANDLE_COUNT (1024)
 
-struct rdd_ctx_s {
+struct rdd_rdma_listener_s {
     struct addrinfo *ai;
 
     char *listen_ip;
     char *listen_port;
+
     union {
         struct {
             struct rdma_event_channel *ev_channel;
@@ -76,6 +77,12 @@ struct rdd_ctx_s {
             struct pollfd cm_poll_fd;
         } spdk;
     } th;//Thread
+	struct rdd_ctx_s *prctx;//Parent Context
+    TAILQ_HEAD(, rdd_rdma_queue_s) queues;
+    TAILQ_ENTRY(rdd_rdma_listener_s) link;
+};
+
+struct rdd_ctx_s {
 	struct {
 		pthread_rwlock_t rwlock;
 		uint32_t nuse;
@@ -83,7 +90,8 @@ struct rdd_ctx_s {
 		struct rdd_rdma_queue_s **handle_arr;
 		uint16_t hmask;
 	} handle_ctx;
-    TAILQ_HEAD(, rdd_rdma_queue_s) queues;
+
+    TAILQ_HEAD(, rdd_rdma_listener_s) listeners;
 };
 
 enum rdd_queue_state_e {

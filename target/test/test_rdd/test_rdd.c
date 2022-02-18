@@ -217,6 +217,9 @@ rdd_test_parse_arg(int ch, char *arg)
 static void
 rdd_test_server_start(void *arg1)
 {
+	rdd_cfg_t c;
+	rdd_cinfo_t ci;
+
 	rdd_params_t params = {};
 
 	if(!g_ip || !g_port) {
@@ -224,7 +227,12 @@ rdd_test_server_start(void *arg1)
 		exit(1);
 	}
 
-	g_rdd_ctx = rdd_init(g_ip, g_port, params);
+	c.conn_info = &ci;
+	c.n_ip = 1;
+	ci.ip = g_ip;
+	ci.port = g_port;
+
+	g_rdd_ctx = rdd_init(&c, params);
 	if(!g_rdd_ctx) {
 		SPDK_ERRLOG("RDD init failed\n");
 		exit(1);
