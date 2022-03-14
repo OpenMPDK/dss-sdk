@@ -13,14 +13,6 @@ index 4782774..b418ce2 100644
  **Describe the bug**
  A clear and concise description of what the bug is.
  
-diff --git a/KVSSD_QUICK_START_GUIDE_0.9.0.pdf b/KVSSD_QUICK_START_GUIDE_0.9.0.pdf
-new file mode 100644
-index 0000000..72957ca
-Binary files /dev/null and b/KVSSD_QUICK_START_GUIDE_0.9.0.pdf differ
-diff --git a/KVSSD_QUICK_START_GUIDE_1.0.0.pdf b/KVSSD_QUICK_START_GUIDE_1.0.0.pdf
-deleted file mode 100644
-index 3f84632..0000000
-Binary files a/KVSSD_QUICK_START_GUIDE_1.0.0.pdf and /dev/null differ
 diff --git a/PDK/core/CMakeLists.txt b/PDK/core/CMakeLists.txt
 index 5558681..015e364 100644
 --- a/PDK/core/CMakeLists.txt
@@ -92269,11 +92261,3 @@ index 9244923..e38871b 100644
      }
      assert(status.ok());
  #endif
-diff --git a/spec/Samsung_KV_API_spec_v1.1.0.pdf b/spec/Samsung_KV_API_spec_v1.1.0.pdf
-new file mode 100644
-index 0000000..b83a800
-Binary files /dev/null and b/spec/Samsung_KV_API_spec_v1.1.0.pdf differ
-diff --git a/spec/Samsung_KV_API_spec_v1.2.0.pdf b/spec/Samsung_KV_API_spec_v1.2.0.pdf
-deleted file mode 100644
-index 4806903..0000000
-Binary files a/spec/Samsung_KV_API_spec_v1.2.0.pdf and /dev/null differ
