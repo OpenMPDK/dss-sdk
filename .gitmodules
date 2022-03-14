@@ -26,6 +26,3 @@
 	path = target/oss/rocksdb
 	url = https://github.com/yuslepukhin/rocksdb.git
 	branch = async_5.6.1
-[submodule "dss_client"]
-	path = dss_client
-	url = git@msl-dc-gitlab.ssi.samsung.com:ssd/dss_client.git
