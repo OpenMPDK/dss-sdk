@@ -192,10 +192,15 @@ index 4ed900d..80bfdec 100644
    PARAMETERS
    IN ks_hd Key Space handle
 diff --git a/PDK/core/include/kvs_const.h b/PDK/core/include/kvs_const.h
-index 72c5406..7b6bce9 100644
+index 72c5406..21e5c8a 100644
 --- a/PDK/core/include/kvs_const.h
 +++ b/PDK/core/include/kvs_const.h
-@@ -44,16 +44,12 @@ extern "C" {
+@@ -40,20 +40,16 @@ extern "C" {
+ #endif
+ 
+ #define KVS_MIN_KEY_LENGTH 4
+-#define KVS_MAX_KEY_LENGTH 255
++#define KVS_MAX_KEY_LENGTH 1024
  #define KVS_MIN_VALUE_LENGTH 0
  #define KVS_MAX_VALUE_LENGTH (2*1024*1024)
  #define KVS_OPTIMAL_VALUE_LENGTH 4096
@@ -265,7 +270,7 @@ index 49832ef..a51d150 100644
  
  #endif
 diff --git a/PDK/core/include/kvs_struct.h b/PDK/core/include/kvs_struct.h
-index 1577e82..0137e5f 100644
+index 1577e82..cc9ab95 100644
 --- a/PDK/core/include/kvs_struct.h
 +++ b/PDK/core/include/kvs_struct.h
 @@ -62,7 +62,6 @@ typedef struct {
@@ -286,6 +291,15 @@ index 1577e82..0137e5f 100644
  };
  
  /**
+@@ -111,7 +113,7 @@ enum kvs_op {
+ #endif
+   
+ 
+-typedef uint8_t kvs_key_t;
++typedef uint16_t kvs_key_t;
+ typedef uint32_t kvs_value_t;
+ typedef unsigned __int128 uint128_t;
+ 
 @@ -249,13 +251,38 @@ typedef struct {
    void *private2;
  } kvs_exist_context;
@@ -1765,7 +1779,7 @@ index e2dd1fc..3f857fa 100644
 +}
  #endif
 diff --git a/PDK/core/src/api/include/private/private_struct.h b/PDK/core/src/api/include/private/private_struct.h
-index ab2cdf7..37d1638 100644
+index ab2cdf7..44608b6 100644
 --- a/PDK/core/src/api/include/private/private_struct.h
 +++ b/PDK/core/src/api/include/private/private_struct.h
 @@ -92,6 +92,9 @@ enum kvs_op {
@@ -1778,6 +1792,15 @@ index ab2cdf7..37d1638 100644
  };
  
  /**
+@@ -106,7 +109,7 @@ enum kvs_op {
+ #endif
+   
+ 
+-typedef uint8_t kvs_key_t;
++typedef uint16_t kvs_key_t;
+ typedef uint32_t kvs_value_t;
+ typedef unsigned __int128 uint128_t;
+ 
 @@ -229,6 +232,13 @@ typedef struct {
    void *private2;               /*!< the second pointer to a user's I/O context information */
  } kvs_retrieve_context;
@@ -22267,7 +22290,7 @@ index 995caf8..5cfe14a 100644
  
  #endif /* SPDK_VHOST_H */
 diff --git a/PDK/core/src/api/src/cfrontend.cpp b/PDK/core/src/api/src/cfrontend.cpp
-index 7454c63..24caee8 100644
+index 7454c63..a0ac784 100644
 --- a/PDK/core/src/api/src/cfrontend.cpp
 +++ b/PDK/core/src/api/src/cfrontend.cpp
 @@ -86,17 +86,8 @@ kvs_result kvs_close_container (kvs_container_handle cont_hd) {
@@ -22368,6 +22391,15 @@ index 7454c63..24caee8 100644
  }
  
  static void filter2context(kvs_key_group_filter* fltr, api_private::kvs_iterator_context* ctx) {
+@@ -337,7 +354,7 @@ static void filter2context(kvs_key_group_filter* fltr, api_private::kvs_iterator
+ }
+ 
+ static kvs_result _check_key_length(kvs_key* key) {
+-  if (key->length > UINT8_MAX)
++  if (key->length > KVS_MAX_KEY_LENGTH)
+     return KVS_ERR_KEY_LENGTH_INVALID;
+   return KVS_SUCCESS;
+ }
 @@ -348,8 +365,8 @@ void init_default_option(api_private::kvs_init_options &options) {
    options.aio.queuedepth = 64;
    options.memory.use_dpdk = 0;
@@ -22922,7 +22954,7 @@ index 1d45734..be500e2 100644
    // shutdown device
    if(this->int_handler) {
 diff --git a/PDK/core/src/api/src/driver_adapter/kvkdd.cpp b/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
-index 98356eb..d9edde7 100644
+index 98356eb..47df09c 100644
 --- a/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
 +++ b/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
 @@ -34,7 +34,6 @@
@@ -23199,7 +23231,7 @@ index 98356eb..d9edde7 100644
 +
 +  uint16_t key_offset = 0, key_len = 0;
 +  api_private::kvs_key* k = new api_private::kvs_key();
-+  char *key_buff   = (char*)kvs_malloc(256, 4096);
++  char *key_buff   = (char*)kvs_malloc(KVS_MAX_KEY_LENGTH, 4096);
 +
 +  if(prefix_key && prefix_key->length){
 +      key_len = prefix_key->length;
@@ -24357,7 +24389,7 @@ index 6e18ae7..abcc436 100644
    /*
    while(!this->udd_context_pool.empty()){
 diff --git a/PDK/core/src/api/src/private_cfrontend.cpp b/PDK/core/src/api/src/private_cfrontend.cpp
-index d37d892..774ce18 100644
+index d37d892..f4cb256 100644
 --- a/PDK/core/src/api/src/private_cfrontend.cpp
 +++ b/PDK/core/src/api/src/private_cfrontend.cpp
 @@ -31,7 +31,7 @@
@@ -25490,7 +25522,7 @@ index d37d892..774ce18 100644
 -  free(conts);
 -  return ret;
 +static kvs_result _check_key_length(kvs_key* key) {
-+  if (key->length > UINT8_MAX)
++  if (key->length > KVS_MAX_KEY_LENGTH)
 +    return KVS_ERR_KEY_LENGTH_INVALID;
 +  return KVS_SUCCESS;
  }
@@ -29584,7 +29616,7 @@ index 0000000..bf0ce40
 +    return 0;
 +}
 diff --git a/PDK/core/src/device_abstract_layer/include/kvs_adi.h b/PDK/core/src/device_abstract_layer/include/kvs_adi.h
-index 6adc3c0..b481cde 100644
+index 6adc3c0..ad956cc 100644
 --- a/PDK/core/src/device_abstract_layer/include/kvs_adi.h
 +++ b/PDK/core/src/device_abstract_layer/include/kvs_adi.h
 @@ -34,6 +34,7 @@
@@ -29648,6 +29680,15 @@ index 6adc3c0..b481cde 100644
   * \mainpage A libary for Samsung Key-Value Storage ADI
   */
  
+@@ -179,7 +169,7 @@ typedef enum cmd_opcode_t {
+  * This type is used to represent a key length. Currently uint8_t is
+  * used to represent a key which can grow up to KV_MAX_KEY_LEN bytes.
+  */
+-typedef uint8_t kv_key_t;
++typedef uint16_t kv_key_t;
+ 
+ /** 
+  * This type is used to represent a value length. Currently uint32_t is
 @@ -502,6 +492,8 @@ typedef struct {
    void *pattern;            ///< buffer address for sanize overwrite pattern 
  } kv_sanitize_pattern; 
@@ -30039,7 +30080,7 @@ index 92fba96..0429156 100644
  6). 
  ----
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
-index e7af33f..80f3995 100644
+index e7af33f..cb71108 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
 @@ -38,10 +38,10 @@ struct epoll_event list_of_events[1];
@@ -30190,7 +30231,7 @@ index e7af33f..80f3995 100644
  {
    if (!key || !key->key || !value)
     {
-@@ -469,7 +451,7 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
+@@ -469,27 +451,32 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
  
      ioctx->cmd.opcode = nvme_cmd_kv_store;
      ioctx->cmd.nsid = nsid;
@@ -30199,7 +30240,36 @@ index e7af33f..80f3995 100644
      if (key->length > KVCMD_INLINE_KEY_MAX)
      {
          ioctx->cmd.key_addr = (__u64)key->key;
-@@ -503,7 +485,54 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
++        ioctx->cmd.rsvd5 = key->length;
+     }
+     else
+     {
+         memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
+     }
+     ioctx->cmd.cdw5 = value->offset;
+-    ioctx->cmd.key_length = key->length;
++    if(key->length > 255) {
++      ioctx->cmd.key_length = 0xff;
++    } else {
++      ioctx->cmd.key_length = key->length;
++    }
+     ioctx->cmd.cdw4 = option;
+-    ioctx->cmd.cdw11 = key->length - 1;
++    //ioctx->cmd.cdw11 = key->length - 1;
+     ioctx->cmd.data_addr = (__u64)value->value;
+     ioctx->cmd.data_length = value->length;
+     ioctx->cmd.cdw10 = (value->length >> 2);
+     ioctx->cmd.ctxid = aioctx.ctxid;
+     ioctx->cmd.reqid = ioctx->index;
+- 
++    
+ #ifdef DUMP_ISSUE_CMD
+-    //dump_cmd(&ioctx->cmd);
++    dump_cmd(&ioctx->cmd);
+     std::cerr << "IO:kv_store: key = " << print_key((const char *)key->key, key->length) << ", len = " << (int)key->length << std::endl;
+ #endif
+ 
+@@ -503,7 +490,62 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
      return 0;
  }
  
@@ -30229,12 +30299,20 @@ index e7af33f..80f3995 100644
 +    else
 +    {
 +        ioctx->cmd.key_addr = (__u64)key->key;
++        ioctx->cmd.rsvd5 = key->length;
 +    }
-+    ioctx->cmd.key_length = key->length;
++
++    if(key->length > 255) {
++      ioctx->cmd.key_length = 0xff;
++    } else {
++      ioctx->cmd.key_length = key->length;
++    }
++
 +    ioctx->cmd.rsvd2 = key_offset;
 +    ioctx->cmd.rsvd3 = max_keys_to_list;
 +    ioctx->cmd.reqid = ioctx->index;
 +    ioctx->cmd.ctxid = aioctx.ctxid;
++
 +
 +#ifdef DUMP_ISSUE_CMD
 +    dump_list_cmd(&ioctx->cmd);
@@ -30255,7 +30333,7 @@ index e7af33f..80f3995 100644
  {
     if (!key || !key->key || !value)
     {
-@@ -517,7 +546,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -517,7 +559,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
  
      ioctx->cmd.opcode = nvme_cmd_kv_retrieve;
      ioctx->cmd.nsid = nsid;
@@ -30264,7 +30342,24 @@ index e7af33f..80f3995 100644
      ioctx->cmd.cdw4 = 0;
      ioctx->cmd.cdw5 = value->offset;
      ioctx->cmd.data_addr = (__u64)value->value;
-@@ -549,7 +578,100 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -529,8 +571,15 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+     else
+     {
+         ioctx->cmd.key_addr = (__u64)key->key;
++        ioctx->cmd.rsvd5 = key->length;
+     }
+-    ioctx->cmd.key_length = key->length;
++
++    if(key->length > 255) {
++      ioctx->cmd.key_length = 0xff;
++    } else {
++      ioctx->cmd.key_length = key->length;
++    }
++
+     ioctx->cmd.reqid = ioctx->index;
+     ioctx->cmd.ctxid = aioctx.ctxid;
+ 
+@@ -549,7 +598,100 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
      return 0;
  }
  
@@ -30366,7 +30461,7 @@ index e7af33f..80f3995 100644
  {
      if (!key || !key->key || !value || !value->value)
      {
-@@ -560,7 +682,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+@@ -560,7 +702,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
      memset((void *)&cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
      cmd.opcode = nvme_cmd_kv_retrieve;
      cmd.nsid = nsid;
@@ -30375,7 +30470,23 @@ index e7af33f..80f3995 100644
      cmd.cdw4 = 0;
      cmd.cdw5 = value->offset;
      cmd.data_addr = (__u64)value->value;
-@@ -609,9 +731,6 @@ kv_result KADI::update_capacity()
+@@ -572,8 +714,14 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+     else
+     {
+         cmd.key_addr = (__u64)key->key;
++        cmd.rsvd5 = key->length;
++    }
++
++    if(key->length > 256) {
++      cmd.key_length = 0xff;
++    } else {
++      cmd.key_length = key->length;
+     }
+-    cmd.key_length = key->length;
+ 
+ #ifdef DUMP_ISSUE_CMD
+     dump_retrieve_cmd(&cmd);
+@@ -609,9 +757,6 @@ kv_result KADI::update_capacity()
  kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &utilization)
  {
      char *data = (char *)calloc(1, identify_ret_data_size);
@@ -30385,7 +30496,7 @@ index e7af33f..80f3995 100644
      struct nvme_passthru_cmd cmd;
      memset(&cmd, 0, sizeof(struct nvme_passthru_cmd));
      cmd.opcode = nvme_cmd_admin_identify;
-@@ -622,10 +741,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -622,10 +767,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
  
      if (ioctl(fd, NVME_IOCTL_ADMIN_CMD, &cmd) < 0)
      {
@@ -30397,7 +30508,7 @@ index e7af33f..80f3995 100644
          return KV_ERR_SYS_IO;
      }
  
-@@ -634,21 +751,19 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -634,25 +777,29 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
      capacity = namespace_size * BLOCK_SIZE;
      bytesused = namespace_utilization * BLOCK_SIZE;
      utilization = (1.0 * namespace_utilization) / namespace_size;
@@ -30418,11 +30529,22 @@ index e7af33f..80f3995 100644
      ioctx->cmd.opcode = nvme_cmd_kv_exist;
      ioctx->cmd.nsid = nsid;
 -    ioctx->cmd.cdw3 = ks_id;
+-    ioctx->cmd.key_length = length;
 +    ioctx->cmd.cdw3 = space_id;
-     ioctx->cmd.key_length = length;
++    if (((kv_key*)key)->length > 255) {
++      ioctx->cmd.key_length = 0xff;
++    } else {
++      ioctx->cmd.key_length = length;
++    }
++
      if (length > KVCMD_INLINE_KEY_MAX)
      {
-@@ -679,13 +794,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
+         ioctx->cmd.key_addr = (__u64)key;
++        ioctx->cmd.rsvd5 = ((kv_key*)key)->length;
+     }
+     else
+     {
+@@ -679,13 +826,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
      return (ret == 0) ? true : false;
  }
  
@@ -30439,7 +30561,7 @@ index e7af33f..80f3995 100644
  {
      if (!key || !key->key)
      {
-@@ -699,7 +813,7 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+@@ -699,7 +845,7 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
  
      ioctx->cmd.opcode = nvme_cmd_kv_delete;
      ioctx->cmd.nsid = nsid;
@@ -30448,7 +30570,24 @@ index e7af33f..80f3995 100644
      ioctx->cmd.cdw4 = check_exist;
      if (key->length <= KVCMD_INLINE_KEY_MAX)
      {
-@@ -839,9 +953,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -708,8 +854,15 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+     else
+     {
+         ioctx->cmd.key_addr = (__u64)key->key;
++        ioctx->cmd.rsvd5 = key->length;
++    }
++
++    if(key->length > 255) {
++      ioctx->cmd.key_length = 0xff;
++    } else {
++      ioctx->cmd.key_length = key->length;
+     }
+-    ioctx->cmd.key_length = key->length;
++
+     ioctx->cmd.reqid = ioctx->index;
+     ioctx->cmd.ctxid = aioctx.ctxid;
+ 
+@@ -839,9 +992,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
          break;
      }
  
@@ -30459,7 +30598,7 @@ index e7af33f..80f3995 100644
  
      switch (ioresult.opcode)
      {
-@@ -850,12 +963,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -850,12 +1002,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
  
          if (ioctx.value)
          {
@@ -30485,10 +30624,10 @@ index e7af33f..80f3995 100644
          }
          break;
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-index 6bdd8f0..d55f508 100644
+index 6bdd8f0..974fc0f 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-@@ -33,6 +33,7 @@
+@@ -33,11 +33,12 @@
  
  #define ITER_BUFSIZE 32768
  
@@ -30496,6 +30635,12 @@ index 6bdd8f0..d55f508 100644
  class KvsTransContext;
  class KvsReadContext;
  class KvsSyncWriteContext;
+ class CephContext;
+-typedef uint8_t kv_key_t;
++typedef uint16_t kv_key_t;
+ typedef uint32_t kv_value_t;
+ typedef int kv_result;
+ 
 @@ -69,6 +70,13 @@ enum nvme_kv_iter_req_option {
      ITER_OPTION_DEL_KEY_VALUE = 0x10,
  };
@@ -67183,13 +67328,15 @@ index 9ed9e12..f1853d5 100644
  };
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/Makefile b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/Makefile
 new file mode 100644
-index 0000000..7d2a6c2
+index 0000000..31dc710
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/Makefile
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,34 @@
 +# SPDX-License-Identifier: GPL-2.0
 +
-+ccflags-y				+= -I$(src) -g
++GIT_COMMIT := "$(shell git describe --abbrev=4 --always --tags)"
++
++ccflags-y				+= -I$(src) -g -DGITVER=\"$(GIT_COMMIT)\"
 +
 +obj-$(CONFIG_NVME_CORE)			+= nvme-core.o
 +obj-$(CONFIG_BLK_DEV_NVME)		+= nvme.o
@@ -67251,10 +67398,10 @@ index 0000000..f075564
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
 new file mode 100644
-index 0000000..42a33dc
+index 0000000..022643d
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
-@@ -0,0 +1,5537 @@
+@@ -0,0 +1,5559 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NVM Express device driver
@@ -68528,8 +68675,11 @@ index 0000000..42a33dc
 +	/*
 +	 * Only new queue scan work when admin and IO queues are both alive
 +	 */
-+	if (ctrl->state == NVME_CTRL_LIVE)
++	if (ctrl->state == NVME_CTRL_LIVE) {
++//		dev_info(ctrl->dev, "%s\n", __FUNCTION__);
++//		dump_stack();
 +		queue_work(nvme_wq, &ctrl->scan_work);
++	}
 +}
 +
 +int nvme_reset_ctrl(struct nvme_ctrl *ctrl)
@@ -69270,7 +69420,7 @@ index 0000000..42a33dc
 +static int
 +kv_submit_async_cmd(struct request_queue *q, struct nvme_command *cmd,
 +		struct nvme_passthru_kv_cmd *pthr_cmd,
-+		void __user *ubuffer, unsigned bufflen,
++		void __user *ubuf, unsigned ulen,
 +		void __user *key_ubuf, unsigned key_ulen, u32 meta_seed,
 +		u32 *result, u32 *status, unsigned timeout)
 +{
@@ -69292,8 +69442,10 @@ index 0000000..42a33dc
 +		goto OUT_REQ;
 +	}
 +
-+	pr_debug("%s: request_queue %px req %px opc 0x%x tag %u, kbuf 0x%px vbuf 0x%px\n",
-+		 __FUNCTION__, q, req, pthr_cmd->opcode, req->tag, key_ubuf, ubuffer);
++	pr_debug("%s: request_queue %px req %px opc 0x%x tag %u"
++		 "kbuf 0x%px key_ulen %u vbuf 0x%px ulen %u\n",
++		 __FUNCTION__, q, req, pthr_cmd->opcode, req->tag,
++		 key_ubuf, key_ulen, ubuf, ulen);
 +
 +	req->timeout = timeout ? timeout : ADMIN_TIMEOUT;
 +
@@ -69308,7 +69460,7 @@ index 0000000..42a33dc
 +			goto OUT_KCB;
 +	}
 +
-+	ret = import_single_range(rq_data_dir(req), ubuffer, bufflen,
++	ret = import_single_range(rq_data_dir(req), ubuf, ulen,
 +				   &iov, &i);
 +	if (ret)
 +		goto OUT_KCB;
@@ -69443,9 +69595,13 @@ index 0000000..42a33dc
 +		c.kv_store.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
 +		c.kv_store.invalid_byte = P2NPHASE(cpu_to_le32(cmd.data_length), 4);
 +
++		/* The prev max key len the key len come from cmd.key_length. For key len [256, 1024],
++		    openMPDK uses cmd.key_length_large field to convey new key len and the old key_length is fixed to
++		    255 */
 +		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			meta_len = cmd.key_length;
++			//meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
 +		} else {
 +			memcpy(c.kv_store.key, cmd.key, cmd.key_length);
 +		}
@@ -69459,7 +69615,8 @@ index 0000000..42a33dc
 +
 +                if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +                        metadata = (void __user*) cmd.key_addr;
-+                        meta_len = cmd.key_length;
++                        //meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
 +                } else {
 +                        memcpy(c.kv_list.key, cmd.key, cmd.key_length);
 +                }
@@ -69475,7 +69632,8 @@ index 0000000..42a33dc
 +
 +                if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +                        metadata = (void __user*) cmd.key_addr;
-+                        meta_len = cmd.key_length;
++                        //meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
 +                } else {
 +                        memcpy(c.kv_list.key, cmd.key, cmd.key_length);
 +                }
@@ -69488,7 +69646,8 @@ index 0000000..42a33dc
 +
 +		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user*) cmd.key_addr;
-+			meta_len = cmd.key_length;
++			//meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
 +		} else {
 +			memcpy(c.kv_retrieve.key, cmd.key, cmd.key_length);
 +		}
@@ -69499,7 +69658,8 @@ index 0000000..42a33dc
 +
 +		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			meta_len = cmd.key_length;
++			//meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
 +		} else {
 +			memcpy(c.kv_delete.key, cmd.key, cmd.key_length);
 +		}
@@ -69510,7 +69670,9 @@ index 0000000..42a33dc
 +
 +		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			meta_len = cmd.key_length;
++			//meta_len = cmd.key_length;
++			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
++
 +		} else {
 +			memcpy(c.kv_exist.key, cmd.key, cmd.key_length);
 +		}
@@ -69683,10 +69845,13 @@ index 0000000..42a33dc
 +	}
 +
 +	blk_execute_rq(req->q, disk, req, 0);
-+	if (nvme_req(req)->flags & NVME_REQ_CANCELLED)
++	if (nvme_req(req)->flags & NVME_REQ_CANCELLED) {
 +		ret = -EINTR;
-+	else
++		pr_err("%s:cancelled ret=%d\n", __FUNCTION__, ret);
++	} else {
 +		ret = nvme_req(req)->status;
++		pr_err("%s:ret=%d\n", __FUNCTION__, ret);
++	}
 +	if (result)
 +		*result = le32_to_cpu(nvme_req(req)->result.u32);
 +	if (meta && !ret && !write) {
@@ -70066,6 +70231,7 @@ index 0000000..42a33dc
 +	 * effects say only one namespace is affected.
 +	 */
 +	if (effects & (NVME_CMD_EFFECTS_LBCC | NVME_CMD_EFFECTS_CSE_MASK)) {
++		dev_info(ctrl->device, "%s: opcode %u freeze ctrl\n", __FUNCTION__, opcode);
 +		mutex_lock(&ctrl->scan_lock);
 +		nvme_start_freeze(ctrl);
 +		nvme_wait_freeze(ctrl);
@@ -70121,8 +70287,6 @@ index 0000000..42a33dc
 +	if (cmd.flags)
 +		return -EINVAL;
 +
-+	pr_debug("%s: cmd %d\n", __FUNCTION__, cmd.opcode);
-+
 +	memset(&c, 0, sizeof(c));
 +	c.common.opcode = cmd.opcode;
 +	c.common.flags = cmd.flags;
@@ -70144,6 +70308,8 @@ index 0000000..42a33dc
 +			(void __user *)(uintptr_t)cmd.addr, cmd.data_len,
 +			(void __user *)(uintptr_t)cmd.metadata, cmd.metadata_len,
 +			0, &cmd.result, timeout);
++//	dev_info(ctrl->device, "%s: opcode %u 0x%x st=%d\n", __FUNCTION__, cmd.opcode,
++//								effects, status);
 +	nvme_passthru_end(ctrl, effects);
 +
 +	if (status >= 0) {
@@ -72040,8 +72206,8 @@ index 0000000..42a33dc
 +	if (!ns)
 +		return -ENOMEM;
 +
-+	pr_debug("%s: ctrl %px nsid %u ns %px\n",
-+		 __FUNCTION__, ctrl, nsid, ns);
++	dev_info(ctrl->dev, "%s: ctrl %px nsid %u ns %px\n",
++		    __FUNCTION__, ctrl, nsid, ns);
 +
 +	ns->queue = blk_mq_init_queue(ctrl->tagset);
 +	if (IS_ERR(ns->queue)) {
@@ -72162,8 +72328,8 @@ index 0000000..42a33dc
 +{
 +	struct nvme_ns *ns;
 +
-+	pr_debug("%s: ctrl %px validate nsid %u\n",
-+			          __FUNCTION__, ctrl, nsid);
++	dev_info(ctrl->dev, "%s: ctrl %px validate nsid %u\n",
++			     __FUNCTION__, ctrl, nsid);
 +
 +	ns = nvme_find_get_ns(ctrl, nsid);
 +	if (ns) {
@@ -72315,6 +72481,8 @@ index 0000000..42a33dc
 +{
 +	struct nvme_ns *ns, *next;
 +	LIST_HEAD(ns_list);
++
++	dev_info(ctrl->dev, "%s\n", __FUNCTION__);
 +
 +	/* prevent racing with ns scanning */
 +	flush_work(&ctrl->scan_work);
@@ -72714,7 +72882,8 @@ index 0000000..42a33dc
 +                goto out;
 +        }
 +
-+	pr_err("Samsung Key-Value NVMeoF driver ver. %s test\n", DRV_VERSION);
++        pr_err("DSS-Version: Host-Driver : %s\n", GITVER);
++	pr_err("Samsung Key-Value NVMeoF driver ver. %s\n", KV_DRV_VERSION);
 +        pr_err("Driver settings:\n");
 +	pr_err("    BIO_MAX_PAGES = %d\n", BIO_MAX_PAGES);
 +	pr_err("    mem_align     = %d\n", nvme_mem_align);
@@ -79046,10 +79215,10 @@ index 0000000..949e29e
 +};
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
 new file mode 100644
-index 0000000..021208f
+index 0000000..a7b1003
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
-@@ -0,0 +1,1593 @@
+@@ -0,0 +1,1594 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Definitions for the NVM Express interface
@@ -79627,7 +79796,8 @@ index 0000000..021208f
 +};
 +
 +#define KVCMD_INLINE_KEY_MAX	(16)
-+#define KVCMD_MAX_KEY_SIZE	(255)
++//#define KVCMD_MAX_KEY_SIZE	(255)
++#define KVCMD_MAX_KEY_SIZE	(1024)
 +#define KVCMD_MIN_KEY_SIZE	(4)
 +
 +#define KVCMD_MAX_VALUE_SIZE	(SZ_2M)
@@ -80645,7 +80815,7 @@ index 0000000..021208f
 +#endif /* _LINUX_NVME_H */
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h
 new file mode 100644
-index 0000000..d2930e4
+index 0000000..896349f
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h
 @@ -0,0 +1,145 @@
@@ -80739,7 +80909,7 @@ index 0000000..d2930e4
 +	union {
 +		struct {
 +			__u64 key_addr;
-+			__u32 rsvd5;
++			__u32 key_length_large;
 +			__u32 rsvd6;
 +		};
 +		__u8 key[16];
@@ -81457,7 +81627,7 @@ index 0000000..f0716f6
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 new file mode 100644
-index 0000000..38928bc
+index 0000000..b07fdd0
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 @@ -0,0 +1,627 @@
@@ -81481,7 +81651,7 @@ index 0000000..38928bc
 +#include <linux/fault-inject.h>
 +#include <linux/rcupdate.h>
 +
-+#define DRV_VERSION     "20200514 <beta>"
++#define KV_DRV_VERSION     "20210331"
 +
 +#define is_kv_append_cmd(opcode)	((opcode) == nvme_cmd_kv_append)
 +#define is_kv_store_cmd(opcode)	   	((opcode) == nvme_cmd_kv_store)
@@ -82090,7 +82260,7 @@ index 0000000..38928bc
 +#endif /* _NVME_H */
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/pci.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/pci.c
 new file mode 100644
-index 0000000..3559fba
+index 0000000..1e4747f
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/pci.c
 @@ -0,0 +1,3155 @@
@@ -83151,7 +83321,7 @@ index 0000000..3559fba
 +	struct request *req = bd->rq;
 +	struct nvme_command cmnd;
 +	blk_status_t ret;
-+    bool b_kv_cmd = false;
++	bool b_kv_cmd = false;
 +
 +	/*
 +	 * We should not need to do this, but we're still using this to
@@ -83164,29 +83334,29 @@ index 0000000..3559fba
 +	if (ret)
 +		return ret;
 +
-+    b_kv_cmd = is_kv_cmd(cmnd.common.opcode);
-+    if (b_kv_cmd) {
-+	    ret = nvme_init_iod_for_kv(req, dev);
-+	    if (ret)
-+		    goto out_free_cmd;
-+    } else {
-+	    ret = nvme_init_iod(req, dev);
-+	    if (ret)
-+		    goto out_free_cmd;
-+    }
-+/*
++    	b_kv_cmd = is_kv_cmd(cmnd.common.opcode);
++    	if (b_kv_cmd) {
++		ret = nvme_init_iod_for_kv(req, dev);
++		if (ret)
++			goto out_free_cmd;
++	} else {
++		ret = nvme_init_iod(req, dev);
++	    	if (ret)
++			goto out_free_cmd;
++    	}
++	/*
 +	ret = nvme_init_iod(req, dev);
 +	if (ret)
 +		goto out_free_cmd;
-+*/
++	*/
 +	//TODO: isn't it perfectly fine to do this in nvme_init_iod()?
-+    if (b_kv_cmd) {
-+        struct nvme_iod *iod = blk_mq_rq_to_pdu(req);
-+        iod->kv_cmd = 1;
-+    }
++    	if (b_kv_cmd) {
++        	struct nvme_iod *iod = blk_mq_rq_to_pdu(req);
++        	iod->kv_cmd = 1;
++    	}
 +
-+    if (blk_rq_nr_phys_segments(req) ||
-+        is_kv_cmd(cmnd.common.opcode)) {
++    	if (blk_rq_nr_phys_segments(req) ||
++            is_kv_cmd(cmnd.common.opcode)) {
 +		ret = nvme_map_data(dev, req, &cmnd);
 +		if (ret)
 +			goto out_cleanup_iod;
@@ -85251,7 +85421,7 @@ index 0000000..3559fba
 +module_exit(nvme_exit);
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
 new file mode 100644
-index 0000000..8d2190d
+index 0000000..e489eb2
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
 @@ -0,0 +1,2473 @@
@@ -85936,7 +86106,7 @@ index 0000000..8d2190d
 +	nr_io_queues = min_t(unsigned int, nr_io_queues,
 +				ibdev->num_comp_vectors);
 +
-+        dev_err(ctrl->ctrl.device, "%s is capable of %u of comp_vectors\n",
++        dev_info(ctrl->ctrl.device, "%s is capable of %u of comp_vectors\n",
 +                ibdev->node_desc, ibdev->num_comp_vectors);
 +
 +	if (opts->nr_write_queues) {
@@ -86159,7 +86329,7 @@ index 0000000..8d2190d
 +static int nvme_rdma_configure_io_queues(struct nvme_rdma_ctrl *ctrl, bool new)
 +{
 +	int ret;
-+        unsigned cpu;
++        //unsigned cpu;
 +
 +	ret = nvme_rdma_alloc_io_queues(ctrl);
 +	if (ret)
@@ -86181,13 +86351,13 @@ index 0000000..8d2190d
 +		blk_mq_update_nr_hw_queues(&ctrl->tag_set,
 +			ctrl->ctrl.queue_count - 1);
 +	}
-+
++/*
 +	for_each_possible_cpu(cpu) {
 +                uint32_t qid = ctrl->tag_set.map[HCTX_TYPE_DEFAULT].mq_map[cpu];
 +                dev_err(ctrl->ctrl.device, "cpu %u numa %u qid %u\n",
 +                        cpu, local_memory_node(cpu_to_node(cpu)), qid);
 +        }
-+
++*/
 +	ret = nvme_rdma_start_io_queues(ctrl);
 +	if (ret)
 +		goto out_cleanup_connect_q;
