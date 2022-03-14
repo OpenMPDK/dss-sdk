@@ -1,0 +1,8 @@
+# Build artifacts
+df_out/
+host_out/
+
+# Static analysis logs
+sc*.xml
+astylelog.xml
+pycodestyle.log
