@@ -1,4 +1,42 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# The Clear BSD License
+#
+# Copyright (c) 2022 Samsung Electronics Co., Ltd.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted (subject to the limitations in the disclaimer
+# below) provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, 
+#   this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of Samsung Electronics Co., Ltd. nor the names of its
+#   contributors may be used to endorse or promote products derived from this
+#   software without specific prior written permission.
+# NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY
+# THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT
+# NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+set -e
+
+CWD=$(readlink -f "$(dirname "$0")")
+CWDNAME=$(basename "$CWD")
+OUTDIR="${CWD}/../${CWDNAME}_out"
+PATCH_PATH="${CWD}/openmpdk.patch"
+
 Help()
 {
   echo
@@ -12,111 +50,100 @@ Help()
   echo
 }
 
-
 if [ $# -eq 0 ]
 then
   echo "No arguments supplied, please specify arguments as below."
   Help
-  exit
+  exit 128
 fi
 
-if [ $1 == 'kdd' ] || [ $1 == 'emul' ] || [ $1 == 'kdd-samsung' ] || [ $1 == 'kdd-samsung-remote' ]
+if [ "$1" == 'kdd' ] || [ "$1" == 'emul' ] || [ "$1" == 'kdd-samsung' ] || [ "$1" == 'kdd-samsung-remote' ]
 then
   echo "Building NKV with : $1"
 else
   echo "Build argument should be either 'kdd', 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
   Help
-  exit
+  exit 128
 fi
-
-set -o xtrace
-
-CWD="$(pwd)"
-CWDNAME=`basename "$CWD"`
-OD="${CWD}/../${CWDNAME}_out"
 
 #Generate openmpdk patch, ** SAMSUNG internal **  use only.
-if [ $2 == "-p" ]; then
-  openmpdk_url=$3
-  if [ ${openmpdk_url} != '' ]; then
-    cd "src/openmpdk"
-    echo "Generating openmpdk patch from ${openmpdk_url}" 
-    git remote add gitlab_one ${openmpdk_url}
-    git fetch gitlab_one
-    commit_id=`git reflog | head -1 | cut -d ' ' -f 1`
-    git branch openmpdk_patch ${commit_id}
-    git diff openmpdk_patch gitlab_one/master > ${CWD}/openmpdk.patch
-    git remote remove gitlab_one
-    git branch -d openmpdk_patch
-    cd ${CWD}
+if [ "$2" == "-p" ]
+then
+  OPENMPDK_URL=$3
+  REMOTE_NAME="remote_patch"
+  BRANCH_NAME="openmpdk_patch"
+  if [ "${OPENMPDK_URL}" != '' ]
+  then
+    pushd "${CWD}/src/openmpdk"
+      echo "Generating openmpdk patch from ${OPENMPDK_URL}" 
+      git remote add "${REMOTE_NAME}" "${OPENMPDK_URL}"
+      git fetch "${REMOTE_NAME}"
+      COMMIT_ID=$(git reflog | head -1 | cut -d ' ' -f 1)
+      git branch "${BRANCH_NAME}" "${COMMIT_ID}"
+      git config diff.nodiff.command /bin/true
+      echo "*.pdf diff=nodiff" >> .gitattributes
+      git diff "${BRANCH_NAME}" "${REMOTE_NAME}/master" > "${PATCH_PATH}"
+      git remote remove "${REMOTE_NAME}"
+      git branch -d "${BRANCH_NAME}"
+    popd
   else
-    echo "Please specify gitlab openmpdk url to generate openmpdk patch"
-    echo "./build.sh <Build Mode> -p <Gitlab openmpdk url>"
+    echo "Please specify internal openmpdk url to generate openmpdk patch"
+    echo "./build.sh <Build Mode> -p <internal openmpdk url>"
   fi
 fi
+
 #Apply openmpdk patch
-openmpdk_patch="openmpdk.patch"
-if [ -f ${openmpdk_patch} ]; then
-  patched="src/openmpdk/.patched"
-  if [ ! -f ${patched} ]; then
-    cd "src/openmpdk"
-    echo "Applying openmpdk_patch from ${openmpdk_patch} "
-    openmpdk_patch=../../${openmpdk_patch}
-    patch -p1 -N < ${openmpdk_patch}
-    touch .patched
-    cd ${CWD}
+if [ -f "${PATCH_PATH}" ]
+then
+  PATCHED_MARKER="${CWD}/src/openmpdk/.patched"
+  if [ ! -f "${PATCHED_MARKER}" ]
+  then
+    pushd "${CWD}/src/openmpdk"
+      echo "Applying openmpdk_patch from ${PATCH_PATH}"
+      patch -p1 -N < "${PATCH_PATH}"
+      touch "${PATCHED_MARKER}"
+    popd
   else
     echo "openmpdk patch is already available, skipping this step! "
   fi
 else
   echo "openmpdk patch doesn't exist! exit build process"
-  exit
+  exit 1
 fi
 
-if [ $(yum list installed | cut -f1 -d" " | grep --extended '^boost-devel' | wc -l) -eq 1 ]; then
-  echo "boost-devel already installed";
-else
-  echo "yum install boost-devel"
-  yum install boost-devel
-fi
+# Install required package dependencies
+for PACKAGE in boost-devel libcurl-devel numactl-devel tbb-devel
+do
+  if [ "$(yum list installed | cut -f1 -d' ' | grep --extended ^${PACKAGE} -c)" -eq 1 ]
+  then
+    echo "${PACKAGE} already installed"
+  else
+    echo "sudo yum install ${PACKAGE}"
+    yum install ${PACKAGE}
+  fi
+done
 
-# libcurl installation
-if [  $(yum list installed | cut -f1 -d" " | grep --extended '^libcurl-devel' | wc -l) -eq 0 ]; then
-  echo "yum install libcurl-devel"
-  yum install libcurl-devel
-fi
-
-#libnuma installation
-if [ $(yum list installed | cut -f1 -d" " | grep --extended '^numactl-devel' | wc -l) -eq 0 ]; then
-  echo "yum install numactl-devel"
-  yum install numactl-devel
-fi
-
-#intel tbb installation , required for OpenMPDK
-if [ $(yum list installed | cut -f1 -d" " | grep --extended '^tbb-devel' | wc -l) -eq 0 ]; then
-  echo "yum install tbb-devel"
-  yum install tbb-devel
-fi
-
-rm -rf $OD
-mkdir $OD
-cd ${OD}
-if [ $1 == 'kdd' ]
-then
-  cmake $CWD -DNKV_WITH_KDD=ON
-elif [ $1 == 'emul' ]
-then
-  cmake $CWD -DNKV_WITH_EMU=ON
-elif [ $1 == 'kdd-samsung' ]
-then
-  cmake $CWD -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON
-elif [ $1 == 'kdd-samsung-remote' ]
-then
-  cmake $CWD -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON -DNKV_WITH_REMOTE=ON
-else
-  echo "Build argument should be either 'kdd' or 'emul' or 'kdd-samsung' or 'kdd-samsung-remote'"
-  exit
-fi
-make -j4
-
-exit
+# Build dss-sdk host
+rm -rf "$OUTDIR"
+mkdir "$OUTDIR"
+pushd "${OUTDIR}"
+  case "$1" in
+    'kdd')
+      cmake "$CWD" -DNKV_WITH_KDD=ON
+      ;;
+    'emul')
+      cmake "$CWD" -DNKV_WITH_EMU=ON
+      ;;
+    'kdd-samsung')
+      cmake "$CWD" -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON
+      ;;
+    'kdd-samsung-remote')
+      cmake "$CWD" -DNKV_WITH_KDD=ON -DNKV_WITH_SAMSUNG_API=ON -DNKV_WITH_REMOTE=ON
+      ;;
+    *)
+      echo "Build argument should be one of: 'kdd', 'emul', 'kdd-samsung', 'kdd-samsung-remote'"
+      exit 128
+      ;;
+  esac
+  make -j4
+popd
