@@ -34,9 +34,9 @@
 #include <malloc.h>
 #include <string.h>
 #include <pthread.h>
+#include <assert.h>
 
-#include <Judy.h>
-
+#include "Judy.h"
 #include <utils/dss_count_latency.h>
 
 struct dss_lat_ctx_s {
