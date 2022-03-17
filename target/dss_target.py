@@ -944,32 +944,28 @@ The most commonly used dss target commands are:
             generate_core_mask(mp.cpu_count(), 0.50)
         setup_hugepage()
         ret = setup_drive()
-        print (
+        print(
             "Make sure config file "
             + g_conf_path
             + " parameters are correct and update if needed."
         )
-        print (
+        print(
             "Execute the following command to start the target application: "
-            + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"
-            + g_path
-            + "../lib "
+            + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_path + "../lib "
             + g_path
             + "/nvmf_tgt -c "
             + g_conf_path
             + " -r /var/run/spdk.sock -m "
             + g_core_mask
         )
-        print (
+        print(
             "Make necessary changes to core mask (-m option, # of cores that app should use) if needed."
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
             f.write(g_license_text)
             f.write(g_tgt_gcc_setup + "\n")
             f.write(
-                + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"
-                + g_path
-                + "../lib "
+                "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_path + "../lib "
                 + g_path
                 + "/nvmf_tgt -c "
                 + g_conf_path
