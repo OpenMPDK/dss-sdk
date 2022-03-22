@@ -156,6 +156,7 @@ typedef struct {
   int8_t nkv_retrieve_decrypt:1;
   int8_t nkv_compare_crc:1;
   int8_t nkv_retrieve_delete:1;
+  int8_t nkv_retrieve_rdd:1;
 
 } nkv_retrieve_option;
 

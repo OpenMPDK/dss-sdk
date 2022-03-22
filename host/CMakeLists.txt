@@ -93,7 +93,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
-set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp)
+set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp -lrdmacm -libverbs)
 # SOURCE CODE
 SET(SOURCES_NKV_KDD
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nkv_api.cpp

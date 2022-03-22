@@ -820,7 +820,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
 }
 
 nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const nkv_retrieve_option* n_opt, nkv_value* n_value,
-                                                   nkv_postprocess_function* post_fn ) {
+                                                   nkv_postprocess_function* post_fn, uint32_t client_rdma_key, uint16_t client_rdma_qhandle ) {
 
   if (!n_key->key) {
     smg_error(logger, "nkv_key->key = NULL !!");
@@ -843,6 +843,56 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     smg_alert(logger, "NKV retrieve request for key = %s, key_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
+
+  if (n_opt->nkv_retrieve_rdd && client_rdma_key && client_rdma_qhandle && !post_fn) {
+     //RDD call
+    kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
+
+    #ifdef SAMSUNG_API
+      kvs_retrieve_option option;
+      memset(&option, 0, sizeof(kvs_retrieve_option));
+      option.kvs_retrieve_decompress = false;
+      option.kvs_retrieve_delete = false;
+
+      smg_info(logger, "Retrieve direct option:: decompression = %d, decryption = %d, compare crc = %d, delete = %d, is_async = %d",
+              n_opt->nkv_retrieve_decompress, n_opt->nkv_retrieve_decrypt, n_opt->nkv_compare_crc, n_opt->nkv_retrieve_delete,
+              post_fn? 1: 0);
+
+      if (n_opt->nkv_retrieve_decompress) {
+        option.kvs_retrieve_decompress = true;
+      }
+      if (n_opt->nkv_retrieve_delete) {
+        option.kvs_retrieve_delete = true;
+      }
+
+       kvs_retrieve_context ret_ctx = {option, 0, 0};
+       const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+       int ret = kvs_retrieve_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &ret_ctx);
+       if (ret != KVS_SUCCESS ) {
+         if (ret != KVS_ERR_KEY_NOT_EXIST) {
+           smg_error(logger, "Retrieve tuple RDD failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
+                     ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+         } else {
+           smg_info(logger, "Retrieve tuple RDD failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
+                     ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+         }
+         return map_kvs_err_code_to_nkv_err_code(ret);
+       } else {
+         //Success
+         n_value->actual_length = kvsvalue.actual_value_size;
+         if (n_value->actual_length == 0) {
+            smg_error(logger, "Retrieve tuple RDD Success with actual length = 0 !! key = %s, dev_path = %s, ip = %s",
+                      n_key->key, dev_path.c_str(), path_ip.c_str());
+         }
+         
+       }
+    #else
+      return NKV_NOT_SUPPORTED;
+    #endif
+      
+     
+  }
+
   int32_t shard_id = -1;
   std::string key_str ((char*) n_key->key, n_key->length);
   if (nkv_use_read_cache) {
@@ -924,7 +974,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
                     ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
         }
         return map_kvs_err_code_to_nkv_err_code(ret);
-    }
+      }
 
     #else
       kvs_key  kvskey = { n_key->key, (uint16_t)n_key->length};

@@ -58,6 +58,7 @@
   #define NKV_RETRIEVE_OP   1
   #define NKV_DELETE_OP     2
   #define MAX_PATH_PER_SUBSYS 4
+  #define NKV_RETRIEVE_OP_RDD 5
 
   #define AUTOTHROTTLING 0.7
   #define NKV_LIST_OP       3
@@ -449,7 +450,8 @@
  
     nkv_result map_kvs_err_code_to_nkv_err_code (int32_t kvs_code);
     nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
-    nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
+    nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn,
+                                         uint32_t client_rdma_key, uint16_t client_rdma_qhandle); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
     nkv_result do_lock_io_from_path (const nkv_key* key,
 		const nkv_lock_option *opt, nkv_postprocess_function* post_fn); 
@@ -571,7 +573,8 @@
     } 
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
-                                void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
+                                void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn,
+                                uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
       nkv_result status = NKV_SUCCESS; 
       NKVTargetPath* one_p = NULL;
       std::unordered_set<uint64_t> visited_path;
@@ -663,6 +666,7 @@
               status = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
               break;
             case NKV_RETRIEVE_OP:
+            case NKV_RETRIEVE_OP_RDD:
 
               if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
@@ -693,7 +697,8 @@
                 } 
                 nkv_ustat_atomic_inc_u64(one_p->device_stat, &one_p->device_stat->get);
               }
-              status = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn);
+              status = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn, 
+                                                             client_rdma_key, client_rdma_qhandle);
               break;
             case NKV_DELETE_OP:
               if (!post_fn && get_path_stat_collection()) {
@@ -1348,7 +1353,8 @@
     }
 
     nkv_result nkv_send_io(uint64_t container_hash, uint64_t container_path_hash, const nkv_key* key, void* opt, 
-                           nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
+                           nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn,
+                           uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
       nkv_result stat = NKV_SUCCESS;
 
       auto c_iter = cnt_list.find(container_hash);
@@ -1365,7 +1371,8 @@
       NKVTarget* one_cnt = c_iter->second;
       // A Subsystem UP is indicated by status 0
       if (one_cnt && ! one_cnt->get_ss_status()) {
-        stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
+        stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn, 
+                                        client_rdma_key, client_rdma_qhandle);
       } else {
         smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;

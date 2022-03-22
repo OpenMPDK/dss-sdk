@@ -225,6 +225,24 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
 
 nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value);
 
+/*! Retrieve a KV Pair to the container
+ *  
+ *  This API retrieves a KV pair to the container in sync way
+ *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *  IN     key – Key for which key value pair information will be stored
+ *  IN     opt - nkv_store_option structure for specifying store option
+ *  IN/OUT value – nkv_value structure containing the address of the client buffer to transfer the value.
+ *  IN     client_rdma_key - client side RDMA key required for rdd
+ *  IN     client_rdma_qhandle - client side RDMA queue handle needed for rdd       
+ *          
+ */
+
+
+nkv_result nkv_retrieve_kvp_rdd (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, 
+                                 uint32_t client_rdma_key, uint16_t client_rdma_qhandle);
+
+
 /*! Deletes a KV Pair to the container
  *  
  *  This API deletes a KV pair to the container in sync way
