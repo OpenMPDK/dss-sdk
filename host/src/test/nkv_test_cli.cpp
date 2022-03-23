@@ -46,6 +46,7 @@
 #include <thread>
 #include <unordered_set>
 #include <math.h>
+#include "rdd_cl.h"
 
 c_smglogger* logger = NULL;
 std::atomic<int> submitted(0);
@@ -1411,9 +1412,10 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; "\
-					"3: Put, Get and delete (only sync); 4: listing; "\
-					"5: Put and list 6: Lock&Unlock\n");
+  printf("-o      op_type         :  	 0: Put; 1: Get; 2: Delete; \n "\
+					"\t\t\t 3: Put, Get and delete (only sync); 4: listing; \n"\
+					"\t\t\t 5: Put and list 6: Lock&Unlock 7: chunked Put \n"\
+                                        "\t\t\t 8: RDD Get 9: RDD chunked Get 10: chunked Del\n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-y      rnd_klen_dist   :  random key length distribution. n: Normal; e: Exponantial; u: Uniform \n");
@@ -1467,6 +1469,7 @@ int main(int argc, char *argv[]) {
   int alignment = 0;
   int simulate_minio = 0;
   int num_ec_p_chunk = 2;
+  bool is_rdd = false;
 
   nkv_feature_list feature_list = {0, 0};
 
@@ -1649,6 +1652,23 @@ do {
     parent_op_type = 5;
     op_type = 0;
   }
+  bool is_rdd_req = false;
+  struct rdd_client_ctx_s *g_rdd_cl_ctx = NULL;
+  std::vector<rdd_cl_conn_ctx_t*> rdd_conn_list;
+  //rdd_cl_conn_ctx_t *g_rdd_conn = NULL;
+  rdd_cl_conn_params_t rdd_params;
+
+  if ((op_type == 8) || (op_type == 9)) {
+    is_rdd_req = true;
+    rdd_cl_ctx_params_t param = {RDD_PD_GLOBAL};
+    g_rdd_cl_ctx = rdd_cl_init(param);
+    if(!g_rdd_cl_ctx) {
+      smg_error(logger, "NKV Could not initialize rdd library !!");
+      nkv_close (nkv_handle, instance_uuid);
+      exit(1);
+    }
+
+  }
   uint32_t index = 0;
   uint32_t cnt_count = NKV_MAX_ENTRIES_PER_CALL;
   nkv_container_info *cntlist = new nkv_container_info[NKV_MAX_ENTRIES_PER_CALL];
@@ -1695,6 +1715,20 @@ do {
 
       if (subsystem_mp && (0 != strcmp(cntlist[i].transport_list[p].mount_point, subsystem_mp)))
         continue;
+      if (is_rdd_req) {
+        rdd_params.ip = "203.0.0.71"; //cntlist[i].transport_list[p].ip_addr;
+        rdd_params.port = "1234" ; //(std::to_string(cntlist[i].transport_list[p].port)).c_str();
+        smg_info(logger, "About to open NKV rdd connection to ip = %s, port = %s ", rdd_params.ip, rdd_params.port);
+        rdd_cl_conn_ctx_t *one_rdd_conn = rdd_cl_create_conn(g_rdd_cl_ctx, rdd_params);
+        if(!one_rdd_conn) {
+          smg_error(logger, "NKV Could not create rdd connection to ip = %s, port = %d !!", cntlist[i].transport_list[p].ip_addr, cntlist[i].transport_list[p].port);
+          nkv_close (nkv_handle, instance_uuid);
+          exit(1);
+        } else {
+          smg_info(logger, "NKV rdd connection to ip = %s, port = %d is successful!!", cntlist[i].transport_list[p].ip_addr, cntlist[i].transport_list[p].port);
+        }
+        rdd_conn_list.push_back(one_rdd_conn);
+      }
       io_ctx[io_ctx_cnt].is_pass_through = 1;
       io_ctx[io_ctx_cnt].container_hash = cntlist[i].container_hash;
       if (op_type != 4) { //not listing
@@ -2243,6 +2277,37 @@ do {
         }
         break;
 
+      case 7: //chunked PUT
+        {
+          if (!is_async && !is_mixed) {
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            char* chunk_start = val;
+            uint64_t chunk_size = (vlen /io_ctx_cnt);
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              sprintf(key_name, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              if (tgt == (io_ctx_cnt - 1) && (vlen % io_ctx_cnt != 0)) { //Last chunk and not equal division
+                chunk_size += (vlen % io_ctx_cnt); 
+              }
+              nkv_value nkvvalue = { (void*)chunk_start, chunk_size, 0 };
+              sprintf(val, "%0*d_%0*d", klen/2, iter, klen/2, tgt);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+              status = nkv_store_kvp (nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &s_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Store KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV chunked Store successful, key = %s, value size = %u", key_name, chunk_size);
+              if (tgt != (io_ctx_cnt - 1)) { //Not Last chunk 
+                chunk_start += chunk_size;
+              }
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+        }
+        break;
       case 1: //GET
         {
           val   = (char*)nkv_zalloc(vlen);
@@ -2346,6 +2411,69 @@ do {
         }
         break;
 
+      case 8: //RDD GET
+        {
+          if (!is_async && !is_mixed) {
+            val = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            r_option.nkv_retrieve_rdd = 1;
+            nkv_value nkvvalue = { (void*)val, vlen, 0 };
+            struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[iter % io_ctx_cnt], val, vlen);
+            status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue, mr->rkey, rdd_conn_list[iter % io_ctx_cnt]->qhandle);
+            if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }
+            if (status != 0) {
+              smg_error(logger, "NKV RDD Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
+              exit(1);
+            } else {
+              smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
+                       (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
+            }
+            
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+        }
+        break;
+      case 9: //RDD chunked GET
+        {
+          if (!is_async && !is_mixed) {
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            r_option.nkv_retrieve_rdd = 1;
+            char* chunk_start = val;
+            uint64_t chunk_size = 0;
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              sprintf(key_name, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              uint64_t val_len = (vlen - tgt*chunk_size);
+              nkv_value nkvvalue = { (void*)chunk_start, val_len, 0 };
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen};
+              struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[tgt], chunk_start, val_len);
+              status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &r_option, &nkvvalue, mr->rkey, rdd_conn_list[tgt]->qhandle);
+              if (mr) {
+                rdd_cl_conn_put_mr(mr);
+              }
+
+              if (status != 0) {
+                smg_error(logger, "NKV RDD chunked Get KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV RDD chunked Get successful, key = %s, value size = %u", key_name, nkvvalue.actual_length);
+              chunk_size = nkvvalue.actual_length;
+              if (tgt != (io_ctx_cnt - 1)) { //Not Last chunk 
+                chunk_start += chunk_size;
+              }
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+
+        }
+        break;
+
       case 2: /*DEL*/
         {
           if (!is_async) {
@@ -2392,6 +2520,27 @@ do {
         }
         break;
 
+      case 10:
+        {
+          if (!is_async && !is_mixed) {
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              sprintf(key_name, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+
+              status = nkv_delete_kvp (nkv_handle, &io_ctx[tgt], &nkvkey_chunked);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Delete KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV chunked Delete successful, key = %s", key_name);
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+
+        }
+        break;
 
       case 3: //PUT, GET, DEL
         {
