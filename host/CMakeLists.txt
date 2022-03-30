@@ -21,6 +21,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(Boost_INCLUDE_DIR /usr/include/boost/)
@@ -125,7 +127,7 @@ add_dependencies(nkvapi smglog zmqpp)
 add_dependencies(nkvapi kvapi)
 
 add_executable(nkv_test_cli ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp)
-target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS})
+target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS} ${OPENSSL_LIBRARIES} -lcrypto)
 add_dependencies(nkv_test_cli nkvapi)
 
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
