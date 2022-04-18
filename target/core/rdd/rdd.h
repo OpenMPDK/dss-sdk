@@ -145,6 +145,7 @@ enum rdd_wr_type_e {
     RDD_WR_TYPE_REQ_SEND = 0,
     RDD_WR_TYPE_RSP_RECV,
 	RDD_WR_TYPE_DATA_WRITE,
+    RDD_WR_TYPE_DATA_READ,
 };
 
 struct rdd_wr_s {

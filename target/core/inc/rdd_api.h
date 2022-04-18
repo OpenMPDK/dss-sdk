@@ -87,6 +87,7 @@ struct rdd_queue_priv_s {
 
 #define RDD_CMD_HOST_READ (0x001)
 #define RDD_CMD_CTRL_WRITE (0x002)
+#define RDD_CMD_CTRL_READ (0x003)
 
 typedef struct rdd_rdma_cmd_s {
     uint8_t opc;

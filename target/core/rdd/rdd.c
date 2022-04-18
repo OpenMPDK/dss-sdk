@@ -108,6 +108,7 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 	//uint64_t ticks_per_ns = spdk_get_ticks_hz()/1000000000;
 
 	if(client_handle == RDD_INVALID_CHANDLE(ctx)) {
+        DFLY_NOTICELOG("Failed to find valid chandle\n");
 		return -1;
 	}
 
@@ -136,6 +137,9 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 last:
 	//pthread_rwlock_unlock(&ctx->handle_ctx.rwlock);
 
+   if(rc) {
+      DFLY_NOTICELOG("Failed to post to rdd queue\n");
+   }
 
 	return rc;
 }
@@ -342,6 +346,55 @@ int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, 
     
     //TODO: Update command
     req->rdd_cmd->opc = RDD_CMD_CTRL_WRITE;
+    req->data.rdd_wr.type    = RDD_WR_TYPE_DATA_WRITE;
+    req->data.data_wr.opcode = IBV_WR_RDMA_WRITE;
+
+       req->data.data_wr.wr.rdma.remote_addr = hmem;
+       req->data.data_wr.wr.rdma.rkey = hkey;
+       req->data.data_sge.addr = cmem;
+    data_mr = (struct ibv_mr *)spdk_mem_map_translate(q->map, (uint64_t)cmem, NULL);
+       req->data.data_sge.lkey = data_mr->lkey;
+       req->data.data_sge.length = vlen;
+
+       req->start_tick = spdk_get_ticks();
+
+    //DFLY_NOTICELOG("Sending Command\n");
+    rc = ibv_post_send(q->qp, &req->data.data_wr, &bad_wr);
+    assert(rc ==0);
+    assert(bad_wr == NULL);
+    //TODO: Handle error??
+
+    return rc;
+}
+
+
+int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
+{
+    int rc;
+    //int translation_len = 0;
+    struct rdd_req_s *req;
+
+    struct ibv_mr *data_mr = NULL;
+    struct ibv_send_wr *bad_wr = NULL;
+
+    if(vlen > RDD_RDMA_MAX_KEYED_SGL_LENGTH) {
+        DFLY_NOTICELOG("Unsupported value length\n");
+        return -1;
+    }
+
+    req = rdd_get_free_request(q);
+    if(!req) {
+        assert(0);
+        return -1;
+    }
+
+       req->ctx = ctx;
+
+    //TODO: Update command
+    req->rdd_cmd->opc = RDD_CMD_CTRL_READ;
+
+    req->data.rdd_wr.type    = RDD_WR_TYPE_DATA_READ;
+    req->data.data_wr.opcode = IBV_WR_RDMA_READ;
 
 	req->data.data_wr.wr.rdma.remote_addr = hmem;
 	req->data.data_wr.wr.rdma.rkey = hkey;
@@ -409,6 +462,15 @@ int rdd_process_resp(struct rdd_req_s *req)
     return 0;
 }
 
+void rdd_dss_process_nvmf(struct rdd_req_s *rdd_req) {
+       dfly_request_t *req = (dfly_request_t *)rdd_req->ctx;
+
+       DFLY_DEBUGLOG(DSS_RDD, "Direct data transfer h2c completed for request %p\n", req);
+       dss_rdma_rdd_in_data_ready(rdd_req->ctx, NULL);
+
+       return;
+}
+
 int rdd_process_wc(struct ibv_wc *wc)
 {
     struct rdd_req_s *req = NULL;
@@ -426,6 +488,13 @@ int rdd_process_wc(struct ibv_wc *wc)
         case RDD_WR_TYPE_REQ_SEND:
             //TODO: Host recieved SEND??
             //DFLY_NOTICELOG("Send acknowledgement recieved\n");
+            break;
+        case RDD_WR_TYPE_DATA_READ:
+            req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
+            //TODO: Process nvmf command PUT should write data now
+            //rdd_process_resp(req);
+            rdd_dss_process_nvmf(req);
+            rdd_put_free_request(req);
             break;
         case RDD_WR_TYPE_DATA_WRITE:
             req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
@@ -493,6 +562,15 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 												(void *)req);
 				DFLY_ASSERT(rc == 0);
 				break;
+             case RDD_CMD_CTRL_READ:
+                DFLY_DEBUGLOG(DSS_RDD, "Initiate direct data transfer ctrl read req %p\n", req);
+                rc = rdd_post_cmd_ctrl_read(queue, (void *)req->rdd_info.cmem,
+                                                (void *) req->rdd_info.hmem,
+                                                (uint32_t)req->rdd_info.hkey,
+                                                req->rdd_info.payload_len,
+                                                (void *)req);
+                DFLY_ASSERT(rc == 0);
+                break;
 			default:
 				DFLY_NOTICELOG("Unhandled opc %d\n", req->rdd_info.opc);
 		}
@@ -677,8 +755,6 @@ static int rdd_queue_alloc_reqs(struct rdd_rdma_queue_s *queue)
         queue->reqs[i].id = i;
         queue->reqs[i].rsp_idx = -1;
 
-        queue->reqs[i].data.data_wr.opcode = IBV_WR_RDMA_WRITE;
-        queue->reqs[i].data.rdd_wr.type    = RDD_WR_TYPE_DATA_WRITE;
         queue->reqs[i].data.data_wr.wr_id = (uint64_t)&queue->reqs[i].data.rdd_wr;
         queue->reqs[i].data.data_wr.sg_list = &queue->reqs[i].data.data_sge;
         queue->reqs[i].data.data_wr.num_sge = 1;
