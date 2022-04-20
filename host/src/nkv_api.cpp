@@ -727,6 +727,24 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
   return stat;
 }
 
+nkv_result nkv_store_kvp_rdd (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value,
+                                 uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
+  if (nkv_dynamic_logging) {
+    nkv_app_get_count.fetch_add(1, std::memory_order_relaxed);
+  }
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_STORE_OP_RDD, NULL, client_rdma_key, client_rdma_qhandle);
+
+  if (stat != NKV_SUCCESS)
+    smg_error(logger, "NKV store direct operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d",
+              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0, stat);
+  else
+    smg_info(logger, "NKV store direct operation is successful for nkv_handle = %u, key = %s, key_length = %u, value_length = %u",
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0);
+
+  return stat;
+
+}
+
 nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value) {
 
   if (nkv_dynamic_logging) {

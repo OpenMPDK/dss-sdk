@@ -59,6 +59,7 @@
   #define NKV_DELETE_OP     2
   #define MAX_PATH_PER_SUBSYS 4
   #define NKV_RETRIEVE_OP_RDD 5
+  #define NKV_STORE_OP_RDD 6
 
   #define AUTOTHROTTLING 0.7
   #define NKV_LIST_OP       3
@@ -449,7 +450,8 @@
     }
  
     nkv_result map_kvs_err_code_to_nkv_err_code (int32_t kvs_code);
-    nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
+    nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn,
+                                    uint32_t client_rdma_key, uint16_t client_rdma_qhandle); 
     nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn,
                                          uint32_t client_rdma_key, uint16_t client_rdma_qhandle); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
@@ -641,6 +643,7 @@
           uint64_t v_len = 0;
           switch(which_op) {
             case NKV_STORE_OP:
+            case NKV_STORE_OP_RDD:
               if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
                 core = sched_getcpu();
@@ -663,7 +666,8 @@
                 nkv_ustat_atomic_inc_u64(cpu_stat, &cpu_stat->put);
                 nkv_ustat_atomic_inc_u64(one_p->device_stat, &one_p->device_stat->put);
               }
-              status = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
+              status = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn,
+                                                        client_rdma_key, client_rdma_qhandle);
               break;
             case NKV_RETRIEVE_OP:
             case NKV_RETRIEVE_OP_RDD:

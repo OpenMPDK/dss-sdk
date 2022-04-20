@@ -147,6 +147,7 @@ typedef struct {
   int8_t nkv_store_atomic:1;
   int8_t nkv_store_update_only:1;
   int8_t nkv_store_append:1;
+  int8_t nkv_store_rdd:1;
 
 } nkv_store_option;
 

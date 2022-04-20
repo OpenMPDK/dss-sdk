@@ -633,7 +633,8 @@ void NKVTargetPath::delete_from_value_cache(std::string& key_str) {
 
 
 nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_store_option* n_opt, 
-                                              nkv_value* n_value, nkv_postprocess_function* post_fn) {
+                                              nkv_value* n_value, nkv_postprocess_function* post_fn,
+                                              uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
 
   if (!n_key->key) {
     smg_error(logger, "nkv_key->key = NULL !!");
@@ -657,6 +658,8 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     smg_alert(logger, "NKV store request for key = %s, key_length = %u, value_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, n_value->length, dev_path.c_str(), path_ip.c_str());
   }
+
+
 
   #ifdef SAMSUNG_API
     kvs_store_option option;
@@ -691,6 +694,30 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     option.st_type = KVS_STORE_POST;
     option.assoc = NULL;  
   #endif
+
+  if (n_opt->nkv_store_rdd && client_rdma_key && client_rdma_qhandle && !post_fn) {
+     
+      kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
+
+      #ifdef SAMSUNG_API
+
+       const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+       int ret = 0;//kvs_store_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &put_ctx);
+        if(ret != KVS_SUCCESS ) {
+          smg_error(logger, "store tuple direct failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
+                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+          return map_kvs_err_code_to_nkv_err_code(ret);
+
+        } else {
+          smg_info(logger, "store tuple direct success, key = %s, dev_path = %s, ip = %s",
+                    n_key->key, dev_path.c_str(), path_ip.c_str());
+          return NKV_SUCCESS;
+        }
+      #else
+        return NKV_NOT_SUPPORTED;
+      #endif
+
+  }
 
   if (!post_fn) {
     std::string key_str ((char*) n_key->key, n_key->length);
@@ -884,12 +911,11 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
             smg_error(logger, "Retrieve tuple RDD Success with actual length = 0 !! key = %s, dev_path = %s, ip = %s",
                       n_key->key, dev_path.c_str(), path_ip.c_str());
          }
-         
+         return NKV_SUCCESS;  
        }
     #else
       return NKV_NOT_SUPPORTED;
     #endif
-      
      
   }
 

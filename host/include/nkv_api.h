@@ -210,6 +210,23 @@ void nkv_free(void* buf);
 
 nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value);
 
+/*! Store a KV Pair to the container by transfering payload directly from remote client via RDMA
+ *  
+ *   This API retrieves a KV pair to the container in sync way
+ *   IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
+ *   IN     ioctx - nkv_io_context buffer required to perform IO on NKV
+ *   IN     key – Key for which key value pair information will be stored
+ *   IN     opt - nkv_retrieve_option structure for specifying store option
+ *   IN/OUT value – nkv_value structure containing the address of the client buffer to transfer the value.
+ *   IN     client_rdma_key - client side RDMA key required for rdd
+ *   IN     client_rdma_qhandle - client side RDMA queue handle needed for rdd
+ *   
+ */
+
+
+nkv_result nkv_store_kvp_rdd (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value,
+                                 uint32_t client_rdma_key, uint16_t client_rdma_qhandle);
+
 
 /*! Retrieve a KV Pair to the container
  *  
@@ -217,7 +234,7 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
  *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
  *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
  *  IN     key – Key for which key value pair information will be stored
- *  IN     opt - nkv_store_option structure for specifying store option
+ *  IN     opt - nkv_retrieve_option structure for specifying store option
  *  IN/OUT value – nkv_value structure containing the value for the key. Needs to be pre-allocated by user.
  *  
  */
@@ -231,7 +248,7 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
  *  IN     nkv_handle – A positive unique id for combination of nkv and the application(not instance). It is returned during nkv_open call
  *  IN     ioctx - nkv_io_context buffer required to perform IO on NKV
  *  IN     key – Key for which key value pair information will be stored
- *  IN     opt - nkv_store_option structure for specifying store option
+ *  IN     opt - nkv_retrieve_option structure for specifying store option
  *  IN/OUT value – nkv_value structure containing the address of the client buffer to transfer the value.
  *  IN     client_rdma_key - client side RDMA key required for rdd
  *  IN     client_rdma_qhandle - client side RDMA queue handle needed for rdd       
