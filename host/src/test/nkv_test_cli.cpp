@@ -1085,8 +1085,8 @@ void *iothread(void *args)
               smg_info(logger, "NKV Store successful, key = %s", key_name);
               if (targs->check_integrity) {
                 unsigned char checksum[MD5_DIGEST_LENGTH];
-                MD5((unsigned char*) val, targs->vlen, checksum); 
-                sprintf(key_name, "crc_%s", key_name);
+                MD5((unsigned char*) val, targs->vlen, checksum);
+                sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter); 
                 const nkv_key  nkvkey = { (void*)key_name, klen};
                 nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
                 status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
@@ -1127,9 +1127,9 @@ void *iothread(void *args)
               }
             }
             if (targs->check_integrity) {
-              unsigned char checksum[MD5_DIGEST_LENGTH];
+              unsigned char checksum[MD5_DIGEST_LENGTH] = {0};
               MD5((unsigned char*) val, targs->vlen, checksum);
-              sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              sprintf(key_name, "crc_chunked_put_%s_%d_%u", targs->key_prefix, targs->id, iter);
               const nkv_key  nkvkey = { (void*)key_name, klen};
               nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
               status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
@@ -1208,10 +1208,10 @@ void *iothread(void *args)
             smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
                     (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
             if (targs->check_integrity) {
-              unsigned char checksum1[MD5_DIGEST_LENGTH];
-              unsigned char checksum2[MD5_DIGEST_LENGTH];
+              unsigned char checksum1[MD5_DIGEST_LENGTH] = {0};
+              unsigned char checksum2[MD5_DIGEST_LENGTH] = {0};
               MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
-              sprintf(key_name, "crc_%s", key_name);
+              sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
               const nkv_key  nkvkey = { (void*)key_name, klen};
               nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
@@ -1257,7 +1257,8 @@ void *iothread(void *args)
               unsigned char checksum1[MD5_DIGEST_LENGTH];
               unsigned char checksum2[MD5_DIGEST_LENGTH];
               MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
-              sprintf(key_name, "crc_%s", key_name);
+              sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              
               const nkv_key  nkvkey = { (void*)key_name, klen};
               nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
@@ -1309,7 +1310,7 @@ void *iothread(void *args)
               unsigned char checksum2[MD5_DIGEST_LENGTH];
               //MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
               MD5((unsigned char*) val, targs->vlen, checksum1);
-              sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              sprintf(key_name, "crc_chunked_put_%s_%d_%u", targs->key_prefix, targs->id, iter);
               const nkv_key  nkvkey = { (void*)key_name, klen};
               nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
               status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
@@ -1473,7 +1474,7 @@ void *iothread(void *args)
             } else {
               smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
               if (targs->check_integrity) {
-                sprintf(key_name, "crc_%s", key_name);
+                sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
                 const nkv_key  nkvkey = { (void*)key_name, klen};
                 status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
                 if (status != 0) {
