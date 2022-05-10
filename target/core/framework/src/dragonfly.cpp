@@ -125,6 +125,9 @@ int dfly_init(void)
 	dfly_dev_init();
 
 	if(g_dragonfly->rddcfg) {
+
+		rdd_params.max_sgl_segs = g_dragonfly->rddcfg->max_sgl_segs;
+
 		g_dragonfly->rdd_ctx = rdd_init(g_dragonfly->rddcfg, rdd_params);
 		if(!g_dragonfly->rdd_ctx) {
 			DFLY_ERRLOG("Failed to intialize RDMA direct context\n");

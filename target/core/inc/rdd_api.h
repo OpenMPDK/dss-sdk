@@ -57,6 +57,7 @@ typedef struct rdd_cinfo_s {
 } rdd_cinfo_t;
 
 typedef struct rdd_cfg_s {
+    int max_sgl_segs;
 	int n_ip;
 	rdd_cinfo_t *conn_info;
 } rdd_cfg_t;
@@ -68,6 +69,7 @@ typedef struct rdd_cfg_s {
 typedef struct rdd_params_s {
     char *ip;
     uint16_t port;
+	uint32_t max_sgl_segs;
 } rdd_params_t;
 
 struct rdd_queue_priv_s {

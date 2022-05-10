@@ -382,7 +382,10 @@ dfly_config_parse_rdd(struct spdk_conf_section *sp) {
 		return;
 	}
 
+
 	g_dragonfly->rddcfg = calloc(1, sizeof(rdd_cfg_t) + (nips *sizeof(rdd_cinfo_t))); 
+
+    g_dragonfly->rddcfg->max_sgl_segs = dfly_spdk_conf_section_get_intval_default(sp, "max_sgl_segs", 8);
 
 	g_dragonfly->rddcfg->n_ip = 0;
 

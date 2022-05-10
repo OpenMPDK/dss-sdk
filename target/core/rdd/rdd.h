@@ -90,6 +90,7 @@ struct rdd_ctx_s {
 		struct rdd_rdma_queue_s **handle_arr;
 		uint16_t hmask;
 	} handle_ctx;
+	uint32_t max_sgl_segs;
 
     TAILQ_HEAD(, rdd_rdma_listener_s) listeners;
 };
@@ -111,6 +112,7 @@ struct rdd_rdma_queue_s {
     rdd_rdma_cmd_t *cmds;
     struct rdd_rsp_s *rsps;
     struct rdd_req_s *reqs;
+    struct ibv_sge *data_sges;
     TAILQ_HEAD(, dfly_request) pending_reqs;
     TAILQ_HEAD(, rdd_req_s) free_reqs;
     TAILQ_HEAD(, rdd_req_s) outstanding_reqs;
@@ -177,7 +179,7 @@ struct rdd_req_s {
     struct {
         struct rdd_wr_s rdd_wr;
      	struct ibv_send_wr	data_wr;
-	    struct ibv_sge		data_sge;
+	    struct ibv_sge		*data_sge;
     } data;
     uint16_t rsp_idx;
     uint16_t id;

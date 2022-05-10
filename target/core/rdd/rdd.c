@@ -35,6 +35,9 @@
 
 #include <time.h>
 
+//MAX_RDD_SEG_SIZE 8MB
+#define MAX_RDD_SEG_SIZE (0x800000)
+
 
 //Client Handle framework APIs
 //
@@ -321,6 +324,35 @@ int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, u
     return rc;
 }
 
+static int rdd_update_sgl_payload(struct rdd_req_s *r, uint32_t k, void *m, uint32_t l, uint32_t max_segs)
+{
+    int rc = 0, count = 0;
+    int s =0;
+    while(l) {
+        if(l < MAX_RDD_SEG_SIZE) {
+            s = l;
+        } else {
+            //Set Max Size
+            s = MAX_RDD_SEG_SIZE;
+        }
+        r->data.data_sge[count].addr = m;
+        r->data.data_sge[count].length = s;
+        r->data.data_sge[count].lkey = k;
+        m += s;
+        l -= s;
+        count++;
+        if(count >= max_segs) {
+            break;
+        }
+    }
+    //Set num sge
+    r->data.data_wr.num_sge = count;
+
+    if(l) rc = -1;
+
+    return rc;
+}
+
 //Run in same thread as the queue is polled
 int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
 {
@@ -331,8 +363,8 @@ int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, 
     struct ibv_mr *data_mr = NULL;
     struct ibv_send_wr *bad_wr = NULL;
 
-    if(vlen > RDD_RDMA_MAX_KEYED_SGL_LENGTH) {
-        DFLY_NOTICELOG("Unsupported value length\n");
+    if(vlen > (q->ctx->max_sgl_segs * MAX_RDD_SEG_SIZE)) {
+        DFLY_NOTICELOG("Unsupported value length %d\n", vlen);
         return -1;
     }
 
@@ -351,11 +383,12 @@ int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, 
 
        req->data.data_wr.wr.rdma.remote_addr = hmem;
        req->data.data_wr.wr.rdma.rkey = hkey;
-       req->data.data_sge.addr = cmem;
     data_mr = (struct ibv_mr *)spdk_mem_map_translate(q->map, (uint64_t)cmem, NULL);
-       req->data.data_sge.lkey = data_mr->lkey;
-       req->data.data_sge.length = vlen;
 
+    rc = rdd_update_sgl_payload(req, data_mr->lkey, cmem, vlen, q->ctx->max_sgl_segs);
+    if(rc) {
+        return rc;
+    }
        req->start_tick = spdk_get_ticks();
 
     //DFLY_NOTICELOG("Sending Command\n");
@@ -377,8 +410,8 @@ int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, u
     struct ibv_mr *data_mr = NULL;
     struct ibv_send_wr *bad_wr = NULL;
 
-    if(vlen > RDD_RDMA_MAX_KEYED_SGL_LENGTH) {
-        DFLY_NOTICELOG("Unsupported value length\n");
+    if(vlen > (q->ctx->max_sgl_segs * MAX_RDD_SEG_SIZE)) {
+        DFLY_NOTICELOG("Unsupported value length %d\n", vlen);
         return -1;
     }
 
@@ -398,10 +431,12 @@ int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, u
 
 	req->data.data_wr.wr.rdma.remote_addr = hmem;
 	req->data.data_wr.wr.rdma.rkey = hkey;
-	req->data.data_sge.addr = cmem;
     data_mr = (struct ibv_mr *)spdk_mem_map_translate(q->map, (uint64_t)cmem, NULL);
-	req->data.data_sge.lkey = data_mr->lkey;
-	req->data.data_sge.length = vlen;
+
+    rc = rdd_update_sgl_payload(req, data_mr->lkey, cmem, vlen, q->ctx->max_sgl_segs);
+    if(rc) {
+        return rc;
+    }
 
 	req->start_tick = spdk_get_ticks();
 
@@ -683,8 +718,8 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
 
     qp_attr.cap.max_send_wr = 2 * queue->send_qd;
     qp_attr.cap.max_recv_wr = queue->recv_qd;
-    qp_attr.cap.max_send_sge = 1;
-    qp_attr.cap.max_recv_sge = 1;
+    qp_attr.cap.max_send_sge = queue->ctx->max_sgl_segs;
+    qp_attr.cap.max_recv_sge = queue->ctx->max_sgl_segs;
 
     rc = rdma_create_qp(id, queue->pd, &qp_attr);
     DFLY_ASSERT(rc == 0);
@@ -710,8 +745,15 @@ static int rdd_queue_alloc_reqs(struct rdd_rdma_queue_s *queue)
     queue->reqs = (struct rdd_req_s *)calloc(queue->send_qd, sizeof(struct rdd_req_s));
     queue->cmds = (rdd_rdma_cmd_t *)calloc(queue->send_qd, sizeof(rdd_rdma_cmd_t));
     queue->rsps = (struct rdd_rsp_s *)calloc(queue->send_qd, sizeof(struct rdd_rsp_s));
+    queue->data_sges = (struct ibv_sge *)calloc(queue->send_qd, sizeof(struct ibv_sge) * queue->ctx->max_sgl_segs);
 
-    if(!queue->reqs || !queue->cmds || !queue->rsps) {
+    if(!queue->reqs || !queue->cmds || !queue->rsps || !queue->data_sges) {
+
+        if(queue->reqs) free(queue->reqs);
+        if(queue->cmds) free(queue->cmds);
+        if(queue->rsps) free(queue->rsps);
+        if(queue->data_sges) free(queue->data_sges);
+
         DFLY_ERRLOG("Failed to alloc requests for queue %p\n", queue);
         //rdd_queue_destroy(queue);//TODO: ON return of error code
         return -1;
@@ -755,8 +797,9 @@ static int rdd_queue_alloc_reqs(struct rdd_rdma_queue_s *queue)
         queue->reqs[i].id = i;
         queue->reqs[i].rsp_idx = -1;
 
+        queue->reqs[i].data.data_sge = queue->data_sges + (queue->ctx->max_sgl_segs * i);
         queue->reqs[i].data.data_wr.wr_id = (uint64_t)&queue->reqs[i].data.rdd_wr;
-        queue->reqs[i].data.data_wr.sg_list = &queue->reqs[i].data.data_sge;
+        queue->reqs[i].data.data_wr.sg_list = queue->reqs[i].data.data_sge;
         queue->reqs[i].data.data_wr.num_sge = 1;
         queue->reqs[i].data.data_wr.next = NULL;
         queue->reqs[i].data.data_wr.send_flags = IBV_SEND_SIGNALED;
@@ -927,6 +970,11 @@ int rdd_queue_destroy(struct rdd_rdma_queue_s *queue)
     if(queue->reqs) {
         free(queue->reqs);
         queue->reqs = NULL;
+    }
+
+    if(queue->data_sges) {
+        free(queue->data_sges);
+        queue->data_sges = NULL;
     }
 
     return rc;
@@ -1156,6 +1204,9 @@ rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
 	ctx->handle_ctx.nhandles = RDD_DEFAULT_MIN_CHANDLE_COUNT;
 	ctx->handle_ctx.handle_arr = calloc(RDD_DEFAULT_MIN_CHANDLE_COUNT, sizeof(ctx->handle_ctx.handle_arr));
 	DFLY_NOTICELOG("ctx array element size %d\n", sizeof(ctx->handle_ctx.handle_arr));
+
+	ctx->max_sgl_segs = params.max_sgl_segs;
+	DFLY_DEBUGLOG(DSS_RDD, "%d max sgl segments configured\n", ctx->max_sgl_segs);
 
 	srand(time(NULL));
 	ctx->handle_ctx.hmask = (uint16_t)rand();
