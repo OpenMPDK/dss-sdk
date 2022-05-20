@@ -1632,9 +1632,9 @@
           assert(v.first.empty());
           boost::property_tree::ptree pc = v.second;
           std::string local_mount = pc.get<std::string>("mount_point");
-          std::string local_address = "127.0.0.1";
+          std::string local_address = pc.get<std::string>("nqn_transport_address", "127.0.0.1");
           std::string local_node = host_name_ip;
-          int32_t local_port = host_port;
+          int32_t local_port = pc.get<int>("nqn_transport_port", host_port);
           int32_t numa_node_attached = -1;
           int32_t driver_thread_core = -1;
 

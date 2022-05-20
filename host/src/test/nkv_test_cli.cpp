@@ -1652,10 +1652,11 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  	 0: Put; 1: Get; 2: Delete; \n "\
+  printf("-o      op_type         :  	\n"\ 
+                                        "\t\t\t 0: Put; 1: Get; 2: Delete; \n "\
 					"\t\t\t 3: Put, Get and delete (only sync); 4: listing; \n"\
 					"\t\t\t 5: Put and list 6: Lock&Unlock 7: chunked Put \n"\
-                                        "\t\t\t 8: RDD Get 9: RDD chunked Get 10: chunked Del\n");
+                                        "\t\t\t 8: RDD Get 9: RDD chunked Get 10: chunked Del 11: RDD PUT \n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-y      rnd_klen_dist   :  random key length distribution. n: Normal; e: Exponantial; u: Uniform \n");
@@ -1955,8 +1956,8 @@ do {
       if (subsystem_mp && (0 != strcmp(cntlist[i].transport_list[p].mount_point, subsystem_mp)))
         continue;
       if (is_rdd_req) {
-        rdd_params.ip = "203.0.0.71"; //cntlist[i].transport_list[p].ip_addr;
-        rdd_params.port = "1234" ; //(std::to_string(cntlist[i].transport_list[p].port)).c_str();
+        rdd_params.ip = cntlist[i].transport_list[p].ip_addr;
+        rdd_params.port = (std::to_string(cntlist[i].transport_list[p].port)).c_str();
         smg_info(logger, "About to open NKV rdd connection to ip = %s, port = %s ", rdd_params.ip, rdd_params.port);
         rdd_cl_conn_ctx_t *one_rdd_conn = rdd_cl_create_conn(g_rdd_cl_ctx, rdd_params);
         if(!one_rdd_conn) {
