@@ -1101,6 +1101,44 @@ void *iothread(void *args)
           }
         }
         break;
+
+      case 11: //RDD PUT
+        {
+          if (!targs->is_mixed) {
+            targs->s_option->nkv_store_rdd = 1;
+            struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
+            status = nkv_store_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option,
+                                         &nkvvalue, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+            if (status != 0) {
+              smg_error(logger, "NKV RDD store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV RDD store successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, rdd key = %x, rdd_q_handle = %x",
+                      (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, mr->rkey,
+                      targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+
+              if (targs->check_integrity) {
+                unsigned char checksum[MD5_DIGEST_LENGTH];
+                MD5((unsigned char*) val, targs->vlen, checksum);
+                sprintf(key_name, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+                const nkv_key  nkvkey = { (void*)key_name, klen};
+                nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
+                status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+                if (status != 0) {
+                  smg_error(logger, "NKV RDD Store KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                  return 0;
+                } else {
+                  smg_info(logger, "NKV RDD Store checksum successful, key = %s", key_name);
+                }
+              }
+
+            }
+            if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }
+          }
+        }
+
       case 7: //chunked PUT
         {
           if (!targs->is_mixed) {
@@ -1238,7 +1276,8 @@ void *iothread(void *args)
             targs->r_option->nkv_retrieve_rdd = 1;
             //nkv_value nkvvalue = { (void*)val, vlen, 0 };
             struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
-            status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+            status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue, 
+                                          mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
             /*if (mr) {
               rdd_cl_conn_put_mr(mr);
             }*/
@@ -1246,9 +1285,10 @@ void *iothread(void *args)
               smg_error(logger, "NKV RDD Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
               return 0;
             } else {
-              smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, got actual length = %u, rdd key = %x, rdd_q_handle = %x", (char*) nkvkey.key,
-                       (char*) nkvvalue.value, val, nkvvalue.length, nkvvalue.actual_length, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+              smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, got actual length = %u, rdd key = %x, rdd_q_handle = %x", 
+                               (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, nkvvalue.actual_length, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
             }
+
             if (mr) {
               rdd_cl_conn_put_mr(mr);
             }
@@ -1899,7 +1939,7 @@ do {
   //rdd_cl_conn_ctx_t *g_rdd_conn = NULL;
   rdd_cl_conn_params_t rdd_params;
 
-  if ((op_type == 8) || (op_type == 9)) {
+  if ((op_type == 8) || (op_type == 9) || (op_type == 11)) {
     is_rdd_req = true;
     rdd_cl_ctx_params_t param = {RDD_PD_GLOBAL};
     g_rdd_cl_ctx = rdd_cl_init(param);
