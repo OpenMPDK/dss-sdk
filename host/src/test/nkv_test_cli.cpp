@@ -1138,6 +1138,7 @@ void *iothread(void *args)
             }
           }
         }
+        break;
 
       case 7: //chunked PUT
         {

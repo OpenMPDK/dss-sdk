@@ -702,7 +702,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
       #ifdef SAMSUNG_API
 
        const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
-       int ret = 0;//kvs_store_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &put_ctx);
+       int ret = kvs_store_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &put_ctx);
         if(ret != KVS_SUCCESS ) {
           smg_error(logger, "store tuple direct failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
                     ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
