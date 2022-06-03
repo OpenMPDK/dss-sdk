@@ -27,23 +27,31 @@
   "nkv_use_data_cache" : 0,
   "nkv_remote_listing" : 1,
   "nkv_max_key_length" : 1024,
-  "nkv_max_value_length" : 1048576,
+  "nkv_max_value_length" : 104857600,
   "nkv_check_alignment" : 0,
   "nkv_in_memory_exec" : 0,
   "nkv_device_support_iterator" : 0,
-  "nkv_enable_rdd_support" : 0,
+  "nkv_enable_rdd_support" : 1,
   "nkv_local_mounts": [
     {
-      "mount_point": "/dev/nvme0n1"
+      "mount_point": "/dev/nvme0n1",
+      "rdd_transport_address": "204.0.0.10",
+      "rdd_transport_port": 1234
     },
     {
-      "mount_point": "/dev/nvme1n1"
+      "mount_point": "/dev/nvme1n1",
+      "rdd_transport_address": "204.0.0.11",
+      "rdd_transport_port": 1234
     },
     {
-      "mount_point": "/dev/nvme2n1"
+      "mount_point": "/dev/nvme2n1",
+      "rdd_transport_address": "204.0.0.12",
+      "rdd_transport_port": 1234
     },
     {
-      "mount_point": "/dev/nvme3n1"
+      "mount_point": "/dev/nvme3n1",
+      "rdd_transport_address": "204.0.0.13",
+      "rdd_transport_port": 1234
     }
 
   ]

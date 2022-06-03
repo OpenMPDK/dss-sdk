@@ -49,9 +49,11 @@
 #include "nkv_utils.h"
 #include "auto_discovery.h"
 #include "nkv_stats.h"
+//#include "rdd_cl.h"
 #include <condition_variable>
 #include <pthread.h>
 #include <mutex>
+#include <string.h>
 
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
@@ -248,7 +250,9 @@
     stat_io_t* device_stat;
     vector<stat_io_t*> cpu_stats;
     std::atomic<bool> cpu_stat_initialized;
-
+    //rdd_cl_conn_ctx_t *path_rdd_conn;
+    void *path_rdd_conn;
+    int32_t path_enable_rdd;
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, 
 		  int32_t p_stat, int32_t numa_aligned, int32_t p_type):
@@ -288,61 +292,11 @@
       //nkv_init_path_io_stats(device_stat, )
       cpu_stat_initialized = false;
       pthread_rwlock_init(&lru_rw_lock, NULL);
+      path_rdd_conn = NULL;
+      path_enable_rdd = 0;
     }
 
-    ~NKVTargetPath() {
-      kvs_result ret;
-      if (listing_with_cached_keys) {
-        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
-        wait_for_thread_completion();
-      }
- 
-      if (! dev_path.empty() && get_target_path_status() && !nkv_in_memory_exec ) {
-        #ifdef SAMSUNG_API
-          ret = kvs_close_container(path_cont_handle);
-          assert(ret == KVS_SUCCESS);
-        #else
-          kvs_close_key_space(path_ks_handle);
-          kvs_delete_key_space(path_handle, &path_ks_name);
-        #endif
-
-        ret = kvs_close_device(path_handle);
-        assert(ret == KVS_SUCCESS);
-      } 
-
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
-      }
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        pthread_rwlock_destroy(&data_rw_lock_list[iter]);
-      }
-
-      if (nkv_in_memory_exec) {
-        for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-          for (auto x: data_cache[iter]) {
-            delete x.second;
-          }
-        }
-      }
-
-      delete[] cache_rw_lock_list;
-      delete[] listing_keys;
-      if (nkv_in_memory_exec) {
-        delete[] data_cache;
-      }
-      delete[] cnt_cache;
-      smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
- 
-      // delete ustat
-      if( device_stat) {
-        nkv_ustat_delete(device_stat);
-      }
-      for(auto cpu_stat: cpu_stats){
-        nkv_ustat_delete(cpu_stat);
-      }
-      cpu_stats.clear();
-      pthread_rwlock_destroy(&lru_rw_lock);
-    }
+    ~NKVTargetPath();
 
     void add_device_path (std::string& p_dev_path) {
       dev_path = p_dev_path;
@@ -1322,19 +1276,16 @@
     uint64_t instance_uuid;
     uint64_t nkv_handle;
     ustat_handle_t* nkv_ustat_handle;
+    //struct rdd_client_ctx_s *g_rdd_cl_ctx;
+    void *g_rdd_cl_ctx;
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
                     cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
-                    nkv_handle(n_handle), nkv_ustat_handle(NULL){
+                    nkv_handle(n_handle), nkv_ustat_handle(NULL), g_rdd_cl_ctx(NULL) {
 
 
     }
-    ~NKVContainerList() {
-      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
-        delete(m_iter->second);
-      }
-      cnt_list.clear();
-    }
+    ~NKVContainerList(); 
 
     uint64_t get_nkv_handle() {
       return nkv_handle;
@@ -1617,62 +1568,7 @@
     }
  
     // This is for LKV based deployment
-    int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt) {
-      uint64_t ss_hash = std::hash<std::string>{}(host_name_ip);
-
-      NKVTarget* one_cnt = new NKVTarget(0, "", host_name_ip, host_name_ip, ss_hash);
-      assert(one_cnt != NULL);
-      //Making it similar to remote, 0 means up, 1 means down
-      one_cnt->set_ss_status(0);
-      one_cnt->set_space_avail_percent(100);
-      int32_t path_id = 0;
-
-      try {
-        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_local_mounts")) {
-          assert(v.first.empty());
-          boost::property_tree::ptree pc = v.second;
-          std::string local_mount = pc.get<std::string>("mount_point");
-          std::string local_address = pc.get<std::string>("nqn_transport_address", "127.0.0.1");
-          std::string local_node = host_name_ip;
-          int32_t local_port = pc.get<int>("nqn_transport_port", host_port);
-          int32_t numa_node_attached = -1;
-          int32_t driver_thread_core = -1;
-
-          if (core_pinning_required) {
-            numa_node_attached = pc.get<int>("numa_node_attached");
-            driver_thread_core = pc.get<int>("driver_thread_core");
-          }
-
-          smg_alert(logger, "Adding local device path, mount point = %s, address = %s, host_name_ip = %s, port = %d, numa = %d, core = %d",
-                    local_mount.c_str(), local_address.c_str(), host_name_ip, local_port, numa_node_attached, driver_thread_core);
-
-          std::string h_path_str = host_name_ip + local_mount;
-          uint64_t ss_p_hash = std::hash<std::string>{}(h_path_str);
-          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, 1, -1, -1);
-          assert(one_path != NULL);
-          one_path->add_device_path(local_mount);
-          one_path->path_numa_node = numa_node_attached;
-          one_path->core_to_pin = driver_thread_core;
-
-          one_cnt->add_network_path(one_path, ss_p_hash);
-          path_id++;
-
-        }
-      }
-      catch (std::exception& e) {
-        smg_error(logger, "%s%s", "Error reading config file while adding path mount point, Error = ", e.what());
-        return 1;
-      }
-      auto cnt_iter = cnt_list.find(ss_hash);
-      assert (cnt_iter == cnt_list.end());
-      cnt_list[ss_hash] = one_cnt;
-
-      smg_info (logger, "Local Container added, hash = %u, id = %u, host_name_ip = %s, container count = %d",
-                ss_hash, 0, host_name_ip, cnt_list.size());
-
-      return 0;
-
-    }
+    int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt);
 
     // This is for Network KV based deployment
     /* Function Name: parse_add_container

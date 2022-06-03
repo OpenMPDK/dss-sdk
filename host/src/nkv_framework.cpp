@@ -35,6 +35,7 @@
 #include "nkv_framework.h"
 #include "nkv_const.h"
 #include "event_handler.h"
+#include "rdd_cl.h"
 
 std::atomic<bool> nkv_stopping (false);
 std::atomic<uint64_t> nkv_pending_calls (0);
@@ -659,7 +660,18 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
              (char*) n_key->key, n_key->length, n_value->length, dev_path.c_str(), path_ip.c_str());
   }
 
+  struct ibv_mr *mr = NULL;
+  bool take_rdd_route = false;
 
+  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn && ((uint32_t)n_value->length > 1048576)) {
+    client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle;
+    smg_info(logger, "rdd_cl_conn_get_mr invoking, path_rdd_conn = %x, value = %x, len = %u", path_rdd_conn, n_value->value, n_value->length);
+    mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
+    if (mr) {
+      client_rdma_key = mr->rkey;
+      take_rdd_route = true;
+    }
+  } 
 
   #ifdef SAMSUNG_API
     kvs_store_option option;
@@ -695,26 +707,32 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     option.assoc = NULL;  
   #endif
 
-  if (n_opt->nkv_store_rdd && client_rdma_key && client_rdma_qhandle && !post_fn) {
+  if ((n_opt->nkv_store_rdd || take_rdd_route) && client_rdma_key && client_rdma_qhandle && !post_fn) {
      
       kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
 
       #ifdef SAMSUNG_API
 
        const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
+       smg_info(logger, "Going for store RDD, path_cont_handle = %x, client_rdma_key = %x, client_rdma_qhandle = %x, len = %u",
+                         path_cont_handle, client_rdma_key, client_rdma_qhandle, n_value->length);
        int ret = kvs_store_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &put_ctx);
-        if(ret != KVS_SUCCESS ) {
-          smg_error(logger, "store tuple direct failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
-                    ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
-          return map_kvs_err_code_to_nkv_err_code(ret);
+       if (mr && take_rdd_route) {
+         rdd_cl_conn_put_mr(mr);
+       }
+       
+       if(ret != KVS_SUCCESS ) {
+         smg_error(logger, "store tuple direct failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
+                   ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
+         return map_kvs_err_code_to_nkv_err_code(ret);
 
-        } else {
-          smg_info(logger, "store tuple direct success, key = %s, dev_path = %s, ip = %s",
-                    n_key->key, dev_path.c_str(), path_ip.c_str());
-          return NKV_SUCCESS;
-        }
+       } else {
+         smg_info(logger, "store tuple direct success, key = %s, dev_path = %s, ip = %s",
+                   n_key->key, dev_path.c_str(), path_ip.c_str());
+         return NKV_SUCCESS;
+       }
       #else
-        return NKV_NOT_SUPPORTED;
+       return NKV_NOT_SUPPORTED;
       #endif
 
   }
@@ -871,7 +889,19 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
   }
 
-  if (n_opt->nkv_retrieve_rdd && client_rdma_key && client_rdma_qhandle && !post_fn) {
+  struct ibv_mr *mr = NULL;
+  bool take_rdd_route = false;
+  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn && ((uint32_t)n_value->length > 1048576)) {
+    client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle; 
+    mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
+    if (mr) {
+      client_rdma_key = mr->rkey;
+      take_rdd_route = true;
+    }
+  }
+
+
+  if ((n_opt->nkv_retrieve_rdd || take_rdd_route) && client_rdma_key && client_rdma_qhandle && !post_fn) {
      //RDD call
     kvs_value kvsvalue = { n_value->value, (uint32_t)n_value->length, 0, 0};
 
@@ -895,6 +925,9 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
        kvs_retrieve_context ret_ctx = {option, 0, 0};
        const kvs_key  kvskey = { n_key->key, (kvs_key_t)n_key->length};
        int ret = kvs_retrieve_tuple_direct(path_cont_handle, &kvskey, &kvsvalue, client_rdma_key, client_rdma_qhandle, &ret_ctx);
+       if (mr && take_rdd_route) {
+         rdd_cl_conn_put_mr(mr);
+       }
        if (ret != KVS_SUCCESS ) {
          if (ret != KVS_ERR_KEY_NOT_EXIST) {
            smg_error(logger, "Retrieve tuple RDD failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
@@ -910,6 +943,9 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
          if (n_value->actual_length == 0) {
             smg_error(logger, "Retrieve tuple RDD Success with actual length = 0 !! key = %s, dev_path = %s, ip = %s",
                       n_key->key, dev_path.c_str(), path_ip.c_str());
+         } else {
+           smg_info(logger, "Retrieve tuple RDD successful, key = %s, actual length = %u, dev_path = %s, ip = %s",
+                    n_key->key, n_value->actual_length, dev_path.c_str(), path_ip.c_str());
          }
          return NKV_SUCCESS;  
        }
@@ -2140,6 +2176,64 @@ void NKVTargetPath::nkv_path_thread_func(int32_t what_work) {
  
 }
 
+NKVTargetPath::~NKVTargetPath() {
+      kvs_result ret;
+      if (listing_with_cached_keys) {
+        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
+        wait_for_thread_completion();
+      }
+
+      if (! dev_path.empty() && get_target_path_status() && !nkv_in_memory_exec ) {
+        #ifdef SAMSUNG_API
+          ret = kvs_close_container(path_cont_handle);
+          assert(ret == KVS_SUCCESS);
+        #else
+          kvs_close_key_space(path_ks_handle);
+          kvs_delete_key_space(path_handle, &path_ks_name);
+        #endif
+
+        ret = kvs_close_device(path_handle);
+        assert(ret == KVS_SUCCESS);
+      }
+
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
+      }
+      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+        pthread_rwlock_destroy(&data_rw_lock_list[iter]);
+      }
+
+      if (nkv_in_memory_exec) {
+        for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
+          for (auto x: data_cache[iter]) {
+            delete x.second;
+          }
+        }
+      }
+
+      delete[] cache_rw_lock_list;
+      delete[] listing_keys;
+      if (nkv_in_memory_exec) {
+        delete[] data_cache;
+      }
+      delete[] cnt_cache;
+      smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
+
+      
+      if( device_stat) {
+        nkv_ustat_delete(device_stat);
+      }
+      for(auto cpu_stat: cpu_stats){
+        nkv_ustat_delete(cpu_stat);
+      }
+      cpu_stats.clear();
+      pthread_rwlock_destroy(&lru_rw_lock);
+      if (path_enable_rdd && path_rdd_conn) {
+        rdd_cl_destroy_connection((rdd_cl_conn_ctx_t *)path_rdd_conn);
+      }
+}
+
+
 nkv_result NKVTargetPath::do_list_keys_from_path(uint32_t* num_keys_iterted, iterator_info*& iter_info, uint32_t* max_keys, nkv_key* keys, const char* prefix,
                                                 const char* delimiter, const char* start_after) {
   
@@ -2581,6 +2675,109 @@ void NKVContainerList::reset_nkv_ustat()
     target_ptr->reset_path_stat();
   }
 }
+
+NKVContainerList::~NKVContainerList() {
+      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
+        delete(m_iter->second);
+      }
+      cnt_list.clear();
+      if (g_rdd_cl_ctx) {
+        rdd_cl_destroy ((rdd_client_ctx_s*)g_rdd_cl_ctx);
+      }
+}
+
+
+int32_t NKVContainerList::add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt) {
+      uint64_t ss_hash = std::hash<std::string>{}(host_name_ip);
+
+      NKVTarget* one_cnt = new NKVTarget(0, "", host_name_ip, host_name_ip, ss_hash);
+      assert(one_cnt != NULL);
+      one_cnt->set_ss_status(0);
+      one_cnt->set_space_avail_percent(100);
+      int32_t path_id = 0;
+      int32_t enable_rdd = pt.get<int>("nkv_enable_rdd_support", 0);
+      if (enable_rdd) {
+        rdd_cl_ctx_params_t param = {RDD_PD_GLOBAL};
+        g_rdd_cl_ctx = rdd_cl_init(param);
+        if(!g_rdd_cl_ctx) {
+          smg_error(logger, "NKV Could not initialize rdd library !!");
+          enable_rdd = 0;
+        }
+      }
+
+      try {
+        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_local_mounts")) {
+          assert(v.first.empty());
+          boost::property_tree::ptree pc = v.second;
+          std::string local_mount = pc.get<std::string>("mount_point");
+          std::string local_address = pc.get<std::string>("nqn_transport_address", "127.0.0.1");
+          std::string local_node = host_name_ip;
+          int32_t local_port = pc.get<int>("nqn_transport_port", host_port);
+          int32_t numa_node_attached = -1;
+          int32_t driver_thread_core = -1;
+
+          if (core_pinning_required) {
+            numa_node_attached = pc.get<int>("numa_node_attached");
+            driver_thread_core = pc.get<int>("driver_thread_core");
+          }
+
+          smg_alert(logger, "Adding local device path, mount point = %s, address = %s, host_name_ip = %s, port = %d, numa = %d, core = %d",
+                    local_mount.c_str(), local_address.c_str(), host_name_ip, local_port, numa_node_attached, driver_thread_core);
+
+          std::string h_path_str = host_name_ip + local_mount;
+          uint64_t ss_p_hash = std::hash<std::string>{}(h_path_str);
+          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, 1, -1, -1);
+          assert(one_path != NULL);
+          one_path->add_device_path(local_mount);
+          one_path->path_numa_node = numa_node_attached;
+          one_path->core_to_pin = driver_thread_core;
+          one_cnt->add_network_path(one_path, ss_p_hash);
+          if (enable_rdd) {
+            try {
+              std::string rdd_address = pc.get<std::string>("rdd_transport_address");
+              int32_t rdd_port = pc.get<int>("rdd_transport_port");
+              rdd_cl_conn_params_t rdd_params;
+              rdd_params.ip = rdd_address.c_str();
+              std::string pot_str = std::to_string(rdd_port);
+              rdd_params.port = pot_str.c_str();
+              smg_info(logger, "About to open NKV rdd connection to ip = %s, port = %s, mount point = %s ", rdd_params.ip, rdd_params.port, local_mount.c_str());
+              one_path->path_rdd_conn = rdd_cl_create_conn((rdd_client_ctx_s*)g_rdd_cl_ctx, rdd_params);
+              if (!one_path->path_rdd_conn) {
+                smg_error(logger, "NKV Could not create rdd connection to ip = %s, port = %s, mount point = %s !!", rdd_params.ip, rdd_params.port, local_mount.c_str());
+                enable_rdd = 0;
+              } else {
+                smg_info(logger, "NKV rdd connection to ip = %s, port = %s, mount point = %s is successful!!, rdd_con_handle = %p",
+                                  rdd_params.ip, rdd_params.port, local_mount.c_str(), one_path->path_rdd_conn);
+                one_path->path_enable_rdd = enable_rdd;
+              }
+
+            }
+            catch (std::exception& e) {
+              smg_error(logger, "%s%s", "Error reading rdd properties, Error = %s, mount point = %s", e.what(), local_mount.c_str());
+              enable_rdd = 0;
+            }
+
+          }
+
+          path_id++;
+
+        }
+      }
+      catch (std::exception& e) {
+        smg_error(logger, "%s%s", "Error reading config file while adding path mount point, Error = ", e.what());
+        return 1;
+      }
+      auto cnt_iter = cnt_list.find(ss_hash);
+      assert (cnt_iter == cnt_list.end());
+      cnt_list[ss_hash] = one_cnt;
+
+      smg_info (logger, "Local Container added, hash = %u, id = %u, host_name_ip = %s, container count = %d",
+                ss_hash, 0, host_name_ip, cnt_list.size());
+
+      return 0;
+
+}
+
 
 // Reset device path stats
 void NKVTarget::reset_path_stat()
