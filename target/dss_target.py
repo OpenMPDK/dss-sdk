@@ -1041,7 +1041,7 @@ if __name__ == "__main__":
     ret = 0
 
     g_path = os.getcwd()
-    g_lib_path = os.path.normpath(g_path + "../lib")
+    g_lib_path = os.path.normpath(g_path + "/../lib")
     print "Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "..."
 
     dss_tgt_args()
