@@ -952,7 +952,7 @@ The most commonly used dss target commands are:
         )
         print(
             "Execute the following command to start the target application: "
-            + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path "
+            + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path
             + g_path
             + "/nvmf_tgt -c "
             + g_conf_path
@@ -966,7 +966,7 @@ The most commonly used dss target commands are:
             f.write(g_license_text)
             f.write(g_tgt_gcc_setup + "\n")
             f.write(
-                "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path "
+                "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path
                 + g_path
                 + "/nvmf_tgt -c "
                 + g_conf_path
