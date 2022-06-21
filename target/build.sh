@@ -163,6 +163,7 @@ exit 0
 /usr/dss/nkv-target/include/spdk/pci_ids.h
 /usr/dss/nkv-target/lib/libdssd.a
 /usr/dss/nkv-target/lib/liboss.a
+/usr/dss/nkv-target/lib/libjudyL.so
 
 %post
 chmod +x /usr/dss/nkv-target/scripts/setup.sh

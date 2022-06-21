@@ -179,6 +179,7 @@ g_tcp = 1
 g_rdma = 1
 g_tgt_bin = ""
 g_path = ""
+g_lib_path = ""
 g_kv_ssc = 1
 g_2mb_hugepages = "12288"
 g_1gb_hugepages = "40"
@@ -944,27 +945,29 @@ The most commonly used dss target commands are:
             generate_core_mask(mp.cpu_count(), 0.50)
         setup_hugepage()
         ret = setup_drive()
-        print (
+        print(
             "Make sure config file "
             + g_conf_path
             + " parameters are correct and update if needed."
         )
-        print (
+        print(
             "Execute the following command to start the target application: "
+            + "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path "
             + g_path
             + "/nvmf_tgt -c "
             + g_conf_path
             + " -r /var/run/spdk.sock -m "
             + g_core_mask
         )
-        print (
+        print(
             "Make necessary changes to core mask (-m option, # of cores that app should use) if needed."
         )
         with open("run_nvmf_tgt.sh", 'w') as f:
             f.write(g_license_text)
             f.write(g_tgt_gcc_setup + "\n")
             f.write(
-                g_path 
+                "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:" + g_lib_path "
+                + g_path
                 + "/nvmf_tgt -c "
                 + g_conf_path
                 + " -r /var/run/spdk.sock -m "
@@ -1038,6 +1041,7 @@ if __name__ == "__main__":
     ret = 0
 
     g_path = os.getcwd()
+    g_lib_path = os.path.normpath(g_path + "../lib")
     print "Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "..."
 
     dss_tgt_args()

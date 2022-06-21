@@ -35,6 +35,109 @@ project(nkv-target)
 enable_language(C)
 enable_language(CXX)
 
+#--Judy--
+
+set(JUDY_INC_DIRS -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyL -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/ -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon)
+set(JUDY_COMPILE_FLAGS -DJUDYL -DJUDYSL -DJU_64BIT -D__LIN__ -D__USER__ -DX86_64__)
+add_custom_command(
+	OUTPUT ${CMAKE_BINARY_DIR}/judyL.lnk
+	COMMAND mkdir -p ${CMAKE_BINARY_DIR}/JudyL
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyByCount.c          ${CMAKE_BINARY_DIR}/JudyL/JudyLByCount.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyCascade.c          ${CMAKE_BINARY_DIR}/JudyL/JudyLCascade.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyCount.c            ${CMAKE_BINARY_DIR}/JudyL/JudyLCount.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyCreateBranch.c     ${CMAKE_BINARY_DIR}/JudyL/JudyLCreateBranch.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyDecascade.c        ${CMAKE_BINARY_DIR}/JudyL/JudyLDecascade.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyDel.c              ${CMAKE_BINARY_DIR}/JudyL/JudyLDel.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyFirst.c            ${CMAKE_BINARY_DIR}/JudyL/JudyLFirst.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyFreeArray.c        ${CMAKE_BINARY_DIR}/JudyL/JudyLFreeArray.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyGet.c              ${CMAKE_BINARY_DIR}/JudyL/JudyLGet.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyGet.c              ${CMAKE_BINARY_DIR}/JudyL/j__udyLGet.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyInsArray.c         ${CMAKE_BINARY_DIR}/JudyL/JudyLInsArray.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyIns.c              ${CMAKE_BINARY_DIR}/JudyL/JudyLIns.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyInsertBranch.c     ${CMAKE_BINARY_DIR}/JudyL/JudyLInsertBranch.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyMallocIF.c         ${CMAKE_BINARY_DIR}/JudyL/JudyLMallocIF.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyMemActive.c        ${CMAKE_BINARY_DIR}/JudyL/JudyLMemActive.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyMemUsed.c          ${CMAKE_BINARY_DIR}/JudyL/JudyLMemUsed.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyPrevNext.c         ${CMAKE_BINARY_DIR}/JudyL/JudyLNext.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyPrevNext.c         ${CMAKE_BINARY_DIR}/JudyL/JudyLPrev.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyPrevNextEmpty.c    ${CMAKE_BINARY_DIR}/JudyL/JudyLNextEmpty.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyPrevNextEmpty.c    ${CMAKE_BINARY_DIR}/JudyL/JudyLPrevEmpty.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyTables.c           ${CMAKE_BINARY_DIR}/JudyL/JudyLTablesGen.c
+	COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudySL/JudySL.c                   ${CMAKE_BINARY_DIR}/JudyL/JudyLSL.c
+	COMMAND touch ${CMAKE_BINARY_DIR}/judyL.lnk
+)
+
+add_custom_target(cr_judyL_links
+	DEPENDS ${CMAKE_BINARY_DIR}/judyL.lnk
+)
+
+add_custom_command(
+	OUTPUT ${CMAKE_BINARY_DIR}/judyL.gtables
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/JudyL
+	DEPENDS ${CMAKE_BINARY_DIR}/judyL.lnk
+	COMMAND gcc -fPIC  ${JUDY_INC_DIRS} ${JUDY_COMPILE_FLAGS} ${CMAKE_BINARY_DIR}/JudyL/JudyLTablesGen.c -o ${CMAKE_BINARY_DIR}/JudyL/JudyLTablesGen
+	COMMAND ./JudyLTablesGen
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} ${CMAKE_BINARY_DIR}/JudyL/JudyLTables.c
+	COMMAND touch ${CMAKE_BINARY_DIR}/judyL.gtables
+)
+
+add_custom_target(cr_judyL_gtables
+	DEPENDS ${CMAKE_BINARY_DIR}/judyL.gtables
+)
+
+#--- Compile the main line JudyL modules
+add_custom_command(
+	OUTPUT ${CMAKE_BINARY_DIR}/judyL.compile
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/JudyL
+	DEPENDS ${CMAKE_BINARY_DIR}/judyL.gtables
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon/JudyMalloc.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLTables.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLGet.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} -DJUDYGETINLINE j__udyLGet.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLIns.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLIns.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLDel.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLFirst.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} -DJUDYNEXT JudyLNext.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} -DJUDYPREV JudyLPrev.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} -DJUDYNEXT JudyLNextEmpty.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} -DJUDYPREV JudyLPrevEmpty.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLCount.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLByCount.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLFreeArray.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLMemUsed.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLMemActive.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLCascade.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLDecascade.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLCreateBranch.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLInsertBranch.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLMallocIF.c
+	COMMAND gcc -fPIC ${JUDY_INC_DIRS} -c ${JUDY_COMPILE_FLAGS} JudyLSL.c
+	COMMAND touch ${CMAKE_BINARY_DIR}/judyL.compile
+)
+
+add_custom_target(cr_judyL_compile
+	DEPENDS ${CMAKE_BINARY_DIR}/judyL.compile
+)
+
+add_custom_command(
+	OUTPUT ${CMAKE_BINARY_DIR}/libjudyL.so
+	DEPENDS cr_judyL_compile
+	COMMAND ld -shared -o ${CMAKE_BINARY_DIR}/libjudyL.so ${CMAKE_BINARY_DIR}/JudyL/*.o
+)
+
+add_custom_target(judyL
+	DEPENDS ${CMAKE_BINARY_DIR}/libjudyL.so
+)
+
+add_custom_command(
+        TARGET judyL POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libjudyL.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib/
+)
+
+#--Judy--
+
 # Prohibit a common type of an in-source build.
 # Note that building in a subdirectory in the source tree is still allowed
 # as it can be convenient.
@@ -249,7 +352,7 @@ target_compile_options(kv_stats PRIVATE ${KV_STATS_CFLAGS})
 
 endif(WITH_KV_STATS)
 
-option(WITH_DSS_OPEN_SOURCE_RELEASE "Open source release build" ON)
+option(WITH_DSS_JUDY_LISTING "Build with Judy for listing" ON)
 
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
@@ -278,7 +381,22 @@ ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMAND make include/spdk/config.h
 )
 
-if(WITH_DSS_OPEN_SOURCE_RELEASE)
+if(WITH_DSS_JUDY_LISTING)
+
+ADD_CUSTOM_TARGET(spdk_tcp
+  COMMENT "Building SPDK with NVMEoTCP Support"
+  WORKING_DIRECTORY oss/spdk_tcp
+  COMMAND make V=2 -j16
+  COMMAND make -C test/blobfs/mkfs
+  DEPENDS dssd
+  DEPENDS spdk_tcp_configure
+  DEPENDS oss
+  DEPENDS dss_lat
+  DEPENDS dss_hsl
+  DEPENDS rocksdb_lib
+)
+
+else(WITH_DSS_JUDY_LISTING)
 
 target_compile_definitions(oss PRIVATE -DDSS_OPEN_SOURCE_RELEASE)
 set(DSS_RDB_OSS_EXTRACXXFLAGS EXTRA_CXXFLAGS=-DDSS_OPEN_SOURCE_RELEASE)
@@ -294,21 +412,7 @@ ADD_CUSTOM_TARGET(spdk_tcp
   DEPENDS rocksdb_lib
 )
 
-else(WITH_DSS_OPEN_SOURCE_RELEASE)
-
-ADD_CUSTOM_TARGET(spdk_tcp
-  COMMENT "Building SPDK with NVMEoTCP Support"
-  WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16
-  COMMAND make -C test/blobfs/mkfs
-  DEPENDS dssd
-  DEPENDS spdk_tcp_configure
-  DEPENDS oss
-  DEPENDS dss_lat
-  DEPENDS dss_hsl
-  DEPENDS rocksdb_lib
-)
-endif(WITH_DSS_OPEN_SOURCE_RELEASE)
+endif(WITH_DSS_JUDY_LISTING)
 
 # cmake file is missing in this directory - ER
 # add_subdirectory(test)
@@ -343,16 +447,15 @@ ADD_CUSTOM_TARGET(rocksdb
   DEPENDS spdk_tcp
 )
 
-if(NOT WITH_DSS_OPEN_SOURCE_RELEASE)
+if(WITH_DSS_JUDY_LISTING)
 
 add_library(dss_lat STATIC	utils/dss_count_latency.c)
 target_link_libraries(dss_lat -ljudyL)
-target_compile_options(dss_lat PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+target_compile_options(dss_lat PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
 add_dependencies(dss_lat judyL)
 add_custom_command(
         TARGET dss_lat PRE_BUILD
         COMMENT ${CMAKE_SOURCE_DIR}
-        COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
 )
 
 ADD_CUSTOM_TARGET(test_latency_counter
@@ -367,13 +470,12 @@ add_library(dss_hsl STATIC	utils/dss_list_tree.c
 							utils/crc32.cc
 							utils/dss_keygen.c)
 target_link_libraries(dss_hsl -ljudyL)
-target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/rocksdb/include -I${CMAKE_SOURCE_DIR}/oss/judy-1.0.5/src -I${CMAKE_SOURCE_DIR}/include/)
+target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/rocksdb/include -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
 add_dependencies(dss_hsl judyL)
 
 add_custom_command(
         TARGET dss_hsl PRE_BUILD
         COMMENT ${CMAKE_SOURCE_DIR}
-        COMMAND cp oss/judy-1.0.5/libjudyL.a ${CMAKE_CURRENT_BINARY_DIR}/
 )
 
 ADD_CUSTOM_TARGET(test_hsl
@@ -383,7 +485,7 @@ ADD_CUSTOM_TARGET(test_hsl
     DEPENDS dss_hsl
 )
 
-endif(NOT WITH_DSS_OPEN_SOURCE_RELEASE)
+endif(WITH_DSS_JUDY_LISTING)
 
 ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
