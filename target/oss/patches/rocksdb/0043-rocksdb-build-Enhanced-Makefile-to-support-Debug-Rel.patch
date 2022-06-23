@@ -1,0 +1,62 @@
+From 8b4a89b3a4143d9fd61c174f031bc722d444738d Mon Sep 17 00:00:00 2001
+From: rama kavuluru <r.kavuluru@msl-ssg-mp03.msl.lab>
+Date: Thu, 23 Jun 2022 16:28:38 -0700
+Subject: [PATCH 43/43] [rocksdb-build] Enhanced Makefile to support
+ Debug/Release modes
+
+Signed-off-by: rama kavuluru <r.kavuluru@msl-ssg-mp03.msl.lab>
+---
+ Makefile | 20 ++++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 16bf9db..e21b575 100644
+--- a/Makefile
++++ b/Makefile
+@@ -44,6 +44,7 @@ quoted_perl_command = $(subst ','\'',$(perl_command))
+ # Set the default DEBUG_LEVEL to 1
+ DEBUG_LEVEL?=1
+ 
++
+ ifeq ($(MAKECMDGOALS),dbg)
+ 	DEBUG_LEVEL=2
+ endif
+@@ -88,10 +89,21 @@ ifeq ($(MAKECMDGOALS),rocksdbjavastaticpublish)
+ 	DEBUG_LEVEL=0
+ endif
+ 
++ifdef DEBUG_MODE_BUILD
++	DEBUG_LEVEL=2
++endif
++
++ifdef RELEASE_MODE_BUILD
++	DEBUG_LEVEL=0
++endif
++
+ # compile with -O2 if debug level is not 2
+-ifneq ($(DEBUG_LEVEL), 2)
++ifeq ($(DEBUG_LEVEL), 1)
++
+ OPT += -O2 -fno-omit-frame-pointer
+ #OPT += -g -fno-omit-frame-pointer
++
++
+ # Skip for archs that don't support -momit-leaf-frame-pointer
+ ifeq (,$(shell $(CXX) -fsyntax-only -momit-leaf-frame-pointer -xc /dev/null 2>&1))
+ OPT += -momit-leaf-frame-pointer
+@@ -512,11 +524,7 @@ BENCHMARKS = db_bench table_reader_bench cache_bench memtablerep_bench column_aw
+ # if user didn't config LIBNAME, set the default
+ ifeq ($(LIBNAME),)
+ # we should only run rocksdb in production with DEBUG_LEVEL 0
+-ifeq ($(DEBUG_LEVEL),0)
+-        LIBNAME=librocksdb
+-else
+-        LIBNAME=librocksdb_debug
+-endif
++	LIBNAME=librocksdb
+ endif
+ LIBRARY = ${LIBNAME}.a
+ TOOLS_LIBRARY = ${LIBNAME}_tools.a
+-- 
+1.8.3.1
+

@@ -1,7 +1,7 @@
-From e20b290f6bed01a2f08ab1183c392af89d2968c7 Mon Sep 17 00:00:00 2001
+From 426116e9e1be8c6d4af134995985199438eea471 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 3 Aug 2021 15:23:54 -0700
-Subject: [PATCH 38/42] Rocksdb update - direct listing API
+Subject: [PATCH 38/43] Rocksdb update - direct listing API
 
 ---
  db/dss_kv2blk_c.cc             | 149 +++++++++++++++++++++++++++++++++++++++++

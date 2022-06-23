@@ -1,7 +1,7 @@
-From af5c9ad20ddf740dcf8022ef8fb3d5f60dd3da5d Mon Sep 17 00:00:00 2001
+From fb35b6f6ed04604440cf8467c0f83362053eff64 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 12 Feb 2021 19:47:28 -0800
-Subject: [PATCH 31/42] * rdb multicolumn family to shard db
+Subject: [PATCH 31/43] * rdb multicolumn family to shard db
 
 ---
  db/dss_kv2blk_c.cc | 111 ++++++++++++++++++++++++++++++++++++++---------------
