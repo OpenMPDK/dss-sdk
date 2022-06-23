@@ -373,21 +373,13 @@ add_custom_command(
         COMMAND export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CMAKE_BINARY_DIR}/nkv-target/lib
 )
 
-if(BUILD_MODE_RELEASE)
-ADD_CUSTOM_TARGET(spdk_tcp_configure
-  COMMENT "Configuring SPDK with NVMEoTCP Support"
-  WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure --disable-unit-tests --disable-tests --with-rdma
-  COMMAND make include/spdk/config.h
-)
-else()
+
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
   COMMAND ./configure --disable-unit-tests --disable-tests --enable-debug --with-rdma
   COMMAND make include/spdk/config.h
 )
-endif()
 
 if(WITH_DSS_JUDY_LISTING)
 
@@ -495,23 +487,6 @@ ADD_CUSTOM_TARGET(test_hsl
 
 endif(WITH_DSS_JUDY_LISTING)
 
-if(BUILD_MODE_DEBUG)
-ADD_CUSTOM_TARGET(rocksdb_lib
-  COMMENT "Building rocksdb async static library"
-  WORKING_DIRECTORY oss/rocksdb
-  COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DEBUG_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
-  DEPENDS spdk_tcp_configure
-)
-elseif(BUILD_MODE_RELEASE)
-ADD_CUSTOM_TARGET(rocksdb_lib
-  COMMENT "Building rocksdb async static library"
-  WORKING_DIRECTORY oss/rocksdb
-  COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND RELEASE_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
-  DEPENDS spdk_tcp_configure
-)
-else()
 ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
@@ -519,4 +494,3 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
-endif()
