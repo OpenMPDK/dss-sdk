@@ -238,7 +238,7 @@ parse_options()
 		;;
 		-b=*|--build-type=*)
 		TYPE="${i#*=}"
-		if [ "$TYPE" = "debug" ] ; then
+		if [ "$TYPE" == "debug" ] ; then
 			BUILD_TYPE="debug"
 		else
 			BUILD_TYPE="release"

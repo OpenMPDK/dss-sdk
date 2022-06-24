@@ -338,6 +338,15 @@ endif(WITH_KV_LOG)
 
 message("KV Stats is enabled")
 
+# Make sure only either of the build types are enabled.
+if(BUILD_MODE_DEBUG)
+unset(BUILD_MODE_RELEASE)
+endif()
+
+if(BUILD_MODE_RELEASE)
+unset(BUILD_MODE_DEBUG)
+endif()
+
 # KVV STATS flags
 set(KV_STATS_LIBS -lpthread -lconfig -Wl,--no-as-needed -fPIC -lrt -L. -march=native)
 set(KV_STATS_CFLAGS  -fPIC -O3 -Wall -Werror -march=native)
@@ -356,7 +365,12 @@ option(WITH_DSS_JUDY_LISTING "Build with Judy for listing" ON)
 
 #SPDK tcp
 set(OSS_LIBS ${OSS_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
+if(BUILD_MODE_RELEASE)
+set(OSS_CFLAGS -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
+else()
 set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
+endif()
+
 
 add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
 target_link_libraries (oss ${OSS_LIBS})
