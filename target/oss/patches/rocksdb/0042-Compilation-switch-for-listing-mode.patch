@@ -1,7 +1,7 @@
-From 82d62524574124abb24b7415957eaed10c0806b3 Mon Sep 17 00:00:00 2001
+From 5d9bd18981c2d22683028be72d83c4d59f27fba3 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 12 Oct 2021 13:58:02 -0700
-Subject: [PATCH 42/42] Compilation switch for listing mode
+Subject: [PATCH 42/43] Compilation switch for listing mode
 
 ---
  db/dss_kv2blk_c.cc | 4 ++++

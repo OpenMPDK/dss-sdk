@@ -236,6 +236,15 @@ parse_options()
 		TARGET_VER="${i#*=}"
 		shift # past argument=value
 		;;
+		-b=*|--build-type=*)
+		TYPE="${i#*=}"
+		if [ "$TYPE" == "debug" ] ; then
+			BUILD_TYPE="debug"
+		else
+			BUILD_TYPE="release"
+		fi
+		shift # past argument=value
+		;;
 		*)
 			  # unknown option
 		;;
@@ -250,6 +259,7 @@ TARGET_VER="0.5.0"
 parse_options "$@"
 echo "Build rockdb: $BUILD_ROCKSDB"
 echo "Target Version: $TARGET_VER"
+echo "Build Type: $BUILD_TYPE"
 
 [[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
 
@@ -270,7 +280,15 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
         updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
     popd || die "Can't exit ${target_dir} dir"
 
-    cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
+    if [ "$BUILD_TYPE" = "debug" ] ; then
+        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON
+    elif [ "$BUILD_TYPE" = "release" ]; then
+        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
+    else
+	echo "Making in default mode"
+        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
+    fi
+
 	if $BUILD_ROCKSDB;then
 		make rocksdb
 	else
