@@ -1,4 +1,5 @@
-import os,sys
+import os
+import sys
 import requests
 import json
 import socket
@@ -11,9 +12,10 @@ HTTP_RESPONSE_CODE = {
 }
 
 PROTOCOL = {
-    "TCP":0,
-    "RDMA":1
+    "TCP": 0,
+    "RDMA": 1
 }
+
 
 class FabricManager(object):
 
@@ -28,7 +30,7 @@ class FabricManager(object):
         Get URL
         :return:
         """
-        return "http://{}:{}{}".format(self.address,self.port, self.endpoint)
+        return "http://{}:{}{}".format(self.address, self.port, self.endpoint)
 
     @exception
     def get_service_address(self):
@@ -36,8 +38,7 @@ class FabricManager(object):
         Return service address for UFM
         :return:<string>  service address with port.
         """
-        return "http://{}:{}".format(self.address,str(self.port))
-
+        return "http://{}:{}".format(self.address, str(self.port))
 
 
 class NativeFabricManager(FabricManager):
@@ -46,7 +47,7 @@ class NativeFabricManager(FabricManager):
     """
 
     def __init__(self, address, port, endpoint):
-        FabricManager.__init__(self,address, port, endpoint)
+        FabricManager.__init__(self, address, port, endpoint)
         self.url = self.get_url()
         self.clustermap = self.get_response()
 
@@ -67,7 +68,6 @@ class NativeFabricManager(FabricManager):
 
         return json_response
 
-
     def get_cluster_map(self):
         """
         Return cluster map for NativeFabricManager
@@ -80,19 +80,18 @@ class NativeFabricManager(FabricManager):
             return {}
 
 
-
 class UnifiedFabricManager(FabricManager):
     """
     A FM based on Redfish API
     """
 
-    def __init__(self, address,port,endpoint):
-        FabricManager.__init__(self,address,port,endpoint)
+    def __init__(self, address, port, endpoint):
+        FabricManager.__init__(self, address, port, endpoint)
         self.cluestermap = {}
         self.service_addr = self.get_service_address()
 
     @exception
-    def add_transport(self,transport, address, family, speed, transport_type, port, status, numa):
+    def add_transport(self, transport, address, family, speed, transport_type, port, status, numa):
         """
         Add interface information for nkv config.
         :param transport:
@@ -112,9 +111,8 @@ class UnifiedFabricManager(FabricManager):
         transport['subsystem_type'] = PROTOCOL[transport_type]
         transport['subsystem_port'] = port
 
-        interface_status = {"LinkDown":0,"LinkUp":1}
-        transport['subsystem_interface_status'] = interface_status.get(status, -1 )
-
+        interface_status = {"LinkDown": 0, "LinkUp": 1}
+        transport['subsystem_interface_status'] = interface_status.get(status, -1)
 
     @exception
     def add_fm_cluster_maps(self, cluster_map):
@@ -133,7 +131,7 @@ class UnifiedFabricManager(FabricManager):
             return {}
         cluster_map = {}
 
-        #self.add_fm_cluster_maps(cluster_map)
+        # self.add_fm_cluster_maps(cluster_map)
         subsystems_map = []
         for system in root.Systems.Members:
             subsystem = {}
@@ -148,7 +146,7 @@ class UnifiedFabricManager(FabricManager):
                         subsystem['subsystem_status'] = 1
                         if system.Status:
                             if system.Status.State and system.Status.State == "Enabled"\
-                                    and system.Status.Health and  system.Status.Health == "OK":
+                                    and system.Status.Health and system.Status.Health == "OK":
                                 subsystem['subsystem_status'] = 0
                         if system.EthernetInterfaces:
                             # No transports to add since no NICs
@@ -162,26 +160,26 @@ class UnifiedFabricManager(FabricManager):
                                         if ipv4addr.Address:
                                             subsystem_transport = {}
                                             self.add_transport(subsystem_transport,
-                                                         ipv4addr.Address,
-                                                         socket.AF_INET,
-                                                         interface.SpeedMbps,
-                                                         ipv4addr.oem.SupportedProtocol,
-                                                         ipv4addr.oem.Port,
-                                                         interface.LinkStatus,
-                                                         system.oem['NumaAligned'])
+                                                               ipv4addr.Address,
+                                                               socket.AF_INET,
+                                                               interface.SpeedMbps,
+                                                               ipv4addr.oem.SupportedProtocol,
+                                                               ipv4addr.oem.Port,
+                                                               interface.LinkStatus,
+                                                               system.oem['NumaAligned'])
                                             subsystem_transport_list.append(subsystem_transport)
                                 if interface.IPv6Addresses:
                                     for ipv6addr in interface.IPv6Addresses:
                                         if ipv6addr.Address:
                                             subsystem_transport = {}
                                             self.add_transport(subsystem_transport,
-                                                         ipv6addr.Address,
-                                                         socket.AF_INET6,
-                                                         interface.SpeedMbps,
-                                                         ipv6addr.oem.SupportedProtocol,
-                                                         ipv6addr.oem.Port,
-                                                         interface.LinkStatus,
-                                                         system.oem['NumaAligned'])
+                                                               ipv6addr.Address,
+                                                               socket.AF_INET6,
+                                                               interface.SpeedMbps,
+                                                               ipv6addr.oem.SupportedProtocol,
+                                                               ipv6addr.oem.Port,
+                                                               interface.LinkStatus,
+                                                               system.oem['NumaAligned'])
                                             subsystem_transport_list.append(subsystem_transport)
                             subsystem['subsystem_transport'] = subsystem_transport_list
                         if system.Storage:

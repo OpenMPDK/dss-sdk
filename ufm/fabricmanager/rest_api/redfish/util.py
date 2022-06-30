@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -33,6 +33,7 @@ import zmq
 import json
 from common.ufmdb.redfish.ufmdb_util import ufmdb_util
 
+
 def post_to_switch(sw_uuid, payload):
     try:
         mq_port = ufmdb_util.get_mq_port(sw_uuid)
@@ -57,6 +58,6 @@ def post_to_switch(sw_uuid, payload):
         ctx.destroy()
     except Exception as e:
         print(e)
-        return { "Status":"failed" }
+        return {"Status": "failed"}
 
     return json_response

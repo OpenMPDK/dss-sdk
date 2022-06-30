@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -69,11 +69,9 @@ class VlanActionAPI(Resource):
 
     def post(self, fab_id, sw_id, vlan_id, act_str):
         try:
-            data = {
-                    'cmd': act_str,
+            data = {'cmd': act_str,
                     'request_id': str(uuid.uuid4()),
-                    'VLANId': vlan_id
-                   }
+                    'VLANId': vlan_id}
             payload = request.get_json(force=True)
             data.update(payload)
 
@@ -108,11 +106,9 @@ class VlanCollectionActionAPI(Resource):
     def post(self, fab_id, sw_id, act_str):
         try:
             payload = request.get_json(force=True)
-            data = {
-                    'cmd': act_str,
+            data = {'cmd': act_str,
                     'request_id': str(uuid.uuid4()),
-                    'VLANId': payload['VLANId']
-                   }
+                    'VLANId': payload['VLANId']}
 
             resp = util.post_to_switch(sw_id, data)
         except Exception as e:

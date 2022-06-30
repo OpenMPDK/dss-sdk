@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -34,8 +34,9 @@ import importlib
 from common.ufmlog import ufmlog
 from functools import wraps
 
-#MessageQueue module to use
+# MessageQueue module to use
 mq = None
+
 
 class Ufmmq(object):
     def __new__(cls, **kwargs):
@@ -43,7 +44,7 @@ class Ufmmq(object):
         Get the message queue type, load the required module and
         validate the inputs to the message queue connection.
         """
-        #Change the message queue to use based on the inputs
+        # Change the message queue to use based on the inputs
         global mq
         mq_type = kwargs.pop('mq_type', 'zmq')
         if mq_type == 'zmq':
@@ -82,7 +83,7 @@ class Ufmmq(object):
 
     def term(self):
         """Terminate context."""
-        if (self.client != None):
+        if (self.client is not None):
             self.client.term()
 
     @log_error
@@ -146,10 +147,7 @@ class Ufmmq(object):
         self.log.detail("MQ REGISTER_POLLER")
         self.client.register_poller(pollerObj, flags)
 
+
 def client(**kwargs):
     """Return an instance of Ufmmq_Client."""
     return Ufmmq(**kwargs)
-
-
-
-

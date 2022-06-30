@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -136,8 +136,7 @@ class RedfishUfmdb(object):
                     self._build_redfish_fabrics()
 
                 else:
-                    self.log.detail("Update data: requested. Data expires in {} second(s)".format(
-                                                                    1 + int(self.data_expiration - current_time)))
+                    self.log.detail("Update data: requested. Data expires in {} second(s)".format(1 + int(self.data_expiration - current_time)))
                 break
 
             except Exception as e:
@@ -165,15 +164,15 @@ class RedfishUfmdb(object):
             sys = system(uuid=sys_uuid)
             self.systems.append(sys)
 
-            subsystems = self._query_prefix("/object_storage/servers/" +
-                                            sys_uuid + "/kv_attributes/config/subsystems/")
+            subsystems = self._query_prefix("/object_storage/servers/"
+                                            + sys_uuid + "/kv_attributes/config/subsystems/")
 
             target_key = "/object_storage/servers/" + sys_uuid + "/server_attributes/identity/Hostname"
             target_dict = self._query_prefix(target_key)
 
             for ss_key in subsystems:
                 if ss_key.find("UUID") != -1:
-                    ss_uuid = sys_uuid+"."+subsystems[ss_key]
+                    ss_uuid = sys_uuid + "." + subsystems[ss_key]
                     subsys = subsystem(uuid=ss_uuid)
                     sys.subsystems.append(subsys)
 
@@ -185,9 +184,9 @@ class RedfishUfmdb(object):
                     # Set the NQN ID for the subsystem
                     subsys.nsid = 1   # Set the subsystem nsid to the default of 1 for now. Needs to be revisited
 
-                    transports = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                    "/kv_attributes/config/subsystems/" + subsys.nqn +
-                                                    "/transport_addresses/")
+                    transports = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                    + "/kv_attributes/config/subsystems/" + subsys.nqn
+                                                    + "/transport_addresses/")
 
                     for transport_key in transports:
                         if transport_key.find("traddr") != -1:
@@ -199,9 +198,9 @@ class RedfishUfmdb(object):
                             traddr = transports[transport_key]
 
                             # Read status of ip interface
-                            tran_mac = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                          "/server_attributes/network/interfaces/" +
-                                                          intr.mac + "/Status")
+                            tran_mac = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                          + "/server_attributes/network/interfaces/"
+                                                          + intr.mac + "/Status")
 
                             for tran_mac_key in tran_mac:
                                 if tran_mac_key.find("Status") != -1:
@@ -213,8 +212,8 @@ class RedfishUfmdb(object):
                                     else:
                                         intr.status = "NoLink"
 
-                            sub_attrs = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                           "/kv_attributes/config/subsystems/" + subsys.nqn)
+                            sub_attrs = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                           + "/kv_attributes/config/subsystems/" + subsys.nqn)
 
                             for sub_attr_key in sub_attrs:
                                 if sub_attr_key.find("numa_aligned") != -1:
@@ -225,9 +224,9 @@ class RedfishUfmdb(object):
                                         subsys.numa_aligned = False
 
                             # Read remaining info about interface
-                            tran_mac = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                          "/kv_attributes/config/subsystems/" + subsys.nqn +
-                                                          "/transport_addresses/" + intr.mac)
+                            tran_mac = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                          + "/kv_attributes/config/subsystems/" + subsys.nqn
+                                                          + "/transport_addresses/" + intr.mac)
 
                             for tran_mac_key in tran_mac:
                                 if tran_mac_key.find("adrfam") != -1:
@@ -257,25 +256,25 @@ class RedfishUfmdb(object):
             stor = storage()
 
             # set its uuid to the hostname
-            storage_attr = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                              "/server_attributes/identity/Hostname")
+            storage_attr = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                              + "/server_attributes/identity/Hostname")
             for attr_key in storage_attr:
                 if attr_key.find("Hostname") != -1:
                     stor.uuid = storage_attr[attr_key]
                     stor.uuid = stor.uuid.split('.')[0]
 
             # Find and add devices to storage object
-            storage_devices = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                 "/server_attributes/storage/nvme/devices/")
+            storage_devices = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                 + "/server_attributes/storage/nvme/devices/")
             for device_key in storage_devices:
                 if device_key.find("Serial") != -1:
                     device_sn = storage_devices[device_key]
                     drv = drive()
                     stor.drives.append(drv)
 
-                    dev_info = self._query_prefix("/object_storage/servers/" + sys_uuid +
-                                                  "/server_attributes/storage/nvme/devices/" +
-                                                  device_sn)
+                    dev_info = self._query_prefix("/object_storage/servers/" + sys_uuid
+                                                  + "/server_attributes/storage/nvme/devices/"
+                                                  + device_sn)
 
                     for device_info_key in dev_info:
                         drv.uuid = device_sn
@@ -386,7 +385,7 @@ class RedfishUfmdb(object):
                     _port = port(port_id=port_id)
                     sw.ports.append(_port)
 
-                    port_attr = self._query_prefix("/switches/"+sw_uuid+"/ports/"+port_id+"/status")
+                    port_attr = self._query_prefix("/switches/" + sw_uuid + "/ports/" + port_id + "/status")
                     for attr_key in port_attr:
                         if attr_key.find("status") != -1:
                             _port.status = port_attr[attr_key]
@@ -440,11 +439,11 @@ class RedfishUfmdb(object):
         response_1_1['@odata.id'] = '/redfish/v1/Systems'
 
         for sys in self.systems:
-            response_1_1['Members'].append({'@odata.id': '/redfish/v1/Systems/'+sys.uuid})
+            response_1_1['Members'].append({'@odata.id': '/redfish/v1/Systems/' + sys.uuid})
 
             # Add the subsystems uuids too
             for subsys in sys.subsystems:
-                response_1_1['Members'].append({"@odata.id": "/redfish/v1/Systems/"+subsys.uuid})
+                response_1_1['Members'].append({"@odata.id": "/redfish/v1/Systems/" + subsys.uuid})
 
         response_1_1['Members@odata.count'] = len(response_1_1['Members'])
         self.redfish[response_1_1['@odata.id']] = response_1_1  # 1.1   <<<<<
@@ -517,7 +516,7 @@ class RedfishUfmdb(object):
             for subsys in sys.subsystems:
                 response_1_1_2 = copy.deepcopy(redfish_responses['1.1.2'])
 
-                response_1_1_2['@odata.id'] = '/redfish/v1/Systems/'+subsys.uuid
+                response_1_1_2['@odata.id'] = '/redfish/v1/Systems/' + subsys.uuid
                 response_1_1_2['Id'] = subsys.uuid
 
                 ident = response_1_1_2['Identifiers'][0]
@@ -527,27 +526,24 @@ class RedfishUfmdb(object):
                     response_1_1_2['Storage'] = ({"@odata.id": "/redfish/v1/Systems/" + subsys.uuid + "/Storage"})
 
                 if len(subsys.interfaces) != 0:
-                    response_1_1_2['EthernetInterfaces'] = ({"@odata.id": "/redfish/v1/Systems/" +
-                                                                          subsys.uuid +
-                                                                          "/EthernetInterfaces"})
+                    response_1_1_2['EthernetInterfaces'] = ({"@odata.id": "/redfish/v1/Systems/"
+                                                            + subsys.uuid
+                                                            + "/EthernetInterfaces"})
 
                 response_1_1_2['oem'] = {"ServerName": subsys.servername,
                                          "NSID": subsys.nsid,
                                          "NumaAligned": subsys.numa_aligned}
 
-                response_1_1_2['Links']['ConsumingComputerSystems'].append({"@odata.id": "/redfish/v1/Systems/" +
-                                                                                         sys.uuid})
+                response_1_1_2['Links']['ConsumingComputerSystems'].append({"@odata.id": "/redfish/v1/Systems/" + sys.uuid})
 
                 self.redfish[response_1_1_2['@odata.id']] = response_1_1_2  # 1.1.2   <<<<
 
                 if len(subsys.storage) != 0:
                     response_1_1_2_1 = copy.deepcopy(redfish_responses['1.1.2.1'])
-                    response_1_1_2_1['@odata.id'] = "/redfish/v1/Systems/"+subsys.uuid+"/Storage"
+                    response_1_1_2_1['@odata.id'] = "/redfish/v1/Systems/" + subsys.uuid + "/Storage"
 
                     for stor in subsys.storage:
-                        response_1_1_2_1['Members'].append({"@odata.id": "/redfish/v1/Systems/" +
-                                                                         subsys.uuid + "/Storage/" +
-                                                                         stor.uuid})
+                        response_1_1_2_1['Members'].append({"@odata.id": "/redfish/v1/Systems/" + subsys.uuid + "/Storage/" + stor.uuid})
 
                     response_1_1_2_1['Members@odata.count'] = len(response_1_1_2_1['Members'])
                     response_1_1_2_1['oem'] = {"CapacityBytes": subsys.capacity,
@@ -562,10 +558,10 @@ class RedfishUfmdb(object):
                     response_1_1_2_1_1['Id'] = stor.uuid
 
                     for _drive in stor.drives:
-                        response_1_1_2_1_1['Drives'].append({"@odata.id": "/redfish/v1/Systems/" +
-                                                                          subsys.uuid + "/Storage/" +
-                                                                          stor.uuid + "/Drives/" +
-                                                                          _drive.uuid})
+                        response_1_1_2_1_1['Drives'].append({"@odata.id": "/redfish/v1/Systems/"
+                                                                          + subsys.uuid + "/Storage/"
+                                                                          + stor.uuid + "/Drives/"
+                                                                          + _drive.uuid})
 
                     response_1_1_2_1_1['oem'] = {"CapacityBytes": stor.capacity,
                                                  "UtilizationBytes": stor.utilization,
@@ -610,16 +606,16 @@ class RedfishUfmdb(object):
 
                 if len(subsys.interfaces) != 0:
                     response_1_1_2_2 = copy.deepcopy(redfish_responses['1.1.2.2'])
-                    response_1_1_2_2['@odata.id'] = "/redfish/v1/Systems/"+subsys.uuid+"/EthernetInterfaces"
+                    response_1_1_2_2['@odata.id'] = "/redfish/v1/Systems/" + subsys.uuid + "/EthernetInterfaces"
 
                     for intf in subsys.interfaces:
-                        response_1_1_2_2['Members'].append({"@odata.id": "/redfish/v1/Systems/" + subsys.uuid +
-                                                                         "/EthernetInterfaces/" + intf.mac})
+                        response_1_1_2_2['Members'].append({"@odata.id": "/redfish/v1/Systems/" + subsys.uuid
+                                                                         + "/EthernetInterfaces/" + intf.mac})
 
                     response_1_1_2_2['Members@odata.count'] = len(response_1_1_2_2['Members'])
 
                     # 1.1.2.2 <<<<<
-                    self.redfish["/redfish/v1/Systems/"+subsys.uuid+"/EthernetInterfaces"] = response_1_1_2_2
+                    self.redfish["/redfish/v1/Systems/" + subsys.uuid + "/EthernetInterfaces"] = response_1_1_2_2
 
                     for intf in subsys.interfaces:
                         response_1_1_2_2_1 = copy.deepcopy(redfish_responses['1.1.2.2.1'])
@@ -671,7 +667,7 @@ class RedfishUfmdb(object):
             # 1.4.1
             response_1_4_1 = copy.deepcopy(redfish_responses['1.4.1'])
             response_1_4_1['id'] = _fabric.id
-            response_1_4_1['@odata.id'] = response_1_4['@odata.id']+'/'+_fabric.id
+            response_1_4_1['@odata.id'] = response_1_4['@odata.id'] + '/' + _fabric.id
             self.redfish[response_1_4_1['@odata.id']] = response_1_4_1  # 1.4.1   <<<<
 
             if len(_fabric.switches) == 0:

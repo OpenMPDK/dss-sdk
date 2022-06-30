@@ -1,26 +1,26 @@
-import os,sys
+import os
+import sys
 import subprocess
 import time
 from utility import exception, exec_cmd
 import traceback
 
-SYS_BLOCK_PATH      = "/sys/block"
-NVME_ADDRESS_FILE   = "/device/address"
+SYS_BLOCK_PATH = "/sys/block"
+NVME_ADDRESS_FILE = "/device/address"
 NVME_NUMA_NODE_FILE = "/device/numa_node"
-NVME_SUBSYSTEM_NQN  = "/device/subsysnqn"
-NVME_TRANSPORT      = "/device/transport"
+NVME_SUBSYSTEM_NQN = "/device/subsysnqn"
+NVME_TRANSPORT = "/device/transport"
 
-NVME_CONNECT_TIME   = 1 # seconds
+NVME_CONNECT_TIME = 1  # seconds
 
 
 class AutoDiscovery:
 
-    def __init__(self , cluster_map=[]):
+    def __init__(self, cluster_map=[]):
         self.cluster_map = cluster_map
         self.nqn_ip_port_to_remote_nvme = {}
         self.get_nvme_mount_dir()
         self.remote_nkv_mount_info = []
-
 
     def nvme_discover(self, transporter=None, address=None, port=None):
         """
@@ -36,27 +36,25 @@ class AutoDiscovery:
 
             if not ret:
                 subsystem_nqn = ""
-                address       = ""
-                port          = ""
+                address = ""
+                port = ""
                 for line in result.split("\n"):
 
                     if line.startswith("subnqn:"):
                         subsystem_nqn = (line.split(" ")[-1]).strip()
                     elif line.startswith("trsvcid:"):
-                        port    = (line.split(" ")[-1]).strip()
+                        port = (line.split(" ")[-1]).strip()
                     elif line.startswith("traddr:"):
                         address = (line.split(" ")[-1]).strip()
 
-                    if  subsystem_nqn and address and port:
+                    if subsystem_nqn and address and port:
                         # store data
                         nqn_address_port = subsystem_nqn + ":" + address + ":" + port
                         discover_map.append(nqn_address_port)
                         subsystem_nqn = ""
-                        address       = ""
-                        port          = ""
+                        address = ""
+                        port = ""
         return discover_map
-
-
 
     def nvme_connect(self, transport=None, nqn=None, address=None, port=None):
         """
@@ -67,13 +65,12 @@ class AutoDiscovery:
         :param port: <string>
         :return: None
         """
-        command = "nvme connect -t " + transport + " -n " +  nqn + " -a " +  address + " -s " + port
+        command = "nvme connect -t " + transport + " -n " + nqn + " -a " + address + " -s " + port
         ret, result = exec_cmd(command, True, True)
         if not ret:
             print("INFO: connection successful for nqn - {}".format(nqn))
         else:
-            print("ERROR: connection failure for nqn {}\n\t Return Code:{}, Msg: \"{}\"".format(nqn, ret,result.strip()))
-
+            print("ERROR: connection failure for nqn {}\n\t Return Code:{}, Msg: \"{}\"".format(nqn, ret, result.strip()))
 
     def nvme_disconnect(self, nqn):
         """
@@ -81,7 +78,7 @@ class AutoDiscovery:
         :param nqn: <string>
         :return: None
         """
-        command  = "nvme disconnect -n " + nqn
+        command = "nvme disconnect -n " + nqn
         ret, result = exec_cmd(command, True, True)
         if not ret:
             print("INFO: disconnected successful for nqn - {}".format(nqn))
@@ -100,9 +97,8 @@ class AutoDiscovery:
             line = FH.readline()  # read only first line "traddr=102.100.20.1,trsvcid=1024"
             # Add regular expression
             address, port = line.split(',')
-            address       = address.split('=')[1].strip()
-            port          = (port.split('=')[1]).strip()
-
+            address = address.split('=')[1].strip()
+            port = (port.split('=')[1]).strip()
 
         return address + ":" + port
 
@@ -113,7 +109,7 @@ class AutoDiscovery:
         :param nvme_dir:
         :return:
         """
-        numa_node_file = SYS_BLOCK_PATH + "/" + nvme_dir  + NVME_NUMA_NODE_FILE
+        numa_node_file = SYS_BLOCK_PATH + "/" + nvme_dir + NVME_NUMA_NODE_FILE
         numa_node = -1
         with open(numa_node_file, "r") as FH:
             line = FH.readline()
@@ -129,6 +125,7 @@ class AutoDiscovery:
             line = FH.readline()
             nqn = line.strip()
         return nqn
+
     @exception
     def get_transport(self, nvme_dir):
         transport_path = SYS_BLOCK_PATH + "/" + nvme_dir + NVME_TRANSPORT
@@ -140,7 +137,7 @@ class AutoDiscovery:
         return transport
 
     @exception
-    def  get_nvme_mount_dir(self):
+    def get_nvme_mount_dir(self):
         """
         Process "/dev/nvme0n1" mount paths.
         :return:
@@ -152,12 +149,12 @@ class AutoDiscovery:
             if nvme_dir.startswith("nvme"):
                 if self.get_transport(nvme_dir) == "tcp":
                     # Adderss, port
-                    address_port =  self.get_address_port(nvme_dir)
+                    address_port = self.get_address_port(nvme_dir)
                     # subsystem nqn
                     nqn = self.get_subsystem_nqn(nvme_dir)
                     nqn_address_port = nqn + ":" + address_port
 
-                    #if self.nqn_ip_port_to_remote_nvme and nqn_address_port not in self.nqn_ip_port_to_remote_nvme:
+                    # if self.nqn_ip_port_to_remote_nvme and nqn_address_port not in self.nqn_ip_port_to_remote_nvme:
                     self.nqn_ip_port_to_remote_nvme[nqn_address_port] = nvme_dir
 
     @exception
@@ -176,14 +173,14 @@ class AutoDiscovery:
             # Each transporter
             for transport in subsystem["subsystem_transport"]:
                 address = transport["subsystem_address"]
-                port    = str(transport["subsystem_port"])
+                port = str(transport["subsystem_port"])
                 nqn_address_port = nqn + ":" + address + ":" + port
 
                 # Check if that present in nqn_address_port hash map
                 if nqn_address_port not in self.nqn_ip_port_to_remote_nvme:
 
                     # NVME discover test
-                    #print( "Discover:{}".format(self.nvme_discover("tcp",address,port)))
+                    # print( "Discover:{}".format(self.nvme_discover("tcp",address,port)))
 
                     # First connect nqn_address_port to remote mount path
                     self.nvme_connect("tcp", nqn, address, port)
@@ -201,15 +198,13 @@ class AutoDiscovery:
                                         "numa_node_attached": numa_node,
                                         "sriver_thread_core": 2
                                         }
-                    remote_nkv_mount_paths.append(remote_nkv_mount.get("mount_point",""))
+                    remote_nkv_mount_paths.append(remote_nkv_mount.get("mount_point", ""))
                     # Get only one path from subsystem.
                     if nqn not in subsystem_to_io_paths:
                         if transport.get("subsystem_interface_status", 0):
-                            subsystem_to_io_paths[nqn] = [remote_nkv_mount.get("mount_point","")]
+                            subsystem_to_io_paths[nqn] = [remote_nkv_mount.get("mount_point", "")]
                     else:
-                        subsystem_to_io_paths[nqn].append(remote_nkv_mount.get("mount_point",""))
+                        subsystem_to_io_paths[nqn].append(remote_nkv_mount.get("mount_point", ""))
 
                     self.remote_nkv_mount_info.append(remote_nkv_mount)
         return subsystem_to_io_paths
-
-

@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -29,7 +29,8 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-import os,sys
+import os
+import sys
 import zmq
 import time
 from logger import cm_logger
@@ -38,15 +39,15 @@ from events_def_en import events as event_list
 
 class EventNotification:
     def __init__(self, address="10.1.51.205", port="6000", logger=None):
-        self.address  = "tcp://" + address
-        self.port     = port
-        self.logger   = logger or cm_logger.CMLogger(
+        self.address = "tcp://" + address
+        self.port = port
+        self.logger = logger or cm_logger.CMLogger(
             "event_notification").create_logger()
-        self.ctx      = zmq.Context()
-        self.con      = self.connection()
-        self.events   = event_list
-        self.REQUEST_TIMEOUT = 2500 # Milliseconds
-        self.REQUEST_RETRIES = 3    # Max three times it tries for connection.
+        self.ctx = zmq.Context()
+        self.con = self.connection()
+        self.events = event_list
+        self.REQUEST_TIMEOUT = 2500  # Milliseconds
+        self.REQUEST_RETRIES = 3     # Max three times it tries for connection.
 
     def __del__(self):
         try:
@@ -61,9 +62,9 @@ class EventNotification:
         :return:<socket>
         """
         try:
-            socket  = self.ctx.socket(zmq.REQ)
-            socket.connect("{}:{}".format(self.address,self.port))
-            self.logger.info("Connected: {}:{}".format(self.address,self.port))
+            socket = self.ctx.socket(zmq.REQ)
+            socket.connect("{}:{}".format(self.address, self.port))
+            self.logger.info("Connected: {}:{}".format(self.address, self.port))
         except Exception as e:
             self.logger.exception(str(e))
 
@@ -94,13 +95,13 @@ class EventNotification:
 
         return delivered_events
 
-    def get_category(self,event):
+    def get_category(self, event):
         """
         Categorize event
         :param event: <dict>
         :return:<string>  return category name
         """
-        event_name = event.get("name","")
+        event_name = event.get("name", "")
 
         if event_name in self.events:
             return self.events[event_name].get('category', '')
@@ -119,7 +120,7 @@ class EventNotification:
             poller = zmq.Poller()
             index = 0
             while index < self.REQUEST_RETRIES:
-                #self.logger.info("Sending event {}:{}".format(category, str(event)))
+                # self.logger.info("Sending event {}:{}".format(category, str(event)))
                 message = str((category, event))
                 poller.register(self.con, zmq.POLLIN)
                 self.con.send("{}".format(message))
@@ -130,13 +131,13 @@ class EventNotification:
                     if is_done == "RECEIVED":
                         return True
                     elif is_done == "FAILED":
-                        #print("Delivery Failed for the Event:{}".format(event))
+                        # print("Delivery Failed for the Event:{}".format(event))
                         self.logger.error("Delivery Failed for the Event:{}".format(event))
                     else:
                         self.logger.warn("Malformed response ...")
                     break
                 else:
-                    #print("No response from zeromq broker, retrying ...")
+                    # print("No response from zeromq broker, retrying ...")
                     self.logger.error("No response from zeromq broker, retrying ...")
                     self.con.setsockopt(zmq.LINGER, 0)
                     self.con.close()
@@ -144,7 +145,7 @@ class EventNotification:
                     time.sleep(5)  # Added delay before re-connection
                     # Create a new connection
                     self.con = self.connection()
-                    index +=1
+                    index += 1
                     if index == self.REQUEST_RETRIES:
                         self.logger.error("Failed to connect to ZeroMq broker. Looks like the server is down at the host {} ...".format(self.address))
 
@@ -152,6 +153,3 @@ class EventNotification:
             self.logger.exception(str(e))
 
         return False
-
-
-

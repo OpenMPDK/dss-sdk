@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -41,16 +41,16 @@
 import random
 import sys
 import time
-import zmq #for zmq.PUB
+import zmq  # for zmq.PUB
 from common.ufmmq import ufmmq
 
 port = "5556"
 if len(sys.argv) > 1:
-    port =  sys.argv[1]
+    port = sys.argv[1]
     int(port)
 
 try:
-    mqclient = ufmmq.client(mq_type = 'zmq')
+    mqclient = ufmmq.client(mq_type='zmq')
 except Exception as e:
     print(e)
     sys.exit(1)
@@ -59,8 +59,8 @@ skt = mqclient.create_socket(zmq.PUB)
 mqclient.bind_socket(skt, "tcp://*", port)
 
 while True:
-    topic = random.randrange(9999,10005)
-    messagedata = random.randrange(1,215) - 80
+    topic = random.randrange(9999, 10005)
+    messagedata = random.randrange(1, 215) - 80
     print("%d %d" % (topic, messagedata))
     mqclient.send(skt, "%d %d" % (topic, messagedata))
     time.sleep(1)

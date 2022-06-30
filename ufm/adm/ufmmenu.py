@@ -9,7 +9,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -158,7 +158,7 @@ class UfmMenu(object):
         while True:
             if self.title is not None:
                 print()
-                print("        "+self.title)
+                print("        " + self.title)
 
             print()
             print("OPTIONS:")
@@ -171,7 +171,7 @@ class UfmMenu(object):
                 if len(item.args) > 0:
                     arg_list = item.labels[0]
                     for arg in item.args:
-                        arg_list += " "+arg
+                        arg_list += " " + arg
                     print("  %-9s :%s" % (arg_list, item.desc))
 
                 elif item.desc != "":
@@ -189,7 +189,7 @@ class UfmMenu(object):
                 if len(item.args) > 0:
                     arg_list = item.labels[0]
                     for arg in item.args:
-                        arg_list += " "+arg
+                        arg_list += " " + arg
 
                     print("  %-9s :%s" % (arg_list, item.desc))
                 elif item.desc != "":
@@ -200,7 +200,7 @@ class UfmMenu(object):
             print()
 
             while True:
-                selection = input(self.name+"> ")
+                selection = input(self.name + "> ")
                 if selection != "":
                     break
 
@@ -236,7 +236,7 @@ class UfmMenu(object):
 
         if found is False:
             print()
-            print("Invalid command. ("+selection+")")
+            print("Invalid command. (" + selection + ")")
 
             if self.cli is True:
                 self.set_menu(None)

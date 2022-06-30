@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -70,11 +70,9 @@ class SwitchActionAPI(Resource):
 
     def post(self, fab_id, sw_id, act_str):
         try:
-            data = {
-                    'cmd': act_str,
+            data = {'cmd': act_str,
                     'request_id': str(uuid.uuid4()),
-                    'sw_id': sw_id
-                   }
+                    'sw_id': sw_id}
             payload = request.get_json(force=True)
             data.update(payload)
 

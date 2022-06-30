@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -37,10 +37,10 @@
 #   Sends "Hello" to server, expects "World" back
 #
 from common.ufmmq import ufmmq
-import zmq #for zmq.REQ
+import zmq  # for zmq.REQ
 
 try:
-    mqclient = ufmmq.client(mq_type = 'zmq')
+    mqclient = ufmmq.client(mq_type='zmq')
 except Exception as e:
     print(e)
     sys.exit(1)

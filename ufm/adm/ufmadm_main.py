@@ -9,7 +9,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -29,8 +29,6 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
 
 from ufmmenu import UfmMenu
 
@@ -69,16 +67,16 @@ class MainMenu(UfmMenu):
         print()
         print("1) MENU Mode:")
         print()
-        print("   USAGE: python "+prog)
+        print("   USAGE: python " + prog)
         print()
         print("2) CLI Mode:")
         print()
-        print("   USAGE: python "+prog+" <command list>")
+        print("   USAGE: python " + prog + " <command list>")
         print()
         print("     <command list>   :Space separated list of commands.")
         print("                      :The commands will match the order of")
         print("                      :commands as if entering them while")
         print("                      :in MENU mode.")
         print()
-        print("     Example: python "+prog+" sys 1 stor 0 1")
+        print("     Example: python " + prog + " sys 1 stor 0 1")
         print()

@@ -9,7 +9,7 @@ import requests
 def db():
     print('----------login----------')
 
-    db = ufmdb.client(db_type = 'etcd')
+    db = ufmdb.client(db_type='etcd')
 
     yield db
 
@@ -28,23 +28,22 @@ def test_lease(db):
     lease_info = db.get_lease_info(lease_id_1)
     print(lease_info)
 
-    db.put('/key_1', 'value_1', lease = lease_id_1)
-    db.put('/key_2', 'value_2', lease = lease_id_1)
-    db.put('/key_3', 'value_3', lease = lease_id_1)
-    db.put('/key_4', 'value_4', lease = lease_id_1)
-    #db.put('/key_1', 'value_1')
-    #db.put('/key_2', 'value_2')
-    #db.put('/key_3', 'value_3')
-    #db.put('/key_4', 'value_4')
+    db.put('/key_1', 'value_1', lease=lease_id_1)
+    db.put('/key_2', 'value_2', lease=lease_id_1)
+    db.put('/key_3', 'value_3', lease=lease_id_1)
+    db.put('/key_4', 'value_4', lease=lease_id_1)
+    # db.put('/key_1', 'value_1')
+    # db.put('/key_2', 'value_2')
+    # db.put('/key_3', 'value_3')
+    # db.put('/key_4', 'value_4')
 
     time.sleep(5)
     lease_info = db.get_lease_info(lease_id_1)
     print(lease_info)
-    #lease_obj.refresh()
+    # lease_obj.refresh()
     lease_obj.LeaseKeepAliveRequest
     lease_info = db.get_lease_info(lease_id_1)
     print(lease_info)
-
 
     value, metadata = db.get('/key_1')
     print(type(value))

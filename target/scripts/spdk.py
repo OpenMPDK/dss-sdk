@@ -24,19 +24,21 @@ Listen RDMA %(ip_addr)s:1023
 NVMe %(pcie_addr)s
 """
 
-def exec_cmd(cmd):
-   '''
-   Execute any given command on shell
-   @return: Return code, output, error if any.
-   '''
-   p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-   out, err = p.communicate()
-   out = out.decode()
-   out = out.strip()
-   err = err.decode()
-   ret = p.returncode
 
-   return ret, out, err
+def exec_cmd(cmd):
+    '''
+    Execute any given command on shell
+    @return: Return code, output, error if any.
+    '''
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+    out, err = p.communicate()
+    out = out.decode()
+    out = out.strip()
+    err = err.decode()
+    ret = p.returncode
+
+    return ret, out, err
+
 
 def get_nvme_list_numa():
     '''
@@ -44,12 +46,12 @@ def get_nvme_list_numa():
     Create 2 lists of IDs for each NUMA Node.
     @return: Two lists for drives in each NUMA.
     '''
-    #lspci_cmd = "lspci -v | grep NVM | awk '{print $1}'" 
+    # lspci_cmd = "lspci -v | grep NVM | awk '{print $1}'"
     lspci_cmd = "lspci -mm -n -D | grep 0108 | awk -F ' ' '{print $1}'"
     numa0_drives = []
     numa1_drives = []
 
-    ret, out, err =  exec_cmd(lspci_cmd)
+    ret, out, err = exec_cmd(lspci_cmd)
     if not out:
         return numa0_drives, numa1_drives
     out = out.split('\n')
@@ -68,7 +70,7 @@ def get_nvme_list_numa():
 
 def create_nvmf_config_file(config_file, ip0, ip1):
     '''
-    Create configuration file for SPDK NVMf by writing all 
+    Create configuration file for SPDK NVMf by writing all
     the subsystems and appropriate numa and NVMe PCIe IDs.
     '''
     # Get NVMe drives and their PCIe IDs.
@@ -84,19 +86,19 @@ def create_nvmf_config_file(config_file, ip0, ip1):
     retcode, nprocs, err = exec_cmd('nproc')
 
     # Initialize list for all cores. It will be used in for loops below.
-    proc_list = [0 for i in range(0,int(nprocs))]
+    proc_list = [0 for i in range(0, int(nprocs))]
 
     today = date.today()
     todayiso = today.isoformat()
     yemo, da = todayiso.rsplit('-', 1)
     # Assigning ReactorMask based on 4-drive per core strategy. May change.
-    # Change ReactorMask and AcceptorCore as per number of drives in the system. 
+    # Change ReactorMask and AcceptorCore as per number of drives in the system.
     # Below code assumes 24 drives and uses (24/4 + 1) = 7 Cores (+1 is for AcceptorCore)
 
     # NUMA aligned IP addresses.
-    ip_numa0 = str(ip0) 
+    ip_numa0 = str(ip0)
     ip_numa1 = str(ip1)
-    #print ip_numa0, ip_numa1
+    # print ip_numa0, ip_numa1
 
     # Default NQN text in config.
     nqn_text = 'nqn.' + yemo + '.io.' + hostname + '-css'
@@ -107,16 +109,16 @@ def create_nvmf_config_file(config_file, ip0, ip1):
         count = 0
         corenumber = 0
         for i, pcie in enumerate(n0):
-            sub_num =  i + 1
+            sub_num = i + 1
             nqn = nqn_text + str(i + 1)
             # Reset counter for every 4 drives and increase core number by 1.
-            #if count > 3:
-            #    count = 0
+            # if count > 3:
+            #     count = 0
             corenumber = corenumber + 1
             # 12 drives in NUMA. So assigning 4 drives per core (starting core 0)
             subsystem_tab_for_one_drive = subsystem_text % {"subsys_num": sub_num, "nqn_text": nqn, "core_number": corenumber,
-                                                            "ip_addr":  ip_numa0, "pcie_addr": pcie}
-            subtext+= subsystem_tab_for_one_drive
+                                                            "ip_addr": ip_numa0, "pcie_addr": pcie}
+            subtext += subsystem_tab_for_one_drive
             # Mark the processor number in the list to prepare Mask
             proc_list[corenumber] = 1
             count = count + 1
@@ -130,27 +132,27 @@ def create_nvmf_config_file(config_file, ip0, ip1):
             sub2_num = i + 1 + len(n0)
             nqn2 = nqn_text + str(i + 1 + len(n0))
             # Reset counter for every 4 drives and increase core number by 1.
-            #if count > 3:
-            #    count = 0
+            # if count > 3:
+            #     count = 0
             core_number = core_number + 1
             # 12 drives in NUMA. So assigning 4 drives per core starting core 20 (NUMA 1).
             subsystem_tab_for_one_drive2 = subsystem_text % {"subsys_num": sub2_num, "nqn_text": nqn2, "core_number": core_number,
-                                                            "ip_addr":  ip_numa1, "pcie_addr": pcie}
-            subtext+= subsystem_tab_for_one_drive2
+                                                             "ip_addr": ip_numa1, "pcie_addr": pcie}
+            subtext += subsystem_tab_for_one_drive2
             # Mark the processor number in the list to prepare Mask
             proc_list[core_number] = 1
             count = count + 1
 
     # For Acceptorcore we need to assign core.
     if n1:
-        cnum =  core_number
+        cnum = core_number
     else:
-        cnum =  corenumber
+        cnum = corenumber
 
     # Assign separate acceptorcore after above core numbers.
-    AcceptorCore =  cnum + 1
+    AcceptorCore = cnum + 1
     # Mark the AcceptorCore in the list.
-    proc_list[cnum+1] = 1
+    proc_list[cnum + 1] = 1
     # Join the core numbers (list), reverse them and convert to binary, then Hex.
     bin_proc_list = ''.join(map(str, proc_list))
     bin_proc_list = bin_proc_list[::-1]
@@ -164,6 +166,7 @@ def create_nvmf_config_file(config_file, ip0, ip1):
         fe.write(subtext)
 
     return 0
+
 
 def install_spdk_dpdk_fio(spdk_loc, fio_loc):
     '''
@@ -184,7 +187,8 @@ def install_spdk_dpdk_fio(spdk_loc, fio_loc):
     spdk_download_cmd = 'git clone https://github.com/spdk/spdk ' + spdk_location
     dpdk_download_cmd = 'cd ' + spdk_location + ' && git submodule update --init'
     build_dpdk_cmd = 'cd ' + dpdk_location + ' && make install T=x86_64-native-linuxapp-gcc DESTDIR=.'
-    build_spdk_cmd = 'cd ' + spdk_location + ' && ./configure --with-dpdk=' + dpdk_gcc_location + ' --with-rdma --enable-debug  --with-fio=' + fio_location + ' && make'
+    build_spdk_cmd = 'cd ' + spdk_location + ' && ./configure --with-dpdk=' + dpdk_gcc_location +\
+                     ' --with-rdma --enable-debug  --with-fio=' + fio_location + ' && make'
 
     for command in dependency_install_cmd, fio_install_cmd, spdk_download_cmd, dpdk_download_cmd, build_dpdk_cmd, build_spdk_cmd:
         # For FIO plugin build, we need to add CFLAGS parameter fPIC in dpdk config file and then build
@@ -194,10 +198,11 @@ def install_spdk_dpdk_fio(spdk_loc, fio_loc):
 
         ret, out, err = exec_cmd(command)
         if ret != 0:
-            print "------------ Command Failure: "  + command + ' ------------'
+            print "------------ Command Failure: " + command + ' ------------'
             print "Return code: " + str(ret)
             print "Error: " + err
         print "Output: " + out
+
 
 if __name__ == '__main__':
 
@@ -221,7 +226,7 @@ if __name__ == '__main__':
         else:
             print "------ Creating configuration file: " + os.path.abspath(args.config_file) + " ------"
             retcode = create_nvmf_config_file(args.config_file, args.ip_numa0, args.ip_numa1)
-        
+
             if retcode != 0:
                 print "*** ERROR: Creating configuration file ***"
             else:
@@ -232,7 +237,7 @@ if __name__ == '__main__':
         if not args.spdk_loc or not args.fio_loc:
             print "Need SPDK (-l) & FIO location (-f) arguments."
         else:
-            print "------ Calling Install SPDK", args.spdk_loc, args.fio_loc 
+            print "------ Calling Install SPDK", args.spdk_loc, args.fio_loc
             install_spdk_dpdk_fio(args.spdk_loc, args.fio_loc)
 
     # Start SPDK
@@ -251,7 +256,7 @@ if __name__ == '__main__':
         if not args.config_file or not args.spdk_loc:
             print "Need -c & -l arguments to start NVMeoF"
         elif os.path.exists(args.config_file) is False:
-            print "*** No Configuration file exists: " + os.path.abspath(args.config_file) + " ***" 
+            print "*** No Configuration file exists: " + os.path.abspath(args.config_file) + " ***"
         else:
             spdk_nvmf_start = args.spdk_loc + '/app/nvmf_tgt/nvmf_tgt -c ' + args.config_file + ' &'
             print spdk_nvmf_start
@@ -260,4 +265,3 @@ if __name__ == '__main__':
                 print "Error starting NVMf Target"
                 print err
             print out
-

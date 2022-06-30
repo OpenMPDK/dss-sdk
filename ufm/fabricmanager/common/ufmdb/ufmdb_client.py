@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -32,6 +32,7 @@
 """
 Template class for database clients
 """
+
 
 class UfmdbClient(object):
     def __init__(self, **kwargs):
@@ -219,9 +220,11 @@ class UfmdbClient(object):
         print("ERROR: UfmdbClient.status must be implemented!")
         return None
 
+
 def is_valid_init_args(**kwargs):
     print("ERROR: UfmdbClient.is_valid_init_args must be implemented!")
     return True
+
 
 def is_valid_params(validparams, **kwargs):
     for key in kwargs.keys():
@@ -230,8 +233,10 @@ def is_valid_params(validparams, **kwargs):
             return False
     return True
 
+
 def client(**kwargs):
     return UfmdbClient(**kwargs)
+
 
 def log_errors(func):
     def func_wrapper(*args, **kwargs):
@@ -241,4 +246,3 @@ def log_errors(func):
             print(e)
             return None
     return func_wrapper
-

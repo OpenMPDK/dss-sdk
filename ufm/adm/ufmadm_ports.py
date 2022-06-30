@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -40,7 +40,7 @@ class PortsMenu(UfmMenu):
 
         self.fab = fab
         self.sw = sw
-        rsp = ufmapi.redfish_get("/Fabrics/"+fab+"/Switches/"+sw+"/Ports")
+        rsp = ufmapi.redfish_get("/Fabrics/" + fab + "/Switches/" + sw + "/Ports")
 
         if rsp is None:
             return
@@ -55,7 +55,7 @@ class PortsMenu(UfmMenu):
         for member in rsp["Members"]:
             pt = member["@odata.id"].split("/")[8]
             pt_display = 'Eth1/' + pt
-            print("      Port: ("+str(count)+")", pt_display)
+            print("      Port: (" + str(count) + ")", pt_display)
 
             self.add_item(labels=[str(count)],
                           action=self._menu_action, priv=pt, desc=pt_display)
@@ -99,7 +99,7 @@ class PortMenu(UfmMenu):
     def _refresh(self):
         self.clear_items()
 
-        rsp = ufmapi.redfish_get("/Fabrics/"+self.fab+"/Switches/"+self.sw+"/Ports/"+self.pt)
+        rsp = ufmapi.redfish_get("/Fabrics/" + self.fab + "/Switches/" + self.sw + "/Ports/" + self.pt)
         if rsp is None:
             return
 
@@ -130,7 +130,7 @@ class PortMenu(UfmMenu):
         if "Links" in rsp and rsp["Links"]["AllowedVLANs"]:
             for member in rsp["Links"]["AllowedVLANs"]:
                 vlan = member["@odata.id"].split("/")[8]
-                print("   Allowed VLAN: ("+str(count)+")", vlan)
+                print("   Allowed VLAN: (" + str(count) + ")", vlan)
 
                 self.add_item(labels=[str(count)],
                               action=self._menu_action, priv=vlan,
@@ -361,8 +361,8 @@ class PortMenu(UfmMenu):
 
         succeeded = ufmapi.print_switch_result(
             rsp,
-            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan ' +
-            str(start_vlan_id) + '-' + str(end_vlan_id),
+            'interface ethernet 1/' + str(self.pt) + ' switchport trunk allowed-vlan '
+            + str(start_vlan_id) + '-' + str(end_vlan_id),
             'Successfully set port to trunk mode and allow vlan range',
             'Failed to set port to trunk mode and allow vlan range')
 
@@ -528,8 +528,8 @@ class PortMenu(UfmMenu):
 
         succeeded = ufmapi.print_switch_result(
             rsp,
-            'interface ethernet 1/' + str(self.pt) + ' traffic-class ' + str(tc) +
-            ' congestion-control ecn minimum-absolute ' + str(min_ab)
+            'interface ethernet 1/' + str(self.pt) + ' traffic-class ' + str(tc)
+            + ' congestion-control ecn minimum-absolute ' + str(min_ab)
             + ' maximum-absolute ' + str(max_ab),
             'Successfully Enabled ECN Marking',
             'Failed to Enable ECN Marking')
@@ -597,7 +597,7 @@ class PortMenu(UfmMenu):
 
         ufmapi.print_switch_result(
             rsp,
-            'interface ethernet 1/' + str(self.pt) + ' ingress-buffer ' + buf_name +
-            ' bind switch-priority ' + str(prio),
+            'interface ethernet 1/' + str(self.pt) + ' ingress-buffer ' + buf_name
+            + ' bind switch-priority ' + str(prio),
             'Successfully Bind Switch Priority to Specific Buffer',
             'Failed to Bind Priority to Specific Buffer')

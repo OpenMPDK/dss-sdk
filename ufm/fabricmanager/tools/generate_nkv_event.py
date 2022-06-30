@@ -9,7 +9,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -167,14 +167,11 @@ def generate_events():
 
 def main():
     global g_cmd_timeout
-    parser = argparse.ArgumentParser(
-         description='Script to genertate NKV events'
-    )
+    parser = argparse.ArgumentParser(description='Script to genertate NKV events')
     parser.add_argument('-e', '--event', dest='event',
                         help='event and timeout in format event:timeout',
                         type=parse_event)
-    parser.add_argument('-t', '--timeout', dest='timeout',
-                         help='default timeout')
+    parser.add_argument('-t', '--timeout', dest='timeout', help='default timeout')
     args = parser.parse_args()
     if args.timeout:
         g_cmd_timeout = args.timeout

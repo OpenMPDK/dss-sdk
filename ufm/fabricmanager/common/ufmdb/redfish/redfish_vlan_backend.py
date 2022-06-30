@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -131,7 +131,7 @@ class RedfishVlanCollectionBackend():
             '@odata.type': '#VLanCollection.VLanCollection',
             'Description': 'Collection of VLANs',
             'Name': 'VLANs Collection'
-            }
+        }
 
     def get(self, fab_id, sw_id):
         try:

@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -158,15 +158,14 @@ def __get_cluster_info(db_handle):
         for member in members:
             cluster_member = dict()
             cluster_member['cm_server_name'] = member.name
-            if not member.name in cluster_out:
+            if member.name not in cluster_out:
                 continue
 
             cluster_member['cm_id'] = cluster_out[member.name].get('id', None)
             cluster_member['cm_server_address'] = cluster_out[member.name].get('ip_address', None)
             if 'uptime' in cluster_out[member.name]:
                 cluster_member['cm_up_time_hours'] = cluster_out[member.name]['uptime']
-            if ('status' in cluster_out[member.name] and cluster_out[
-                member.name]['status'] == 'up'):
+            if ('status' in cluster_out[member.name] and cluster_out[member.name]['status'] == 'up'):
                 cluster_member['cm_instance_health'] = lib_constants.CM_UP
                 members_up += 1
             else:
@@ -255,6 +254,7 @@ def get_events(db_handle):
                         key=lambda e: e['timestamp'],
                         reverse=True)
     return event_list
+
 
 @do_pre_checks
 def __get_targets_info(db_handle):
@@ -379,10 +379,9 @@ def __get_targets_info(db_handle):
                         drive_numa_list.append(int(drive_json_data['NUMANode']))
                     drives.append(drive_entry)
                 subsystem_entry['mapped_drives'] = drives
-                subsystem_entry['subsystem_kb_used'] = int(subsystem_used_size/1024)
-                subsystem_entry['subsystem_kb_total'] = int(subsystem_total_size/1024)
-                subsystem_entry['subsystem_kb_avail'] = subsystem_entry['subsystem_kb_total'] - subsystem_entry[
-                    'subsystem_kb_used']
+                subsystem_entry['subsystem_kb_used'] = int(subsystem_used_size / 1024)
+                subsystem_entry['subsystem_kb_total'] = int(subsystem_total_size / 1024)
+                subsystem_entry['subsystem_kb_avail'] = subsystem_entry['subsystem_kb_total'] - subsystem_entry['subsystem_kb_used']
                 if subsystem_entry['subsystem_kb_total']:
                     subsystem_entry['subsystem_space_avail_percent'] = int(
                         subsystem_entry['subsystem_kb_avail'] * 100 / subsystem_entry['subsystem_kb_total'])
@@ -393,7 +392,7 @@ def __get_targets_info(db_handle):
                 try:
                     transport_address_json = subsystems_json[nqn]['transport_addresses']
                 except KeyError:
-                    db_handle.logger.error("Could not get transport address attributes for NQN %s" % (subsystem_entry['subsystem_nqn_id']) )
+                    db_handle.logger.error("Could not get transport address attributes for NQN %s" % (subsystem_entry['subsystem_nqn_id']))
                     transport_address_json = dict()
 
                 for macaddr, value in transport_address_json.iteritems():
@@ -405,7 +404,7 @@ def __get_targets_info(db_handle):
                     elif value['trtype'].upper() == 'TCP':
                         transport_mode_entry['subsystem_type'] = lib_constants.SUBSYSTEM_TYPE_TCP
                     else:
-                        db_handle.logger.error("Unknown SUBSYSTEM_TYPE = {}".format(value['trtype'])) 
+                        db_handle.logger.error("Unknown SUBSYSTEM_TYPE = {}".format(value['trtype']))
                     if value['adrfam'] == 'IPv4':
                         transport_mode_entry['subsystem_addr_fam'] = lib_constants.SUBSYSTEM_ADDR_FAMILY_IPV4
                     else:
@@ -418,8 +417,7 @@ def __get_targets_info(db_handle):
                         transport_mode_entry['subsystem_interface_numa_aligned'] = True
                     else:
                         transport_mode_entry['subsystem_interface_numa_aligned'] = False
-                    if 'Status' in network_json[macaddr] and network_json[\
-                            macaddr]['Status'] == 'up':
+                    if 'Status' in network_json[macaddr] and network_json[macaddr]['Status'] == 'up':
                         transport_mode_entry['subsystem_interface_status'] = (
                             lib_constants.SUBSYSTEM_IFACE_STATUS_UP)
                     else:
@@ -479,7 +477,7 @@ def get_cluster_health(db_handle, detail=False):
     try:
         cluster_uptime_in_secs = db_handle.get_key_value('/cluster/uptime_in_seconds')
         if cluster_uptime_in_secs:
-            cluster_info['cluster_up_time_hours'] = int(cluster_uptime_in_secs)/3600
+            cluster_info['cluster_up_time_hours'] = int(cluster_uptime_in_secs) / 3600
     except:
         db_handle.logger.error('Exception getting cluster_up_time_hours', exc_info=True)
         pass
@@ -709,8 +707,7 @@ def stop_cm(db_handle):
 
 @do_pre_checks
 def manage_service(db_handle, service_name, action, node_name):
-    cmd = ('sshpass -p msl-ssg ssh root@' + node_name + ' systemctl ' +
-           action + ' ' + service_name)
+    cmd = ('sshpass -p msl-ssg ssh root@' + node_name + ' systemctl ' + action + ' ' + service_name)
     db_handle.logger.info('manage service called for %s', cmd)
     cmd = cmd.split()
     pipe = Popen(cmd, shell=False, stdout=PIPE, stderr=PIPE)
@@ -839,9 +836,9 @@ def initiate_sw_upgrade(db_handle, upgrade_image_file, force_flag):
     for member in members:
         ipaddr = member['cm_server_address']
         cmd = (
-            'ssh root@' + ipaddr + ' mkdir -p ' + upgrade_image_dir + '&&' +
-            'scp ' + upgrade_image_file + ' root@' + ipaddr +
-            ':' + upgrade_image_dir + image_basename)
+            'ssh root@' + ipaddr + ' mkdir -p ' + upgrade_image_dir + '&&'
+            + 'scp ' + upgrade_image_file + ' root@' + ipaddr
+            + ':' + upgrade_image_dir + image_basename)
         db_handle.logger.info('Cmd to copy file %s', cmd)
         p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
         out, err = p.communicate()
@@ -876,7 +873,7 @@ def lib_get_sw_upgrade_progress(db_handle):
         db_dict = db_handle.get_key_with_prefix('/software')
     except:
         db_handle.logger.exception('Exception in getting the software upgrade '
-                              'status')
+                                   'status')
         return None
 
     db_dict = db_dict['software']
@@ -1032,9 +1029,9 @@ def initiate_sw_downgrade(db_handle, downgrade_image_file, force_flag):
     for member in members:
         ipaddr = member['cm_server_address']
         cmd = (
-            'ssh root@' + ipaddr + ' mkdir -p ' + downgrade_image_dir + '&&' +
-            'scp ' + downgrade_image_file + ' root@' + ipaddr +
-            ':' + downgrade_image_dir + image_basename)
+            'ssh root@' + ipaddr + ' mkdir -p ' + downgrade_image_dir + '&&'
+            + 'scp ' + downgrade_image_file + ' root@' + ipaddr
+            + ':' + downgrade_image_dir + image_basename)
         db_handle.logger.info('Cmd to copy file %s', cmd)
         p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
         out, err = p.communicate()
@@ -1069,7 +1066,7 @@ def lib_get_sw_downgrade_progress(db_handle):
         db_dict = db_handle.get_key_with_prefix('/software')
     except:
         db_handle.logger.exception('Exception in getting the software downgrade '
-                              'status')
+                                   'status')
         return None
 
     db_dict = db_dict['software']

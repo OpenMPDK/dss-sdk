@@ -195,7 +195,7 @@ class KVManager:
                         if device["Model"] != "":
                             print("  Model:          %s" % device["Model"])
                         print("  Serial:          %s" % device["Serial"])
-                        print("  Size (MiB):     %d" % (int(device["SizeInBytes"]) / (1024*1024)))
+                        print("  Size (MiB):     %d" % (int(device["SizeInBytes"]) / (1024 * 1024)))
                         print("")
 
                         if not nqn_name:
@@ -237,7 +237,7 @@ class KVManager:
                                 print("    Model:          %s" % device["Model"])
                                 print("    PCI Address:    %s" % device["PCIAddress"])
                                 print("    Serial:          %s" % device["Serial"])
-                                print("    Size (MiB):     %s" % (int(device["SizeInBytes"]) / (1024*1024)))
+                                print("    Size (MiB):     %s" % (int(device["SizeInBytes"]) / (1024 * 1024)))
                             else:
                                 continue
                         print("")

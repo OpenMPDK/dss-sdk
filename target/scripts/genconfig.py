@@ -4,8 +4,8 @@ import os
 import re
 import sys
 
-comment = re.compile('^\s*#')
-assign = re.compile('^\s*([a-zA-Z_]+[a-zA-Z_0-9]*)\s*(\?)?=\s*([^#]*)')
+comment = re.compile(r'^\s*#')
+assign = re.compile(r'^\s*([a-zA-Z_]+[a-zA-Z_0-9]*)\s*(\?)?=\s*([^#]*)')
 
 args = os.environ.copy()
 for arg in sys.argv:

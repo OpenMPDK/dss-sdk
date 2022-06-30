@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -59,11 +59,10 @@ class RedfishFabricBackend():
 
                 if fab["switches"]:
                     self.cfg["Switches"] = {"@odata.id": "{rest_base}/{Fabrics}/{fab_id}/{Switches}"}
-                    self.cfg["Switches"]["@odata.id"] = self.cfg["Switches"]["@odata.id"].format(
-                                                        rest_base=redfish_constants.REST_BASE,
-                                                        Fabrics=redfish_constants.FABRICS,
-                                                        fab_id=fab_id,
-                                                        Switches=redfish_constants.SWITCHES)
+                    self.cfg["Switches"]["@odata.id"] = self.cfg["Switches"]["@odata.id"].format(rest_base=redfish_constants.REST_BASE,
+                                                                                                 Fabrics=redfish_constants.FABRICS,
+                                                                                                 fab_id=fab_id,
+                                                                                                 Switches=redfish_constants.SWITCHES)
 
                 response = self.cfg, redfish_constants.SUCCESS
             else:
@@ -103,7 +102,7 @@ class RedfishFabricCollectionBackend():
             '@odata.type': '#FabricCollection.FabricCollection',
             'Description': 'Collection of Fabrics',
             'Name': 'Fabric Collection'
-            }
+        }
 
     def get(self):
         try:

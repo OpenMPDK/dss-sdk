@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -35,6 +35,7 @@ import fcntl
 
 NVME_IOCTL_ADMIN_CMD = 0xC0484E41
 
+
 class NvmeAdminCmd(ctypes.Structure):
     _fields_ = [('opcode', ctypes.c_ubyte),
                 ('flags', ctypes.c_ubyte),
@@ -42,7 +43,7 @@ class NvmeAdminCmd(ctypes.Structure):
                 ('nsid', ctypes.c_uint),
                 ('cdw2', ctypes.c_uint),
                 ('cdw3', ctypes.c_uint),
-                ('metadata',ctypes.c_ulonglong),
+                ('metadata', ctypes.c_ulonglong),
                 ('addr', ctypes.c_ulonglong),
                 ('metadata_len', ctypes.c_uint),
                 ('data_len', ctypes.c_uint),

@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -129,7 +129,7 @@ class RedfishSystemCollectionBackend(RedfishCollectionBackend):
     @staticmethod
     def get_response_base():
         return {
-            '@odata.context': redfish_constants.REST_BASE+'$metadata#ComputerSystemCollection.ComputerSystemCollection',
+            '@odata.context': redfish_constants.REST_BASE + '$metadata#ComputerSystemCollection.ComputerSystemCollection',
             '@odata.id': redfish_constants.REST_BASE + 'Systems',
             '@odata.type': '#ComputerSystemCollection.ComputerSystemCollection',
             'Description': 'Collection of Computer Systems',

@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -32,7 +32,7 @@
 import socket
 
 # CM Verson
-CM_VERSION=0.3
+CM_VERSION = 0.3
 
 # CM state types
 CM_UP = 0
@@ -70,7 +70,7 @@ SUBSYSTEM_IFACE_STATUS_UP = 1
 
 # Network interface speed
 # Speed to enumerated value
-NET_SPEED_DICT = {1: 0, 10:1, 50:2, 100:3}
+NET_SPEED_DICT = {1: 0, 10: 1, 50: 2, 100: 3}
 '''
 LS_1GBIT = 0
 LS_10GBIT = 1

@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -59,29 +59,28 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
-
 def main():
     parser = argparse.ArgumentParser(description='Process Server\'s Configuration database.')
     parser.add_argument("--cluster_name", help="Cluster name", dest="cluster_name", default="cluster-01")
     parser.add_argument("--port", help="Port of Server", dest="port", default=2379)
     parser.add_argument("--vip_address", help="viritual ip-address", dest="vip_address", default="127.0.0.1")
     parser.add_argument("--ip_address", help="host ip-address", dest="ip_address", default="127.0.0.1")
-    parser.add_argument( "--mode", help="Data Source Mode: Static, Local or DB", dest="mode", default='DB')
+    parser.add_argument("--mode", help="Data Source Mode: Static, Local or DB", dest="mode", default='DB')
 
     args = parser.parse_args()
 
     hostname = str(socket.gethostname())
 
-    logger.info("Connect to {}".format(ip_address) )
+    logger.info("Connect to {}".format(ip_address))
 
-    db=etcd.client(host=ip_address, port=args.port)
+    db = etcd.client(host=ip_address, port=args.port)
 
     logger.info("Write default keys and values to database")
 
     ep = datetime.datetime(1970, 1, 1, 0, 0, 0)
     ep_sec = int((datetime.datetime.utcnow() - ep).total_seconds())
 
-    dummy=None
+    dummy = None
     dummy = db.get('/cluster/id')
     if not dummy:
         u = str(uuid.uuid4())
@@ -99,13 +98,13 @@ def main():
     if not dummy:
         db.put('/cluster/time_created', str(ep_sec))
 
-    key="/cluster/{}/ip_address".format(hostname)
+    key = "/cluster/{}/ip_address".format(hostname)
     db.put(key, vip_address)
 
-    key="/cluster/{}/time_created".format(hostname)
+    key = "/cluster/{}/time_created".format(hostname)
     db.put(key, str(ep_sec))
 
-    key="/cluster/{}/id".format(hostname)
+    key = "/cluster/{}/id".format(hostname)
     uh = str(uuid.uuid4())
     db.put(key, uh)
 

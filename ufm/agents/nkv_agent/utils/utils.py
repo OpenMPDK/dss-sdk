@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -55,7 +55,7 @@ def flat_dict_generator(indict, pre=None):
     flat traversal of all dictionary key-values.
     :param indict: Recursive lower level of dict.
     :param pre: Parent keys to concatenate with child keys.
-    :return: 
+    :return:
     """
     pre = pre[:] if pre else []
     if isinstance(indict, dict):
@@ -106,9 +106,7 @@ class KVLog:
             color = "1;37;41"
         else:
             color = "0"
-        print(('\x1b[%sm' % color) +
-              msg +
-              '\x1b[0m')
+        print(('\x1b[%sm' % color) + msg + '\x1b[0m')
 
 
 def match_cmds_with_process(cmds, proc_args, lazy_regex):
@@ -234,4 +232,3 @@ def _eval(string_value=None):
         log.exception(str(e))
 
     return string_value
-

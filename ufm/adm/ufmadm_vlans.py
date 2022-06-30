@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -59,7 +59,7 @@ class VlansMenu(UfmMenu):
         for member in rsp["Members"]:
             vlan = member["@odata.id"].split("/")[8]
             vlan_display = "VLAN " + vlan
-            print("      VLAN: ("+str(count)+")", vlan_display)
+            print("      VLAN: (" + str(count) + ")", vlan_display)
 
             self.add_item(labels=[str(count)],
                           action=self._menu_action, priv=vlan, desc=vlan_display)
@@ -129,8 +129,7 @@ class VlanMenu(UfmMenu):
         self._refresh()
 
     def _refresh(self):
-        rsp = ufmapi.redfish_get(
-                "/Fabrics/" + self.fab + "/Switches/" + self.sw + "/VLANs/" + self.vlan)
+        rsp = ufmapi.redfish_get("/Fabrics/" + self.fab + "/Switches/" + self.sw + "/VLANs/" + self.vlan)
 
         if rsp is None:
             return
@@ -180,7 +179,7 @@ class VlanMenu(UfmMenu):
                 for member in rsp["Links"]["Ports"]:
                     pt = member["@odata.id"].split("/")[8]
                     pt_display = 'Eth1/' + pt
-                    print("      Port: ("+str(count)+")", pt_display)
+                    print("      Port: (" + str(count) + ")", pt_display)
 
                     self.add_item(labels=[str(count)],
                                   action=self._menu_action, priv=pt,

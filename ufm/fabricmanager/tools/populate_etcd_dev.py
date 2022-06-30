@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -74,7 +74,7 @@ def printType(db, dbp, p, t):
 
     if type(t) is list:
         for v in t:
-            printType(db, dbp, p , v)
+            printType(db, dbp, p, v)
         return
 
     if type(t) is dict:
@@ -91,7 +91,7 @@ def read_data_from_file(db, filename):
 
     with open(filename) as fp:
         doc = yaml.load(fp)
-        dbkey=''
+        dbkey = ''
         for key, value in doc.items():
             printType(db, dbkey, key, value)
 
@@ -100,11 +100,11 @@ def main():
     parser = argparse.ArgumentParser(description='Configuration db for UFM.')
     parser.add_argument("--port", help="Port of Server", dest="port", default=2379)
     parser.add_argument("--ip_address", help="ip-address of the etcd node", dest="ip_address", default="0.0.0.0")
-    parser.add_argument( "--filename", help="YAML filename", dest="filename", default='cluster.yaml')
+    parser.add_argument("--filename", help="YAML filename", dest="filename", default='cluster.yaml')
 
     args = parser.parse_args()
 
-    logger.info("============> Connect to {} <=================".format(args.ip_address) )
+    logger.info("============> Connect to {} <=================".format(args.ip_address))
     if args.ip_address == "0.0.0.0":
         db = etcd3.client()
     else:

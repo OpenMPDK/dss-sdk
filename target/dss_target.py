@@ -1,5 +1,16 @@
 #!/usr/bin/python
 
+import argparse
+import json
+import multiprocessing
+import os
+import re
+import sys
+from datetime import date
+from random import randint
+from subprocess import Popen, PIPE
+from netifaces import interfaces, ifaddresses, AF_INET
+
 g_license_text = """
  #   The Clear BSD License
  #
@@ -33,17 +44,6 @@ g_license_text = """
  #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import argparse
-from datetime import date
-import json
-import multiprocessing
-import os
-from random import randint
-import re
-from subprocess import Popen, PIPE
-import sys
-from netifaces import interfaces, ifaddresses, AF_INET
-
 g_env = None
 
 mp = multiprocessing
@@ -64,12 +64,12 @@ g_conf_global_text = """[Global]
 
   wal_cache_enabled No               # disable cache by No
   wal_log_enabled No                 # disable log by No
-  wal_nr_zone_per_pool 20            # default nr of zones per pool. 
+  wal_nr_zone_per_pool 20            # default nr of zones per pool.
   wal_cache_zone_sz_mb 1024          # default capacity of the zone, 1024 M is max per zone due to huge page size limitation.
   wal_nr_cores 5
- 
+
   fuse_enabled No
- 
+
   list_enabled Yes
 """
 
@@ -188,6 +188,7 @@ g_config_mode = 'kv'
 
 g_tgt_gcc_setup = "source /usr/local/bin/setenv-for-gcc510.sh"
 
+
 def random_with_N_digits(n):
     range_start = 10 ** (n - 1)
     range_end = (10 ** n) - 1
@@ -248,6 +249,7 @@ def generate_core_mask(core_count, dedicate_core_percent):
     g_core_mask = "{0:#x}".format((mask & ~(reserve_mask << core_half)) & avail_mask)
     return 0
 
+
 def generate_core_mask_vmmode(core_count):
     if core_count <= 0:
         mask = 0
@@ -287,15 +289,16 @@ def get_pcie_address_firmware_mapping():
                         address_block_firmware[pcie_address] = fw_revision
     return address_kv_firmware, address_block_firmware
 
+
 def get_pcie_address_serial_mapping(list_of_pci_dev):
     """
     Filterout KV firmware and map with pcie address.
     return: <dict> , a dictionary of pcie and serial number mapping.
     """
     address_serial = {}
-    #pcie = dict.keys(list_of_pci_dev)
-    #for item in pcie:
-         #signature = "cat /sys/class/pci_bus/0000:{}/device/*/nvme/nvme*/serial".format(item)
+    # pcie = dict.keys(list_of_pci_dev)
+    # for item in pcie:
+    #     signature = "cat /sys/class/pci_bus/0000:{}/device/*/nvme/nvme*/serial".format(item)
     signature = "ls /sys/class/pci_bus/0000:*/device/*/nvme/nvme*/serial"
     ret, serial_files, err = exec_cmd(signature)
     #    serial = serial.strip()
@@ -311,6 +314,7 @@ def get_pcie_address_serial_mapping(list_of_pci_dev):
                 address_serial[pcie_address] = serial
 
     return address_serial
+
 
 def get_nvme_list_numa():
     """
@@ -335,6 +339,7 @@ def get_nvme_list_numa():
 
     return drives
 
+
 def ip4_addresses():
     ip_list = {}
     for interface in interfaces():
@@ -345,6 +350,7 @@ def ip4_addresses():
             continue
     return ip_list
 
+
 def only_mtu9k(vip):
     di = {}
     for ip in vip:
@@ -354,6 +360,7 @@ def only_mtu9k(vip):
             di[ip] = vip[ip]
     return di
 
+
 def get_rdma_ips(mip, ip):
     di = {}
     for i in ip:
@@ -361,6 +368,7 @@ def get_rdma_ips(mip, ip):
             if i == ip:
                 di[nic] = ip
     return di
+
 
 def get_numa_boundary():
     ''' Get numa boundary to identify socket '''
@@ -378,9 +386,9 @@ def get_numa_boundary():
 def get_numa_ip(ip_list):
 
     all_ips = ip4_addresses()
-    #mtu_ips = only_mtu9k(all_ips)
+    # mtu_ips = only_mtu9k(all_ips)
 
-    #r_ips = get_rdma_ips(mtu_ips, ip_list)
+    # r_ips = get_rdma_ips(mtu_ips, ip_list)
     r_ips = get_rdma_ips(all_ips, ip_list)
     numa_boundary = get_numa_boundary()
 
@@ -396,9 +404,10 @@ def get_numa_ip(ip_list):
 
     return s0, s1
 
+
 def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_address):
     """
-    Create configuration file for NKV NVMf by writing all 
+    Create configuration file for NKV NVMf by writing all
     the subsystems and appropriate numa and NVMe PCIe IDs.
     """
     # Get NVMe drives and their PCIe IDs.
@@ -431,7 +440,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     nqn_text = "nqn." + yemo + ".io:" + hostname
     subtext = ""
 
-    if g_kvblock_vmmode == True:
+    if g_kvblock_vmmode:
         subtext += g_nvme_vmmode_global_text
     else:
         subtext += g_nvme_global_text
@@ -459,18 +468,18 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 subtext += "#KV Subsys Drive\n"
                 subtext += g_nvme_pcie_text % {
                     "pcie_addr": pcie,
-                    #"num": "Nvme" + str(drive_count),
+                    # "num": "Nvme" + str(drive_count),
                     "num": kv_pc_ad[pcie],
                 }
                 kv_drive_count = kv_drive_count + 1
-                #kv_list.append(drive_count)
+                # kv_list.append(drive_count)
                 kv_list.append(kv_pc_ad[pcie])
             elif pcie in block_pcie_address:
                 subtext += "#Block Subsys Drive\n"
                 if g_wal > wal_drive_count:
                     subtext += g_nvme_pcie_text % {
                         "pcie_addr": pcie,
-                        #"num": "walbdev-" + str(wal_drive_count),
+                        # "num": "walbdev-" + str(wal_drive_count),
                         "num": bl_pc_ad[pcie],
                     }
                     g_conf_global_text += g_dfly_wal_log_dev_name % {
@@ -480,11 +489,11 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 else:
                     subtext += g_nvme_pcie_text % {
                         "pcie_addr": pcie,
-                        #"num": "Nvme" + str(drive_count),
+                        # "num": "Nvme" + str(drive_count),
                         "num": bl_pc_ad[pcie],
                     }
                     block_drive_count = block_drive_count + 1
-                    #block_list.append(drive_count)
+                    # block_list.append(drive_count)
                     block_list.append(bl_pc_ad[pcie])
             else:
                 bad_index.append(drive_count)
@@ -499,19 +508,19 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     if g_tcp:
         g_conf_global_text += g_tcp_transport
-        if g_kvblock_vmmode == True:
+        if g_kvblock_vmmode:
             g_conf_global_text += g_transport_vmmode
         else:
             g_conf_global_text += g_transport_perfmode
 
     if g_rdma:
         g_conf_global_text += g_rdma_transport
-        if g_kvblock_vmmode == True:
+        if g_kvblock_vmmode:
             g_conf_global_text += g_transport_vmmode
         else:
             g_conf_global_text += g_transport_perfmode
 
-    if g_kvblock_vmmode == True:
+    if g_kvblock_vmmode:
         if kv_drive_count > 4:
             kv_ss_drive_count = 4
         else:
@@ -523,7 +532,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
             kv_ss_drive_count = 1
 
     nvme_index = 1
-    #for drive_count_index in range(len(kv_list)):
+    # for drive_count_index in range(len(kv_list)):
     numa_ips = {}
     s0, s1 = {}, {}
     s0, s1 = get_numa_ip(ip_addrs)
@@ -544,7 +553,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 "nqn_text": nqn_text + "-kv_data" + str(ss_number),
                 "serial_number": random_with_N_digits(10),
             }
-            #for ip in ip_addrs:
+            # for ip in ip_addrs:
             for ip in numa_ips:
                 if g_tcp:
                     subsystem_text += g_subsystem_listen_text % {
@@ -560,7 +569,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                     }
 
         subsystem_text += g_subsystem_namespace_text % {
-            #"num": kv_list[drive_count_index],
+            # "num": kv_list[drive_count_index],
             "num": i,
             "nsid": nvme_index,
         }
@@ -571,7 +580,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
             nvme_index += 1
 
         if ss_number >= 2:
-            if ss_number  <= g_kv_ssc / 2:
+            if ss_number <= g_kv_ssc / 2:
                 if s0:
                     numa_ips = s0
                 elif s1:
@@ -582,8 +591,8 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         if ss_number > g_kv_ssc:
             break
 
-    #ss_number = ss_number + 1
-    #for i in range(block_drive_count):
+    # ss_number = ss_number + 1
+    # for i in range(block_drive_count):
     for i in block_list:
         subsystem_text += g_subsystem_common_text % {
             "subsys_num": ss_number,
@@ -607,7 +616,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
                 }
         nvme_index = 1
         subsystem_text += g_subsystem_namespace_text % {
-            #"num": block_list[i],
+            # "num": block_list[i],
             "num": i,
             "nsid": nvme_index,
         }
@@ -620,6 +629,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         fe.write(subtext)
 
     return 0
+
 
 def get_vlan_ips(target_vlan_id):
     """
@@ -643,7 +653,7 @@ def get_vlan_ips(target_vlan_id):
     # Parse json after fixing malformed output
     lshw_json = json.loads("".join(fixed_lines))
     vlanid_ip_map = {}
-    vlan_id_regex = re.compile("id\s*[0-9]+")
+    vlan_id_regex = re.compile(r"id\s*[0-9]+")
     for portalias in lshw_json:
         if "logicalname" in portalias and "ip" in portalias["configuration"]:
             devname = portalias["logicalname"]
@@ -665,7 +675,7 @@ def get_vlan_ips(target_vlan_id):
 
 
 """
-Functions being called in the main function 
+Functions being called in the main function
 """
 
 
@@ -787,7 +797,7 @@ The most commonly used dss target commands are:
    reset      Assign all NVME drives back to system
    set        Assign NVME drives to UIO
    huge_pages Setup system huge pages
-   configure  Configures the system/device(s) and generates necessary config file to run target application 
+   configure  Configures the system/device(s) and generates necessary config file to run target application
 """,
         )
         parser.add_argument("command", help="Subcommand to run")
@@ -878,12 +888,14 @@ The most commonly used dss target commands are:
             default='kv',
             const='kv',
             nargs='?',
-            help="Configurations [kv - Key Value, kv_block_vm - kv with block translation with vm compatible, kv_block_perf - kv with block translation with performance optimizations, block - direct block access to drives]"
-		)
+            help="Configurations [kv - Key Value, kv_block_vm - kv with block translation with vm compatible,\
+                  kv_block_perf - kv with block translation with performance optimizations, block - direct block access to drives]"
+        )
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma, g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma
+        global g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -939,7 +951,7 @@ The most commonly used dss target commands are:
         )
         if ret != 0:
             print ("*** ERROR: Creating configuration file ***")
-        if g_kvblock_vmmode == True:
+        if g_kvblock_vmmode:
             generate_core_mask_vmmode(mp.cpu_count())
         else:
             generate_core_mask(mp.cpu_count(), 0.50)

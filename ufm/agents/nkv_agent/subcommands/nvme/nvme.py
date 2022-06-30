@@ -46,7 +46,7 @@ from server_info.server_attributes_aggregator import OSMServerStorage
 def nvme_identify():
     """
     Displays list of NVMe devices on the system it's executed on.
-    :return: 
+    :return:
     """
     print("List all NVMe devices")
     info_obj = OSMServerStorage()

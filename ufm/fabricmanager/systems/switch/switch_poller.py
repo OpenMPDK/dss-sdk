@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -60,11 +60,10 @@ class SwitchPoller(UfmThread):
             raise Exception('Invalid switch type, {} is not valid'.format(self.swArg.sw_type))
 
         self._running = True
-        super(SwitchPoller, self).start(
-                    threadName='SwitchPoller',
-                    cb=self._poller,
-                    cbArgs=self.swArg,
-                    repeatIntervalSecs=self.repeat_interval_secs)
+        super(SwitchPoller, self).start(threadName='SwitchPoller',
+                                        cb=self._poller,
+                                        cbArgs=self.swArg,
+                                        repeatIntervalSecs=self.repeat_interval_secs)
 
     def stop(self):
         super(SwitchPoller, self).stop()

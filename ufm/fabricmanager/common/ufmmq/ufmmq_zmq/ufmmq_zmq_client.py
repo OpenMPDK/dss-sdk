@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -32,6 +32,7 @@
 import zmq
 from common.ufmmq import ufmmq_client
 
+
 class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
     def __init__(self, **kwargs):
         """
@@ -40,7 +41,7 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         mq_type is ufmmq specific and should be removed before
         invoking the connection
         """
-        kwargs.pop('mq_type','zmq')
+        kwargs.pop('mq_type', 'zmq')
         self.client = zmq.Context(io_threads=1, **kwargs)
 
     def send(self, socketObj, data):
@@ -48,16 +49,16 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         Send a single message on this socket.
 
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.send_string("{}".format(data))
 
     def receive(self, socketObj):
         """
         Receive a message in bytes from this socket.
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 msg = socketObj.recv()
                 return msg
         return None
@@ -70,7 +71,7 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         If not called, the context will automatically be closed
         when it is garbage collected.
         """
-        if (self.client != None):
+        if (self.client is not None):
             self.client.term()
 
     def create_socket(self, socket_type):
@@ -85,15 +86,15 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
 
         Can create multiple sockets associated with one Context.
         """
-        if (self.client != None):
+        if (self.client is not None):
             return self.client.socket(socket_type)
 
     def close_socket(self, socketObj):
         """
         Close the socket.
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.close()
 
     def getsockopt(self, socketObj, option):
@@ -104,8 +105,8 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         Returns:	optval. The value of the option as a unicode string.
         Return type:	unicode string (unicode on py2, str on py3)
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 return socketObj.getsockopt_string(option)
 
     def setsockopt(self, socketObj, option, optVal):
@@ -116,8 +117,8 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
             option(int). The name of the option to set. Can be any of: SUBSCRIBE, UNSUBSCRIBE, IDENTITY
             optVal(unicode string (unicode on py2, str on py3)). The value of the option to set.
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.setsockopt_string(option, optVal)
 
     def bind_socket(self, socketObj, addr, port):
@@ -131,8 +132,8 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
             for example tcp://127.0.0.1:5555. Protocols supported include tcp, udp, pgm, epgm,
             inproc and ipc. If the address is unicode, it is encoded to utf-8 first.
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.bind("{}:{}".format(addr, port))
 
     def connect_socket(self, socketObj, addr, port):
@@ -143,8 +144,8 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
             for example tcp://127.0.0.1:5555. Protocols supported include tcp, udp, pgm, epgm,
             inproc and ipc. If the address is unicode, it is encoded to utf-8 first.
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.connect("{}:{}".format(addr, port))
 
     def subscribe_socket(self, socketObj, topic):
@@ -155,8 +156,8 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         :param topic: interested topic
         :returns: none
         """
-        if (self.client != None):
-            if (socketObj != None):
+        if (self.client is not None):
+            if (socketObj is not None):
                 socketObj.subscribe(topic)
 
     def create_poller(self, timeout=None):
@@ -172,7 +173,7 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
             events = dict(poller.poll()), which turns the list of tuples into a mapping of socket : event.
 
         """
-        if (self.client != None):
+        if (self.client is not None):
             return zmq.Poll(timeout)
         else:
             return None
@@ -184,17 +185,18 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         Parameters:
             ----socket (zmq.Socket or native socket)  A zmq.Socket or any Python object having a
             fileno() method that returns a valid file descriptor.
-            ----flags (int)  The events to watch for. Can be POLLIN, POLLOUT or POLLIN|POLLOUT. If flags=0, socket will be unregistered.        :param key: key in database to delete
+            ----flags (int)  The events to watch for. Can be POLLIN, POLLOUT or POLLIN|POLLOUT. If flags=0, socket will be unregistered.
+            :param key: key in database to delete
         """
-        if (self.client != None):
-            if (pollerObj != None):
+        if (self.client is not None):
+            if (pollerObj is not None):
                 return pollerObj.register(self.client, flags)
+
 
 def is_valid_init_args(**kwargs):
     return True
 
+
 def client(**kwargs):
     """Return an instance of Ufmmq_zmq_Client."""
     return Ufmmq_zmq_Client(**kwargs)
-
-

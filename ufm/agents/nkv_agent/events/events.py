@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -63,14 +63,11 @@ def save_events_to_etcd_db(db_handle, event_list):
 
     kv_dict = dict()
     for event in event_list:
-        if (('name' not in event) or
-            ('timestamp' not in event) or
-            ('node' not in event)):
-            db_handle.logger.info('Received an invalid event %s. Skipping it',
-                                  str(event))
+        if (('name' not in event) or ('timestamp' not in event) or ('node' not in event)):
+            db_handle.logger.info('Received an invalid event %s. Skipping it', str(event))
             continue
         ev_key = '/'.join([ETCD_EVENT_TO_PROCESS_KEY_PREFIX,
-                           str(event['timestamp']),str(uuid1())])
+                           str(event['timestamp']), str(uuid1())])
         kv_dict[ev_key] = json.dumps(event)
         '''
         try:
