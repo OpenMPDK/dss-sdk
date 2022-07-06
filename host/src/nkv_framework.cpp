@@ -663,7 +663,8 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
   struct ibv_mr *mr = NULL;
   bool take_rdd_route = false;
 
-  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn && ((uint32_t)n_value->length > 1048576)) {
+  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn 
+      && (((uint32_t)n_value->length > 1048576) || ((uint32_t)n_value->length % 4 != 0))) {
     client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle;
     smg_info(logger, "rdd_cl_conn_get_mr invoking, path_rdd_conn = %x, value = %x, len = %u", path_rdd_conn, n_value->value, n_value->length);
     mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
@@ -891,7 +892,8 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
   struct ibv_mr *mr = NULL;
   bool take_rdd_route = false;
-  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn && ((uint32_t)n_value->length > 1048576)) {
+  if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn 
+      && (((uint32_t)n_value->length > 1048576) || ((uint32_t)n_value->length % 4 != 0))) {
     client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle; 
     mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
     if (mr) {
