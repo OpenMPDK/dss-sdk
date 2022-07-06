@@ -223,7 +223,7 @@ def exec_cmd(cmd, use_env=True):
     global g_env
     env = g_env if use_env else None
     full_cmd = cmd_to_str(cmd, env)
-    print ("Executing command %s..." % (full_cmd))
+    print("Executing command %s..." % (full_cmd))
     p = Popen(full_cmd, stdout=PIPE, stderr=PIPE, shell=True)
     out, err = p.communicate()
     out = out.decode(encoding="UTF-8", errors="ignore")
@@ -413,7 +413,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     # Get NVMe drives and their PCIe IDs.
     list_of_drives = get_nvme_list_numa()
     if not list_of_drives:
-        print ("No NVMe drives found")
+        print("No NVMe drives found")
         return -1
 
     # print list_of_drives
@@ -685,7 +685,7 @@ def buildtgt():
     """
     if os.path.exists("build.sh"):
         ret, out, err = exec_cmd("build.sh")
-        print (out)
+        print(out)
         return ret
     else:
         return -1
@@ -717,12 +717,12 @@ def setup_hugepage():
                 "mount -t hugetlbfs -o pagesize=1G hugetlbfs_1g /dev/hugepages1G"
             )
         else:
-            print ("/dev/hugepages1G already exists and is mounted")
+            print("/dev/hugepages1G already exists and is mounted")
         if ret != 0:
             return ret
     else:
-        print ("No 1G hugepage setup done for vmmode")
-    print ("****** hugepage setup is done ******")
+        print("No 1G hugepage setup done for vmmode")
+    print("****** hugepage setup is done ******")
     return 0
 
 
@@ -731,13 +731,13 @@ def setup_drive():
     Bring all drives to the userspace"
     """
     cmd = g_path + "/../scripts/setup.sh"
-    print "Executing: " + cmd + "..."
+    print("Executing: " + cmd + "...")
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
-        print ("****** Assign drives to user is failed ******")
+        print("****** Assign drives to user is failed ******")
 
-    print (out)
-    print ("****** drive setup to userspace is done ******")
+    print(out)
+    print("****** drive setup to userspace is done ******")
     return 0
 
 
@@ -746,13 +746,13 @@ def reset_drive():
     Bring back drives to system"
     """
     cmd = g_path + "/../scripts/setup.sh reset"
-    print "Executing: " + cmd + "..."
+    print("Executing: " + cmd + "...")
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
-        print ("****** Bring back drives to system is failed ******")
+        print("****** Bring back drives to system is failed ******")
 
-    print (out)
-    print ("****** drive setup to system is done ******")
+    print(out)
+    print("****** drive setup to system is done ******")
     return 0
 
 
@@ -769,13 +769,13 @@ def execute_tgt(tgt_binary):
         + g_core_mask
         + " -L dfly_list"
     )
-    print "Executing: " + cmd + "..."
+    print("Executing: " + cmd + "...")
     ret, out, err = exec_cmd(cmd)
     if ret != 0:
-        print ("Failed to execute target binary.....")
+        print("Failed to execute target binary.....")
         return ret
 
-    print ("****** Target Binary is executed ******")
+    print("****** Target Binary is executed ******")
     return 0
 
 
@@ -950,7 +950,7 @@ The most commonly used dss target commands are:
             g_conf_path, g_ip_addrs, kv_pcie_address, block_pcie_address
         )
         if ret != 0:
-            print ("*** ERROR: Creating configuration file ***")
+            print("*** ERROR: Creating configuration file ***")
         if g_kvblock_vmmode:
             generate_core_mask_vmmode(mp.cpu_count())
         else:

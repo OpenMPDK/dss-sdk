@@ -153,7 +153,7 @@ def get_ip_port_nqn_info(out, proto):
     if trtype == proto:
         tuplist.append([trtype, trsvcid, subnqn, traddr])
     tuplist.sort(key=lambda x: x[3])
-    print (tuplist)
+    print(tuplist)
     return tuplist
 
 

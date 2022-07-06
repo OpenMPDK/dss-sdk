@@ -178,7 +178,7 @@ class Ufmmq_zmq_Client(ufmmq_client.UfmmqClient):
         else:
             return None
 
-    def register_poller(self, pollerObj, flags=zmq.POLLIN|zmq.POLLOUT):
+    def register_poller(self, pollerObj, flags=(zmq.POLLIN | zmq.POLLOUT)):
         """
         Register a socket for I/O monitoring.
 
