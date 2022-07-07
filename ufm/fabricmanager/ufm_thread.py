@@ -14,8 +14,8 @@ class UfmThread(object):
 
     def __run(self):
         with self.cv:
-            while not self.cv.wait_for(lambda: self.shutdown == True, self.repeatIntervalSecs):
-                if self.cb != None:
+            while not self.cv.wait_for(lambda: self.shutdown is True, self.repeatIntervalSecs):
+                if self.cb is not None:
                     try:
                         self.cb(self.cbArgs)
                     except:

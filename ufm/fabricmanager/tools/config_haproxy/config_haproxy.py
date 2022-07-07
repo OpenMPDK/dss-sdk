@@ -3,6 +3,7 @@ from pyhaproxy.render import Render
 import pyhaproxy.config as config
 import argparse
 
+
 def modifyCfg(server_list, filepath):
     # Build the configuration instance by calling Parser('config_file').build_configuration()
     cfg_parser = Parser('haproxy.cfg')
@@ -22,7 +23,7 @@ def modifyCfg(server_list, filepath):
         ip = server_args[1]
         port = server_args[2]
         health_check_port = server_args[3]
-        new_server = config.Server(name,ip,port,attributes=["check", "port", health_check_port])
+        new_server = config.Server(name, ip, port, attributes=["check", "port", health_check_port])
         backend.add_server(new_server)
 
     # Save the changes to the new config file
@@ -30,6 +31,7 @@ def modifyCfg(server_list, filepath):
     if filepath != "":
         filepath = filepath + "/"
     cfg_render.dumps_to(str(filepath + 'haproxy.cfg'))
+
 
 if __name__ == '__main__':
 
@@ -45,4 +47,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
     server_list = args.server.split(',')
     modifyCfg(server_list, args.filepath)
-

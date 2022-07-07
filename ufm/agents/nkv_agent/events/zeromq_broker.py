@@ -9,7 +9,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -31,10 +31,10 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-
 import ast
 import zmq
-import sys,os
+import sys
+import os
 import platform
 import time
 import json
@@ -42,26 +42,27 @@ from logger import cm_logger
 
 logger = cm_logger.CMLogger("event_notification").create_logger()
 
-PROXY_IP        = "tcp://*"
-PORT_FRONTEND   = "6000"
-PORT_BACKEND    = "6001"
+PROXY_IP = "tcp://*"
+PORT_FRONTEND = "6000"
+PORT_BACKEND = "6001"
 PORT_VALIDATION = "6002"
-DELAY           = 1
-RESEND_MAX      = 2
-POLLIN_MAX      = 2
+DELAY = 1
+RESEND_MAX = 2
+POLLIN_MAX = 2
 POOLIN_INTERVAL = 500
-PLATFORM        = platform.node().split('.', 1)[0]
+PLATFORM = platform.node().split('.', 1)[0]
+
 
 def proxy():
     context = zmq.Context()
     logger.info("ZeroMQ Broker started at {}: VIP-{}:{}".format(PLATFORM, PROXY_IP, PORT_FRONTEND))
 
     # Frontend receive events from Cluster monitor
-    frontend  = context.socket(zmq.REP)
+    frontend = context.socket(zmq.REP)
     frontend.bind("{}:{}".format(PROXY_IP, PORT_FRONTEND))
 
     # Backend send the events to the subscribers.
-    backend  = context.socket(zmq.PUB)
+    backend = context.socket(zmq.PUB)
     backend.bind("{}:{}".format(PROXY_IP, PORT_BACKEND))
     backend.getsockopt(zmq.SNDHWM)
     backend.getsockopt(zmq.RCVHWM)
@@ -74,7 +75,7 @@ def proxy():
             msg = frontend.recv()
             (channel, event) = ast.literal_eval(msg)
             time.sleep(DELAY)
-            print(channel,event)
+            print(channel, event)
             # Publish events to the subscriber
             backend.send("{}={}".format(channel, json.dumps(event)))
 
@@ -83,15 +84,11 @@ def proxy():
         except Exception as e:
             logger.exception(str(e))
 
-
     # Close context
     frontend.close()
     backend.close()
     context.term()
 
 
-
-
 if __name__ == "__main__":
     proxy()
-

@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -61,7 +61,6 @@ file_handler = logging.FileHandler('ufm_populate_db.log')
 file_handler.setFormatter(formatter)
 
 logger.addHandler(file_handler)
-
 
 
 def populate_db():
@@ -131,8 +130,8 @@ def main():
     parser.add_argument("--port", help="Port of Server", dest="port", default=2379)
     parser.add_argument("--vip_address", help="viritual ip-address", dest="vip_address", default="127.0.0.1")
     parser.add_argument("--ip_address", help="host ip-address", dest="ip_address", default="127.0.0.1")
-    parser.add_argument( "--mode", help="Data Source Mode: Static, Local or DB", dest="mode", default='DB')
-    parser.add_argument( "--filename", help="YAML filename", dest="filename", default='cluster.yaml')
+    parser.add_argument("--mode", help="Data Source Mode: Static, Local or DB", dest="mode", default='DB')
+    parser.add_argument("--filename", help="YAML filename", dest="filename", default='cluster.yaml')
 
     args = parser.parse_args()
 

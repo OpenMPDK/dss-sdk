@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -254,8 +254,8 @@ class SwitchController(UfmThread):
         # update db accordingly
         # /switches/f1ec15f8-c832-11e9-8000-b8599f784980/ports/52/mode/trunk
         for item in json_obj['results']:
-            if item['executed_command'] == 'interface ethernet 1/' + str(port_id) +\
-                                    ' switchport trunk allowed-vlan ' + str(start_vlan_id)+'-' + str(end_vlan_id):
+            if item['executed_command'] == 'interface ethernet 1/' + str(port_id) + ' switchport trunk allowed-vlan '\
+                    + str(start_vlan_id) + '-' + str(end_vlan_id):
                 if item['status'] == 'OK':
                     self.remove_entry_for_port_mode_change(port_id)
                     self.client.poll_to_db()
@@ -461,14 +461,14 @@ class SwitchController(UfmThread):
         kv_dict = ufmdb_util.query_prefix(pre + str(port_id) + '/network/access_vlan')
         for k in kv_dict:
             vlan = k.split('/')[-1]
-            self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan) +
-                                  '/network/ports/' + str(port_id))
+            self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan)
+                                  + '/network/ports/' + str(port_id))
 
         kv_dict = ufmdb_util.query_prefix(pre + str(port_id) + '/network/allowed_vlans')
         for k in kv_dict:
             vlan = k.split('/')[-1]
-            self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan) +
-                                  '/network/ports/' + str(port_id))
+            self.db.delete_prefix('/switches/' + self.uuid + '/VLANs/' + str(vlan)
+                                  + '/network/ports/' + str(port_id))
 
         self.db.delete_prefix(pre + str(port_id) + '/mode/')
         self.db.delete_prefix(pre + str(port_id) + '/network/access_vlan/')

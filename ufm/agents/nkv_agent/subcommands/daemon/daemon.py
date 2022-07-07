@@ -70,8 +70,6 @@ from etcd3.utils import increment_last_byte, to_bytes
 # This initializes the logger module for the other imports as well
 import utils.daemon_config as agent_conf
 from utils import log_setup
-logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
-logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
 from minio_stats import MinioStats
 from sflow_collection import SFlowStatsCollector
@@ -95,6 +93,8 @@ from utils.utils import check_spdk_running
 from utils.target_events_processing import TargetEvents
 # from events.events import get_events_from_etcd_db, save_events_to_etcd_db
 
+logger = log_setup.get_logger('KV-Agent', agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
+logger.info("Log config file: %s" % agent_conf.CONFIG_DIR + agent_conf.AGENT_CONF_NAME)
 
 # All the input args given to daemon
 g_input_args = {}
@@ -174,12 +174,12 @@ class OSMDaemon:
         system_identity = self.identity_fn()
         self.SERVER_UUID = system_identity["UUID"]
         self.SERVER_NAME = system_identity['Hostname']
-        self.SERVER_BASE_KEY_PREFIX = (self.backend.ETCD_SRV_BASE +
-                                       self.SERVER_UUID + '/')
-        self.SERVER_ATTR_KEY_PREFIX = (self.SERVER_BASE_KEY_PREFIX +
-                                       key_cons.SERVER_ATTRIBUTES)
-        self.SERVER_CONFIG_KEY_PREFIX = (self.SERVER_BASE_KEY_PREFIX +
-                                         key_cons.KV_ATTRIBUTES_SUBSYSTEMS)
+        self.SERVER_BASE_KEY_PREFIX = (self.backend.ETCD_SRV_BASE
+                                       + self.SERVER_UUID + '/')
+        self.SERVER_ATTR_KEY_PREFIX = (self.SERVER_BASE_KEY_PREFIX
+                                       + key_cons.SERVER_ATTRIBUTES)
+        self.SERVER_CONFIG_KEY_PREFIX = (self.SERVER_BASE_KEY_PREFIX
+                                         + key_cons.KV_ATTRIBUTES_SUBSYSTEMS)
         self.SERVER_LIST = (self.backend.ETCD_SRV_BASE + key_cons.SERVER_LIST
                             + self.SERVER_UUID)
         # MLNX performance statistics command
@@ -320,7 +320,7 @@ class OSMDaemon:
                                                   "target_id_" + self.SERVER_NAME + ".system_stats")
         except:
             logger.exception('Exception in updating diamond configuration')
-            
+
     @staticmethod
     def find_set_delta(set_a, set_b):
         delta_arr = []
@@ -500,16 +500,16 @@ class OSMDaemon:
         try:
             if g_input_args:
                 lease_obj = self.client.lease(g_input_args[
-                                                  'attribute_poll'] + 10)
+                                              'attribute_poll'] + 10)
             else:
                 lease_obj = None
 
             if spdk_running:
-                self.client.put(self.SERVER_ATTR_KEY_PREFIX +
-                                "spdk_status", "up", lease_obj)
+                self.client.put(self.SERVER_ATTR_KEY_PREFIX
+                                + "spdk_status", "up", lease_obj)
             else:
-                self.client.put(self.SERVER_ATTR_KEY_PREFIX +
-                                "spdk_status", "down", lease_obj)
+                self.client.put(self.SERVER_ATTR_KEY_PREFIX
+                                + "spdk_status", "down", lease_obj)
         except Exception:
             logger.exception('Exception in updating the spdk_status to DB')
 
@@ -591,11 +591,11 @@ class OSMDaemon:
                             for ln in out_list:
                                 if 'rx_bytes_phy' in ln:
                                     rx_bytes = re.findall(r'rx_bytes_phy: ([0-9,'']+) Bps', ln)[0].split(',')
-                                    rx_bytes_kb = int("".join(rx_bytes))/1024
+                                    rx_bytes_kb = int("".join(rx_bytes)) / 1024
 
                                 if 'tx_bytes_phy' in ln:
                                     tx_bytes = re.findall(r'x_bytes_phy: ([0-9,]+) Bps', ln)[0].split(',')
-                                    tx_bytes_kb = int("".join(tx_bytes))/1024
+                                    tx_bytes_kb = int("".join(tx_bytes)) / 1024
                             if rx_bytes_kb:
                                 metric = \
                                     'rx_bandwidth_kbps;cluster_id=%s;target_id=%s;network_mac=%s' % \
@@ -901,7 +901,7 @@ class OSMDaemon:
                 sn = namespaces[nsid]["Serial"]
                 if build_rpc:
                     rpc_args["namespaces"].append({"bdev_name": "%sn1" % sn,
-                                                    "nsid": int(nsid), })
+                                                   "nsid": int(nsid), })
 
                 # NUMA Alignment check for storage devices
                 if numa_aligned:
@@ -1245,7 +1245,7 @@ class OSMDaemon:
                                        0, non_cum_counters)
                 for counter in counters:
                     metric_path = "%s;cluster_id=%s;target_id=%s;nqn_id=%s;type=subsystem" % \
-                                      (counter, g_cluster_name, self.SERVER_NAME, nqn_name)
+                                  (counter, g_cluster_name, self.SERVER_NAME, nqn_name)
                     value = str(counters[counter])
                     if self.metrics_blacklist_regex and self.metrics_blacklist_regex.match(metric_path):
                         continue
@@ -1317,7 +1317,7 @@ class OSMDaemon:
             # Modified ustat library to print empty line after the end of
             # each dump as a delimiter across multiple runs
             cmd = self.ustat_path + ' -p ' + self.nvmf_pid + ' ' + str(sec)
-            proc = pexpect.spawn(cmd, timeout=sec+1)
+            proc = pexpect.spawn(cmd, timeout=sec + 1)
         except Exception:
             logger.exception('Caught exception while running USTAT')
             return
@@ -1401,8 +1401,8 @@ class OSMDaemon:
                                 for k in session:
                                     if k.startswith('ctrl') and (k[-1] != '0' or k[-2].isdigit()):
                                         metric_path = "cluster_id_%s.target_id_%s.%s.client_%s.qd_reqs" % \
-                                                       (g_cluster_name, self.SERVER_NAME,
-                                                        "client_id_%s" % session_ip, k)
+                                                      (g_cluster_name, self.SERVER_NAME,
+                                                       "client_id_%s" % session_ip, k)
                                         for k_req in session[k]:
                                             if k_req == 'reqs':
                                                 value = str(session[k][k_req])
@@ -1664,8 +1664,8 @@ def start_target_only(internal_flag=False):
         lock.release()
         return 0
 
-    settings = agent_conf.load_config(agent_conf.CONFIG_DIR +
-                                      agent_conf.AGENT_CONF_NAME)["agent"]
+    settings = agent_conf.load_config(agent_conf.CONFIG_DIR
+                                      + agent_conf.AGENT_CONF_NAME)["agent"]
 
     process_path = settings["nvmf_tgt"]
     # process_name = settings["nvmf_tgt"].split('/')[-1]
@@ -1681,8 +1681,8 @@ def start_target_only(internal_flag=False):
     driver_setup_obj = DriverSetup()
     spdk_obj = spdk_setup.SPDKSetup(constants.DEFAULT_SPDK_SOCKET_PATH,
                                     process_path, nvmf_conf_file, nr_hugepages,
-                                    (agent_conf.LOG_DIR +
-                                     agent_conf.TARGET_LOG_NAME),
+                                    (agent_conf.LOG_DIR
+                                     + agent_conf.TARGET_LOG_NAME),
                                     spdk_conf_obj, driver_setup_obj)
     nvmf_pid = spdk_obj.pid
     if nvmf_pid <= 0:
@@ -1788,8 +1788,8 @@ def start_monitoring_threads(attribute_poll=60, monitor_poll=60,
     if 'port' in g_input_args:
         port = g_input_args['port']
 
-    settings = agent_conf.load_config(agent_conf.CONFIG_DIR +
-                                      agent_conf.AGENT_CONF_NAME)["agent"]
+    settings = agent_conf.load_config(agent_conf.CONFIG_DIR
+                                      + agent_conf.AGENT_CONF_NAME)["agent"]
 
     if settings.get('metrics_blacklist', None):
         logger.info('Metrics blacklisted regex pattern %s', settings['metrics_blacklist'])
@@ -2337,8 +2337,8 @@ def main(meta, args):
 
     # Logger initialization
     # Create if a default configuration file if it does not exists
-    agent_conf.create_config(agent_conf.CONFIG_DIR +
-                             agent_conf.AGENT_CONF_NAME)
+    agent_conf.create_config(agent_conf.CONFIG_DIR
+                             + agent_conf.AGENT_CONF_NAME)
 
     if int(args["--attribute_poll"]) < 0:
         logger.info("Invalid attribute polling delay of %d seconds" %

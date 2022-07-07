@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -44,7 +44,7 @@ def subscribe(ip, port):
     ctx = zmq.Context()
     sock = ctx.socket(zmq.SUB)
     sock.setsockopt(zmq.IPV6, 1)
-    sock.setsockopt_string(zmq.SUBSCRIBE,'')
+    sock.setsockopt_string(zmq.SUBSCRIBE, '')
     sock.connect(connect_str)    # FabricManager01
 
     while(True):
@@ -59,12 +59,10 @@ def subscribe(ip, port):
 def main(argv):
     host_help_msg = "Hostname or IP Address of host running Zero MQ publisher"
     port_help_msg = "Zero MQ publisher port number"
-    parser = argparse.ArgumentParser(
-                prog='zeromq_subscribe.py', description='Arguments to Zero MQ Subscription', usage='%(prog)s --host <' + host_help_msg + '> [ --port <' + port_help_msg + '> ]')
-    parser.add_argument("--host", help = host_help_msg,
-                dest="host", default="localhost", required=True)
-    parser.add_argument("--port", help = port_help_msg,
-                dest="port", default="6001")
+    parser = argparse.ArgumentParser(prog='zeromq_subscribe.py', description='Arguments to Zero MQ Subscription',
+                                     usage='%(prog)s --host <' + host_help_msg + '> [ --port <' + port_help_msg + '> ]')
+    parser.add_argument("--host", help=host_help_msg, dest="host", default="localhost", required=True)
+    parser.add_argument("--port", help=port_help_msg, dest="port", default="6001")
     args = parser.parse_args()
 
     subscribe(socket.gethostbyname(args.host), args.port)

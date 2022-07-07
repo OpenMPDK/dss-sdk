@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -68,6 +68,7 @@ DEFAULT_SETTINGS = {CONFIG_SECTIONS[0]: {"nvmf_tgt": BINARY_DIR + TARGET_BIN_NAM
                                          "syslog": "enabled",
                                          "syslog_level": "DEBUG",
                                          "syslog_facility": "local0", }, }
+
 
 def create_config(filename):
     """

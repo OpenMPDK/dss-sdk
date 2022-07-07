@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -44,31 +44,27 @@ class ServiceRoot(Resource):
         self.rest_base = rest_base
 
     def get(self):
-        resp = {
-                   '@odata.context': self.rest_base + '$metadata#ServiceRoot.ServiceRoot',
-                   '@odata.type': '#ServiceRoot.v1_0_0.ServiceRoot',
-                   '@odata.id': self.rest_base,
-                   'Id': 'RootService',
-                   'Name': 'Root Service',
-                   'ProtocolFeaturesSupported': {
-                       'ExpandQuery': {
-                           'ExpandAll': False
-                       },
-                       'SelectQuery': False
-                   },
-                   'RedfishVersion': '1.8.0',
-                   'UUID': self.uuid,
-                   'Vendor': "Samsung",
-                   'JSONSchemas': {
-                       '@odata.id': self.rest_base + 'JSONSchemas'
-                   },
-                   'Systems': {
-                       '@odata.id': self.rest_base + 'Systems'
-                   }
-
-               }
+        resp = {'@odata.context': self.rest_base + '$metadata#ServiceRoot.ServiceRoot',
+                '@odata.type': '#ServiceRoot.v1_0_0.ServiceRoot',
+                '@odata.id': self.rest_base,
+                'Id': 'RootService',
+                'Name': 'Root Service',
+                'ProtocolFeaturesSupported': {
+                    'ExpandQuery': {
+                        'ExpandAll': False
+                    },
+                    'SelectQuery': False
+                },
+                'RedfishVersion': '1.8.0',
+                'UUID': self.uuid,
+                'Vendor': "Samsung",
+                'JSONSchemas': {
+                    '@odata.id': self.rest_base + 'JSONSchemas'
+                },
+                'Systems': {
+                    '@odata.id': self.rest_base + 'Systems'}}
 
         if ufmdb_util.has_fabrics():
-            resp['Fabrics'] = { '@odata.id': self.rest_base + 'Fabrics' }
+            resp['Fabrics'] = {'@odata.id': self.rest_base + 'Fabrics'}
 
         return resp, redfish_constants.SUCCESS

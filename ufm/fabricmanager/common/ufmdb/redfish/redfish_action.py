@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -81,7 +81,7 @@ def redfish_log_entries(entries):
         LogEntry["@odata.id"] = "/redfish/v1/Managers/ufm/LogServices/Log/Actions/LogService.Entries"
         LogEntry["@odata.type"] = "#LogEntry.v1_3_0.LogEntry"
         LogEntry["Id"] = str(entry.id)
-        LogEntry["Name"] = "Log Entry "+str(entry.id)
+        LogEntry["Name"] = "Log Entry " + str(entry.id)
         LogEntry["EntryType"] = "Oem"
         LogEntry["OemRecordFormat"] = "Samsung"
 

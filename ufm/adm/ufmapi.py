@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -41,12 +41,12 @@ def cfg_ufm_address(address=None, port=None):
     global g_ufm_address
 
     if address is not None:
-        g_ufm_address = "http://"+address
+        g_ufm_address = "http://" + address
     else:
         g_ufm_address = "http://127.0.0.0"
 
     if port is not None:
-        g_ufm_address += ":"+port
+        g_ufm_address += ":" + port
 
 
 '''
@@ -146,7 +146,7 @@ def rf_get_managers():
 
 
 def rf_get_manager(manager):
-    rsp = redfish_get("/Managers/"+manager)
+    rsp = redfish_get("/Managers/" + manager)
 
     if rsp is None:
         return None
@@ -217,14 +217,14 @@ def ufm_get_log_entries(id, count):
 
 
 def ufm_clear_log():
-    rsp = redfish_post(REDFISH+"/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog", {})
+    rsp = redfish_post(REDFISH + "/Managers/ufm/LogServices/Log/Actions/LogService.ClearLog", {})
 
     if rsp is None:
         return 1
 
     if rsp['Status'] != 200:
         print()
-        print("ERROR: code("+str(rsp['Status'])+")", rsp['Message'])
+        print("ERROR: code(" + str(rsp['Status']) + ")", rsp['Message'])
         return 1
 
     return 0
@@ -238,7 +238,7 @@ def ufm_get_module_registry():
 
     if rsp['Status'] != 200:
         print()
-        print("ERROR: code("+str(rsp['Status'])+")", rsp['Message'])
+        print("ERROR: code(" + str(rsp['Status']) + ")", rsp['Message'])
         return None
 
     registry = rsp['Registry']
@@ -308,7 +308,7 @@ def ufm_set_log_mask(level, mask):
 
     if rsp['Status'] != 200:
         print()
-        print("ERROR: code("+str(rsp['Status'])+")", rsp['Message'])
+        print("ERROR: code(" + str(rsp['Status']) + ")", rsp['Message'])
         return None
 
     if "ErrorMask" in rsp:
@@ -332,13 +332,13 @@ def ufm_set_log_mask(level, mask):
 def ufm_restart():
     payload = {"ResetType": "ForceRestart"}
 
-    rsp = redfish_post(REDFISH+"/Managers/ufm/Actions/Ufm.Reset", payload)
+    rsp = redfish_post(REDFISH + "/Managers/ufm/Actions/Ufm.Reset", payload)
     if rsp is None:
         return 1
 
     if rsp['Status'] != 200:
         print()
-        print("ERROR: code("+str(rsp['Status'])+")", rsp['Message'])
+        print("ERROR: code(" + str(rsp['Status']) + ")", rsp['Message'])
         return 1
 
     return 0
@@ -347,14 +347,14 @@ def ufm_restart():
 def ufm_shutdown():
     payload = {"ResetType": "ForceOff"}
 
-    rsp = redfish_post(REDFISH+"/Managers/ufm/Actions/Ufm.Reset", payload)
+    rsp = redfish_post(REDFISH + "/Managers/ufm/Actions/Ufm.Reset", payload)
 
     if rsp is None:
         return 1
 
     if rsp['Status'] != 200:
         print()
-        print("ERROR: code("+str(rsp['Status'])+")", rsp['Message'])
+        print("ERROR: code(" + str(rsp['Status']) + ")", rsp['Message'])
         return 1
 
     return 0

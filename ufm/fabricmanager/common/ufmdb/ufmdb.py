@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -144,7 +144,7 @@ class Ufmdb(object):
         :param key: key to get from database
         :returns: (value of key, metadata) tuple
         """
-        self.log.detail("GET: key="+key)
+        self.log.detail("GET: key=" + key)
         return self.client.get(key)
 
     @log_error
@@ -162,7 +162,7 @@ class Ufmdb(object):
                 'value','version','create', or 'mod'
         :returns: sequence of (value, metadata) tuples
         """
-        self.log.detail("GET_PREFIX: key_prefix="+key_prefix)
+        self.log.detail("GET_PREFIX: key_prefix=" + key_prefix)
 
         return self.client.get_prefix(key_prefix, **kwargs)
 
@@ -197,7 +197,7 @@ class Ufmdb(object):
 
         :returns: a response containing a header and other parameters
         """
-        self.log.detail("DELETE: key="+key)
+        self.log.detail("DELETE: key=" + key)
         return self.client.delete(key, **kwargs)
 
     @log_error
@@ -207,7 +207,7 @@ class Ufmdb(object):
         :param prefix: key prefix in database to delete
         :type prefix: str
         """
-        self.log.detail("DELETE_PREFIX: prefix="+prefix)
+        self.log.detail("DELETE_PREFIX: prefix=" + prefix)
         return self.client.delete_prefix(prefix)
 
     @log_error
@@ -288,7 +288,7 @@ class Ufmdb(object):
         :type ttl: int
         :returns: new lock
         """
-        self.log.detail("LOCK: name="+name+" ttl=%d", ttl)
+        self.log.detail("LOCK: name=" + name + " ttl=%d", ttl)
         return self.client.lock(name, ttl)
 
     @log_error
@@ -307,7 +307,7 @@ class Ufmdb(object):
 
         :returns: new lease
         """
-        self.log.detail("LEASE: ttl=%d lease_id=%d",ttl, lease_id)
+        self.log.detail("LEASE: ttl=%d lease_id=%d", ttl, lease_id)
         return self.client.lease(ttl, lease_id)
 
     @log_error

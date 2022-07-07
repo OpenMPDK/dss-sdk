@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -122,7 +122,7 @@ class _GraphiteDBManager:
     def push_statistics(self, stopper_event, poll_interval=10):
 
         # Pattern to match any combination of 127.xxx.xxx.xxx
-        pattern = "(127)\.((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.)+"
+        pattern = r"(127)\.((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.)+"
         regex = re.compile(pattern)
 
         while not stopper_event.is_set():

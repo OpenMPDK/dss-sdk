@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -32,6 +32,7 @@
 """
 Template class for message queue clients
 """
+
 
 class UfmmqClient(object):
     def __init__(self, **kwargs):
@@ -90,12 +91,15 @@ class UfmmqClient(object):
         """Register a poller for event monitoring."""
         print("ERROR: UfmmqClient.register_poller must be implemented!")
 
+
 def is_valid_init_args(**kwargs):
     print("ERROR: UfmmqClient.is_valid_init_args must be implemented!")
     return True
 
+
 def client(**kwargs):
     return UfmmqClient(**kwargs)
+
 
 def log_errors(func):
     def func_wrapper(*args, **kwargs):
@@ -105,4 +109,3 @@ def log_errors(func):
             print(e)
             return None
     return func_wrapper
-

@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -761,8 +761,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             "commands":
             [
                 "interface ethernet 1/" + str(port_id) + " switchport mode trunk",
-                "interface ethernet 1/" + str(port_id) +
-                " switchport trunk allowed-vlan " + str(start_vlan_id) + "-" + str(end_vlan_id)
+                "interface ethernet 1/" + str(port_id)
+                + " switchport trunk allowed-vlan " + str(start_vlan_id) + "-" + str(end_vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -784,8 +784,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
             "commands":
             [
                 "interface ethernet 1/" + str(port_id) + " switchport mode hybrid",
-                "interface ethernet 1/" + str(port_id) +
-                " switchport hybrid allowed-vlan add " + str(allowed_vlan_id)
+                "interface ethernet 1/" + str(port_id)
+                + " switchport hybrid allowed-vlan add " + str(allowed_vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -795,8 +795,8 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id) +
-                " switchport hybrid allowed-vlan remove " + str(vlan_id)
+                "interface ethernet 1/" + str(port_id)
+                + " switchport hybrid allowed-vlan remove " + str(vlan_id)
             ]
         }
         resp = self.send_cmd(json_cmd)
@@ -903,9 +903,9 @@ class SwitchMellanoxClient(SwitchClientTemplate):
         json_cmd = {
             "commands":
             [
-                "interface ethernet 1/" + str(port_id) + " traffic-class " + str(tc) +
-                " congestion-control ecn minimum-absolute " + str(min_absolute) +
-                " maximum-absolute " + str(max_absolute)
+                "interface ethernet 1/" + str(port_id) + " traffic-class " + str(tc)
+                + " congestion-control ecn minimum-absolute " + str(min_absolute)
+                + " maximum-absolute " + str(max_absolute)
             ]
         }
         resp = self.send_cmd(json_cmd)

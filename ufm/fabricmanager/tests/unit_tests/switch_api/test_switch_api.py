@@ -10,36 +10,37 @@ import requests
 import time
 
 MELLANOX_SWITCH_TYPE = 'mellanox'
-#SJ: MELLANOX_SWITCH_IP = '10.1.10.191'
-#SJ: MELLANOX_UUID = 'f1ec15f8-c832-11e9-8000-b8599f784980'
-#SJ: usrname = 'admin'
-#SJ: pwd = 'admin'
+# SJ: MELLANOX_SWITCH_IP = '10.1.10.191'
+# SJ: MELLANOX_UUID = 'f1ec15f8-c832-11e9-8000-b8599f784980'
+# SJ: usrname = 'admin'
+# SJ: pwd = 'admin'
 MELLANOX_SWITCH_IP = '172.22.0.109'
 MELLANOX_UUID = 'cd440a20-828c-11ea-8000-1c34da948340'
 USRNAME = 'ssgroot'
 PWD = 'proximal'
 
-db = ufmdb.client(db_type = 'etcd')
+db = ufmdb.client(db_type='etcd')
+
 
 @pytest.fixture(scope='module')
 def sw():
     print('----------login----------')
 
     ufmlog.ufmlog.filename = "/tmp/test_switch.log"
-    #print(ufmlog.ufmlog.filename)
+    # print(ufmlog.ufmlog.filename)
     log = ufmlog.log(module="switch_test", mask=ufmlog.UFM_SWITCH)
     log.log_detail_on()
     log.log_debug_on()
     print(log)
 
     global db
-    swArg = SwitchArg(sw_type = MELLANOX_SWITCH_TYPE,
-                      sw_ip = MELLANOX_SWITCH_IP,
-                      log = log,
-                      db = db,
-                      usrname = USRNAME,
-                      pwd = PWD,
-                      port = 5515)
+    swArg = SwitchArg(sw_type=MELLANOX_SWITCH_TYPE,
+                      sw_ip=MELLANOX_SWITCH_IP,
+                      log=log,
+                      db=db,
+                      usrname=USRNAME,
+                      pwd=PWD,
+                      port=5515)
 
     sw = SwitchMellanoxClient(swArg)
     yield sw
@@ -47,6 +48,7 @@ def sw():
     print('----------teardown----------')
     db.client.delete_prefix(switch_constants.SWITCH_LIST_KEY_PREFIX)
     db.client.delete_prefix(switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID)
+
 
 def test_show_version(sw):
     '''
@@ -122,17 +124,16 @@ def verify_db():
         ret_vlan_id = key_list[-1]
         ret_vlan_list.append(ret_vlan_id)
 
-    assert( '1' in ret_vlan_list)
+    assert('1' in ret_vlan_list)
 
     # more direct way for above
     key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/list/1'
     value, md = db.get(key)
-    assert( md.key.decode('utf-8') == key)
-
+    assert(md.key.decode('utf-8') == key)
 
     key = switch_constants.SWITCH_BASE + '/' + MELLANOX_UUID + '/VLANs/1/name/default'
     value, md = db.get(key)
-    assert( md.key.decode('utf-8') == key)
+    assert(md.key.decode('utf-8') == key)
 
 
 def test_poll_to_db(sw):
@@ -146,8 +147,6 @@ def test_poll_to_db(sw):
 
         time.sleep(switch_constants.SWITCH_POLLER_INTERVAL_SECS)
         verify_db()
-
-
 
 
 def test_delete_vlan(sw):
@@ -165,5 +164,3 @@ def test_delete_vlan(sw):
     assert(json_obj["results"][0]["status"] == "OK")
     assert(json_obj["results"][2]["executed_command"] == "no vlan 7")
     assert(json_obj["results"][2]["status"] == "OK")
-
-

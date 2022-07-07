@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -196,7 +196,7 @@ class OSMServerNetwork:
         pci_ids_dict = {}
         lines = pci_ids.split('\n')
         for line in lines:
-            m = re.search('^(\s*)([0-9a-fA-F]{4})\s{2}(.+)', line)
+            m = re.search(r'^(\s*)([0-9a-fA-F]{4})\s{2}(.+)', line)
             if m is not None:
                 if m.group(1) == '':
                     vendor_id = m.group(2)
@@ -363,8 +363,7 @@ class OSMServerStorage:
         pci_numa = -1
         pci_addr_short = ':'.join(pci_addr.split(':')[:2])
         try:
-            with open('/sys/class/pci_bus/' + pci_addr_short +
-                      '/device/numa_node') as f:
+            with open('/sys/class/pci_bus/' + pci_addr_short + '/device/numa_node') as f:
                 pci_numa = str(int(f.read().rstrip()))
         finally:
             return pci_numa
@@ -426,11 +425,10 @@ class OSMServerStorage:
             return
 
         block_size = int(d["LogicalBlockSize"])
-        disk_capacity, disk_utilization_block = struct.unpack_from('QQ', data,
-                                                             offset=8)
+        disk_capacity, disk_utilization_block = struct.unpack_from('QQ', data, offset=8)
         d["DiskCapacityInBytes"] = disk_capacity * block_size
         d["DiskUtilizationInBytes"] = disk_utilization_block * block_size
-        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization_block * 100.0)/disk_capacity)
+        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization_block * 100.0) / disk_capacity)
 
     @staticmethod
     def unpack_smart_details(data, d):
@@ -454,22 +452,22 @@ class OSMServerStorage:
         d["DriveTemperature"] = int(math.ceil(fields['temp'][0] - 273.15))
         # Each of the below units is 16 bytes. We are getting tuple of 8
         # bytes each. Merge them
-        d["DriveDataUnitsRead"] = (fields['data_units_read'][1] << 64 |
-                                   fields['data_units_read'][0])
+        d["DriveDataUnitsRead"] = (fields['data_units_read'][1] << 64
+                                   | fields['data_units_read'][0])
         d["DriveDataUnitsWritten"] = (fields['data_units_written'][1] << 64
                                       | fields['data_units_written'][0])
         d["DriveHostReadCommands"] = (fields['host_read_commands'][1] << 64
                                       | fields['host_read_commands'][0])
-        d["DriveHostWriteCommands"] = (fields['host_write_commands'][1] <<
-                                       64 | fields['host_write_commands'][0])
-        d["DrivePowerCycles"] = (fields['power_cycles'][1] << 64 |
-                                 fields['power_cycles'][0])
-        d["DrivePowerOnHours"] = (fields['power_on_hours'][1] << 64 |
-                                  fields['power_on_hours'][0])
-        d["DriveUnsafeShutdowns"] = (fields['unsafe_shutdowns'][1] << 64 |
-                                     fields['unsafe_shutdowns'][0])
-        d["DriveMediaErrors"] = (fields['media_errors'][1] << 64 |
-                                 fields['media_errors'][0])
+        d["DriveHostWriteCommands"] = (fields['host_write_commands'][1] << 64
+                                       | fields['host_write_commands'][0])
+        d["DrivePowerCycles"] = (fields['power_cycles'][1] << 64
+                                 | fields['power_cycles'][0])
+        d["DrivePowerOnHours"] = (fields['power_on_hours'][1] << 64
+                                  | fields['power_on_hours'][0])
+        d["DriveUnsafeShutdowns"] = (fields['unsafe_shutdowns'][1] << 64
+                                     | fields['unsafe_shutdowns'][0])
+        d["DriveMediaErrors"] = (fields['media_errors'][1] << 64
+                                 | fields['media_errors'][0])
         d["DriveNumErrLogEntries"] = (fields['num_err_log_entries'][1] << 64
                                       | fields['num_err_log_entries'][0])
 
@@ -536,9 +534,9 @@ class OSMServerStorage:
         physical_drives = {}
 
         if dev_type == self.SATA:
-            pattern = re.compile("^sd[b-z]$")
+            pattern = re.compile(r"^sd[b-z]$")
         elif dev_type == self.NVME:
-            pattern = re.compile("^nvme\d+n\d+$")
+            pattern = re.compile(r"^nvme\d+n\d+$")
         else:
             print("Error: Invalid device type to identify")
             sys.exit(-1)
@@ -636,13 +634,13 @@ class OSMServerStorage:
             capacity += int(devices[dev]["SizeInBytes"])
 
         return {
-                "nvme": {
-                    "devices": devices,
-                    "Count": len(devices),
-                    "Capacity": capacity
-                },
-                "Capacity": capacity,
-                "Count": len(devices)
+            "nvme": {
+                "devices": devices,
+                "Count": len(devices),
+                "Capacity": capacity
+            },
+            "Capacity": capacity,
+            "Count": len(devices)
         }
 
 
@@ -654,7 +652,7 @@ class OSMServerIdentity:
     def get_numa_count():
         numa_path = '/sys/devices/system/node/'
         for item in os.listdir(numa_path):
-            if os.path.isdir(os.path.join(numa_path, item)) and re.search('^node\d+$', item):
+            if os.path.isdir(os.path.join(numa_path, item)) and re.search(r'^node\d+$', item):
                 print(item)
 
     @staticmethod

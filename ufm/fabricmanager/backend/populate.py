@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -42,6 +42,7 @@ from rest_api.redfish.Fabric_api import CreateFabricEmulation
 from rest_api.redfish.Switch import CreateSwitchEmulation
 from rest_api.redfish.Port import CreatePortEmulation
 from rest_api.redfish.VLAN import CreateVlanEmulation
+
 
 def create_storage_resources(storage_template, drive_ids, system, storage_id):
     """
@@ -133,9 +134,8 @@ def populate(config):
             system = system_template['Id'].format(sys_count)
             sys_ids.append(system)
             CreateSystemEmulation(resource_class_kwargs={
-                         'rest_base': '/redfish/v1/'}).put(system, sys_count, sys_count)
+                                  'rest_base': '/redfish/v1/'}).put(system, sys_count, sys_count)
             create_system_resources(system_template, system)
-
 
     fab_count = 0
     fab_ids = []
@@ -149,4 +149,3 @@ def populate(config):
             CreateFabric(resource_class_kwargs={
                          'rest_base': '/redfish/v1/'}).put(fabric, fab_count, fab_count)
             create_fabric_resources(fabric_template, fabric)
-

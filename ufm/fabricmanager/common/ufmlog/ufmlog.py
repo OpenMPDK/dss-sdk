@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -32,48 +32,42 @@
 import logging
 import copy
 import traceback
-
+import time
+import threading
 
 '''
 UFM Module bit masks
     - Simply assign a bit for a unique grouping of module log messages
 '''
-UFM_MAIN       = 0x00000001
-UFM_DB         = 0x00000010
+UFM_MAIN = 0x00000001
+UFM_DB = 0x00000010
 UFM_REDFISH_DB = 0x00000020
-UFM_MQ         = 0x00000040
-UFM_MONITOR    = 0x00010000
+UFM_MQ = 0x00000040
+UFM_MONITOR = 0x00010000
 UFM_CONTROLLER = 0x00020000
-UFM_COLLECTOR  = 0x00040000
-UFM_POLLER     = 0x00080000
-UFM_NKV        = 0x00100000
-UFM_SWITCH     = 0x00200000
+UFM_COLLECTOR = 0x00040000
+UFM_POLLER = 0x00080000
+UFM_NKV = 0x00100000
+UFM_SWITCH = 0x00200000
 
 # All modules defined above must also be registered below
-UfmModuleRegistry = { "UFM_MAIN":UFM_MAIN,
-    "UFM_DB": UFM_DB,
-    "UFM_REDFISH_DB": UFM_REDFISH_DB,
-    "UFM_MQ": UFM_MQ,
-    "UFM_MONITOR": UFM_MONITOR,
-    "UFM_CONTROLLER": UFM_CONTROLLER,
-    "UFM_COLLECTOR": UFM_COLLECTOR,
-    "UFM_POLLER": UFM_POLLER,
-    "UFM_NKV": UFM_NKV,
-    "UFM_SWITCH": UFM_SWITCH,
-}
+UfmModuleRegistry = {"UFM_MAIN": UFM_MAIN,
+                     "UFM_DB": UFM_DB,
+                     "UFM_REDFISH_DB": UFM_REDFISH_DB,
+                     "UFM_MQ": UFM_MQ,
+                     "UFM_MONITOR": UFM_MONITOR,
+                     "UFM_CONTROLLER": UFM_CONTROLLER,
+                     "UFM_COLLECTOR": UFM_COLLECTOR,
+                     "UFM_POLLER": UFM_POLLER,
+                     "UFM_NKV": UFM_NKV,
+                     "UFM_SWITCH": UFM_SWITCH, }
 
-
-UFM_ALL        = 0xFFFFFFFF
-UFM_NONE       = 0x00000000
-
-
-
+UFM_ALL = 0xFFFFFFFF
+UFM_NONE = 0x00000000
 
 # Defualt UFM Log file
-UFM_LOG_FILE  = 'ufm.log'
+UFM_LOG_FILE = 'ufm.log'
 
-import time
-import threading
 
 class UfmLogEntry(object):
     def __init__(self, id=0, module=0, msg="", type="INFO"):
@@ -87,11 +81,11 @@ class UfmLogEntry(object):
 # Handles global managment of log
 class Ufmlog(object):
     def __init__(self, filename=UFM_LOG_FILE, log_info=UFM_ALL, log_error=UFM_ALL,
-            log_warning=UFM_ALL, log_debug=UFM_NONE, log_detail=UFM_NONE, max_entries=1000):
+                 log_warning=UFM_ALL, log_debug=UFM_NONE, log_detail=UFM_NONE, max_entries=1000):
         self.filename = filename
         self.level = logging.DEBUG
         self.format = '%(asctime)s %(message)s'
-        self.datefmt = '%Y/%m/%d %H:%M:%S' # This format can be sorted as text
+        self.datefmt = '%Y/%m/%d %H:%M:%S'  # This format can be sorted as text
         self.count = 0
         self.log_info_mask = log_info
         self.log_error_mask = log_error
@@ -106,7 +100,7 @@ class Ufmlog(object):
         # fill entry log with empty entries
         for i in range(0, self.max_entries):
             self.entries.append(None)
-            i = i # Prevents pylint from complaining
+            i = i  # Prevents pylint from complaining
 
         self._entry_id = 0
         self._entry_lock = threading.Lock()
@@ -133,7 +127,7 @@ class Ufmlog(object):
     def clear_log(self):
         with self._entry_lock:
             self._base_id = self._entry_id
-            print("clear_log: %d %d" %  (self._entry_id, self._base_id))
+            print("clear_log: %d %d" % (self._entry_id, self._base_id))
 
     def get_entry_id(self):
         return self._entry_id
@@ -142,39 +136,39 @@ class Ufmlog(object):
         with self._entry_lock:
             rsp = []
 
-            if id==None and count==None:  # Get all available entries
+            if id is None and count is None:  # Get all available entries
                 id = self._base_id
                 count = min(self.max_entries, self._entry_id - id)
 
-            elif id==None and count!=None:  # Get last count entries (count priority)
+            elif id is None and count is not None:  # Get last count entries (count priority)
                 if count == 0:
                     return rsp
 
                 count = min(count, self.max_entries, self._entry_id - self._base_id)
                 id = self._entry_id - count
 
-            elif id!=None and count==None: # ALl entries from id up (id priority)
+            elif id is not None and count is None:  # ALl entries from id up (id priority)
                 if id >= self._entry_id:
                     return rsp
 
-                id = min(max(id, self._base_id), self._entry_id-1)
+                id = min(max(id, self._base_id), self._entry_id - 1)
                 count = min(self.max_entries, self._entry_id - id)
 
-            else: # id!=None and count!=None:  # best fit (id priority)
+            else:  # id!=None and count!=None:  # best fit (id priority)
                 if id >= self._entry_id:
                     return rsp
 
                 if count == 0:
                     return rsp
 
-                id = min(max(id, self._base_id), self._entry_id-1)
+                id = min(max(id, self._base_id), self._entry_id - 1)
                 count = min(count, self.max_entries, self._entry_id - id)
 
             # copy entries to separate list so they don't change later
-            for i in range(id, id+count):
+            for i in range(id, id + count):
                 entry = copy.copy(self.entries[(i % self.max_entries)])
 
-                if entry == None:
+                if entry is None:
                     continue
 
                 rsp.append(entry)
@@ -192,34 +186,34 @@ class Ufmlog(object):
 
     def log_info(self, module, msg):
         entry = self._add(module, "INFO", msg)
-        logging.info(str(entry.id)+': '+module+': INFO: '+msg)
+        logging.info(str(entry.id) + ': ' + module + ': INFO: ' + msg)
         return
 
     def log_error(self, module, msg):
         entry = self._add(module, "ERROR", msg)
-        logging.info(str(entry.id)+': '+module+': ERROR: '+msg)
+        logging.info(str(entry.id) + ': ' + module + ': ERROR: ' + msg)
         return
 
     def log_warning(self, module, msg):
         entry = self._add(module, "WARNING", msg)
-        logging.info(str(entry.id)+': '+module+': WARNING: '+msg)
+        logging.info(str(entry.id) + ': ' + module + ': WARNING: ' + msg)
         return
 
     def log_debug(self, module, msg):
         entry = self._add(module, "DEBUG", msg)
-        logging.info(str(entry.id)+': '+module+': DEBUG: '+msg)
+        logging.info(str(entry.id) + ': ' + module + ': DEBUG: ' + msg)
         return
 
     def log_detail(self, module, msg):
         entry = self._add(module, "DETAIL", msg)
-        logging.info(str(entry.id)+': '+module+': DETAIL: '+msg)
+        logging.info(str(entry.id) + ': ' + module + ': DETAIL: ' + msg)
         return
 
     def log_except(self, module, excep):
         error_msg = traceback.format_exc()
         entry = self._add(module, "EXCEPTION", error_msg)
-        logging.info(str(entry.id)+': '+module+': EXCEPTION: '+error_msg)
-        #logging.exception(excep)
+        logging.info(str(entry.id) + ': ' + module + ': EXCEPTION: ' + error_msg)
+        # logging.exception(excep)
         return
 
     def set_log_info(self, mask):
@@ -255,6 +249,7 @@ class Ufmlog(object):
     def get_module_registry(self):
         global UfmModuleRegistry
         return (UfmModuleRegistry)
+
 
 # Global ufmlog object
 ufmlog = Ufmlog()
@@ -299,7 +294,6 @@ class log(object):
 
     def exception(self, excep):
         ufmlog.log_except(self.module, excep)
-
 
 # INFO
 

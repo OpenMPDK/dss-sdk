@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
-import os,sys
+import os
+import sys
 import json
+
 
 class Config:
 
@@ -9,14 +11,12 @@ class Config:
         self.config_file = self.get_config_file(agrs[0].pop("config", ""))
         self.command_line_params = agrs[0]
 
-
-
     def get_config(self):
         """
         Get configuration details from config file ...
         :return:<dict> complete configuration dictionary.
         """
-        #config_file = self.get_config_file()
+        # config_file = self.get_config_file()
         with open(self.config_file, "rb") as cfg:
             config = json.loads(cfg.read().decode('UTF-8', "ignore"))
 

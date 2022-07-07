@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -102,7 +102,7 @@ class UfmdbSystemAPI(Resource):
             response = self.rfdb.get(path, "{}")
             # payload = request.get_json(force=True)
             # response = self.rfdb.get(path, payload)
-            self.log.error("="*40)
+            self.log.error("=" * 40)
 
         except Exception as e:
             self.log.exception(e)

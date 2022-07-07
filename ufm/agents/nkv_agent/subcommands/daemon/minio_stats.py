@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -169,7 +169,7 @@ class MinioStats(object):
                             elif k == 'io':
                                 nkv_drive_io_dict = nkv_drive_dict['io']['outstanding']
                                 tuples += self._convert_nkv_disk_metrics_to_tuples(nkv_drive_io_dict, minio_uuid,
-                                                                          timestamp, subsys_serial)
+                                                                                   timestamp, subsys_serial)
 
                 # Push all the metrics other than nkv.device.nvme into graphite DB AS-IS
                 for k, v in stats_output.iteritems():

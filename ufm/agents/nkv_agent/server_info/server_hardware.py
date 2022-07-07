@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -107,7 +107,7 @@ class ServerNetwork:
         lines = pci_ids.split('\n')
         vendor_id = None
         for line in lines:
-            m = re.search('^(\s*)([0-9a-fA-F]{4})\s{2}(.+)', line)
+            m = re.search(r'^(\s*)([0-9a-fA-F]{4})\s{2}(.+)', line)
             if m is not None:
                 if m.group(1) == '':
                     vendor_id = m.group(2)

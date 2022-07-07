@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -42,7 +42,8 @@ class JsonSchemas(Resource):
             "type": "object",
             "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
             "title": "Redfish Schema Extension",
-            "description": "The properties defined in this schema shall adhere to the requirements of the Redfish Specification and the semantics of the descriptions in this file.",
+            "description": "The properties defined in this schema shall adhere to the requirements of the\
+                           Redfish Specification and the semantics of the descriptions in this file.",
             "allOf": [
                 {
                     "$ref": "http://json-schema.org/draft-04/schema"
@@ -70,7 +71,10 @@ class JsonSchemas(Resource):
                 },
                 "deprecated": {
                     "type": "string",
-                    "description": "The term shall be applied to a property in order to specify that the property is deprecated.  The value of the string should explain the deprecation, including new property or properties to be used. The property can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated properties are likely to be removed in a future major version of the schema."
+                    "description": "The term shall be applied to a property in order to specify that the property is deprecated.\
+                                   The value of the string should explain the deprecation, including new property or properties to be used.\
+                                   The property can be supported in new and existing implementations, but usage in new implementations is discouraged.\
+                                   Deprecated properties are likely to be removed in a future major version of the schema."
                 },
                 "enumDescriptions": {
                     "type": "object",
@@ -82,7 +86,10 @@ class JsonSchemas(Resource):
                 },
                 "enumDeprecated": {
                     "type": "object",
-                    "description": "The term shall be applied to a value in order to specify that the value is deprecated.  The value of the string should explain the deprecation, including new value to be used.  The value can be supported in new and existing implementations, but usage in new implementations is discouraged.  Deprecated values are likely to be removed in a future major version of the schema."
+                    "description": "The term shall be applied to a value in order to specify that the value is deprecated.\
+                                   The value of the string should explain the deprecation, including new value to be used.\
+                                   The value can be supported in new and existing implementations, but usage in new implementations is discouraged.\
+                                   Deprecated values are likely to be removed in a future major version of the schema."
                 },
                 "units": {
                     "type": "string",

@@ -170,9 +170,10 @@ class KVManager:
                 free_disk_serial_list = []
                 if int(server_attributes["storage"]["nvme"]["Count"]) > 0:
                     nvme_devices = server_attributes["storage"]["nvme"]["devices"]
-                    convert = lambda text: int(text) if text.isdigit() else text.lower()
-                    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-                    devnode_lambda = lambda value: (alphanum_key(nvme_devices[value]['PCIAddress']))
+                    # TO DO: Convert these lambdas to functions.
+                    convert = (lambda text: int(text) if text.isdigit() else text.lower())
+                    alphanum_key = (lambda key: [convert(c) for c in re.split('([0-9]+)', key)])
+                    devnode_lambda = (lambda value: (alphanum_key(nvme_devices[value]['PCIAddress'])))
                     subsystem_list = []
                     if kv_attributes:
                         kv_subsystems = kv_attributes["config"]["subsystems"]
@@ -195,7 +196,7 @@ class KVManager:
                         if device["Model"] != "":
                             print("  Model:          %s" % device["Model"])
                         print("  Serial:          %s" % device["Serial"])
-                        print("  Size (MiB):     %d" % (int(device["SizeInBytes"]) / (1024*1024)))
+                        print("  Size (MiB):     %d" % (int(device["SizeInBytes"]) / (1024 * 1024)))
                         print("")
 
                         if not nqn_name:
@@ -237,7 +238,7 @@ class KVManager:
                                 print("    Model:          %s" % device["Model"])
                                 print("    PCI Address:    %s" % device["PCIAddress"])
                                 print("    Serial:          %s" % device["Serial"])
-                                print("    Size (MiB):     %s" % (int(device["SizeInBytes"]) / (1024*1024)))
+                                print("    Size (MiB):     %s" % (int(device["SizeInBytes"]) / (1024 * 1024)))
                             else:
                                 continue
                         print("")

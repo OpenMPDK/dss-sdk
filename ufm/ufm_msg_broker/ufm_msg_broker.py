@@ -10,7 +10,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -46,14 +46,14 @@ import socket
 from netifaces import interfaces, ifaddresses, AF_INET
 
 
-PORT_FRONTEND   = "6000"
-PORT_BACKEND    = "6001"
+PORT_FRONTEND = "6000"
+PORT_BACKEND = "6001"
 PORT_VALIDATION = "6002"
-DELAY           = 1
-RESEND_MAX      = 2
-POLLIN_MAX      = 2
+DELAY = 1
+RESEND_MAX = 2
+POLLIN_MAX = 2
 POOLIN_INTERVAL = 500
-PLATFORM        = platform.node().split('.', 1)[0]
+PLATFORM = platform.node().split('.', 1)[0]
 
 
 logger = logging.getLogger(__name__)
@@ -63,8 +63,9 @@ formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
 file_handler = None
 
-
 is_main_running = True
+
+
 def signal_handler(sig, frame):
     global is_main_running
     is_main_running = False
@@ -75,11 +76,11 @@ def get_ip_of_nic():
      Return the first valid nic ip
      else return localhost ip (127.0.0.1)
     '''
-    localhost=None
+    localhost = None
     for ifaceName in interfaces():
-        addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr':'No IP addr'}] )]
+        addresses = [i['addr'] for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}])]
         if ifaceName == 'lo':
-            localhost=addresses[0]
+            localhost = addresses[0]
         else:
             # print('{}: {}'.format(ifaceName, ', '.join(addresses)) )
             return addresses[0]
@@ -128,12 +129,12 @@ def broker_main():
     context = zmq.Context()
 
     # Frontend receive events from Cluster monitor
-    frontend  = context.socket(zmq.REP)
+    frontend = context.socket(zmq.REP)
     frontend.setsockopt(zmq.IPV6, 1)
     frontend.bind("{}:{}".format(proxy_ip, PORT_FRONTEND))
 
     # Backend send the events to the subscribers.
-    backend  = context.socket(zmq.PUB)
+    backend = context.socket(zmq.PUB)
     backend.setsockopt(zmq.IPV6, 1)
     backend.bind("{}:{}".format(proxy_ip, PORT_BACKEND))
     backend.getsockopt(zmq.SNDHWM)
@@ -170,4 +171,3 @@ def broker_main():
 
 if __name__ == "__main__":
     broker_main()
-

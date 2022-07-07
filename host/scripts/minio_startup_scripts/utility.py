@@ -1,13 +1,14 @@
-import os,sys
+import os
+import sys
 import subprocess
 import traceback
-#import ntplib
+# import ntplib
 import time
-
 
 """
 Contains list of utility functions...
 """
+
 
 def exception(func):
     """
@@ -15,11 +16,11 @@ def exception(func):
     :param func: <function ptr>
     :return: depends on function return type.
     """
-    def wrapper(self, *args,**kwargs):
+    def wrapper(self, *args, **kwargs):
         try:
-            return func(self,*args,**kwargs)
+            return func(self, *args, **kwargs)
         except Exception as e:
-            print("EXCEPTION: {} : {}".format(e,traceback.format_exc()))
+            print("EXCEPTION: {} : {}".format(e, traceback.format_exc()))
             return False
     return wrapper
 
@@ -31,13 +32,13 @@ def exec_cmd(cmd="", output=False, blocking=False):
     :return: None
     """
     ret = 0
-    console_output= ""
+    console_output = ""
     std_out_default = sys.stdout
     try:
         print("INFO: Execution Cmd - {}".format(cmd))
         if blocking:
             if output:
-                result = subprocess.check_output(cmd.split(), shell=False, stderr=subprocess.STDOUT,universal_newlines=False)
+                result = subprocess.check_output(cmd.split(), shell=False, stderr=subprocess.STDOUT, universal_newlines=False)
                 console_output = result
             else:
                 DEVNULL = open(os.devnull, "wb")
@@ -45,9 +46,9 @@ def exec_cmd(cmd="", output=False, blocking=False):
         else:
             with open("minio.log", "ab") as FH:
                 process = subprocess.Popen(cmd.split(), stdout=FH, stderr=subprocess.PIPE)
-            #stdout, stderr = process.communicate()
-            #if stderr :
-            #    print("ERROR:{}".format(stderr))
+            # stdout, stderr = process.communicate()
+            # if stderr :
+            #     print("ERROR:{}".format(stderr))
 
     except subprocess.CalledProcessError as e:
         print(traceback.format_exc())
@@ -58,7 +59,8 @@ def exec_cmd(cmd="", output=False, blocking=False):
         if not output:
             os.stdout = std_out_default
 
-    return ret , console_output
+    return ret, console_output
+
 
 @exception
 def ntp_time(host):
@@ -74,6 +76,7 @@ def ntp_time(host):
     """
     pass
 
+
 @exception
 def epoch(ts):
     """
@@ -82,8 +85,9 @@ def epoch(ts):
     :return:
     """
     time_format = '%Y-%m-%d %H:%M:%S'
-    ts_epoch =int( time.mktime(time.strptime(ts, time_format)))
+    ts_epoch = int(time.mktime(time.strptime(ts, time_format)))
     return ts_epoch
+
 
 @exception
 def get_file_path(base_dir, file_name):
@@ -96,8 +100,3 @@ def get_file_path(base_dir, file_name):
     file_path = os.path.abspath(base_dir + "/" + file_name)
 
     return file_path
-
-
-
-
-

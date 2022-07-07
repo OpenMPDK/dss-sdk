@@ -9,7 +9,7 @@
  # modification, are permitted (subject to the limitations in the disclaimer
  # below) provided that the following conditions are met:
  #
- # * Redistributions of source code must retain the above copyright notice, 
+ # * Redistributions of source code must retain the above copyright notice,
  #   this list of conditions and the following disclaimer.
  # * Redistributions in binary form must reproduce the above copyright notice,
  #   this list of conditions and the following disclaimer in the documentation
@@ -34,8 +34,8 @@
 
 from __future__ import print_function
 
-#as3:/usr/local/lib/python2.7/site-packages# cat sitecustomize.py
-# encoding=utf8  
+# as3:/usr/local/lib/python2.7/site-packages# cat sitecustomize.py
+# encoding=utf8
 
 # Standard libraries
 import argparse
@@ -78,8 +78,9 @@ gl_minio_dist_node = "http://%(node)s:%(port)s/dev/nvme{%(start)s...%(end)s}n1"
 g_mini_ec = 0
 
 g_etc_hosts = """
-%(IP)s    dssminio%(node)s 
+%(IP)s    dssminio%(node)s
 """
+
 
 def decode(bytes):
     '''
@@ -92,20 +93,22 @@ def decode(bytes):
         print(e)
     return result
 
-def exec_cmd(cmd):
-   '''
-   Execute any given command on shell
-   @return: Return code, output, error if any.
-   '''
-   print("Executing cmd %s..." %(cmd))
-   p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-   out, err = p.communicate()
-   out = decode(out)
-   out = out.strip()
-   err = decode(err)
-   ret = p.returncode
 
-   return ret, out, err
+def exec_cmd(cmd):
+    '''
+    Execute any given command on shell
+    @return: Return code, output, error if any.
+    '''
+    print("Executing cmd %s..." % (cmd))
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+    out, err = p.communicate()
+    out = decode(out)
+    out = out.strip()
+    err = decode(err)
+    ret = p.returncode
+
+    return ret, out, err
+
 
 def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
     '''
@@ -122,8 +125,10 @@ def exec_cmd_remote(cmd, host, user="root", pw="msl-ssg"):
     stderr_result = [decode(x.strip()) for x in stderr.readlines()]
     return status, stdout_result, stderr_result
 
-def get_list_diff(li1, li2): 
-        return (list(set(li1) - set(li2))) 
+
+def get_list_diff(li1, li2):
+    return (list(set(li1) - set(li2)))
+
 
 def get_ip_port_nqn_info(out, proto):
     '''
@@ -137,7 +142,7 @@ def get_ip_port_nqn_info(out, proto):
         elif "trsvcid" in line:
             trsvcid = line.split(':')[1].strip()
         elif "subnqn" in line:
-            subnqn = line.split(':',1)[1].strip()
+            subnqn = line.split(':', 1)[1].strip()
         elif "traddr" in line:
             traddr = line.split(':')[1].strip()
         elif "Discovery Log" in line:
@@ -147,8 +152,8 @@ def get_ip_port_nqn_info(out, proto):
     # for the last one after "Discover Log" text
     if trtype == proto:
         tuplist.append([trtype, trsvcid, subnqn, traddr])
-    tuplist.sort(key = lambda x: x[3])
-    print (tuplist)
+    tuplist.sort(key=lambda x: x[3])
+    print(tuplist)
     return tuplist
 
 
@@ -157,27 +162,29 @@ def nvme_discover(proto, ip, port):
     Do NVMe Discovery using the IP/Port info
     '''
     print("----- Doing nvme discovery -----")
-    discover_cmd = "nvme discover -t %s -a %s -s %d" %(proto, ip, port)
+    discover_cmd = "nvme discover -t %s -a %s -s %d" % (proto, ip, port)
     print(discover_cmd)
     ret, disc_out, err = exec_cmd(discover_cmd)
     if not disc_out:
-        print("Discovery Failed: %s, %s" %(disc_out,err))
+        print("Discovery Failed: %s, %s" % (disc_out, err))
         return []
 
     nqn_info = get_ip_port_nqn_info(disc_out, proto)
 
     return nqn_info
-    
+
+
 def nvme_connect(nqn_info_sorted, qpair):
     for nqn_info in nqn_info_sorted:
         cmd = "nvme connect -t %s -a %s -s %s -n %s -i %d -k 0" \
-                %(nqn_info[0], nqn_info[3], nqn_info[1], nqn_info[2], qpair)
+            % (nqn_info[0], nqn_info[3], nqn_info[1], nqn_info[2], qpair)
         ret, out, err = exec_cmd(cmd)
         if ret != 0:
-            print("Command Failed: %s, %s, %s" %(cmd, out, err))
+            print("Command Failed: %s, %s, %s" % (cmd, out, err))
             continue
     print("Waiting for connect to happen 2 sec..")
-    time.sleep(2) 
+    time.sleep(2)
+
 
 def build_driver():
     '''
@@ -203,9 +210,10 @@ def build_driver():
     build = "make all"
     rc, bo, err = exec_cmd(build)
     if rc != 0:
-        print("Build Failed: %s, %s" %(bo, err))
-        sys.exit(rc)        
+        print("Build Failed: %s, %s" % (bo, err))
+        sys.exit(rc)
     os.chdir(cwd)
+
 
 def install_kernel_driver(align):
     '''
@@ -230,28 +238,28 @@ def install_kernel_driver(align):
     kernel_modules = ["nvme-core.ko", "nvme-fabrics.ko", "nvme-tcp.ko", "nvme-rdma.ko"]
     for module in kernel_modules:
         if not os.path.exists(module):
-                os.chdir(cwd)
-                raise IOError("File not found: " + os.path.join(os.getcwd(), module) + ", did you forget to run config_driver?")
+            os.chdir(cwd)
+            raise IOError("File not found: " + os.path.join(os.getcwd(), module) + ", did you forget to run config_driver?")
 
     disconnect_cmd = "nvme disconnect-all"
     rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
-    #rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
+    # rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
     insmod = "insmod ./nvme-core.ko mem_align=%d io_timeout=300 admin_timeout=300; insmod ./nvme-fabrics.ko; \
             insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
 
     ret, do, err = exec_cmd(disconnect_cmd)
     if ret != 0:
-        print("Disconnect Failed: %s, %s" %(do, err))
+        print("Disconnect Failed: %s, %s" % (do, err))
 
     ret, rmo, err = exec_cmd(rmmod)
     if ret != 0:
-        print("rmmod Failed: %s, %s" %(rmo, err))
+        print("rmmod Failed: %s, %s" % (rmo, err))
 
     ret, ino, err = exec_cmd(insmod)
     if ret != 0:
-        print("insmod Failed: %s, %s" %(ino, err))
+        print("insmod Failed: %s, %s" % (ino, err))
 
-    ret, dmesg, err = exec_cmd('dmesg | grep "Samsung Key-Value\|BIO_MAX_PAGES\|mem_align" | tail -3')
+    ret, dmesg, err = exec_cmd(r'dmesg | grep "Samsung Key-Value \|BIO_MAX_PAGES\|mem_align" | tail -3')
     if ret != 0:
         print("Couldn't find Samsung KV driver in dmesg")
     else:
@@ -265,10 +273,13 @@ def get_nvme_drives(cmd):
     Get nvme drive list
     '''
     ret, out, err = exec_cmd(cmd)
-    #if ret != 0:
+    # if ret != 0:
     return out
 
+
 G_VLAN_IPS_CACHE = {}
+
+
 def get_ips_for_vlan(target_vlan_id, host, root_pws):
     """
     Get the list of IPs corresponding to the specified vlan id on the specified host
@@ -301,7 +312,7 @@ def get_ips_for_vlan(target_vlan_id, host, root_pws):
         # Parse json after fixing malformed output
         lshw_json = json.loads("".join(fixed_lines))
         G_VLAN_IPS_CACHE[host] = {}
-        vlan_id_regex = re.compile("id\s*[0-9]+")
+        vlan_id_regex = re.compile(r"id\s*[0-9]+")
         for portalias in lshw_json:
             if "logicalname" in portalias and "ip" in portalias["configuration"]:
                 devname = portalias["logicalname"]
@@ -321,6 +332,7 @@ def get_ips_for_vlan(target_vlan_id, host, root_pws):
     else:
         return []
 
+
 def get_vlan_for_ips(ip, host, root_pws):
     """
     Get the vlan ID corresponding to the specified IP on the specified host
@@ -334,7 +346,8 @@ def get_vlan_for_ips(ip, host, root_pws):
         if ip in ips:
             return vlan_id
     return None
-    
+
+
 def get_addrs(vlan_ids, hosts, ports, root_pws):
     '''
     Get IP addresses of all interfaces with vlan ID in vlan_ids on all hosts in hosts
@@ -347,12 +360,13 @@ def get_addrs(vlan_ids, hosts, ports, root_pws):
                 ips += [x + ":" + str(port) for x in vlan_ips]
     return list(set(ips))
 
+
 def write_json(data, filename):
     '''
     Write nkv_config.json configuration file
     '''
-    with open(filename,'w') as f: 
-        json.dump(data, f, indent=4) 
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=4)
 
 
 def get_drives_list(nvme_list_cmd):
@@ -374,14 +388,14 @@ def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_conf
     '''
     if "../conf" not in nkv_conf_file:
         nkv_conf_file = os.path.join("../conf", nkv_conf_file)
-    print("----- Updating %s -----" %nkv_conf_file)
+    print("----- Updating %s -----" % nkv_conf_file)
 
     # Loop through drives and add them in local mounts.
     # This is the place to do any other variable changes of config file.
     with open("../conf/nkv_config.json", 'r') as f:
         data = json.load(f)
         data['nkv_local_mounts'] = []
-         
+
         if nkv_kv_pair:
             for pair in nkv_kv_pair:
                 key, value = pair.split('=')
@@ -391,8 +405,8 @@ def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_conf
                     print('Invalid key "%s" not added to config file' % key)
 
         for drive in drives_list:
-            #print("{ mount_point: %s },")
-            y = { "mount_point": drive }
+            # print("{ mount_point: %s },")
+            y = {"mount_point": drive}
             data['nkv_local_mounts'].append(y)
 
     write_json(data, nkv_conf_file)
@@ -411,13 +425,13 @@ def run_nkv_test_cli(nkv_conf_file, numa_num, workload, meta_prefix, key, value,
     '''
     print("----- Running sample nkv_test_cli -----")
     nkv_cmd = "LD_LIBRARY_PATH=../lib numactl -N " + numa_num + " -m " + numa_num + " ./nkv_test_cli -c " + nkv_conf_file + \
-            " -i msl-ssg-dl04 -p 1030 -b test/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
-            threads + " -o " + workload
-    #print(nkv_cmd)
+              " -i msl-ssg-dl04 -p 1030 -b test/" + meta_prefix + " -k " + key + " -v " + value + " -n " + numobjects + " -t " + \
+              threads + " -o " + workload
+    # print(nkv_cmd)
     result_file = "nkv_numa" + numa_num + ".out"
     ret, out, err = exec_cmd(nkv_cmd)
     if ret != 0:
-        print("nkv_test_cli Failed: %s" %(err)) 
+        print("nkv_test_cli Failed: %s" % (err))
     else:
         with open(result_file, 'w') as f:
             f.write(out)
@@ -441,11 +455,11 @@ def nkv_test_result(result_file):
 
     with open(result_file, 'a+') as w:
         w.write("\n------------------------------\n")
-        w.write("BW = %s GB/s\n" % round(float(bw/1000),2))
+        w.write("BW = %s GB/s\n" % round(float(bw / 1000), 2))
         w.write("------------------------------")
 
     print("------------------------------")
-    print("BW = %s GB/s" % round(float(bw/1000),2))
+    print("BW = %s GB/s" % round(float(bw / 1000), 2))
     print("------------------------------")
 
 
@@ -465,14 +479,14 @@ def subnet_drive_map():
     subnet_device_map = {}
     addrs = []
     for subsys in subsystems:
-        if not "Paths" in subsys:
+        if "Paths" not in subsys:
             continue
         for dev in subsys["Paths"]:
             name = '/dev/' + dev["Name"] + 'n1'
             transport = dev["Transport"]
-            addr = re.search("traddr=(\S+)", dev["Address"]).group(1)
+            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
             subnet = getSubnet(addr)
-            if not subnet in subnet_device_map:
+            if subnet not in subnet_device_map:
                 subnet_device_map[subnet] = []
             subnet_device_map[subnet].append(name)
             addrs.append(addr)
@@ -502,7 +516,7 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair
         disc_ip, disc_port = addr.split(":")
         nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
     # Sort NQN infos
-    nqn_infos.sort(key=lambda x : x[3].split(":")[0])
+    nqn_infos.sort(key=lambda x: x[3].split(":")[0])
     nqn_infos_dedup = []
     for nqn_info in nqn_infos:
         if nqn_info not in nqn_infos_dedup:
@@ -518,25 +532,27 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair
 
 
 def config_minio_sa(node, ec):
-    print("node details ec %d %s" %(ec, node))
+    print("node details ec %d %s" % (ec, node))
     ip = node[0]
     port = node[1]
     devs = node[2:]
-    
+
     minio_node = ""
     for dev in devs:
-        minio_node += gl_minio_standalone % {"devnum":dev} + " "
+        minio_node += gl_minio_standalone % {"devnum": dev} + " "
     minio_startup = "minio_startup_sa" + ip + ".sh"
-    #minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
-    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST": 0, "IP":ip, "PORT":port}
-    minio_settings += minio_node 
+    # minio_settings = gl_minio_start_sh % {"EC": ec, "IC":1, "DIST":1, "IP":ip, "PORT":port}
+    minio_settings = gl_minio_start_sh % {"EC": ec, "DIST": 0, "IP": ip, "PORT": port}
+    minio_settings += minio_node
     with open(minio_startup, 'w') as f:
         f.write(minio_settings)
-    print("Successfully created MINIO startup script %s" %(minio_startup))
-    
+    print("Successfully created MINIO startup script %s" % (minio_startup))
+
+
 def getSubnet(addr):
     # FIXME: Find true subnet based on remote routing table
-    return addr.rsplit(".",1)[0]
+    return addr.rsplit(".", 1)[0]
+
 
 def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     '''
@@ -554,19 +570,19 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     subnet_device_map = {}
     addrs = []
     for subsys in subsystems:
-        if not "Paths" in subsys:
+        if "Paths" not in subsys:
             continue
         for dev in subsys["Paths"]:
             name = dev["Name"]
             transport = dev["Transport"]
-            addr = re.search("traddr=(\S+)", dev["Address"]).group(1)
+            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
             subnet = getSubnet(addr)
-            if not subnet in subnet_device_map:
+            if subnet not in subnet_device_map:
                 subnet_device_map[subnet] = []
             subnet_device_map[subnet].append(name)
             addrs.append(addr)
     # ret is a list of tuples (IP, devlow, devhigh)
-    # where the closed interval [devlow, devhigh] are 
+    # where the closed interval [devlow, devhigh] are
     # all device numbers on that particular IP
     ips_devs = []
     for addr in addrs:
@@ -575,7 +591,7 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
         subnet = getSubnet(addr)
         devs = subnet_device_map[subnet]
         # Extract device numbers using regex (i.e. nvme3 -> 3)
-        dev_numbers = sorted([int(re.search("(\d+)", dev).group(1)) for dev in devs])
+        dev_numbers = sorted([int(re.search(r"(\d+)", dev).group(1)) for dev in devs])
         runs = []
         # Find contiguous blocks of devices in the list
         while len(dev_numbers) > 0:
@@ -613,7 +629,7 @@ def is_ipv4(string):
 
 
 def config_minio_dist(node_details, ec):
-    print("node details ec %d %s" %(ec, node_details))
+    print("node details ec %d %s" % (ec, node_details))
     node_count = 0
     node_index = 0
     minio_dist_node = ""
@@ -622,30 +638,31 @@ def config_minio_dist(node_details, ec):
     etc_hosts_map = ""
     while (i < len(node_details)):
         while (j < len(node_details)):
-            ip,port,dev_start,dev_end = node_details[j:j+4]
+            ip, port, dev_start, dev_end = node_details[j: j + 4]
             node_count += 1
-            minio_dist_node += gl_minio_dist_node % {"node":ip, "port":port, "start":dev_start, "end":dev_end} +" "
+            minio_dist_node += gl_minio_dist_node % {"node": ip, "port": port, "start": dev_start, "end": dev_end} + " "
             j += 4
-        ip,port,dev_start, dev = node_details[i:i+4]
+        ip, port, dev_start, dev = node_details[i: i + 4]
         i += 4
         node_index += 1
         minio_startup = "minio_startup_" + ip + ".sh"
-        minio_settings = gl_minio_start_sh % {"EC": ec, "DIST":1, "IP":ip, "PORT":port}
-        minio_settings += minio_dist_node 
+        minio_settings = gl_minio_start_sh % {"EC": ec, "DIST": 1, "IP": ip, "PORT": port}
+        minio_settings += minio_dist_node
         with open(minio_startup, 'w') as f:
             f.write("#!/bin/bash")
             f.write(minio_settings)
             f.write("\n")
         os.chmod(minio_startup, 0o755)
 
-        print("Successfully created MINIO startup script %s" %(minio_startup))
+        print("Successfully created MINIO startup script %s" % (minio_startup))
         if is_ipv4(ip):
-            etc_hosts_map += g_etc_hosts % {"node":node_index, "IP":ip}
+            etc_hosts_map += g_etc_hosts % {"node": node_index, "IP": ip}
 
     if etc_hosts_map:
         with open("etc_hosts", 'w') as f:
             f.write(etc_hosts_map)
         print("Successfully created etc host file, add this into your MINIO server \"etc_hosts\"")
+
 
 def config_minio(dist, sa, ec):
     if(sa):
@@ -658,10 +675,10 @@ class dss_host_args(object):
 
     def __init__(self):
         # disable the following commands for now
-        #prereq     Install necessary components for build and deploy
-        #checkout   Do git checkout of DSS Target software
-        #build      Build target software
-        #launch     Launch DSS Target software
+        # prereq     Install necessary components for build and deploy
+        # checkout   Do git checkout of DSS Target software
+        # build      Build target software
+        # launch     Launch DSS Target software
         parser = argparse.ArgumentParser(
             description='DSS Host Commands',
             usage='''dss_host <command> [<args>]
@@ -679,10 +696,10 @@ The most commonly used dss target commands are:
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
         args = parser.parse_args(sys.argv[1:2])
-        #if not hasattr(self, args.command):
-        #    print 'Unrecognized command'
-        #    parser.print_help()
-        #    exit(1)
+        # if not hasattr(self, args.command):
+        #     print 'Unrecognized command'
+        #     parser.print_help()
+        #     exit(1)
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
@@ -693,22 +710,21 @@ The most commonly used dss target commands are:
         parser.add_argument("-p", "--ports", type=int, nargs='+', required=False, help="Port numbers to be used for nvme discover.")
         parser.add_argument("--hosts", nargs='+', help="Space delimited list of target hostnames")
         parser.add_argument("-a", "--addrs", type=str, nargs='+', help="Space-delimited list of ip for nvme discovery (required)")
-        parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", \
-            default="rdma")
+        parser.add_argument("-t", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", default="rdma")
         parser.add_argument("-i", "--qpair", type=int, help="Queue Pair for connect (default: 32)", default=32)
-        parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", \
-            default=512)
-        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
+        parser.add_argument("-m", "--memalign", type=int, help="Memory alignment for driver (default: 512)", default=512)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"],
+                            help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
                             file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
 
         args = parser.parse_args(sys.argv[2:])
 
-        if args.addrs != None and args.ports != None:
+        if args.addrs is not None and args.ports is not None:
             disc_addrs = []
             for port in args.ports:
                 disc_addrs = ["{}:{}".format(addr, port) for addr in args.addrs]
-        elif args.vlan_ids != None and args.hosts != None and args.ports != None:
+        elif args.vlan_ids is not None and args.hosts is not None and args.ports is not None:
             disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
         else:
             print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
@@ -723,15 +739,22 @@ The most commonly used dss target commands are:
     def config_minio(self):
         parser = argparse.ArgumentParser(
             description='Generates MINIO scripts based on parameters')
-        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False, help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes. start_dev, end_dev should be integers.")
-        parser.add_argument("-p", "--port", type=int, required=False, help="Port number to be used for minio, must specify -p or -dist but not both.")
-        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+', help="Enter space separated node info \"ip port <dev num 0> <dev num 1> ...\" for the local node. Dev numbers should be integers.")
-        parser.add_argument("-ec", "--ec", type=int, required=False, help="Erasure Code, leave as default (2) unless you know what you're doing.", default=2)
-        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"], help="List of root passwords for all machines in cluster to be tried in order")
+        parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False,
+                            help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes.
+                            start_dev, end_dev should be integers.")
+        parser.add_argument("-p", "--port", type=int, required=False,
+                            help="Port number to be used for minio, must specify -p or -dist but not both.")
+        parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+',
+                            help="Enter space separated node info \"ip port < dev num 0 > < dev num 1 > ...\" for the local node.
+                            Dev numbers should be integers.")
+        parser.add_argument("-ec", "--ec", type=int, required=False,
+                            help="Erasure Code, leave as default (2) unless you know what you're doing.", default=2)
+        parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"],
+                            help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-f", "--frontend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         parser.add_argument("-b", "--backend-vlan-ids", nargs='+', required=False, type=str, default=[], help="Space delimited list of vlan IDs")
         args = parser.parse_args(sys.argv[2:])
-       
+
         minio_dist = args.dist
         # Validate args
         if args.dist and args.stand_alone:
@@ -852,11 +875,8 @@ The most commonly used dss target commands are:
         drive_list = get_drives_list(cmd)
         create_config_file(nkv_kv_pair, drive_list, nkv_conf_file)
 
-
     def remove(self):
-        parser = argparse.ArgumentParser(
-                description='Resets the system to stock nvme'
-        )
+        parser = argparse.ArgumentParser(description='Resets the system to stock nvme')
         # Disconnect from all subsystems
         exec_cmd("nvme disconnect-all")
         # Remove all nvme drivers
@@ -873,11 +893,10 @@ if __name__ == '__main__':
 
     ret = 0
 
-    #reload(sys)
-    #sys.setdefaultencoding('utf8')
+    # reload(sys)
+    # sys.setdefaultencoding('utf8')
 
     g_path = os.getcwd()
-    print("Make sure this script is executed from nkv-sdk/bin diretory, running command under path:%s" %(g_path))
+    print("Make sure this script is executed from nkv-sdk/bin diretory, running command under path:%s" % (g_path))
 
     dss_host_args()
-

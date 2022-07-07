@@ -9,7 +9,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -37,7 +37,7 @@ import ufmapi
 
 class StorMenu(UfmMenu):
     def __init__(self, sys=""):
-        UfmMenu.__init__(self, name="stor",  back_func=self._back_action)
+        UfmMenu.__init__(self, name="stor", back_func=self._back_action)
 
         rsp = ufmapi.rf_get_storage_list(sys)
         if rsp is None:
@@ -49,17 +49,17 @@ class StorMenu(UfmMenu):
         print("*  Subsystem:", sys)
         # print("---------------------------------------------")
         if "oem" in rsp:
-            print("    Capacity:", int(rsp["oem"]["CapacityBytes"]/(1024*1024)), "(Mbytes)")
+            print("    Capacity:", int(rsp["oem"]["CapacityBytes"] / (1024 * 1024)), "(Mbytes)")
             print("   Available:", rsp["oem"]["PercentAvailable"], "%")
 
         for member in rsp["Members"]:
             sn = member['@odata.id'].split("/")[6]
-            print("     Storage: ("+str(count)+")", sn)
+            print("     Storage: (" + str(count) + ")", sn)
 
             self.add_item(labels=[str(count)],
                           action=self._sn_action, priv=sn, desc=sn)
 
-            count = count+1
+            count = count + 1
 
         self.sys = sys
         return
@@ -77,7 +77,7 @@ class StorMenu(UfmMenu):
 
 class SnMenu(UfmMenu):
     def __init__(self, sys="", sn=""):
-        UfmMenu.__init__(self, name="sn",  back_func=self._back_action)
+        UfmMenu.__init__(self, name="sn", back_func=self._back_action)
 
         rsp = ufmapi.rf_get_storage(sys, sn)
         if rsp is None:
@@ -90,16 +90,16 @@ class SnMenu(UfmMenu):
         print("*    Storage:", sn)
         # print("---------------------------------------------")
         if "oem" in rsp:
-            print("    Capacity:", int(rsp["oem"]["CapacityBytes"]/(1024*1024)), "(Mbytes)")
+            print("    Capacity:", int(rsp["oem"]["CapacityBytes"] / (1024 * 1024)), "(Mbytes)")
             print("   Available:", rsp["oem"]["PercentAvailable"], "%")
 
         for drive in rsp["Drives"]:
             drv = drive['@odata.id'].split("/")[8]
-            print("       Drive: ("+str(count)+")", drv)
+            print("       Drive: (" + str(count) + ")", drv)
 
             self.add_item(labels=[str(count)],
                           action=self._drv_action, priv=drv, desc=drv)
-            count = count+1
+            count = count + 1
 
         self.sys = sys
         self.sn = sn
@@ -128,7 +128,7 @@ class DrvMenu(UfmMenu):
         print("*      Drive:", drv)
         # print("---------------------------------------------")
         print("   BlockSize:", rsp["BlockSizeBytes"], "(Bytes)")
-        print("    Capacity:", int(rsp["CapacityBytes"]/(1024*1024)), "(Mbytes)")
+        print("    Capacity:", int(rsp["CapacityBytes"] / (1024 * 1024)), "(Mbytes)")
         try:
             print("   Available:", rsp["oem"]["PercentAvailable"], "%")
         except KeyError:

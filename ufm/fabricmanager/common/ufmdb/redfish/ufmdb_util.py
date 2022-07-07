@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -100,6 +100,6 @@ class ufmdb_util():
 
     @classmethod
     def convert_ranges_to_list(self, ranges_str):
-        ranges = [(lambda l: range(l[0], l[-1]+1))(list(map(int, r.split('-')))) for r in ranges_str.split(',')]
+        ranges = [(lambda l: range(l[0], l[-1] + 1))(list(map(int, r.split('-')))) for r in ranges_str.split(',')]
         ret_list = [y for x in ranges for y in x]
         return ret_list

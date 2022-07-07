@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -34,20 +34,20 @@
 # refer to notes in pub_server.py
 #
 import sys
-import zmq #for zmq.SUBSCRIBE
+import zmq  # for zmq.SUBSCRIBE
 from common.ufmmq import ufmmq
 
 port = "5556"
 if len(sys.argv) > 1:
-    port =  sys.argv[1]
+    port = sys.argv[1]
     int(port)
 
 if len(sys.argv) > 2:
-    port1 =  sys.argv[2]
+    port1 = sys.argv[2]
     int(port1)
 
 try:
-    mqclient = ufmmq.client(mq_type = 'zmq')
+    mqclient = ufmmq.client(mq_type='zmq')
 except Exception as e:
     print(e)
     sys.exit(1)
@@ -68,11 +68,10 @@ mqclient.setsockopt(skt, zmq.SUBSCRIBE, topicfilter2)
 
 # Process 5 updates
 total_value = 0
-for update_nbr in range (6):
+for update_nbr in range(6):
     string = mqclient.receive(skt)
     topic, messagedata = string.split()
     total_value += int(messagedata)
     print(topic, messagedata)
 
 print("Average messagedata value for topic '%s' and '%s' was %dF" % (topicfilter1, topicfilter2, total_value / update_nbr))
-

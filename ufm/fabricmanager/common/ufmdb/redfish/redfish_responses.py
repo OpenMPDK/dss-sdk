@@ -8,7 +8,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -28,7 +28,6 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 
 redfish_responses = {
@@ -75,8 +74,8 @@ redfish_responses = {
         "type": "object",
         "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0",
         "title": "Redfish Schema Extension",
-        "description": "The properties defined in this schema shall adhere to the requirements " +
-                       "of the Redfish Specification and the semantics of the descriptions in this file.",
+        "description": "The properties defined in this schema shall adhere to the requirements "
+                       + "of the Redfish Specification and the semantics of the descriptions in this file.",
         "allOf": [
             {
                 "$ref": "http://json-schema.org/draft-04/schema"
@@ -92,13 +91,13 @@ redfish_responses = {
                 "items": {
                     "type": "boolean"
                 },
-                "description": "This property is required to be specified in the body " +
-                               "of a POST request to create the resource."
+                "description": "This property is required to be specified in the body "
+                               + "of a POST request to create the resource."
             },
             "longDescription": {
                 "type": "string",
-                "description": "This attribute shall contain normative language relating " +
-                               "to the Redfish Specification and documentation."
+                "description": "This attribute shall contain normative language relating "
+                               + "to the Redfish Specification and documentation."
             },
             "copyright": {
                 "type": "string",
@@ -106,32 +105,32 @@ redfish_responses = {
             },
             "deprecated": {
                 "type": "string",
-                "description": "The term shall be applied to a property in order to specify " +
-                               "that the property is deprecated.  The value of the string should " +
-                               "explain the deprecation, including new property or properties to be " +
-                               "used. The property can be supported in new and existing implementations, " +
-                               "but usage in new implementations is discouraged.  " +
-                               "Deprecated properties are likely to be removed in a future major version " +
-                               "of the schema."
+                "description": "The term shall be applied to a property in order to specify "
+                               + "that the property is deprecated.  The value of the string should "
+                               + "explain the deprecation, including new property or properties to be "
+                               + "used. The property can be supported in new and existing implementations, "
+                               + "but usage in new implementations is discouraged.  "
+                               + "Deprecated properties are likely to be removed in a future major version "
+                               + "of the schema."
             },
             "enumDescriptions": {
                 "type": "object",
-                "description": "This attribute shall contain informative language related to the " +
-                               "enumeration values of the property."
+                "description": "This attribute shall contain informative language related to the "
+                               + "enumeration values of the property."
             },
             "enumLongDescriptions": {
                 "type": "object",
-                "description": "This attribute shall contain normative language relating to the " +
-                               "enumeration values of the property."
+                "description": "This attribute shall contain normative language relating to the "
+                               + "enumeration values of the property."
             },
             "enumDeprecated": {
                 "type": "object",
-                "description": "The term shall be applied to a value in order to specify that the " +
-                               "value is deprecated.  The value of the string should explain the " +
-                               "deprecation, including new value to be used.  The value can be supported " +
-                               "in new and existing implementations, but usage in new implementations is " +
-                               "discouraged.  Deprecated values are likely to be removed in a future major " +
-                               "version of the schema."
+                "description": "The term shall be applied to a value in order to specify that the "
+                               + "value is deprecated.  The value of the string should explain the "
+                               + "deprecation, including new value to be used.  The value can be supported "
+                               + "in new and existing implementations, but usage in new implementations is "
+                               + "discouraged.  Deprecated values are likely to be removed in a future major "
+                               + "version of the schema."
             },
             "units": {
                 "type": "string",
@@ -331,8 +330,8 @@ redfish_responses = {
                 "ResetType@Redfish.AllowableValues": [
                     "ForceOff",
                     "ForceRestart"]
-                },
-            }
+            },
+        }
     },
     '1.3.1.1': {
         "@odata.context": "/redfish/v1/$metadata#LogServiceCollection.LogServiceCollection",
@@ -441,8 +440,8 @@ redfish_responses = {
                 "InfoMask",
                 "DebugMask",
                 "DetailMask"
-                ],
-            },
+            ],
+        },
         ]
     },
     '1.4': {

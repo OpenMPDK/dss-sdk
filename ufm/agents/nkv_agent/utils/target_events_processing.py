@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -35,13 +35,14 @@ from events.events import save_events_to_etcd_db, get_events_from_etcd_db
 from log_setup import get_logger
 
 
-class  TargetEvents:
-    def __init__(self,endpoint="127.0.0.1", port=23790, server_base_key_prefix=""):
+class TargetEvents:
+
+    def __init__(self, endpoint="127.0.0.1", port=23790, server_base_key_prefix=""):
         self.TARGET_STATUS_PREFIX = server_base_key_prefix + "/target/status/" + platform.node().split('.', 1)[0] + "/"
         self.backend = BackendLayer(endpoint, port)
         self.logger = get_logger()
 
-    def store_events(self,events):
+    def store_events(self, events):
         """
         Store events to the ETCD database
         :param events: <list> list of events
@@ -107,19 +108,17 @@ class  TargetEvents:
         events = []
         self.logger.info("Comparing target status")
         try:
-            timestamp = status.pop("timestamp", None )
+            timestamp = status.pop("timestamp", None)
             for event_name, event_status in status.items():
                 for key, value in event_status.items():
-                    if (event_name not in cached_status or
-                        key not in cached_status[event_name] or
-                        cached_status[event_name][key]["status"] != value[
-                                "status"]):
+                    if (event_name not in cached_status
+                            or key not in cached_status[event_name]
+                            or cached_status[event_name][key]["status"] != value["status"]):
                         value["slno"] = key
                         event = {"node": platform.node().split('.', 1)[0],
                                  "name": event_name,
                                  "args": value,
-                                 "timestamp": timestamp
-                                }
+                                 "timestamp": timestamp}
                         events.append(event)
         except Exception as e:
             self.logger.error(e)
@@ -131,4 +130,3 @@ class  TargetEvents:
             return True
 
         return False
-

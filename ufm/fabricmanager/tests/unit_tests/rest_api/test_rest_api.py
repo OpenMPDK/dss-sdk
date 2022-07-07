@@ -18,7 +18,7 @@ STORAGE_ID = 'msl-ssg-mp03'
 @pytest.fixture
 def app():
     """Fixture to obtain Flask Server reference
-    
+
     Returns:
         app -- flask server reference object
         By default app instance is connected to DB
@@ -29,11 +29,11 @@ def app():
 
 @pytest.fixture
 def client(app):
-    """Fixture to create a test client 
-    
+    """Fixture to create a test client
+
     Arguments:
         app -- flask server reference object
-    
+
     Returns:
         test_client_class -- test client
     """

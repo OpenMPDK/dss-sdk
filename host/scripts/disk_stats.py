@@ -19,7 +19,7 @@ class NvmeAdminCmd(ctypes.Structure):
                 ('nsid', ctypes.c_uint),
                 ('cdw2', ctypes.c_uint),
                 ('cdw3', ctypes.c_uint),
-                ('metadata',ctypes.c_ulonglong),
+                ('metadata', ctypes.c_ulonglong),
                 ('addr', ctypes.c_ulonglong),
                 ('metadata_len', ctypes.c_uint),
                 ('data_len', ctypes.c_uint),
@@ -32,6 +32,7 @@ class NvmeAdminCmd(ctypes.Structure):
                 ('timeout_ms', ctypes.c_uint),
                 ('result', ctypes.c_uint), ]
 
+
 log_file = sys.argv[0].split('.')[0] + ".log"
 
 kv_fw_versions = ['ETA51KBE']
@@ -40,6 +41,7 @@ logging.basicConfig(
     filename=log_file, level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s - %(pathname)s [%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
+
 
 def ioctl_nvme_admin_command(device_path, opcode, nsid, data_len, cdw10):
     req = NvmeAdminCmd()
@@ -85,13 +87,12 @@ def unpack_identify_ns_details(data, d, fw_ver):
                                                          offset=8)
     d["DiskCapacityInBytes"] = disk_capacity * block_size
     if fw_ver in kv_fw_versions:
-        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization)/100)
+        d["DiskUtilizationPercentage"] = "%.2f" % (float(disk_utilization) / 100)
         d["DiskUtilizationInBytes"] = int(
-            (float(d["DiskUtilizationPercentage"])/100) *
-            int(d["DiskCapacityInBytes"]))
+            (float(d["DiskUtilizationPercentage"]) / 100) * int(d["DiskCapacityInBytes"]))
     else:
         d["DiskUtilizationInBytes"] = int(disk_utilization * block_size)
-        d["DiskUtilizationPercentage"] = int((disk_utilization*100)/disk_capacity)
+        d["DiskUtilizationPercentage"] = int((disk_utilization * 100) / disk_capacity)
 
 
 def get_firmware_rev(dev):
@@ -136,4 +137,3 @@ if __name__ == '__main__':
     json_string = json.dumps(out)
 
     print(json_string)
-

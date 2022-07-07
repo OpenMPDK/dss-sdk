@@ -11,8 +11,8 @@ _TEMPLATE = \
         "Description": "Ethernet Switch information",
         "Name": "Switch",
         "SerialNumber": "MT1935J01956",
-        "UUID":"f1ec15f8-c832-11e9-8000-b8599f784980",
-        "Model":"x86onie",
+        "UUID": "f1ec15f8-c832-11e9-8000-b8599f784980",
+        "Model": "x86onie",
         "Ports": {
             "@odata.id": "{rest_base}Fabrics/{fab_id}/Switches/{switch_id}/Ports"
         },

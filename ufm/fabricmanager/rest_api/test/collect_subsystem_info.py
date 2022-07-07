@@ -14,6 +14,7 @@ Client code can then iterate through redfish endpoints hierarchy without
 making any explicit rest calls.
 '''
 
+
 def getSystemInfo(service_addr):
     # Will throw exception if connection fails. No need to catch it as nothing more to do
     # in that case
@@ -51,11 +52,11 @@ def getSystemInfo(service_addr):
                                                        '{:^12}'.format("Trans type"),
                                                        '{:^10}'.format("Status"))))
                         ethernet_list.append(ethernet_str)
-                        ethernet_str = ','.join(tuple(('{:^20}'.format(''.rjust(20,'-')),
-                                                       '{:^40}'.format(''.rjust(14,'-')),
-                                                       '{:^6}'.format(''.rjust(6,'-')),
-                                                       '{:^12}'.format(''.rjust(12,'-')),
-                                                       '{:^10}'.format(''.rjust(10,'-')))))
+                        ethernet_str = ','.join(tuple(('{:^20}'.format(''.rjust(20, '-')),
+                                                       '{:^40}'.format(''.rjust(14, '-')),
+                                                       '{:^6}'.format(''.rjust(6, '-')),
+                                                       '{:^12}'.format(''.rjust(12, '-')),
+                                                       '{:^10}'.format(''.rjust(10, '-')))))
                         ethernet_list.append(ethernet_str)
                         for interface in system.EthernetInterfaces.Members:
                             if 'IPv4Addresses' in interface:
@@ -91,28 +92,29 @@ def getSystemInfo(service_addr):
                         # Add the storage fields for each drive
                         storage_list = []
                         storage_str = ','.join(tuple(('{:^18}'.format("Serial Number"),
-                                                       '{:^18}'.format("MediaType"),
-                                                       '{:^18}'.format("Manufacturer"),
-                                                       '{:^24}'.format("Model"),
-                                                       '{:^18}'.format("FW Revision"))))
+                                                      '{:^18}'.format("MediaType"),
+                                                      '{:^18}'.format("Manufacturer"),
+                                                      '{:^24}'.format("Model"),
+                                                      '{:^18}'.format("FW Revision"))))
                         storage_list.append(storage_str)
-                        storage_str = ','.join(tuple(('{:^18}'.format(''.rjust(18,'-')),
-                                                       '{:^18}'.format(''.rjust(18,'-')),
-                                                       '{:^18}'.format(''.rjust(18,'-')),
-                                                       '{:^24}'.format(''.rjust(24,'-')),
-                                                       '{:^18}'.format(''.rjust(18,'-')))))
+                        storage_str = ','.join(tuple(('{:^18}'.format(''.rjust(18, '-')),
+                                                      '{:^18}'.format(''.rjust(18, '-')),
+                                                      '{:^18}'.format(''.rjust(18, '-')),
+                                                      '{:^24}'.format(''.rjust(24, '-')),
+                                                      '{:^18}'.format(''.rjust(18, '-')))))
                         storage_list.append(storage_str)
                         for storage in system.Storage.Members:
                             if 'Drives' in storage:
                                 for drive in storage.Drives:
                                     storage_str = ','.join(tuple(('{:^18}'.format(str(drive.SerialNumber)),
-                                                                   '{:^18}'.format(str(drive.MediaType)),
-                                                                   '{:^18}'.format(str(drive.Manufacturer)),
-                                                                   '{:^24}'.format(str(drive.Model)),
-                                                                   '{:^18}'.format(str(drive.Revision)))))
+                                                                  '{:^18}'.format(str(drive.MediaType)),
+                                                                  '{:^18}'.format(str(drive.Manufacturer)),
+                                                                  '{:^24}'.format(str(drive.Model)),
+                                                                  '{:^18}'.format(str(drive.Revision)))))
                                     storage_list.append(storage_str)
                     system_info_dict[tgt_str]['Storage'] = storage_list
     return system_info_dict
+
 
 if __name__ == '__main__':
 

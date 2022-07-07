@@ -7,7 +7,7 @@
 # modification, are permitted (subject to the limitations in the disclaimer
 # below) provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice, 
+# * Redistributions of source code must retain the above copyright notice,
 #   this list of conditions and the following disclaimer.
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
@@ -38,24 +38,24 @@
 #
 from common.ufmmq import ufmmq
 import time
-import zmq #for zmq.REP
+import zmq  # for zmq.REP
 
 print('\nTest 1: **********Opening MQ connection**********\n')
 try:
-    mqclient = ufmmq.client(mq_type = 'zmq')
+    mqclient = ufmmq.client(mq_type='zmq')
 except Exception as e:
     print(e)
     sys.exit(1)
 
-#context = zmq.Context()
-#socket = context.socket(zmq.REP)
-#socket.bind("tcp://*:5555")
+# context = zmq.Context()
+# socket = context.socket(zmq.REP)
+# socket.bind("tcp://*:5555")
 skt = mqclient.create_socket(zmq.REP)
 mqclient.bind_socket(skt, "tcp://*", "5555")
 
 while True:
     #  Wait for next request from client
-    #message = socket.recv()
+    # message = socket.recv()
     msg = mqclient.receive(skt)
     print("Received request: %s" % msg)
 
@@ -63,5 +63,5 @@ while True:
     time.sleep(1)
 
     #  Send reply back to client
-    #socket.send(b"World")
+    # socket.send(b"World")
     mqclient.send(skt, "World")
