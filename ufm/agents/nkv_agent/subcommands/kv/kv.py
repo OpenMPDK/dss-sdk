@@ -170,9 +170,10 @@ class KVManager:
                 free_disk_serial_list = []
                 if int(server_attributes["storage"]["nvme"]["Count"]) > 0:
                     nvme_devices = server_attributes["storage"]["nvme"]["devices"]
-                    convert = lambda text: int(text) if text.isdigit() else text.lower()
-                    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-                    devnode_lambda = lambda value: (alphanum_key(nvme_devices[value]['PCIAddress']))
+                    # TO DO: Convert these lambdas to functions.
+                    convert = (lambda text: int(text) if text.isdigit() else text.lower())
+                    alphanum_key = (lambda key: [convert(c) for c in re.split('([0-9]+)', key)])
+                    devnode_lambda = (lambda value: (alphanum_key(nvme_devices[value]['PCIAddress'])))
                     subsystem_list = []
                     if kv_attributes:
                         kv_subsystems = kv_attributes["config"]["subsystems"]
