@@ -52,33 +52,33 @@ echo "Updating ${base}/${proj_name} ..."
 
 patch_folder=${base}/patches/${patch_folder_name}
 
-mkdir -p ${patch_folder}
+mkdir -p "${patch_folder}"
 
 echo "Removing following patch files"
-ls ${patch_folder}/[0-9]*
-rm ${patch_folder}/[0-9]*
+ls "${patch_folder}"/[0-9]*
+rm "${patch_folder}"/[0-9]*
 
-commit_hash=`cat ${patch_folder}/base_commit`
-echo "Creating patches from base commit" ${commit_hash}
+commit_hash=$(cat "${patch_folder}"/base_commit)
+echo "Creating patches from base commit" "${commit_hash}"
 
-pushd ${base}/${proj_name}/
+pushd "${base}"/"${proj_name}"/
 git am --abort
-git format-patch -o ../../${patch_folder} ${commit_hash}
+git format-patch -o ../../"${patch_folder}" "${commit_hash}"
 popd
 
 declare -A new_files=()
 
-del_file_names=(`git ls-files -d ${patch_folder}`)
-new_file_names=(`git ls-files -o ${patch_folder}`)
+del_file_names=($(git ls-files -d "${patch_folder}"))
+new_file_names=($(git ls-files -o "${patch_folder}"))
 
-for name in ${new_file_names[@]}; do
-	idx_str=`echo $name | cut -d- -f 1`
+for name in "${new_file_names[@]}"; do
+	idx_str=$(echo "$name" | cut -d- -f 1)
 	new_files[$idx_str]=$name
 done
 
 echo "Restoring deleted files"
-for name in ${del_file_names[@]}; do
-	idx_str=`echo $name | cut -d- -f 1`
+for name in "${del_file_names[@]}"; do
+	idx_str=$(echo "$name" | cut -d- -f 1)
 	echo "${new_files[$idx_str]} --> $name"
-	`mv ${new_files[$idx_str]} $name`
+	mv "${new_files[$idx_str]}" "$name"
 done

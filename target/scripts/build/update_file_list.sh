@@ -38,10 +38,13 @@ read -e -p "Do you like to continue? [y/N]" choice
 
 echo "Updating ${base}/${proj_name} ..."
 
-echo "#Auto Generated File do not modify" > mk/filelists/${proj_name}_filelist.txt
-find ${base}/${proj_name} -type f  | awk -F: '{printf "configure_file(../../%s ../../%s COPYONLY)\n",$0, $0}' | sort >> mk/filelists/${proj_name}_filelist.txt
-echo "#Symbolic links" >> mk/filelists/${proj_name}_filelist.txt
-echo "#TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference" >> mk/filelists/${proj_name}_filelist.txt
-echo "ADD_CUSTOM_TARGET(copy_${proj_name}_links" >> mk/filelists/${proj_name}_filelist.txt
-find ${base}/${proj_name} -type l  | awk -F: '{printf "COMMAND cp -d ${CMAKE_CURRENT_SOURCE_DIR}/../../%s ${CMAKE_CURRENT_BINARY_DIR}/../../%s\n",$0, $0}' | sort >> mk/filelists/${proj_name}_filelist.txt
-echo ")" >> mk/filelists/${proj_name}_filelist.txt
+echo "#Auto Generated File do not modify" > mk/filelists/"${proj_name}"_filelist.txt
+
+{
+find "${base}"/"${proj_name}" -type f  | awk -F: '{printf "configure_file(../../%s ../../%s COPYONLY)\n",$0, $0}' | sort
+echo "#Symbolic links"
+echo "#TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference"
+echo "ADD_CUSTOM_TARGET(copy_${proj_name}_links"
+find "${base}"/"${proj_name}" -type l  | awk -F: '{printf "COMMAND cp -d ${CMAKE_CURRENT_SOURCE_DIR}/../../%s ${CMAKE_CURRENT_BINARY_DIR}/../../%s\n",$0, $0}' | sort
+echo ")" 
+} >> mk/filelists/"${proj_name}"_filelist.txt
