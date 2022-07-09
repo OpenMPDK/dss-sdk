@@ -48,22 +48,22 @@ fi
 
 echo "$warning"
 
-found_modified_content=`git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "modified content" | wc -l`
-found_new_commits=`git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "new commits" | wc -l`
-if [ $found_modified_content -eq 1 ]; then
+found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "modified content" | wc -l)
+found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "new commits" | wc -l)
+if [ "$found_modified_content" -eq 1 ]; then
 	echo "Exiting because modified content found in ${base}/${proj_name}"
 	exit 1
-elif [ $found_modified_content -gt 1 ]; then
+elif [ "$found_modified_content" -gt 1 ]; then
 	echo "Unexpectedly found multiple modified lines for ${base}/${proj_name}"
 	exit 1
 else
-	if [ $found_new_commits -eq 1 ]; then
+	if [ "$found_new_commits" -eq 1 ]; then
 		echo "New commits found in ${base}/${proj_name}"
 
 		read -e -p "Do you like to continue? [y/N]" choice
 		[[ "$choice" == [Yy]* ]] || exit 0 #Exit for choicse other than Yy
 
-	elif [ $found_new_commits -gt 1 ]; then
+	elif [ "$found_new_commits" -gt 1 ]; then
 		echo "Unexpectedly found multiple lines for ${base}/${proj_name}"
 		exit 1
 	fi
@@ -73,13 +73,13 @@ echo "Applying patches for ${base}/${proj_name} ..."
 
 patch_folder=${base}/patches/${patch_folder_name}
 
-commit_hash=`cat ${patch_folder}/base_commit`
+commit_hash=$(cat "${patch_folder}"/base_commit)
 
 
-pushd ${base}/${proj_name}/
-if [ -d ../../${patch_folder} ]; then
-	git reset --hard $commit_hash
-	git am ../../${patch_folder}/0*
+pushd "${base}/${proj_name}"/
+if [ -d ../../"${patch_folder}" ]; then
+	git reset --hard "$commit_hash"
+	git am ../../"${patch_folder}"/0*
 else
 	( echo "Patch folder not found ${patch_folder} .... Exiting "; exit 1 )
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-readonly BASEDIR=$(readlink -f $(dirname $0))/
-cd $BASEDIR
+readonly BASEDIR=$(readlink -f "$(dirname "$0")")/
+cd "$BASEDIR"
 
 # exit on errors
 set -e
@@ -18,7 +18,7 @@ rc=0
 
 echo -n "Checking file permissions..."
 
-while read -r perm _res0 _res1 path; do
+while read -r perm path; do
 	if [ ! -f "$path" ]; then
 		continue
 	fi
@@ -34,7 +34,7 @@ while read -r perm _res0 _res1 path; do
 			fi
 		;;
 		*)
-			shebang=$(head -n 1 $path | cut -c1-3)
+			shebang=$(head -n 1 "$path" | cut -c1-3)
 
 			# git only tracks the execute bit, so will only ever return 755 or 644 as the permission.
 			if [ "$perm" -eq 100755 ]; then
@@ -73,7 +73,7 @@ if hash astyle; then
 		#  coding standards.
 		git ls-files '*.[ch]' '*.cpp' '*.cc' '*.cxx' '*.hh' '*.hpp' | \
 			grep -v rte_vhost | grep -v cpp_headers | \
-			xargs -P$(nproc) -n10 astyle --options=.astylerc >> astyle.log
+			xargs -P"$(nproc)" -n10 astyle --options=.astylerc >> astyle.log
 		if grep -q "^Formatted" astyle.log; then
 			echo " errors detected"
 			git diff
@@ -160,7 +160,7 @@ rm -f badcunit.log
 echo -n "Checking blank lines at end of file..."
 
 if ! git grep -I -l -e . -z | \
-	xargs -0 -P$(nproc) -n1 scripts/eofnl > eofnl.log; then
+	xargs -0 -P"$(nproc)" -n1 scripts/eofnl > eofnl.log; then
 	echo " Incorrect end-of-file formatting detected"
 	cat eofnl.log
 	rc=1
@@ -192,7 +192,7 @@ if [ ! -z ${PEP8} ]; then
 	PEP8_ARGS+=" --max-line-length=140"
 
 	error=0
-	git ls-files '*.py' | xargs -P$(nproc) -n1 $PEP8 $PEP8_ARGS > pep8.log || error=1
+	git ls-files '*.py' | xargs -P"$(nproc)" -n1 "$PEP8" "$PEP8_ARGS" > pep8.log || error=1
 	if [ $error -ne 0 ]; then
 		echo " Python formatting errors detected"
 		cat pep8.log

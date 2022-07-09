@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-readonly BASEDIR=$(readlink -f $(dirname $0))/..
-cd $BASEDIR
+readonly BASEDIR=$(readlink -f "$(dirname "$0")")/..
+cd "$BASEDIR"
 
 # exit on errors
 set -e
@@ -81,7 +81,7 @@ if hash pep8; then
 	PEP8_ARGS+=" --max-line-length=140"
 
 	error=0
-	git ls-files '*.py' | xargs -n1 pep8 $PEP8_ARGS > pep8.log || error=1
+	git ls-files '*.py' | xargs -n1 pep8 "$PEP8_ARGS" > pep8.log || error=1
 	if [ $error -ne 0 ]; then
 		echo " Python formatting errors detected"
 		cat pep8.log
