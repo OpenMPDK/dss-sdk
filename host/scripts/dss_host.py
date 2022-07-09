@@ -740,13 +740,13 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description='Generates MINIO scripts based on parameters')
         parser.add_argument("-dist", "--dist", type=str, nargs='+', required=False,
-                            help="Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes.
-                            start_dev, end_dev should be integers.")
+                            help=("Enter space separated node info \"ip port start_dev end_dev\" for all MINDIST IO nodes. "
+                                  "start_dev, end_dev should be integers."))
         parser.add_argument("-p", "--port", type=int, required=False,
                             help="Port number to be used for minio, must specify -p or -dist but not both.")
         parser.add_argument("-stand_alone", "--stand_alone", type=str, nargs='+',
-                            help="Enter space separated node info \"ip port < dev num 0 > < dev num 1 > ...\" for the local node.
-                            Dev numbers should be integers.")
+                            help=("Enter space separated node info \"ip port < dev num 0 > < dev num 1 > ...\" for the local node. "
+                                  "Dev numbers should be integers."))
         parser.add_argument("-ec", "--ec", type=int, required=False,
                             help="Erasure Code, leave as default (2) unless you know what you're doing.", default=2)
         parser.add_argument("-r", "--root-pws", nargs='+', required=False, default=["msl-ssg"],
