@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
 warning="
 
@@ -48,8 +49,8 @@ fi
 
 echo "$warning"
 
-found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "modified content" | wc -l)
-found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep "new commits" | wc -l)
+found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "modified content")
+found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "new commits")
 if [ "$found_modified_content" -eq 1 ]; then
 	echo "Exiting because modified content found in ${base}/${proj_name}"
 	exit 1
@@ -60,8 +61,8 @@ else
 	if [ "$found_new_commits" -eq 1 ]; then
 		echo "New commits found in ${base}/${proj_name}"
 
-		read -e -p "Do you like to continue? [y/N]" choice
-		[[ "$choice" == [Yy]* ]] || exit 0 #Exit for choicse other than Yy
+		read -r -e -p "Do you like to continue? [y/N]" choice
+		[[ "$choice" == [Yy]* ]] || exit 0 #Exit for choice other than Yy
 
 	elif [ "$found_new_commits" -gt 1 ]; then
 		echo "Unexpectedly found multiple lines for ${base}/${proj_name}"
