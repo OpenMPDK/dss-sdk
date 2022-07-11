@@ -69,8 +69,8 @@ popd
 
 declare -A new_files=()
 
-del_file_names=($(git ls-files -d "${patch_folder}"))
-new_file_names=($(git ls-files -o "${patch_folder}"))
+mapfile -t del_file_names < <(git ls-files -d "${patch_folder}")
+mapfile -t new_file_names < <(git ls-files -o "${patch_folder}")
 
 for name in "${new_file_names[@]}"; do
     idx_str=$(echo "$name" | cut -d- -f 1)

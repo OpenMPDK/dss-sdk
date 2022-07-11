@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-#
-#
-#
+set -e
+
 WORKING_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_VERSION="1.00.02.00"
 
