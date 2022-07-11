@@ -12,25 +12,25 @@ proj_name=$1
 base="oss"
 
 if [ $# -lt 1 ]; then
-	echo ""
-	echo "Need atleast one argument for project name."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Need atleast one argument for project name."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $# -gt 2 ]; then
-	echo ""
-	echo "Too Many arguments."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Too Many arguments."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $#  -eq 2 ]; then
-	base=$2
+    base=$2
 fi
 
 echo "$warning"

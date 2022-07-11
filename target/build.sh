@@ -117,8 +117,8 @@ generateSpecFile()
     local packageName=$2
     local gitVer=$3
 
-	#replace hyphen with underscore for file name
-	gitVer=${gitVer//[-]/_}
+    #replace hyphen with underscore for file name
+    gitVer=${gitVer//[-]/_}
 
     [[ -z "${gitVer}" ]] && die "ERR: Git Version string is empty!"
     [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
@@ -225,31 +225,31 @@ LAB_DFLY_CONF
 
 parse_options()
 {
-	for i in "$@"
-	do
-	case $i in
-		--rocksdb)
-		BUILD_ROCKSDB=true
-		shift # past argument=value
-		;;
-		-v=*|--version=*)
-		TARGET_VER="${i#*=}"
-		shift # past argument=value
-		;;
-		-b=*|--build-type=*)
-		TYPE="${i#*=}"
-		if [ "$TYPE" == "debug" ] ; then
-			BUILD_TYPE="debug"
-		else
-			BUILD_TYPE="release"
-		fi
-		shift # past argument=value
-		;;
-		*)
-			  # unknown option
-		;;
-	esac
-	done
+    for i in "$@"
+    do
+    case $i in
+        --rocksdb)
+        BUILD_ROCKSDB=true
+        shift # past argument=value
+        ;;
+        -v=*|--version=*)
+        TARGET_VER="${i#*=}"
+        shift # past argument=value
+        ;;
+        -b=*|--build-type=*)
+        TYPE="${i#*=}"
+        if [ "$TYPE" == "debug" ] ; then
+            BUILD_TYPE="debug"
+        else
+            BUILD_TYPE="release"
+        fi
+        shift # past argument=value
+        ;;
+        *)
+              # unknown option
+        ;;
+    esac
+    done
 }
 ####################### main #######################################
 
@@ -285,15 +285,15 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
     elif [ "$BUILD_TYPE" = "release" ]; then
         cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
     else
-	echo "Making in default mode"
+    echo "Making in default mode"
         cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
     fi
 
-	if $BUILD_ROCKSDB;then
-		make rocksdb
-	else
-		make spdk_tcp
-	fi
+    if $BUILD_ROCKSDB;then
+        make rocksdb
+    else
+        make spdk_tcp
+    fi
 
     makePackageDirectories "${rpm_build_dir}"
 

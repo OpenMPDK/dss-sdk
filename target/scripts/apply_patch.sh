@@ -22,29 +22,29 @@ base="oss"
 patch_folder_name=$1
 
 if [ $# -lt 1 ]; then
-	echo ""
-	echo "Need atleast one argument for project name."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Need atleast one argument for project name."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $# -gt 3 ]; then
-	echo ""
-	echo "Too Many arguments."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Too Many arguments."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $# -gt 1 ]; then
-	patch_folder_name=$2
+    patch_folder_name=$2
 fi
 
 if [ $#  -eq 3 ]; then
-	base=$3
+    base=$3
 fi
 
 echo "$warning"
@@ -52,22 +52,22 @@ echo "$warning"
 found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "modified content")
 found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "new commits")
 if [ "$found_modified_content" -eq 1 ]; then
-	echo "Exiting because modified content found in ${base}/${proj_name}"
-	exit 1
+    echo "Exiting because modified content found in ${base}/${proj_name}"
+    exit 1
 elif [ "$found_modified_content" -gt 1 ]; then
-	echo "Unexpectedly found multiple modified lines for ${base}/${proj_name}"
-	exit 1
+    echo "Unexpectedly found multiple modified lines for ${base}/${proj_name}"
+    exit 1
 else
-	if [ "$found_new_commits" -eq 1 ]; then
-		echo "New commits found in ${base}/${proj_name}"
+    if [ "$found_new_commits" -eq 1 ]; then
+        echo "New commits found in ${base}/${proj_name}"
 
-		read -r -e -p "Do you like to continue? [y/N]" choice
-		[[ "$choice" == [Yy]* ]] || exit 0 #Exit for choice other than Yy
+        read -r -e -p "Do you like to continue? [y/N]" choice
+        [[ "$choice" == [Yy]* ]] || exit 0 #Exit for choice other than Yy
 
-	elif [ "$found_new_commits" -gt 1 ]; then
-		echo "Unexpectedly found multiple lines for ${base}/${proj_name}"
-		exit 1
-	fi
+    elif [ "$found_new_commits" -gt 1 ]; then
+        echo "Unexpectedly found multiple lines for ${base}/${proj_name}"
+        exit 1
+    fi
 fi
 
 echo "Applying patches for ${base}/${proj_name} ..."
@@ -79,10 +79,10 @@ commit_hash=$(cat "${patch_folder}"/base_commit)
 
 pushd "${base}/${proj_name}"/
 if [ -d ../../"${patch_folder}" ]; then
-	git reset --hard "$commit_hash"
-	git am ../../"${patch_folder}"/0*
+    git reset --hard "$commit_hash"
+    git am ../../"${patch_folder}"/0*
 else
-	( echo "Patch folder not found ${patch_folder} .... Exiting "; exit 1 )
+    ( echo "Patch folder not found ${patch_folder} .... Exiting "; exit 1 )
 fi
 popd
 

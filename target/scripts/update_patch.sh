@@ -20,29 +20,29 @@ base="oss"
 patch_folder_name=$1
 
 if [ $# -lt 1 ]; then
-	echo ""
-	echo "Need atleast one argument for project name."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Need atleast one argument for project name."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $# -gt 3 ]; then
-	echo ""
-	echo "Too Many arguments."
-	echo ""
-	echo "$usage"
-	echo ""
-	exit 1
+    echo ""
+    echo "Too Many arguments."
+    echo ""
+    echo "$usage"
+    echo ""
+    exit 1
 fi
 
 if [ $# -gt 1 ]; then
-	patch_folder_name=$2
+    patch_folder_name=$2
 fi
 
 if [ $#  -eq 3 ]; then
-	base=$3
+    base=$3
 fi
 
 echo "$warning"
@@ -73,13 +73,13 @@ del_file_names=($(git ls-files -d "${patch_folder}"))
 new_file_names=($(git ls-files -o "${patch_folder}"))
 
 for name in "${new_file_names[@]}"; do
-	idx_str=$(echo "$name" | cut -d- -f 1)
-	new_files[$idx_str]=$name
+    idx_str=$(echo "$name" | cut -d- -f 1)
+    new_files[$idx_str]=$name
 done
 
 echo "Restoring deleted files"
 for name in "${del_file_names[@]}"; do
-	idx_str=$(echo "$name" | cut -d- -f 1)
-	echo "${new_files[$idx_str]} --> $name"
-	mv "${new_files[$idx_str]}" "$name"
+    idx_str=$(echo "$name" | cut -d- -f 1)
+    echo "${new_files[$idx_str]} --> $name"
+    mv "${new_files[$idx_str]}" "$name"
 done
