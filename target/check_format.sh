@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-readonly BASEDIR=$(readlink -f "$(dirname "$0")")/
+BASEDIR=$(readlink -f "$(dirname "$0")")/
+readonly BASEDIR
 cd "$BASEDIR"
 
 # exit on errors
@@ -186,7 +187,7 @@ elif hash pep8 2>/dev/null; then
 	PEP8=pep8
 fi
 
-if [ ! -z ${PEP8} ]; then
+if [ -n "${PEP8}" ]; then
 	echo -n "Checking Python style..."
 
 	PEP8_ARGS+=" --max-line-length=140"
