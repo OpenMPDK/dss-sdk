@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-readonly BASEDIR=$(readlink -f "$(dirname "$0")")/..
+BASEDIR=$(readlink -f "$(dirname "$0")")/..
+readonly BASEDIR
 cd "$BASEDIR"
 
 # exit on errors
