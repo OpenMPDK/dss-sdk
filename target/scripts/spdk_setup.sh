@@ -65,12 +65,14 @@ function configure_linux {
 	grep "PCI_DEVICE_ID_INTEL_IOAT" "$rootdir"/pci_ids.h \
 	| awk -F"x" '{print $2}' > "$TMP"
 
-	for dev_id in $(cat "$TMP"); do
+	# for dev_id in $(cat "$TMP"); do
+	while IFS= read -r dev_id
+	do
 		# Abuse linux_iter_pci by giving it a device ID instead of a class code
 		for bdf in $(linux_iter_pci "$dev_id"); do
 			linux_bind_driver "$bdf" "$driver_name"
 		done
-	done
+	done < "$TMP"
 	rm "$TMP"
 
 	echo "1" > "/sys/bus/pci/rescan"
@@ -182,9 +184,10 @@ function configure_freebsd {
 	# IOAT
 	grep "PCI_DEVICE_ID_INTEL_IOAT" "$rootdir"/pci_ids.h \
 	| awk -F"x" '{print $2}' > "$TMP"
-	for dev_id in $(cat "$TMP"); do
+    while IFS= read -r dev_id
+    do
 		GREP_STR="${GREP_STR}\|chip=0x${dev_id}8086"
-	done
+	done < "TMP"
 
 	AWK_PROG="{if (count > 0) printf \",\"; printf \"%s:%s:%s\",\$2,\$3,\$4; count++}"
 	echo "$AWK_PROG" > "$TMP"
