@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
 warning="Make sure you are in the root directory of source git
 if you are not running the script as './scripts/update_patches.sh'
@@ -45,7 +46,7 @@ if [ $#  -eq 3 ]; then
 fi
 
 echo "$warning"
-read -e -p "Do you like to continue? [y/N]" choice
+read -r -e -p "Do you like to continue? [y/N]" choice
 [[ "$choice" == [Yy]* ]] || exit 0 #Exit for choicse other than Yy
 
 echo "Updating ${base}/${proj_name} ..."

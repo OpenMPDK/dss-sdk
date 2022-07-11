@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 git_hash=$(git describe --abbrev=4 --always --tags)
 
 {
