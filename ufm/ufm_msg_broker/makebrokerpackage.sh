@@ -50,7 +50,7 @@ removePackage()
     for f in "${package_name}"*.deb
     do
         echo "rm -f $f"
-        if [ -f $f ]
+        if [ -f "$f" ]
         then
             rm "$f"
         fi
@@ -59,7 +59,7 @@ removePackage()
     for f in "${package_name}"*.rpm
     do
         echo "rm -f $f"
-        if [ -f $f ]
+        if [ -f "$f" ]
         then
             rm "$f"
         fi
@@ -121,10 +121,10 @@ convertDebToRpmPackage()
     # Convert a deb package to rpm
     for deb_filename in *.deb
     do
-       if ! fpm -f -s deb -t rpm "$deb_filename"; 
-       then
-           die "ERR: Failed to convert deb pkg to rpm"
-       fi
+        if ! fpm -f -s deb -t rpm "$deb_filename"; 
+        then
+            die "ERR: Failed to convert deb pkg to rpm"
+        fi
     done
 }
 
