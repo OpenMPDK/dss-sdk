@@ -71,8 +71,8 @@ buildPackage()
     gittag=${jenkingJobnumber}.$(git log -1 --format=%h)
     package_revision=1
 
-    package_name=$(sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g' < DEBIAN/control)
-    sw_version=$(sed 's/ //g' | awk -F: '/^Version/ {printf("%s\n", $2)}' | sed 's/ //g' < DEBIAN/control)
+    package_name=$(< DEBIAN/control sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g')
+    sw_version=$(< DEBIAN/control sed 's/ //g' | awk -F: '/^Version/ {printf("%s\n", $2)}' | sed 's/ //g')
 
     full_package_name=$(echo "${package_name}"_"${sw_version}"."${gittag}"-"${package_revision}" | sed 's/ //g')
 
@@ -85,9 +85,9 @@ buildPackage()
     cp DEBIAN/* "${full_package_name}"/DEBIAN
 
     # Append git-it to version number
-    awk -F: -vTAG="$gittag" ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
+    < DEBIAN/control awk -F: -vTAG="$gittag" ' /^Version/ {printf("Version:%s.%s\n", $2, TAG) }
                            !/^Version/ {print $0}
-    ' > "${full_package_name}"/DEBIAN/control < DEBIAN/control
+    ' > "${full_package_name}"/DEBIAN/control
 
     # Copy code to working directory that should be
     # include in the deb install package
