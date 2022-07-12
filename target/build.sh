@@ -2,6 +2,7 @@
 # shellcheck disable=SC1090
 #
 # set -o xtrace
+set -e
 
 # Minimum and Maximum GCC versions
 GCCMINVER=5.1.0
