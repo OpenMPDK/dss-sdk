@@ -49,8 +49,8 @@ fi
 
 echo "$warning"
 
-found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "modified content")
-found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "new commits")
+found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "modified content" || true)
+found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "new commits" || true)
 if [ "$found_modified_content" -eq 1 ]; then
     echo "Exiting because modified content found in ${base}/${proj_name}"
     exit 1
