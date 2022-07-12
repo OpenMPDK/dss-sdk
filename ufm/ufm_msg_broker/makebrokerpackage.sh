@@ -49,12 +49,20 @@ removePackage()
 
     for f in "${package_name}"*.deb
     do
-        [[ -e ${f} ]] && rm "${f}"
+        echo "rm -f $f"
+        if [ -f $f ]
+        then
+            rm "$f"
+        fi
     done
 
     for f in "${package_name}"*.rpm
     do
-        [[ -e ${f} ]] && rm "${f}"
+        echo "rm -f $f"
+        if [ -f $f ]
+        then
+            rm "$f"
+        fi
     done
 }
 
@@ -66,7 +74,10 @@ buildPackage()
         jenkingJobnumber=$1
     fi
 
-    [[ ! -e DEBIAN/control ]] && die "ERR: DEBIAN/control file does not exist!"
+    if [[ ! -e DEBIAN/control ]]
+    then
+        die "ERR: DEBIAN/control file does not exist!"
+    fi
 
     gittag=${jenkingJobnumber}.$(git log -1 --format=%h)
     package_revision=1
@@ -159,9 +170,14 @@ then
   exit 2
 fi
 
-[[ ${buildPackageFlag} -ne 0 ]] && buildPackage "${jenkinsJobNo}"
-[[ ${convertDeb2RPM} -ne 0 ]] && convertDebToRpmPackage
+if [[ ${buildPackageFlag} -ne 0 ]]
+then
+    buildPackage "${jenkinsJobNo}"
+fi
+
+if [[ ${convertDeb2RPM} -ne 0 ]]
+then
+    convertDebToRpmPackage
+fi
 
 popd
-
-exit 0
