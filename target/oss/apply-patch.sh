@@ -15,7 +15,7 @@ popd
 
 pushd spdk_tcp/dpdk
 git checkout .
-rm meson_options.text.rej
+rm -f meson_options.text.rej
 popd
 
 pushd ..
