@@ -10,8 +10,8 @@ do
     if [[ $line =~ $regex ]]
     then
         PROC_PPID_TO_PID[${BASH_REMATCH[2]}]=${BASH_REMATCH[1]}
-        ((PROC_PID_CNT[\${BASH_REMATCH[1]}]++))
-        ((PROC_PID_CNT[\${BASH_REMATCH[2]}]++))
+        (("PROC_PID_CNT[${BASH_REMATCH[1]}]"++))
+        (("PROC_PID_CNT[${BASH_REMATCH[2]}]"++))
         ((proc_idx++))
         pid=${BASH_REMATCH[1]}
     fi

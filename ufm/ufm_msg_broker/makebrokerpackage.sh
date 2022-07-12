@@ -47,12 +47,12 @@ removePackage()
 {
     local package_name=$1
 
-    for f in ${package_name}*.deb
+    for f in "${package_name}"*.deb
     do
         [[ -e ${f} ]] && rm "${f}"
     done
 
-    for f in ${package_name}*.rpm
+    for f in "${package_name}"*.rpm
     do
         [[ -e ${f} ]] && rm "${f}"
     done
@@ -110,8 +110,10 @@ convertDebToRpmPackage()
     # Convert a deb package to rpm
     for deb_filename in *.deb
     do
-       fpm -f -s deb -t rpm "$deb_filename"
-       [[ $? -ne 0 ]] && die "ERR: Failed to convert deb pkg to rpm"
+       if ! fpm -f -s deb -t rpm "$deb_filename"; 
+       then
+           die "ERR: Failed to convert deb pkg to rpm"
+       fi
     done
 }
 
@@ -145,12 +147,13 @@ then
   die "ERR: No argument passed in"
 fi
 
-command -v rpmbuild > /dev/null
-[[ $? -ne 0 ]] && die "ERR: rpmbuild is not installed"
+if ! command -v rpmbuild > /dev/null ; 
+then
+    die "ERR: rpmbuild is not installed"
+fi
 
 # Check is fpm package installer is installed
-command -v fpm > /dev/null
-if [[ $? -ne 0 ]]
+if ! command -v fpm > /dev/null;
 then
   fpm_install_msg
   exit 2
