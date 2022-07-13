@@ -92,8 +92,15 @@ updateVersionInHeaderFile()
     local targetVersion=$1
     local gitHash=$2
 
-    [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
-    [[ -z "${gitHash}" ]] && die "ERR: Invalid git hash "
+    if [[ -z "${targetVersion}" ]]
+    then
+        die "ERR: Version string is empty!"
+    fi
+
+    if [[ -z "${gitHash}" ]]
+    then
+        die "ERR: Invalid git hash "
+    fi
 
     sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"${targetVersion}\"/" include/version.h
     sed -i -e "s/^\#define OSS_TARGET_GIT_VER.\+$/#define OSS_TARGET_GIT_VER \"${gitHash}\"/" include/version.h
@@ -121,8 +128,15 @@ generateSpecFile()
     #replace hyphen with underscore for file name
     gitVer=${gitVer//[-]/_}
 
-    [[ -z "${gitVer}" ]] && die "ERR: Git Version string is empty!"
-    [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
+    if [[ -z "${gitVer}" ]]
+    then
+        die "ERR: Git Version string is empty!"
+    fi
+    
+    if [[ -e "${rpmSpecFile}" ]]
+    then
+        rm -f "${rpmSpecFile}"
+    fi
 
 
     cat > "$rpmSpecFile" <<LAB_SPEC
@@ -262,7 +276,10 @@ echo "Build rockdb: $BUILD_ROCKSDB"
 echo "Target Version: $TARGET_VER"
 echo "Build Type: $BUILD_TYPE"
 
-[[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
+if [[ -d "${build_dir}" ]]
+then
+    rm -rf "${build_dir}"
+fi
 
 mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"

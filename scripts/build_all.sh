@@ -4,6 +4,7 @@
 # Note: This script is not used by Jenkins, to is
 #       nice script to have when building everything
 #       from command line
+set -e
 
 Help()
 {
