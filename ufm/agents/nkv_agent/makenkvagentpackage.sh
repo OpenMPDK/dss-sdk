@@ -1,8 +1,7 @@
-#!/bin/bash
-#
-#
-#
-WORKING_DIR="$(cd $(dirname $0) && pwd)"
+#!/usr/bin/env bash
+set -e
+
+WORKING_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_VERSION="1.00.04.00"
 
 
@@ -51,14 +50,22 @@ removePackage()
 {
     local package_name=$1
 
-    for f in ${package_name}*.deb
+    for f in "${package_name}"*.deb
     do
-        [[ -e ${f} ]] && rm ${f}
+        echo "rm -f $f"
+        if [ -f "$f" ]
+        then
+            rm "$f"
+        fi
     done
 
-    for f in ${package_name}*.rpm
+    for f in "${package_name}"*.rpm
     do
-        [[ -e ${f} ]] && rm ${f}
+        echo "rm -f $f"
+        if [ -f "$f" ]
+        then
+            rm "$f"
+        fi
     done
 }
 
@@ -70,55 +77,58 @@ buildPackage()
         jenkingJobnumber=$1
     fi
 
-    [[ ! -e DEBIAN/control ]] && die "ERR: DEBIAN/control file does not exist!"
+    if [[ ! -e DEBIAN/control ]]
+    then
+        die "ERR: DEBIAN/control file does not exist!"
+    fi
 
     gittag=${jenkingJobnumber}.$(git log -1 --format=%h)
     package_revision=1
 
-    package_name=$(cat DEBIAN/control | sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g'  )
+    package_name=$(< DEBIAN/control sed 's/ //g' | awk -F: '/^Package/ {print $2}' | sed 's/ //g')
 
-    full_package_name=$(echo ${package_name}_${gittag}-${package_revision} | sed 's/ //g')
+    full_package_name=$(echo "${package_name}"_"${gittag}"-"${package_revision}" | sed 's/ //g')
 
     dir_share=${full_package_name}/usr/share/${package_name}
 
     # Remove any pre-existin package in directory
-    removePackage ${package_name}
+    removePackage "${package_name}"
 
-    mkdir -p ${full_package_name}/DEBIAN
-    cp DEBIAN/* ${full_package_name}/DEBIAN
+    mkdir -p "${full_package_name}"/DEBIAN
+    cp DEBIAN/* "${full_package_name}"/DEBIAN
 
     # Append git-it to version number
-    cat DEBIAN/control | awk -F: -vTAG=${gittag} ' /^Version/ {printf("Version: %s\n", TAG) }
+    < DEBIAN/control awk -F: -vTAG="${gittag}" ' /^Version/ {printf("Version: %s\n", TAG) }
                            !/^Version/ {print $0}
-    ' > ${full_package_name}/DEBIAN/control
+    ' > "${full_package_name}"/DEBIAN/control
 
     # Copy code to working directory that should be
     # include in the deb install package
-    mkdir -p ${dir_share}
+    mkdir -p "${dir_share}"
     # kv-cli.py
-    cp *.py                    ${dir_share}/
-    cp -aR clusterlib          ${dir_share}/
-    cp -aR device_driver_setup ${dir_share}/
-    cp -aR etcdlib             ${dir_share}/
-    cp -aR events              ${dir_share}/
-    cp -aR logger              ${dir_share}/
-    cp -aR server_info         ${dir_share}/
-    cp -aR spdk_config_file    ${dir_share}/
-    cp -aR subcommands         ${dir_share}/
-    cp -aR test                ${dir_share}/
-    cp -aR udev_monitor        ${dir_share}/
-    cp -aR utils               ${dir_share}/
-    cp ../requirements.txt     ${dir_share}/
-    cp ../../LICENSE.md        ${dir_share}/
+    cp ./*.py                    "${dir_share}"/
+    cp -aR clusterlib          "${dir_share}"/
+    cp -aR device_driver_setup "${dir_share}"/
+    cp -aR etcdlib             "${dir_share}"/
+    cp -aR events              "${dir_share}"/
+    cp -aR logger              "${dir_share}"/
+    cp -aR server_info         "${dir_share}"/
+    cp -aR spdk_config_file    "${dir_share}"/
+    cp -aR subcommands         "${dir_share}"/
+    cp -aR test                "${dir_share}"/
+    cp -aR udev_monitor        "${dir_share}"/
+    cp -aR utils               "${dir_share}"/
+    cp ../requirements.txt     "${dir_share}"/
+    cp ../../LICENSE.md        "${dir_share}"/
 
-    mkdir -p ${dir_share}/systemd
-    cp -a systemd_files/* ${dir_share}/systemd/
+    mkdir -p "${dir_share}"/systemd
+    cp -a systemd_files/* "${dir_share}"/systemd/
 
     # Create package
-    dpkg-deb --build ${full_package_name}
+    dpkg-deb --build "${full_package_name}"
 
     # remove working directory (clean up)
-    rm -rf ${full_package_name}
+    rm -rf "${full_package_name}"
 }
 
 convertDebToRpmPackage()
@@ -126,8 +136,10 @@ convertDebToRpmPackage()
     # Convert a deb package to rpm
     for deb_filename in *.deb
     do
-       fpm -f -s deb -t rpm $deb_filename
-       [[ $? -ne 0 ]] && die "ERR: Failed to convert deb pkg to rpm"
+       if ! fpm -f -s deb -t rpm "$deb_filename";
+       then
+           die "ERR: Failed to convert deb pkg to rpm"
+       fi
     done
 }
 
@@ -137,7 +149,7 @@ copyRpm2releaseDirectory()
 
     [[ -d ${releaseDir} ]] || die "ERR: Release directory does not exist: ${releaseDir}"
 
-    cp nkvagent*.rpm ${releaseDir}/
+    cp nkvagent*.rpm "${releaseDir}"/
 }
 
 jenkinsJobNo="0"
@@ -169,7 +181,7 @@ do
     esac
 done
 
-pushd ${WORKING_DIR}
+pushd "${WORKING_DIR}"
 
 if [[ $# -eq 0 ]]
 then
@@ -177,21 +189,31 @@ then
     die "ERR: No argument passed in"
 fi
 
-command -v rpmbuild > /dev/null
-[[ $? -ne 0 ]] && die "ERR: rpmbuild is not installed"
+if ! command -v rpmbuild > /dev/null;
+then
+    die "ERR: rpmbuild is not installed"
+fi
 
 # Check is fpm package installer is installed
-command -v fpm > /dev/null
-if [[ $? -ne 0 ]]
+if ! command -v fpm > /dev/null;
 then
     fpm_install_msg
     exit 2
 fi
 
-[[ ${buildPackageFlag} -ne 0 ]] && buildPackage ${jenkinsJobNo}
-[[ ${convertDeb2RPM} -ne 0 ]] && convertDebToRpmPackage
-[[ ${copyRpmFlag} -ne 0 ]] && copyRpm2releaseDirectory ${releaseDir}
+if [[ ${buildPackageFlag} -ne 0 ]]
+then
+    buildPackage "${jenkinsJobNo}"
+fi
+
+if [[ ${convertDeb2RPM} -ne 0 ]]
+then
+    convertDebToRpmPackage
+fi
+
+if [[ ${copyRpmFlag} -ne 0 ]]
+then
+    copyRpm2releaseDirectory "${releaseDir}"
+fi
 
 popd
-
-exit 0

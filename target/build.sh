@@ -2,6 +2,7 @@
 # shellcheck disable=SC1090
 #
 # set -o xtrace
+set -e
 
 # Minimum and Maximum GCC versions
 GCCMINVER=5.1.0
@@ -91,8 +92,15 @@ updateVersionInHeaderFile()
     local targetVersion=$1
     local gitHash=$2
 
-    [[ -z "${targetVersion}" ]] && die "ERR: Version string is empty!"
-    [[ -z "${gitHash}" ]] && die "ERR: Invalid git hash "
+    if [[ -z "${targetVersion}" ]]
+    then
+        die "ERR: Version string is empty!"
+    fi
+
+    if [[ -z "${gitHash}" ]]
+    then
+        die "ERR: Invalid git hash "
+    fi
 
     sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"${targetVersion}\"/" include/version.h
     sed -i -e "s/^\#define OSS_TARGET_GIT_VER.\+$/#define OSS_TARGET_GIT_VER \"${gitHash}\"/" include/version.h
@@ -117,11 +125,18 @@ generateSpecFile()
     local packageName=$2
     local gitVer=$3
 
-	#replace hyphen with underscore for file name
-	gitVer=${gitVer//[-]/_}
+    #replace hyphen with underscore for file name
+    gitVer=${gitVer//[-]/_}
 
-    [[ -z "${gitVer}" ]] && die "ERR: Git Version string is empty!"
-    [[ -e "${rpmSpecFile}" ]] && rm -f "${rpmSpecFile}"
+    if [[ -z "${gitVer}" ]]
+    then
+        die "ERR: Git Version string is empty!"
+    fi
+    
+    if [[ -e "${rpmSpecFile}" ]]
+    then
+        rm -f "${rpmSpecFile}"
+    fi
 
 
     cat > "$rpmSpecFile" <<LAB_SPEC
@@ -225,31 +240,31 @@ LAB_DFLY_CONF
 
 parse_options()
 {
-	for i in "$@"
-	do
-	case $i in
-		--rocksdb)
-		BUILD_ROCKSDB=true
-		shift # past argument=value
-		;;
-		-v=*|--version=*)
-		TARGET_VER="${i#*=}"
-		shift # past argument=value
-		;;
-		-b=*|--build-type=*)
-		TYPE="${i#*=}"
-		if [ "$TYPE" == "debug" ] ; then
-			BUILD_TYPE="debug"
-		else
-			BUILD_TYPE="release"
-		fi
-		shift # past argument=value
-		;;
-		*)
-			  # unknown option
-		;;
-	esac
-	done
+    for i in "$@"
+    do
+    case $i in
+        --rocksdb)
+        BUILD_ROCKSDB=true
+        shift # past argument=value
+        ;;
+        -v=*|--version=*)
+        TARGET_VER="${i#*=}"
+        shift # past argument=value
+        ;;
+        -b=*|--build-type=*)
+        TYPE="${i#*=}"
+        if [ "$TYPE" == "debug" ] ; then
+            BUILD_TYPE="debug"
+        else
+            BUILD_TYPE="release"
+        fi
+        shift # past argument=value
+        ;;
+        *)
+              # unknown option
+        ;;
+    esac
+    done
 }
 ####################### main #######################################
 
@@ -261,7 +276,10 @@ echo "Build rockdb: $BUILD_ROCKSDB"
 echo "Target Version: $TARGET_VER"
 echo "Build Type: $BUILD_TYPE"
 
-[[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
+if [[ -d "${build_dir}" ]]
+then
+    rm -rf "${build_dir}"
+fi
 
 mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"
@@ -285,15 +303,15 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
     elif [ "$BUILD_TYPE" = "release" ]; then
         cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
     else
-	echo "Making in default mode"
+    echo "Making in default mode"
         cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
     fi
 
-	if $BUILD_ROCKSDB;then
-		make rocksdb
-	else
-		make spdk_tcp
-	fi
+    if $BUILD_ROCKSDB;then
+        make rocksdb
+    else
+        make spdk_tcp
+    fi
 
     makePackageDirectories "${rpm_build_dir}"
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 export LD_LIBRARY_PATH=../lib
 # Configuration file for Local KV
 export MINIO_NKV_CONFIG=../conf/nkv_config.json
