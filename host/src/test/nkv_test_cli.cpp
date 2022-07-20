@@ -46,7 +46,7 @@
 #include <thread>
 #include <unordered_set>
 #include <math.h>
-#include "rdd_cl.h"
+#include "rdd_cl_api.h"
 #include <openssl/md5.h>
 
 c_smglogger* logger = NULL;
@@ -1108,14 +1108,14 @@ void *iothread(void *args)
             targs->s_option->nkv_store_rdd = 1;
             struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
             status = nkv_store_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option,
-                                         &nkvvalue, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+                                         &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
             if (status != 0) {
               smg_error(logger, "NKV RDD store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
               return 0;
             } else {
               smg_info(logger, "NKV RDD store successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, rdd key = %x, rdd_q_handle = %x",
                       (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, mr->rkey,
-                      targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+                      rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
 
               if (targs->check_integrity) {
                 unsigned char checksum[MD5_DIGEST_LENGTH];
@@ -1278,7 +1278,7 @@ void *iothread(void *args)
             //nkv_value nkvvalue = { (void*)val, vlen, 0 };
             struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
             status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue, 
-                                          mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+                                          mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
             /*if (mr) {
               rdd_cl_conn_put_mr(mr);
             }*/
@@ -1287,7 +1287,7 @@ void *iothread(void *args)
               return 0;
             } else {
               smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, got actual length = %u, rdd key = %x, rdd_q_handle = %x", 
-                               (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, nkvvalue.actual_length, mr->rkey, targs->rdd_conn_list[iter % targs->ioctx_cnt]->qhandle);
+                               (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, nkvvalue.actual_length, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
             }
 
             if (mr) {
@@ -1331,7 +1331,7 @@ void *iothread(void *args)
               nkv_value nkvvalue = { (void*)chunk_start, val_len, 0 };
               const nkv_key  nkvkey_chunked = { (void*)key_name, klen};
               struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[tgt], chunk_start, val_len);
-              status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[tgt], &nkvkey_chunked, targs->r_option, &nkvvalue, mr->rkey, targs->rdd_conn_list[tgt]->qhandle);
+              status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[tgt], &nkvkey_chunked, targs->r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[tgt]));
               if (mr) {
                 rdd_cl_conn_put_mr(mr);
               }
@@ -2704,7 +2704,7 @@ do {
             r_option.nkv_retrieve_rdd = 1;
             nkv_value nkvvalue = { (void*)val, vlen, 0 };
             struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[iter % io_ctx_cnt], val, vlen);
-            status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue, mr->rkey, rdd_conn_list[iter % io_ctx_cnt]->qhandle);
+            status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(rdd_conn_list[iter % io_ctx_cnt]));
             if (mr) {
               rdd_cl_conn_put_mr(mr);
             }
@@ -2736,7 +2736,7 @@ do {
               nkv_value nkvvalue = { (void*)chunk_start, val_len, 0 };
               const nkv_key  nkvkey_chunked = { (void*)key_name, klen};
               struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[tgt], chunk_start, val_len);
-              status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &r_option, &nkvvalue, mr->rkey, rdd_conn_list[tgt]->qhandle);
+              status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(rdd_conn_list[tgt]));
               if (mr) {
                 rdd_cl_conn_put_mr(mr);
               }

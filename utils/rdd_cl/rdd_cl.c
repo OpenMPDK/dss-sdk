@@ -31,150 +31,9 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RDD_CL_H
-#define RDD_CL_H
+#include <rdd_cl_api.h>
+#include <rdd_cl.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <netdb.h>
-#include <assert.h>
-#include <sys/queue.h>
-
-#include <rdma/rdma_cma.h>
-
-
-#define RDD_PROTOCOL_VERSION (0xCAB00001)
-
-#define RDD_RDMA_MAX_KEYED_SGL_LENGTH ((1u << 24u) - 1)
-
-struct rdd_queue_priv_s {
-    union {
-        struct {
-            uint32_t proto_ver;
-            uint32_t qid;
-	        uint32_t hsqsize;
-	        uint32_t hrqsize;
-        } client;//Private data from client
-        struct {
-            uint32_t proto_ver;
-            uint16_t qhandle; //Hash identifier provided to client for direct transfer
-        } server;//Private data from server
-    } data;
-};//RDD queue private
-
-/* Offset of member MEMBER in a struct of type TYPE. */
-#define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
-#define containerof(ptr, type, member) ((type *)((uintptr_t)ptr - offsetof(type, member)))
-
-
-#define RDD_CL_MAX_DEFAULT_QUEUEC (1)
-#define RDD_CL_DEFAULT_QDEPTH (128)
-#define RDD_CL_DEFAULT_SEND_WR_NUM RDD_CL_DEFAULT_QDEPTH
-#define RDD_CL_DEFAULT_RECV_WR_NUM RDD_CL_DEFAULT_SEND_WR_NUM
-#define RDD_CL_CQ_QDEPTH (RDD_CL_DEFAULT_SEND_WR_NUM + RDD_CL_DEFAULT_RECV_WR_NUM)
-
-#define RDD_CL_TIMEOUT_IN_MS (500)
-
-typedef struct rdd_cl_conn_ctx_s rdd_cl_conn_ctx_t;
-
-enum rdd_cl_queue_state_e {
-    RDD_CL_Q_INIT = 0,
-    RDD_CL_Q_LIVE,
-};
-
-
-typedef enum {
-	RDD_PD_GLOBAL = 0, // One Global Protection Domain per Client context
-	RDD_PD_CONN, // Each RDMA Direct queue gets it's own protection Domain
-} rdd_cl_pd_type_e;
-
-typedef struct {
-	rdd_cl_pd_type_e pd_type;//RDMA protection domain type for client context
-} rdd_cl_ctx_params_t;
-
-typedef struct rdd_cl_conn_params_s {
-    const char *ip;
-    const char *port;
-    uint32_t qd;
-} rdd_cl_conn_params_t;
-
-typedef struct rdd_cl_dev_s {
-    //TODO: ??Required??//struct ibv_pd *pd;
-	//TODO: ??Required??//struct ibv_mr *mr;
-	//TODO: ??Required??//struct ibv_mw *mw;
-	struct ibv_device *dev;
-    TAILQ_ENTRY(rdd_cl_dev_s) dev_link;
-} rdd_cl_dev_t;
-
-typedef struct rdd_cl_queue_s {
-    uint32_t qid;
-    rdd_cl_conn_ctx_t *conn;
-    pthread_mutex_t qlock;
-    enum rdd_cl_queue_state_e state;
-    struct rdma_cm_id *cm_id;
-    struct ibv_pd *pd;
-    struct ibv_context *ibv_ctx;
-    struct ibv_qp *qp;
-
-    struct ibv_mr *cmd_mr;
-    struct ibv_mr *rsp_mr;
-
-} rdd_cl_queue_t;
-
-struct rdd_cl_conn_ctx_s {
-    int conn_id;
-    struct addrinfo *ai;
-	uint16_t qhandle;
-    uint32_t qd;
-    uint32_t queuec;
-    rdd_cl_queue_t *queues;
-    rdd_cl_dev_t *device;
-    //IBV
-    struct ibv_comp_channel *ch;
-    union {
-        struct {
-            pthread_t cq_poll_thread;
-        }pt;//Pthread
-    }th;//Thread
-
-    pthread_mutex_t conn_lock;
-
-    struct rdd_client_ctx_s *cl_ctx;
-};
-
-struct rdd_client_ctx_s {
-    struct ibv_device **ibv_devs;
-    struct rdma_event_channel *cm_ch;
-    union {
-        struct {
-            pthread_t cm_thread;
-        }pt;//Pthread
-    }th;//Thread
-    struct ibv_pd *pd;//Valid when PD is global otherwise NULL
-    TAILQ_HEAD(, rdd_cl_dev_s) devices;
-};
-
-struct rdd_client_ctx_s *rdd_cl_init(rdd_cl_ctx_params_t params);
-void rdd_cl_destroy(struct rdd_client_ctx_s *ctx);
-
-rdd_cl_conn_ctx_t *rdd_cl_create_conn(struct rdd_client_ctx_s *cl_ctx, rdd_cl_conn_params_t params);
-void rdd_cl_destroy_connection(rdd_cl_conn_ctx_t *ctx);
-
-uint16_t rdd_cl_conn_get_qhandle(void * arg);
-struct ibv_mr *rdd_cl_conn_get_mr(void *ctx, void *addr, size_t len);
-void rdd_cl_conn_put_mr(struct ibv_mr *mr);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif // RDD_CL_H
-
-void rdd_cl_destory_queues(rdd_cl_conn_ctx_t *ctx);
 
 struct rdd_cl_dev_s *rdd_cl_find_dev(struct rdd_client_ctx_s *cl_ctx, const char *name)
 {
@@ -193,8 +52,8 @@ static int rdd_cl_init_ib_queue(rdd_cl_queue_t *q)
  	struct rdma_cm_id *id = q->cm_id;
     rdd_cl_conn_ctx_t * conn = q->conn;
 
-    int rc;
-    
+    int rc = 0;
+
     //q->pd = ibv_alloc_pd(q->cm_id->verbs);
     //assert(q->pd != NULL);//TODO: Handle error case
 
@@ -214,7 +73,9 @@ static int rdd_cl_init_ib_queue(rdd_cl_queue_t *q)
  	qp_attr.cap.max_recv_sge = 16;
 
  	rc = rdma_create_qp(id, NULL, &qp_attr);
-    assert(rc == 0);
+    if(rc != 0) {
+        return rc;
+    }
  	q->qp = id->qp;
     q->pd = id->qp->pd;
 
@@ -239,7 +100,8 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
 void *poll_cq(void *arg)
 {
     struct ibv_comp_channel *ch = (struct ibv_comp_channel *)arg;
-    int rc;
+
+    int rc = 0;
 
     while(1) {
         struct ibv_cq *cq;
@@ -253,7 +115,11 @@ void *poll_cq(void *arg)
         while (ibv_poll_cq(cq, 1, &wc)) {
 			rc = rdd_cl_process_wc(&wc);
             //TODO: Process error case
-            assert(rc == 0);
+            if(rc != 0) {
+                fprintf(stderr, "Completion on ch %p got error %d\n", ch, rc);
+                assert(rc == 0);
+                return NULL;
+            }
         }
     }
     
@@ -263,10 +129,11 @@ void *poll_cq(void *arg)
 int rdd_cl_cm_addr_resolved(struct rdma_cm_id *id)
 {
 	const char *name;
-    int rc = 0;
 	struct rdd_cl_dev_s *dev;
 	struct ibv_device_attr_ex device_attr;
     rdd_cl_queue_t *queue = (rdd_cl_queue_t *)id->context;
+
+    int rc = 0;
 	
     rdd_cl_conn_ctx_t *conn_ctx = queue->conn;
 
@@ -305,6 +172,9 @@ int rdd_cl_cm_addr_resolved(struct rdma_cm_id *id)
     pthread_mutex_unlock(&conn_ctx->conn_lock);
 
 	rc = rdd_cl_init_ib_queue(queue);
+    if(rc != 0 ) {
+        return rc;
+    }
     assert(rc == 0);
 
 	rc = rdma_resolve_route(queue->cm_id, RDD_CL_TIMEOUT_IN_MS);
@@ -639,7 +509,7 @@ struct rdd_client_ctx_s *rdd_cl_init(rdd_cl_ctx_params_t params)
 
 void rdd_cl_destroy(struct rdd_client_ctx_s *ctx)
 {
-	int rc = 0;
+    int rc = 0;
 
     if(ctx->th.pt.cm_thread) {
         rc = pthread_cancel(ctx->th.pt.cm_thread);
@@ -647,6 +517,9 @@ void rdd_cl_destroy(struct rdd_client_ctx_s *ctx)
 
         rc = pthread_join(ctx->th.pt.cm_thread, NULL);
         //TODO: validate error code
+        if(rc != 0) {
+            fprintf(stderr, "Failed to destroy client context %p\n", ctx);
+        }
         assert(rc ==0);
     }
 

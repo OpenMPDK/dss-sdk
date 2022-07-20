@@ -35,7 +35,7 @@
 #include "nkv_framework.h"
 #include "nkv_const.h"
 #include "event_handler.h"
-#include "rdd_cl.h"
+#include "rdd_cl_api.h"
 
 std::atomic<bool> nkv_stopping (false);
 std::atomic<uint64_t> nkv_pending_calls (0);
@@ -665,7 +665,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
 
   if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn 
       && (((uint32_t)n_value->length > 1048576) || ((uint32_t)n_value->length % 4 != 0))) {
-    client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle;
+    client_rdma_qhandle = rdd_cl_conn_get_qhandle(path_rdd_conn);
     smg_info(logger, "rdd_cl_conn_get_mr invoking, path_rdd_conn = %x, value = %x, len = %u", path_rdd_conn, n_value->value, n_value->length);
     mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
     if (mr) {
@@ -894,7 +894,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
   bool take_rdd_route = false;
   if (path_enable_rdd && path_rdd_conn && !client_rdma_key && !client_rdma_qhandle && !post_fn 
       && (((uint32_t)n_value->length > 1048576) || ((uint32_t)n_value->length % 4 != 0))) {
-    client_rdma_qhandle = ((rdd_cl_conn_ctx_t *)path_rdd_conn)->qhandle; 
+    client_rdma_qhandle = rdd_cl_conn_get_qhandle(path_rdd_conn); 
     mr = rdd_cl_conn_get_mr(path_rdd_conn, n_value->value, (size_t)n_value->length);
     if (mr) {
       client_rdma_key = mr->rkey;
