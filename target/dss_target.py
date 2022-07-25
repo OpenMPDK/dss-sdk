@@ -520,16 +520,9 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         else:
             g_conf_global_text += g_transport_perfmode
 
-    if g_kvblock_vmmode:
-        if kv_drive_count > 4:
-            kv_ss_drive_count = 4
-        else:
-            kv_ss_drive_count = kv_drive_count
-        g_kv_ssc = 1
-    else:
-        kv_ss_drive_count = kv_drive_count / g_kv_ssc
-        if kv_ss_drive_count == 0:
-            kv_ss_drive_count = 1
+    kv_ss_drive_count = kv_drive_count / g_kv_ssc
+    if kv_ss_drive_count == 0:
+        kv_ss_drive_count = 1
 
     nvme_index = 1
     # for drive_count_index in range(len(kv_list)):
