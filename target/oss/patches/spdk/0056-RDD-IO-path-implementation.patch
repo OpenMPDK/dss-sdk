@@ -1,0 +1,210 @@
+From 1f0efdea9de4e2a4feeafafd3d3e5203c47c46b4 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 20 Dec 2021 16:38:29 -0800
+Subject: [PATCH 56/65] RDD IO path implementation
+
+---
+ lib/nvmf/ctrlr.c |   2 +-
+ lib/nvmf/rdma.c  | 126 ++++++++++++++++++++++++++++++++++++++++++++++++-------
+ 2 files changed, 111 insertions(+), 17 deletions(-)
+
+diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
+index 5050d02..e699528 100644
+--- a/lib/nvmf/ctrlr.c
++++ b/lib/nvmf/ctrlr.c
+@@ -402,7 +402,7 @@ nvmf_ctrlr_create(struct spdk_nvmf_subsystem *subsystem,
+ 	SPDK_DEBUGLOG(SPDK_LOG_NVMF, "csts 0x%x\n", ctrlr->vcprop.csts.raw);
+ 
+ 	if(subsystem->oss_target_enabled) {
+-		SPDK_WARNLOG("Diff insert or strip disabled when KV pool is enabled for subsys%d\n", subsystem->id);
++		//SPDK_WARNLOG("Diff insert or strip disabled when KV pool is enabled for subsys%d\n", subsystem->id);
+ 		ctrlr->dif_insert_or_strip = false;
+ 	} else {
+ 		ctrlr->dif_insert_or_strip = transport->opts.dif_insert_or_strip;
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 74a0a75..0000505 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -892,6 +892,75 @@ static void dfly_rdma_fini_key_transfer(struct spdk_nvmf_rdma_request *rdma_req)
+ 	rdma_req->key.wr.next = NULL;
+ }
+ 
++
++void dss_rdma_rdd_complete(void *arg, void *dummy)
++{
++	struct dfly_request *req = (struct dfly_request *)arg;
++	struct spdk_event *event;
++	unsigned lcore = spdk_env_get_current_core();
++	struct spdk_nvmf_request	*nvmf_req;
++	struct spdk_nvmf_rdma_request	*rdma_req;
++	struct spdk_nvmf_rdma_transport *rtransport;
++	struct spdk_nvmf_rdma_qpair	*rqpair;
++	struct ibv_send_wr		*first = NULL;
++
++	nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
++	rdma_req = SPDK_CONTAINEROF(nvmf_req, struct spdk_nvmf_rdma_request, req);
++	rtransport = SPDK_CONTAINEROF(rdma_req->req.qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++
++	rqpair = SPDK_CONTAINEROF(nvmf_req->qpair, struct spdk_nvmf_rdma_qpair, qpair);
++
++	if (req->src_core != lcore) {
++		event = spdk_event_allocate(req->src_core, dss_rdma_rdd_complete, (void *)req, NULL);
++		assert(event != NULL);
++		spdk_event_call(event);
++	} else {
++		//RDMA NVMF Completion
++
++		first = &rdma_req->rsp.wr;
++
++		assert(rdma_req->num_outstanding_data_wr == 0);
++
++		DFLY_DEBUGLOG(DSS_RDD, "Completing NVMF request %p after data direct transfer is done\n", req);
++		if (spdk_rdma_qp_queue_send_wrs(rqpair->rdma_qp, first)) {
++			STAILQ_INSERT_TAIL(&rqpair->poller->qpairs_pending_send, rqpair, send_link);
++		}
++
++		/* +1 for the rsp wr */
++		rqpair->current_send_depth += 1;
++
++		//rdma_req->state = RDMA_REQUEST_STATE_COMPLETED;
++		//nvmf_rdma_request_process(rtransport, rdma_req);
++	}
++}
++
++int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
++{
++	struct dfly_request *dfly_req = rdma_req->req.dreq;
++	struct spdk_nvme_cpl		*rsp = &rdma_req->req.rsp->nvme_cpl;
++	int rc = 0;
++
++	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(rdma_req->req.qpair->ctrlr->subsys->id);
++
++	uint64_t data_offset;
++	uint32_t data_length;
++
++	data_offset = dfly_req->req_value.offset;
++	data_length = rsp->cdw0;
++
++	if(data_offset + data_length < dfly_req->rdd_info.payload_len) {
++		dfly_req->rdd_info.cmem += data_offset;
++		dfly_req->rdd_info.payload_len = data_length;
++	} else if (data_offset != 0) {
++		dfly_req->rdd_info.cmem += data_offset;
++		//dfly_req->rdd_info.payload_len -= data_offset;
++	} //else info is already setup
++
++	rc = rdd_post_req2queue(ss->rdd_ctx, dfly_req->rdd_info.qhandle, dfly_req);
++
++	return rc;
++}
++
+ static void
+ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nvmf_rdma_device *device, struct spdk_nvmf_rdma_request *rdma_req)
+ {
+@@ -1459,6 +1528,8 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
+ 	struct spdk_nvme_cpl		*rsp;
+ 	struct ibv_send_wr		*first = NULL;
+ 
++	int rc = 0;
++
+ 	*data_posted = 0;
+ 	qpair = req->qpair;
+ 	rsp = &req->rsp->nvme_cpl;
+@@ -1482,16 +1553,16 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
+ 	assert(rqpair->current_recv_depth > 0);
+ 	rqpair->current_recv_depth--;
+ 
+-	if(req->dreq->data_direct) {
+-		*data_posted = 0;
+-
+-		rdma_req->num_outstanding_data_wr = 0;
+-
+-		/* +1 for the rsp wr */
+-		rqpair->current_send_depth += num_outstanding_data_wr + 1;
+-
+-		return 0;
+-	}
++//	if(req->dreq->data_direct) {
++//		*data_posted = 0;
++//
++//		rdma_req->num_outstanding_data_wr = 0;
++//
++//		/* +1 for the rsp wr */
++//		rqpair->current_send_depth += num_outstanding_data_wr + 1;
++//
++//		return 0;
++//	}
+ 	/* Build the response which consists of optional
+ 	 * RDMA WRITEs to transfer data, plus an RDMA SEND
+ 	 * containing the response.
+@@ -1504,9 +1575,22 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
+ 		 */
+ 		rdma_req->num_outstanding_data_wr = 0;
+ 	} else if (req->xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST) {
+-		if(req->dreq->data_direct == 1) {
+-			SPDK_NOTICELOG("Skipping data transfer for RDMA Direct");
++		if(req->dreq->data_direct == true) {
++			//SPDK_NOTICELOG("Skipping data transfer for RDMA Direct");
+ 			rdma_req->num_outstanding_data_wr = 0;
++
++			rc = dfly_rdma_setup_post_rdd_out(rdma_req);
++			if(!rc) {
++				*data_posted = 1;
++				//TODO: Add new dfly_request state
++				//TODO: Completion call handlind
++				return 0;//Success skip nvmf data transfer
++			}  else {
++				//IO failed
++				//TODO: setup error code and complete
++				assert(0);
++			}
++
+ 		} else {
+ 			//Reponse len set from cdw0 for retrieve
+ 			dfly_rdma_setup_data_transfer_out(rqpair, rqpair->device, rdma_req);
+@@ -2281,13 +2365,12 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 	} else if (sgl->generic.type == SPDK_NVME_SGL_TYPE_VENDOR_SPECIFIC &&
+ 		sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_ADDRESS /*RDMA Direct*/) {
+ 
+-		SPDK_NOTICELOG("RDMA Data Direct request raddr:%p rkey %x len %d client handle %x\n",
+-							sgl->address, sgl->keyed.key, sgl->keyed.length,
++		DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
++							req->dreq, sgl->address, sgl->keyed.key, sgl->keyed.length,
+ 							req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
+ 
+ 		//TODO: Validate command is only Get
+ 
+-		dss_set_rdd_transfer(req->dreq);
+ 
+ 		length = sgl->keyed.length;
+ 
+@@ -2314,6 +2397,17 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 		/* backward compatible */
+ 		req->data = req->iov[0].iov_base;
+ 
++		dss_set_rdd_transfer(req->dreq);
++
++		//TODO: Make this direct write to the client
++		req->dreq->rdd_info.opc = RDD_CMD_HOST_READ;
++		req->dreq->rdd_info.payload_len = sgl->keyed.length;//May reduce after Get from device
++		req->dreq->rdd_info.hmem = sgl->address;
++		//req->rdd_info.hkey = sgl->keyed.key;;
++		req->dreq->rdd_info.cmem = req->data;
++		req->dreq->rdd_info.qhandle = req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle;
++		//req->rdd_info.ckey need to be updated for the rdd queue
++
+ 		SPDK_DEBUGLOG(SPDK_LOG_RDMA, "Request %p took %d buffer/s from central pool\n", rdma_req,
+ 			      req->iovcnt);
+ 		return 0;
+@@ -3675,7 +3769,7 @@ nvmf_process_ib_event(struct spdk_nvmf_rdma_device *device)
+ 		rqpair = event.element.qp->qp_context;
+ 		SPDK_DEBUGLOG(SPDK_LOG_RDMA, "Last WQE reached event received for rqpair %p\n", rqpair);
+ 		if (nvmf_rdma_send_qpair_async_event(rqpair, nvmf_rdma_handle_last_wqe_reached)) {
+-			SPDK_ERRLOG("Failed to send LAST_WQE_REACHED event for rqpair %p\n", rqpair);
++			//SPDK_ERRLOG("Failed to send LAST_WQE_REACHED event for rqpair %p\n", rqpair);
+ 			rqpair->last_wqe_reached = true;
+ 		}
+ 		break;
+-- 
+1.8.3.1
+

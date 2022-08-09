@@ -1,0 +1,26 @@
+From fefdab0e09047c0e5b256c982c21e8a217508f25 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 20 Jun 2022 14:44:49 -0700
+Subject: [PATCH 64/65] Use exact value length for RDD
+
+    * makes sure the rdma does not access extra memory
+---
+ lib/nvmf/rdma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index b273bc1..c5a2d34 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2442,7 +2442,7 @@ rdd_req:
+ 		//TODO: Validate command is only Get
+ 
+ 
+-        length = (req->cmd->nvme_cmd.cdw10 << 2);//Get from val length field
++        length = rdma_req->req.dreq->req_value.length;
+ 
+         DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
+                                             req->dreq, sgl->address, sgl->keyed.key, length,
+-- 
+1.8.3.1
+

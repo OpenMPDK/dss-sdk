@@ -1,7 +1,7 @@
-From 11bdf1ab13097928516f4cfe0cf76c01079620f8 Mon Sep 17 00:00:00 2001
+From d18599be2097c8b826f7d4f96f6f954fb6d431dd Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:32:07 -0700
-Subject: [PATCH 51/54] Update blobfs logging to include file pointer
+Subject: [PATCH 51/65] Update blobfs logging to include file pointer
 
 ---
  lib/blobfs/blobfs.c | 9 ++++-----

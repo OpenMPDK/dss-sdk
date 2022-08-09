@@ -1,0 +1,45 @@
+From bdcde300df9e1c56b40690a75c0772b93860f902 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 17 Feb 2022 17:20:40 -0800
+Subject: [PATCH 59/65] RDD Multi listener support
+
+---
+ lib/nvmf/rdma.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 461e51e..e111484 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -959,7 +959,7 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ 		//dfly_req->rdd_info.payload_len -= data_offset;
+ 	} //else info is already setup
+ 
+-	rc = rdd_post_req2queue(ss->rdd_ctx, dfly_req->rdd_info.qhandle, dfly_req);
++	rc = rdd_post_req2queue(g_dragonfly->rdd_ctx, dfly_req->rdd_info.qhandle, dfly_req);
+ 
+ 	return rc;
+ }
+@@ -2268,6 +2268,11 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 	    (sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_ADDRESS ||
+ 	     sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_INVALIDATE_KEY)) {
+ 
++		//Check valid client handle to detect RDMA data direct request
++		if(req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle != 0) {
++			goto rdd_req;
++		}
++
+ 		length = sgl->keyed.length;
+ 		if (length > rtransport->transport.opts.max_io_size) {
+ 			SPDK_ERRLOG("SGL length 0x%x exceeds max io size 0x%x\n",
+@@ -2368,6 +2373,7 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 	} else if (sgl->generic.type == SPDK_NVME_SGL_TYPE_VENDOR_SPECIFIC &&
+ 		sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_ADDRESS /*RDMA Direct*/) {
+ 
++rdd_req:
+ 		DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
+ 							req->dreq, sgl->address, sgl->keyed.key, sgl->keyed.length,
+ 							req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
+-- 
+1.8.3.1
+

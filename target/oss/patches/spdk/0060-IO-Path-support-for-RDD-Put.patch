@@ -1,0 +1,185 @@
+From f4918f5408d611b280305af4171ec43439138667 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 18 Apr 2022 10:09:05 -0700
+Subject: [PATCH 60/65] IO Path support for RDD Put
+
+---
+ lib/nvmf/rdma.c | 92 ++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 88 insertions(+), 4 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index e111484..d35a64c 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -109,6 +109,9 @@ enum spdk_nvmf_rdma_request_state {
+ 	/* The request is currently transferring data from the host to the controller. */
+ 	RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER,
+ 
++	/* The request is currently transferring data from the host to the controller via rdd. */
++	RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C,
++
+ 	/* The request is ready to execute at the block device */
+ 	RDMA_REQUEST_STATE_READY_TO_EXECUTE,
+ 
+@@ -167,6 +170,7 @@ enum spdk_nvmf_rdma_request_state {
+ #define TRACE_RDMA_REQUEST_STATE_PENDING_GET_KEY				SPDK_TPOINT_ID(TRACE_GROUP_NVMF_RDMA, 0x13)
+ #define TRACE_RDMA_REQUEST_STATE_TRANSFERRING_KEY				SPDK_TPOINT_ID(TRACE_GROUP_NVMF_RDMA, 0x14)
+ #define TRACE_RDMA_REQUEST_STATE_READY_WITH_KEY				SPDK_TPOINT_ID(TRACE_GROUP_NVMF_RDMA, 0x15)
++#define TRACE_RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C	SPDK_TPOINT_ID(TRACE_GROUP_NVMF_RDMA, 0x16)
+ 
+ SPDK_TRACE_REGISTER_FN(nvmf_trace, "nvmf_rdma", TRACE_GROUP_NVMF_RDMA)
+ {
+@@ -181,6 +185,9 @@ SPDK_TRACE_REGISTER_FN(nvmf_trace, "nvmf_rdma", TRACE_GROUP_NVMF_RDMA)
+ 	spdk_trace_register_description("RDMA_REQ_TX_PENDING_H2C",
+ 					TRACE_RDMA_REQUEST_STATE_DATA_TRANSFER_TO_CONTROLLER_PENDING,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
++	spdk_trace_register_description("RDMA_REQ_TX_RDD_H2C",
++					TRACE_RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C,
++					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+ 	spdk_trace_register_description("RDMA_REQ_TX_H2C",
+ 					TRACE_RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER,
+ 					OWNER_NONE, OBJECT_NVMF_RDMA_IO, 0, 1, "cmid:   ");
+@@ -937,6 +944,40 @@ void dss_rdma_rdd_complete(void *arg, void *dummy)
+ 	}
+ }
+ 
++void dss_rdma_rdd_in_data_ready(void *arg, void *dummy)
++{
++	struct dfly_request *req = (struct dfly_request *)arg;
++	struct spdk_event *event;
++	unsigned lcore = spdk_env_get_current_core();
++	struct spdk_nvmf_request	*nvmf_req;
++	struct spdk_nvmf_rdma_request	*rdma_req;
++	struct spdk_nvmf_rdma_transport *rtransport;
++	struct spdk_nvmf_rdma_qpair	*rqpair;
++	struct ibv_send_wr		*first = NULL;
++
++	nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
++	rdma_req = SPDK_CONTAINEROF(nvmf_req, struct spdk_nvmf_rdma_request, req);
++	rtransport = SPDK_CONTAINEROF(rdma_req->req.qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++
++	rqpair = SPDK_CONTAINEROF(nvmf_req->qpair, struct spdk_nvmf_rdma_qpair, qpair);
++
++	if (req->src_core != lcore) {
++		event = spdk_event_allocate(req->src_core, dss_rdma_rdd_in_data_ready, (void *)req, NULL);
++		assert(event != NULL);
++		spdk_event_call(event);
++	} else {
++		DFLY_DEBUGLOG(DSS_RDD, "Recieved data for command %p\n", req);
++		//assert(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C);
++		assert(rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER);
++		rdma_req->state = RDMA_REQUEST_STATE_READY_TO_EXECUTE;
++		nvmf_rdma_request_process(rtransport, rdma_req);
++
++	}
++
++	return;
++}
++
++
+ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ {
+ 	struct dfly_request *dfly_req = rdma_req->req.dreq;
+@@ -951,6 +992,7 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ 	data_offset = dfly_req->req_value.offset;
+ 	data_length = rsp->cdw0;
+ 
++	SPDK_NOTICELOG("key %s data offset %d\n", dfly_req->req_key.key, dfly_req->req_value.offset);
+ 	if(data_offset + data_length < dfly_req->rdd_info.payload_len) {
+ 		dfly_req->rdd_info.cmem += data_offset;
+ 		dfly_req->rdd_info.payload_len = data_length;
+@@ -964,6 +1006,21 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ 	return rc;
+ }
+ 
++int dfly_rdma_setup_post_rdd_in(struct spdk_nvmf_rdma_request *rdma_req)
++{
++	struct dfly_request *dfly_req = rdma_req->req.dreq;
++	struct spdk_nvme_cpl		*rsp = &rdma_req->req.rsp->nvme_cpl;
++	int rc = 0;
++
++	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(rdma_req->req.qpair->ctrlr->subsys->id);
++
++	rdma_req->num_outstanding_data_wr = 0;
++
++	rc = rdd_post_req2queue(g_dragonfly->rdd_ctx, dfly_req->rdd_info.qhandle, dfly_req);
++
++	return rc;
++}
++
+ static void
+ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nvmf_rdma_device *device, struct spdk_nvmf_rdma_request *rdma_req)
+ {
+@@ -985,6 +1042,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
+ 	sge_index = 0;
+ 
+ 	data_offset = dfly_req->req_value.offset;
++	//SPDK_NOTICELOG("key %s data offset %d\n", dfly_req->req_key.key, dfly_req->req_value.offset);
+ 	switch(rdma_req->req.cmd->nvme_cmd.opc) {
+ 		case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+ 			assert(rqpair->qpair.transport->opts.io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT > data_offset + rsp->cdw0);
+@@ -1512,6 +1570,10 @@ request_transfer_in(struct spdk_nvmf_request *req)
+ 	assert(req->xfer == SPDK_NVME_DATA_HOST_TO_CONTROLLER);
+ 	assert(rdma_req != NULL);
+ 
++	if(rdma_req->req.dreq->data_direct == true) {
++		return dfly_rdma_setup_post_rdd_in(rdma_req);
++	}
++
+ 	if (spdk_rdma_qp_queue_send_wrs(rqpair->rdma_qp, &rdma_req->data.wr)) {
+ 		STAILQ_INSERT_TAIL(&rqpair->poller->qpairs_pending_send, rqpair, send_link);
+ 	}
+@@ -2410,7 +2472,12 @@ rdd_req:
+ 
+ 		//TODO: Make this direct write to the client
+ 		//req->dreq->rdd_info.opc = RDD_CMD_HOST_READ;
+-		req->dreq->rdd_info.opc = RDD_CMD_CTRL_WRITE;
++		if(rdma_req->req.xfer == SPDK_NVME_DATA_HOST_TO_CONTROLLER) {
++			req->dreq->rdd_info.opc = RDD_CMD_CTRL_READ;
++		} else {
++			assert(rdma_req->req.xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST);
++			req->dreq->rdd_info.opc = RDD_CMD_CTRL_WRITE;
++		}
+ 		req->dreq->rdd_info.payload_len = sgl->keyed.length;//May reduce after Get from device
+ 		req->dreq->rdd_info.hmem = sgl->address;
+ 		req->dreq->rdd_info.hkey = sgl->keyed.key;;
+@@ -2655,9 +2722,20 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			 */
+ 			if (rdma_req->req.xfer == SPDK_NVME_DATA_HOST_TO_CONTROLLER &&
+ 			    rdma_req->req.data_from_pool) {
+-				STAILQ_INSERT_TAIL(&rqpair->pending_rdma_read_queue, rdma_req, state_link);
+-				rdma_req->state = RDMA_REQUEST_STATE_DATA_TRANSFER_TO_CONTROLLER_PENDING;
+-				break;
++				//if(rdma_req->req.dreq->data_direct == true) {
++				//	rc = dfly_rdma_setup_post_rdd_in(rdma_req);
++				//	if (!rc) {
++				//		rdma_req->state = RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C;
++				//	} else {
++				//		rsp->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
++				//		rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++				//	}
++				//	break;
++				//} else {
++					STAILQ_INSERT_TAIL(&rqpair->pending_rdma_read_queue, rdma_req, state_link);
++					rdma_req->state = RDMA_REQUEST_STATE_DATA_TRANSFER_TO_CONTROLLER_PENDING;
++					break;
++				//}
+ 			}
+ 
+ 			rdma_req->state = RDMA_REQUEST_STATE_READY_TO_EXECUTE;
+@@ -2694,6 +2772,12 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			/* Some external code must kick a request into RDMA_REQUEST_STATE_READY_TO_EXECUTE
+ 			 * to escape this state. */
+ 			break;
++		case RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C:
++			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_TRANSFERRING_RDD_H2C, 0, 0,
++					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
++			/* Some external code must kick a request into RDMA_REQUEST_STATE_READY_TO_EXECUTE
++			 * to escape this state. */
++			break;
+ 		case RDMA_REQUEST_STATE_READY_TO_EXECUTE:
+ 			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_READY_TO_EXECUTE, 0, 0,
+ 					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
+-- 
+1.8.3.1
+

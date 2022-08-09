@@ -1,7 +1,7 @@
-From 5a647ba67ebbfdebabc4ecc7cfe8649f11214a47 Mon Sep 17 00:00:00 2001
+From 15242d6183b0caeb8b83483d8af6ee18d01e6feb Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 12 Oct 2021 13:56:33 -0700
-Subject: [PATCH 50/54] Config option for DSS open source release
+Subject: [PATCH 50/65] Config option for DSS open source release
 
 ---
  CONFIG         | 3 +++

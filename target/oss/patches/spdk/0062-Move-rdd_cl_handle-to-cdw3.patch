@@ -1,0 +1,92 @@
+From b23240c03590e2ed93b634c87b9a836bec704063 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 6 Jun 2022 15:25:20 -0700
+Subject: [PATCH 62/65] Move rdd_cl_handle to cdw3
+
+---
+ include/spdk/nvme_spec.h | 21 +++++++++++++++++++--
+ lib/nvmf/rdma.c          |  8 +++++---
+ 2 files changed, 24 insertions(+), 5 deletions(-)
+
+diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
+index 120cea5..1e0c28d 100644
+--- a/include/spdk/nvme_spec.h
++++ b/include/spdk/nvme_spec.h
+@@ -867,7 +867,7 @@ union spdk_nvme_feat_kv {
+ 	struct {
+ 		uint32_t klen:8; //0's based keylen
+ 		uint32_t option:8;
+-		uint32_t rdd_cl_handle:16;// RDMA direct client handle
++		uint32_t rsvd:16;
+ 	} get;
+ 	struct {
+ 		uint32_t klen:8; //0's based keylen
+@@ -878,6 +878,20 @@ union spdk_nvme_feat_kv {
+ 
+ SPDK_STATIC_ASSERT(sizeof(union spdk_nvme_feat_kv) == 4, "Incorrect size");
+ 
++union spdk_nvme_kv_cdw3 {
++    uint32_t raw;
++    struct {
++        uint32_t cl_handle:16;
++        uint32_t rsvd:16;
++    } rdd;
++    struct {
++        uint32_t option:2;
++        uint32_t rsvd:30;
++    } list;
++};
++
++SPDK_STATIC_ASSERT(sizeof(union spdk_nvme_kv_cdw3) == 4, "Incorrect size");
++
+ union spdk_nvme_cmd_cdw10 {
+ 	uint32_t raw;
+ 	struct {
+@@ -1077,7 +1091,10 @@ struct spdk_nvme_cmd {
+ 
+ 	/* dword 2-3 */
+ 	uint32_t rsvd2;
+-	uint32_t rsvd3;
++    union {
++        uint32_t rsvd3;
++        union spdk_nvme_kv_cdw3 cdw3_kv_bits;
++    };
+ 
+ 	/* dword 4-5 */
+ 	uint64_t mptr;		/* metadata pointer */
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index b58939f..b273bc1 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2331,7 +2331,9 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 	     sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_INVALIDATE_KEY)) {
+ 
+ 		//Check valid client handle to detect RDMA data direct request
+-		if(req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle != 0) {
++		//Checking data kv cmd store or retrieve since list uses the same fields
++		if( spdk_nvme_is_kv_data_cmd(req->cmd->nvme_cmd.opc) &&
++            req->cmd->nvme_cmd.cdw3_kv_bits.rdd.cl_handle != 0) {
+ 			goto rdd_req;
+ 		}
+ 
+@@ -2444,7 +2446,7 @@ rdd_req:
+ 
+         DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
+                                             req->dreq, sgl->address, sgl->keyed.key, length,
+-                                            req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
++                                            req->cmd->nvme_cmd.cdw3_kv_bits.rdd.cl_handle);
+ 		/*TODO: RDD - length validation to be based on the direct data connection*/
+ 
+ 		/* fill request length and populate iovs */
+@@ -2482,7 +2484,7 @@ rdd_req:
+ 		req->dreq->rdd_info.hmem = sgl->address;
+ 		req->dreq->rdd_info.hkey = sgl->keyed.key;;
+ 		req->dreq->rdd_info.cmem = req->data;
+-		req->dreq->rdd_info.qhandle = req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle;
++		req->dreq->rdd_info.qhandle = req->cmd->nvme_cmd.cdw3_kv_bits.rdd.cl_handle;
+ 		//req->rdd_info.ckey need to be updated for the rdd queue
+ 
+ 		SPDK_DEBUGLOG(SPDK_LOG_RDMA, "Request %p took %d buffer/s from central pool\n", rdma_req,
+-- 
+1.8.3.1
+
