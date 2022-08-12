@@ -31143,7 +31143,7 @@ index 92fba96..0429156 100644
  6). 
  ----
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
-index e7af33f..c9416e2 100644
+index e7af33f..46ebaf8 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
 @@ -25,6 +25,7 @@
@@ -31302,7 +31302,7 @@ index e7af33f..c9416e2 100644
  {
    if (!key || !key->key || !value)
     {
-@@ -469,27 +452,32 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
+@@ -469,27 +452,29 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
  
      ioctx->cmd.opcode = nvme_cmd_kv_store;
      ioctx->cmd.nsid = nsid;
@@ -31312,18 +31312,15 @@ index e7af33f..c9416e2 100644
      {
          ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
      else
      {
          memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
      }
      ioctx->cmd.cdw5 = value->offset;
 -    ioctx->cmd.key_length = key->length;
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
-+    }
      ioctx->cmd.cdw4 = option;
 -    ioctx->cmd.cdw11 = key->length - 1;
 +    //ioctx->cmd.cdw11 = key->length - 1;
@@ -31340,7 +31337,7 @@ index e7af33f..c9416e2 100644
      std::cerr << "IO:kv_store: key = " << print_key((const char *)key->key, key->length) << ", len = " << (int)key->length << std::endl;
  #endif
  
-@@ -503,7 +491,62 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
+@@ -503,7 +488,58 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
      return 0;
  }
  
@@ -31366,17 +31363,13 @@ index e7af33f..c9416e2 100644
 +    if (key->length <= KVCMD_INLINE_KEY_MAX)
 +    {
 +        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
 +    }
 +    else
 +    {
 +        ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
-+    }
-+
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
 +    }
 +
 +    ioctx->cmd.list_key_offset = key_offset;
@@ -31404,7 +31397,7 @@ index e7af33f..c9416e2 100644
  {
     if (!key || !key->key || !value)
     {
-@@ -517,7 +560,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -517,7 +553,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
  
      ioctx->cmd.opcode = nvme_cmd_kv_retrieve;
      ioctx->cmd.nsid = nsid;
@@ -31413,24 +31406,24 @@ index e7af33f..c9416e2 100644
      ioctx->cmd.cdw4 = 0;
      ioctx->cmd.cdw5 = value->offset;
      ioctx->cmd.data_addr = (__u64)value->value;
-@@ -529,8 +572,15 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -525,12 +561,15 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+     if (key->length <= KVCMD_INLINE_KEY_MAX)
+     {
+         memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
+     }
      else
      {
          ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
-+    }
-+
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
 -    ioctx->cmd.key_length = key->length;
 +
      ioctx->cmd.reqid = ioctx->index;
      ioctx->cmd.ctxid = aioctx.ctxid;
  
-@@ -549,7 +599,233 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -549,7 +588,225 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
      return 0;
  }
  
@@ -31466,18 +31459,14 @@ index e7af33f..c9416e2 100644
 +
 +    if (key->length <= KVCMD_INLINE_KEY_MAX)
 +    {
-+        
++        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
 +    }
 +    else
 +    {
 +        ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
-+    }
-+
-+    if(key->length > 256) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
 +    }
 +
 +    uint32_t cd11_val = 0;
@@ -31532,18 +31521,14 @@ index e7af33f..c9416e2 100644
 +
 +    if (key->length <= KVCMD_INLINE_KEY_MAX)
 +    {
-+
++        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
 +    }
 +    else
 +    {
 +        ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
-+    }
-+
-+    if(key->length > 256) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
 +    }
 +
 +    uint32_t cd11_val = 0;
@@ -31597,7 +31582,7 @@ index e7af33f..c9416e2 100644
 +
 +        return KADI_ERR_KEY;
 +      }
-+      ioctx->cmd.key_length = key->length;
++      ioctx->cmd.kv_klen = key->length;
 +
 +      ioctx->cmd.reqid = ioctx->index;
 +      ioctx->cmd.ctxid = aioctx.ctxid;
@@ -31641,7 +31626,7 @@ index e7af33f..c9416e2 100644
 +
 +        return KADI_ERR_KEY;
 +      }
-+      ioctx->cmd.key_length = key->length;
++      ioctx->cmd.kv_klen = key->length;
 +
 +      ioctx->cmd.reqid = ioctx->index;
 +      ioctx->cmd.ctxid = aioctx.ctxid;
@@ -31665,7 +31650,7 @@ index e7af33f..c9416e2 100644
  {
      if (!key || !key->key || !value || !value->value)
      {
-@@ -560,7 +836,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+@@ -560,20 +817,22 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
      memset((void *)&cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
      cmd.opcode = nvme_cmd_kv_retrieve;
      cmd.nsid = nsid;
@@ -31674,23 +31659,24 @@ index e7af33f..c9416e2 100644
      cmd.cdw4 = 0;
      cmd.cdw5 = value->offset;
      cmd.data_addr = (__u64)value->value;
-@@ -572,8 +848,14 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+     cmd.data_length = value->length;
+     if (key->length <= KVCMD_INLINE_KEY_MAX)
+     {
+-        //memcpy((void*)cmd.key, (void*)key->key, key->length);
++        memcpy((void*)cmd.key, (void*)key->key, key->length);
++        cmd.kv_klen = key->length;
+     }
      else
      {
          cmd.key_addr = (__u64)key->key;
 +        cmd.key_length = key->length;
-+    }
-+
-+    if(key->length > 256) {
-+      cmd.key_length = 0xff;
-+    } else {
-+      cmd.key_length = key->length;
++        cmd.kv_klen = 0xff;
      }
 -    cmd.key_length = key->length;
  
  #ifdef DUMP_ISSUE_CMD
      dump_retrieve_cmd(&cmd);
-@@ -593,6 +875,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+@@ -593,6 +852,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
      return ret;
  }
  
@@ -31698,7 +31684,7 @@ index e7af33f..c9416e2 100644
  kv_result KADI::update_capacity()
  {
      uint64_t bytesused, capacity;
-@@ -609,9 +892,6 @@ kv_result KADI::update_capacity()
+@@ -609,9 +869,6 @@ kv_result KADI::update_capacity()
  kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &utilization)
  {
      char *data = (char *)calloc(1, identify_ret_data_size);
@@ -31708,7 +31694,7 @@ index e7af33f..c9416e2 100644
      struct nvme_passthru_cmd cmd;
      memset(&cmd, 0, sizeof(struct nvme_passthru_cmd));
      cmd.opcode = nvme_cmd_admin_identify;
-@@ -622,10 +902,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -622,10 +879,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
  
      if (ioctl(fd, NVME_IOCTL_ADMIN_CMD, &cmd) < 0)
      {
@@ -31720,7 +31706,7 @@ index e7af33f..c9416e2 100644
          return KV_ERR_SYS_IO;
      }
  
-@@ -634,25 +912,29 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -634,29 +889,30 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
      capacity = namespace_size * BLOCK_SIZE;
      bytesused = namespace_utilization * BLOCK_SIZE;
      utilization = (1.0 * namespace_utilization) / namespace_size;
@@ -31743,20 +31729,21 @@ index e7af33f..c9416e2 100644
 -    ioctx->cmd.cdw3 = ks_id;
 -    ioctx->cmd.key_length = length;
 +    ioctx->cmd.cdw3 = space_id;
-+    if (((kv_key*)key)->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = length;
-+    }
 +
      if (length > KVCMD_INLINE_KEY_MAX)
      {
          ioctx->cmd.key_addr = (__u64)key;
 +        ioctx->cmd.key_length = ((kv_key*)key)->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
      else
      {
-@@ -679,13 +961,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
+         memcpy((void*)ioctx->cmd.key, key, length);
++        ioctx->cmd.kv_klen = length;
+     }
+     ioctx->cmd.ctxid = aioctx.ctxid;
+     ioctx->cmd.reqid = ioctx->index;
+@@ -679,13 +935,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
      return (ret == 0) ? true : false;
  }
  
@@ -31773,7 +31760,7 @@ index e7af33f..c9416e2 100644
  {
      if (!key || !key->key)
      {
-@@ -699,7 +980,7 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+@@ -699,17 +954,20 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
  
      ioctx->cmd.opcode = nvme_cmd_kv_delete;
      ioctx->cmd.nsid = nsid;
@@ -31782,24 +31769,21 @@ index e7af33f..c9416e2 100644
      ioctx->cmd.cdw4 = check_exist;
      if (key->length <= KVCMD_INLINE_KEY_MAX)
      {
-@@ -708,8 +989,15 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+         memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
+     }
      else
      {
          ioctx->cmd.key_addr = (__u64)key->key;
 +        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
 -    ioctx->cmd.key_length = key->length;
-+
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
-+    }
 +
      ioctx->cmd.reqid = ioctx->index;
      ioctx->cmd.ctxid = aioctx.ctxid;
  
-@@ -839,9 +1127,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -839,9 +1097,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
          break;
      }
  
@@ -31810,7 +31794,7 @@ index e7af33f..c9416e2 100644
  
      switch (ioresult.opcode)
      {
-@@ -850,12 +1137,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -850,12 +1107,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
  
          if (ioctx.value)
          {
@@ -31836,10 +31820,22 @@ index e7af33f..c9416e2 100644
          }
          break;
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-index 6bdd8f0..7526319 100644
+index 6bdd8f0..676bf44 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-@@ -33,11 +33,12 @@
+@@ -22,8 +22,9 @@
+ 
+ 
+ #define KVCMD_INLINE_KEY_MAX	(16)
+-#define KVCMD_MAX_KEY_SIZE		(255)
+-#define KVCMD_MIN_KEY_SIZE		(255)
++#define KVCMD_MAX_KEY_SIZE		(1024)
++#define KVCMD_KLEN_IN_PAYLOAD   (255)
++#define KVCMD_MIN_KEY_SIZE		(4)
+ #define ITER_LIST_ITER_TYPE_OFFSET (1)
+ //#define DUMP_ISSUE_CMD
+ #define KV_SPACE
+@@ -33,11 +34,12 @@
  
  #define ITER_BUFSIZE 32768
  
@@ -31853,7 +31849,7 @@ index 6bdd8f0..7526319 100644
  typedef uint32_t kv_value_t;
  typedef int kv_result;
  
-@@ -69,6 +70,13 @@ enum nvme_kv_iter_req_option {
+@@ -69,6 +71,13 @@ enum nvme_kv_iter_req_option {
      ITER_OPTION_DEL_KEY_VALUE = 0x10,
  };
  
@@ -31867,7 +31863,7 @@ index 6bdd8f0..7526319 100644
  enum nvme_kv_opcode {
      nvme_cmd_admin_get_log_page	= 0x02,
      nvme_cmd_admin_identify	= 0x06,
-@@ -79,10 +87,12 @@ enum nvme_kv_opcode {
+@@ -79,10 +88,12 @@ enum nvme_kv_opcode {
      nvme_cmd_kv_iter_req	= 0xB1,
      nvme_cmd_kv_iter_read	= 0xB2,
      nvme_cmd_kv_exist	= 0xB3,
@@ -31882,7 +31878,7 @@ index 6bdd8f0..7526319 100644
  /*
  typedef struct {
      int opcode;
-@@ -197,7 +207,7 @@ public:
+@@ -197,7 +208,7 @@ public:
      uint64_t capacity;
      typedef std::list<std::pair<kv_key *, kv_value *> >::iterator aio_iter;
      typedef struct {
@@ -31891,7 +31887,7 @@ index 6bdd8f0..7526319 100644
          kv_key* key = 0;
          kv_value *value = 0;
          void *buf = 0;
-@@ -232,7 +242,7 @@ private:
+@@ -232,7 +243,7 @@ private:
      std::condition_variable cmdctx_cond;
  
      std::vector<aio_cmd_ctx *>   free_cmdctxs;
@@ -31900,7 +31896,7 @@ index 6bdd8f0..7526319 100644
  
      int qdepth;
      
-@@ -253,20 +263,23 @@ private:
+@@ -253,20 +264,23 @@ private:
  public:
  
      uint32_t  get_dev_waf();
@@ -31933,7 +31929,7 @@ index 6bdd8f0..7526319 100644
      int open(std::string &devpath);
      int close();
      int fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioevent &event, kv_io_context &result);
-@@ -279,7 +292,8 @@ public:
+@@ -279,7 +293,8 @@ public:
      }
      bool is_opened() { return (fd != -1); }
      void dump_cmd(struct nvme_passthru_kv_cmd *cmd);
@@ -31943,7 +31939,7 @@ index 6bdd8f0..7526319 100644
  };
  
  
-@@ -308,6 +322,7 @@ public:
+@@ -308,6 +323,7 @@ public:
  #define KADI_ERR_TUPLE_NOT_EXIST	(-22)
  #define KADI_ERR_VALUE	(-23)
  
@@ -32397,10 +32393,10 @@ index 78494c5..71d97b6 100644
      FTRACE
      if (que_hdl == NULL || num_events == NULL) {
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
-index 7fc9f2b..93eb880 100644
+index 7fc9f2b..47335fb 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
-@@ -62,15 +62,28 @@ struct nvme_passthru_kv_cmd {
+@@ -62,15 +62,35 @@ struct nvme_passthru_kv_cmd {
  	__u32	cdw3;
  	__u32	cdw4;
  	__u32	cdw5;
@@ -32424,7 +32420,15 @@ index 7fc9f2b..93eb880 100644
 +		};
 +	};//dptr
  	__u32	cdw10;
- 	__u32	cdw11;
+-	__u32	cdw11;
++	union {
++		__u32	cdw11;
++		struct {
++			__u8 kv_klen;
++			__u8 kv_option;
++			__u16 rdd_chandle;//RDMA direct client handle
++		};
++	};
  	union {
  		struct {
  			__u64 key_addr;
@@ -32433,7 +32437,7 @@ index 7fc9f2b..93eb880 100644
  			__u32 rsvd6;
  		};
  		__u8 key[16];
-@@ -108,7 +121,6 @@ struct nvme_aioevents {
+@@ -108,7 +128,6 @@ struct nvme_aioevents {
  	struct nvme_aioevent events[MAX_AIO_EVENTS];
  };
  
@@ -32441,7 +32445,7 @@ index 7fc9f2b..93eb880 100644
  #define nvme_admin_cmd nvme_passthru_cmd
  
  #define NVME_IOCTL_ID		_IO('N', 0x40)
-@@ -118,7 +130,6 @@ struct nvme_aioevents {
+@@ -118,7 +137,6 @@ struct nvme_aioevents {
  #define NVME_IOCTL_RESET	_IO('N', 0x44)
  #define NVME_IOCTL_SUBSYS_RESET	_IO('N', 0x45)
  #define NVME_IOCTL_RESCAN	_IO('N', 0x46)
@@ -68746,10 +68750,10 @@ index 0000000..f075564
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
 new file mode 100644
-index 0000000..e0dde8d
+index 0000000..1c8fa5c
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
-@@ -0,0 +1,5639 @@
+@@ -0,0 +1,5670 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NVM Express device driver
@@ -70908,10 +70912,17 @@ index 0000000..e0dde8d
 +kv_cmd_sanity_check(struct nvme_passthru_kv_cmd *cmd)
 +{
 +	size_t data_len;
++    size_t key_len;
++
++    if(cmd->kv_klen > KVCMD_INLINE_KEY_MAX) {
++        key_len = cmd->key_length;
++    } else {
++        key_len = cmd->kv_klen;
++    }
 +
 +	if (!is_kv_cmd(cmd->opcode))
 +		return -1;
-+	else if (kv_key_len_check(cmd->key_addr, cmd->key_length))
++	else if (kv_key_len_check(cmd->key_addr, key_len))
 +		return -1;
 +	else {
 +		if (cmd->opcode == nvme_cmd_kv_retrieve || cmd->opcode == nvme_cmd_kv_store) {
@@ -70977,7 +70988,6 @@ index 0000000..e0dde8d
 +	case nvme_cmd_kv_store:
 +        case nvme_cmd_kv_append:
 +		c.kv_store.offset = cpu_to_le32(cmd.cdw5);
-+		c.kv_store.key_len = cpu_to_le32(cmd.key_length - 1); /* key len -1 */
 +		c.kv_store.option = cpu_to_le32(cmd.cdw4) & 0xff;
 +		if (cmd.opcode == nvme_cmd_kv_store && cmd.type == NVME_SGL_TYPE_VENDOR_SPECIFIC && cmd.rdd_chandle != 0) {//RDMA Data direct Store
 +			data_len = cmd.cdw10;
@@ -71009,25 +71019,36 @@ index 0000000..e0dde8d
 +		/* The prev max key len the key len come from cmd.key_length. For key len [256, 1024],
 +		    openMPDK uses cmd.key_length_large field to convey new key len and the old key_length is fixed to
 +		    255 */
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
 +			meta_len = cmd.key_length;
-+		} else {
-+			memcpy(c.kv_store.key, cmd.key, cmd.key_length);
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++                c.kv_store.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++                c.kv_store.key_len = cpu_to_le32(meta_len - 1); /* key len -1 */
++            }
++        } else {
++			memcpy(c.kv_store.key, cmd.key, cmd.kv_klen);
++            c.kv_store.key_len = cpu_to_le32(cmd.kv_klen - 1); /* key len -1 */
 +		}
 +		break;
 +        case nvme_cmd_kv_list:
-+                c.kv_list.key_len = cmd.key_length -1; /* key len - 1 */
 +                c.kv_list.rsvd = cmd.cdw2 & 0xf;
 +                c.kv_list.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
 +                c.kv_list.key_offset = cmd.list_key_offset;
 +                c.kv_list.max_keys = cmd.list_max_keys;
 +
-+                if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++                if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +                        metadata = (void __user*) cmd.key_addr;
 +                        meta_len = cmd.key_length;
++                        if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++                            c.kv_list.key_len = KVCMD_KLEN_IN_PAYLOAD;
++                        } else {
++                            c.kv_list.key_len = cpu_to_le32(meta_len -1); /* key len - 1 */
++                        }
 +                } else {
-+                        memcpy(c.kv_list.key, cmd.key, cmd.key_length);
++                        memcpy(c.kv_list.key, cmd.key, cmd.kv_klen);
++                        c.kv_list.key_len = cpu_to_le32(cmd.kv_klen -1); /* key len - 1 */
 +                }
 +                break;
 +        case nvme_cmd_kv_lock:
@@ -71048,7 +71069,6 @@ index 0000000..e0dde8d
 +                break;
 +        case nvme_cmd_kv_retrieve:
 +		c.kv_retrieve.offset = cpu_to_le32(cmd.cdw5);
-+		c.kv_retrieve.key_len = cpu_to_le32(cmd.key_length - 1); /* key len - 1 */
 +		c.kv_retrieve.option = cpu_to_le32(cmd.cdw4) & 0xff;
 +		if (cmd.type == NVME_SGL_TYPE_VENDOR_SPECIFIC && cmd.rdd_chandle != 0) {//RDMA Data direct Get
 +			data_len = cmd.cdw10;
@@ -71075,34 +71095,49 @@ index 0000000..e0dde8d
 +			c.kv_retrieve.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
 +		}
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user*) cmd.key_addr;
 +			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_retrieve.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_retrieve.key_len = cpu_to_le32(meta_len - 1); /* key len - 1 */
++            }
 +		} else {
-+			memcpy(c.kv_retrieve.key, cmd.key, cmd.key_length);
++			memcpy(c.kv_retrieve.key, cmd.key, cmd.kv_klen);
++		    c.kv_retrieve.key_len = cpu_to_le32(cmd.kv_klen - 1); /* key len - 1 */
 +		}
 +		break;
 +	case nvme_cmd_kv_delete:
-+		c.kv_delete.key_len = cpu_to_le32(cmd.key_length - 1);
 +		c.kv_delete.option = cpu_to_le32(cmd.cdw4) & 0xff;
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
 +			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_delete.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_delete.key_len = cpu_to_le32(meta_len - 1);
++            }
 +		} else {
-+			memcpy(c.kv_delete.key, cmd.key, cmd.key_length);
++			memcpy(c.kv_delete.key, cmd.key, cmd.kv_klen);
++		    c.kv_delete.key_len = cpu_to_le32(cmd.kv_klen - 1);
 +		}
 +		break;
 +	case nvme_cmd_kv_exist:
-+		c.kv_exist.key_len = cpu_to_le32(cmd.key_length - 1);
 +		c.kv_exist.option = (cpu_to_le32(cmd.cdw4) & 0xff);
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
 +			meta_len = cmd.key_length;
-+
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_exist.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_exist.key_len = cpu_to_le32(meta_len - 1);
++            }
 +		} else {
-+			memcpy(c.kv_exist.key, cmd.key, cmd.key_length);
++			memcpy(c.kv_exist.key, cmd.key, cmd.kv_klen);
++		    c.kv_exist.key_len = cpu_to_le32(cmd.kv_klen - 1);
 +		}
 +		break;
 +	case nvme_cmd_kv_iter_req:
@@ -80643,10 +80678,10 @@ index 0000000..949e29e
 +};
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
 new file mode 100644
-index 0000000..ebd7804
+index 0000000..716f712
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
-@@ -0,0 +1,1611 @@
+@@ -0,0 +1,1612 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Definitions for the NVM Express interface
@@ -81227,6 +81262,7 @@ index 0000000..ebd7804
 +//#define KVCMD_MAX_KEY_SIZE	(255)
 +#define KVCMD_MAX_KEY_SIZE	(1024)
 +#define KVCMD_MIN_KEY_SIZE	(4)
++#define KVCMD_KLEN_IN_PAYLOAD (255)
 +
 +#define KVCMD_MAX_VALUE_SIZE	(SZ_1M)
 +#define KVCMD_MAX_RDD_VALUE_SIZE	(SZ_64M)
@@ -83092,7 +83128,7 @@ index 0000000..f0716f6
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 new file mode 100644
-index 0000000..34d893f
+index 0000000..58f4a61
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 @@ -0,0 +1,628 @@
@@ -83116,7 +83152,7 @@ index 0000000..34d893f
 +#include <linux/fault-inject.h>
 +#include <linux/rcupdate.h>
 +
-+#define KV_DRV_VERSION     "20210331"
++#define KV_DRV_VERSION     "20220812"
 +
 +#define is_kv_append_cmd(opcode)	((opcode) == nvme_cmd_kv_append)
 +#define is_kv_store_cmd(opcode)	   	((opcode) == nvme_cmd_kv_store)
@@ -89374,25 +89410,27 @@ index 0000000..06e4152
 +MODULE_LICENSE("GPL v2");
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh
 new file mode 100755
-index 0000000..11e507e
+index 0000000..f5838e3
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,19 @@
 +#!/bin/bash
 +
 +echo "Disconnect all remote device ..."
 +nvme disconnect-all
 +
 +echo "Remove driver modules ..."
++sudo rmmod nvme-rdma.ko
 +sudo rmmod nvme-tcp.ko
 +sudo rmmod nvme-fabrics.ko
 +sudo rmmod nvme
 +sudo rmmod nvme_core
 +
 +echo "Insert driver module ..."
-+sudo insmod nvme-core.ko
++sudo insmod nvme-core.ko mem_align=4
 +sudo insmod nvme.ko
 +sudo insmod nvme-fabrics.ko
++sudo insmod nvme-rdma.ko
 +sudo insmod nvme-tcp.ko
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/tcp.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/tcp.c
