@@ -1990,8 +1990,9 @@ do {
 
     smg_info(logger,"Number of Container transport = %d", cntlist[i].num_container_transport);
     for (int p = 0; p < cntlist[i].num_container_transport; p++) {
-      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
-              cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, cntlist[i].transport_list[p].ip_addr, 
+      smg_info(logger,"Transport information :: hash = %u, id = %d, nqn_name = %s, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
+              cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, 
+              cntlist[i].transport_list[p].nqn_name, cntlist[i].transport_list[p].ip_addr, 
               cntlist[i].transport_list[p].port, cntlist[i].transport_list[p].addr_family, cntlist[i].transport_list[p].speed, 
               cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node, cntlist[i].transport_list[p].mount_point);
 

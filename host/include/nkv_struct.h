@@ -84,6 +84,8 @@ typedef struct {
   //Mount point of the path, length allocated should be NKV_MAX_MOUNT_POINT_LENGTH
   char mount_point[NKV_MAX_MOUNT_POINT_LENGTH];
 
+  //Path NQN name, if supplied
+  char nqn_name[NKV_MAX_CONT_NAME_LENGTH];
 
 } nkv_container_transport;
 

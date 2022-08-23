@@ -217,6 +217,7 @@
     std::string path_cont_name;
     std::string dev_path;
     std::string path_ip;
+    std::string path_nqn;
     int32_t path_port;
     int32_t addr_family;
     int32_t path_speed;
@@ -1100,6 +1101,7 @@
           transportlist[cur_pop_index].status = (one_path->path_status).load(std::memory_order_relaxed);
           one_path->path_ip.copy(transportlist[cur_pop_index].ip_addr, one_path->path_ip.length());
           one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
+          one_path->path_nqn.copy(transportlist[cur_pop_index].nqn_name, one_path->path_nqn.length());
 
           cur_pop_index++;
 	  if(nic_load_balance && one_path->path_status) {

@@ -2713,6 +2713,7 @@ int32_t NKVContainerList::add_local_container_and_path (const char* host_name_ip
           boost::property_tree::ptree pc = v.second;
           std::string local_mount = pc.get<std::string>("mount_point");
           std::string local_address = pc.get<std::string>("nqn_transport_address", "127.0.0.1");
+          std::string nqn_name = pc.get<std::string>("nqn_name", "127.0.0.1");
           std::string local_node = host_name_ip;
           int32_t local_port = pc.get<int>("nqn_transport_port", host_port);
           int32_t numa_node_attached = -1;
@@ -2733,6 +2734,7 @@ int32_t NKVContainerList::add_local_container_and_path (const char* host_name_ip
           one_path->add_device_path(local_mount);
           one_path->path_numa_node = numa_node_attached;
           one_path->core_to_pin = driver_thread_core;
+          one_path->path_nqn = nqn_name;
           one_cnt->add_network_path(one_path, ss_p_hash);
           if (enable_rdd) {
             try {
