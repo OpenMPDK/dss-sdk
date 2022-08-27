@@ -57,6 +57,7 @@ typedef struct rdd_cinfo_s {
 } rdd_cinfo_t;
 
 typedef struct rdd_cfg_s {
+    int num_cq_cores_per_ip;
     int max_sgl_segs;
 	int n_ip;
 	rdd_cinfo_t *conn_info;

@@ -35,6 +35,6 @@
 
 
 void dfly_init_numa(void);
-uint32_t dfly_get_next_core(char *conn, int num_cpu, char *peer_addr);
+uint32_t dfly_get_next_core(char *conn, int num_cpu, char *ip, char *peer_addr);
 uint32_t dfly_put_core(char *conn, int core, char *peer_addr);
 uint32_t dfly_get_master_core(void);

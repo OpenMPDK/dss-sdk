@@ -205,7 +205,11 @@ int rdd_cl_queue_established(struct rdd_rdma_listener_s  *l, struct rdma_cm_even
 
     DFLY_NOTICELOG("qid %u connection estalished\n", queue->host_qid);
 
+    pthread_mutex_lock(&queue->init_lock);
+
     queue->state = RDD_QUEUE_LIVE;
+
+    pthread_mutex_unlock(&queue->init_lock);
 
     TAILQ_INSERT_TAIL(&l->queues, queue, link);
 
@@ -236,7 +240,7 @@ int rdd_cl_queue_disconnect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event
 
 	if(queue->submit_count) {
 		avg_sub_latency = (queue->submit_latency/queue->submit_count);
-		DFLY_NOTICELOG("Average submit latency %lu/%lu =%lu\n", queue->submit_latency, queue->submit_count, avg_sub_latency);
+		DFLY_NOTICELOG("Average submit latency ip[%s] %lu/%lu =%lu\n", l->listen_ip, queue->submit_latency, queue->submit_count, avg_sub_latency);
 	}
     return 0;
 }
@@ -464,12 +468,26 @@ void rdd_dss_submit_request(void * arg)
 
 	DFLY_DEBUGLOG(DSS_RDD, "Queued data direct request for dss req %p\n", req);
 
-	rc = spdk_ring_enqueue(q->req_submit_ring, (void **)&req, 1, NULL);
-	if (rc != 1) {
-		assert(false);
-	}
+    if(q->state == RDD_QUEUE_CONNECTING) {//For any other state submit ring should be initialized
+        //Submission path uses lock only during initialization
+        pthread_mutex_lock(&q->init_lock);
+        //Check again after acquiring lock
+        if(q->state == RDD_QUEUE_CONNECTING) {
+            TAILQ_INSERT_TAIL(&q->pending_reqs, req, rdd_info.pending);
+            //Unlock after inseting to pending request queue
+            pthread_mutex_unlock(&q->init_lock);
+            return;
+        }
+        //Unlock for q state changed after lock
+        pthread_mutex_unlock(&q->init_lock);
 
-    //TAILQ_INSERT_TAIL(&q->pending_reqs, req, rdd_info.pending);
+    }
+
+    DFLY_ASSERT(q->req_submit_ring);
+    rc = spdk_ring_enqueue(q->req_submit_ring, (void **)&req, 1, NULL);
+    if (rc != 1) {
+        assert(false);
+    }
 
 	return;
 }
@@ -557,11 +575,8 @@ int rdd_process_wc(struct ibv_wc *wc)
 
 #define REQ_PER_POLL (8)
 
-void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
+void rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
 {
-	dfly_request_t *req, *req_tmp;
-	int rc;
-
 	int num_msgs, i;
 	void *reqs[REQ_PER_POLL] = {NULL};
 
@@ -569,6 +584,13 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 	for (i = 0; i < num_msgs; i++) {
     	TAILQ_INSERT_TAIL(&queue->pending_reqs, (dfly_request_t *)reqs[i], rdd_info.pending);
 	}
+}
+
+void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
+{
+	dfly_request_t *req, *req_tmp;
+	int rc;
+
 
 	TAILQ_FOREACH_SAFE(req, &queue->pending_reqs, rdd_info.pending, req_tmp) {
 		if(queue->outstanding_qd == queue->send_qd) {
@@ -625,8 +647,11 @@ int rdd_cq_poll(void *arg)
 
     int rc;
 
-	//Process pending reqests
-	rdd_dss_process_pending(queue);
+    //Check ring for pending requests
+    rdd_dss_check_submit_ring(queue);
+
+    //Process pending reqests
+    rdd_dss_process_pending(queue);
 	
 
     //ibv_get_cq_event(ch, &cq, &ctx);
@@ -657,6 +682,16 @@ static void _rdd_start_cq_poller(void *arg)
     DFLY_ASSERT(spdk_get_thread() == queue->th.spdk.cq_thread);
     DFLY_ASSERT(queue->th.spdk.cq_poller == NULL);
 
+    queue->req_submit_ring = spdk_ring_create(SPDK_RING_TYPE_MP_SC, 65536, SPDK_ENV_SOCKET_ID_ANY);
+    assert(queue->req_submit_ring);
+
+    pthread_mutex_lock(&queue->init_lock);
+
+    queue->state = RDD_QUEUE_READY;
+    rdd_dss_process_pending(queue);
+
+    pthread_mutex_unlock(&queue->init_lock);
+
     queue->th.spdk.cq_poller = SPDK_POLLER_REGISTER(rdd_cq_poll, queue, 0);
     DFLY_ASSERT(queue->th.spdk.cq_poller != NULL);
 
@@ -677,6 +712,10 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     int rc = 0;
     int i;
 
+    uint32_t icore;
+    char *rdd_conn_id = NULL;
+    struct spdk_cpuset cset;
+
     DFLY_ASSERT(queue->comp_ch == NULL);
     queue->comp_ch = ibv_create_comp_channel(id->verbs);
 
@@ -696,10 +735,16 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     //TODO: Check and fail on error
     ibv_req_notify_cq(cq, 0);
 
+    asprintf(&rdd_conn_id, "rdd_%s", queue->l->listen_ip);
+    DFLY_ASSERT(rdd_conn_id != NULL);
+    icore = dfly_get_next_core(rdd_conn_id, g_dragonfly->rddcfg->num_cq_cores_per_ip , queue->l->listen_ip, NULL);
+    spdk_cpuset_zero(&cset);
+    spdk_cpuset_set_cpu(&cset, icore, true);
+
     DFLY_ASSERT(queue->th.spdk.cq_thread == NULL);
     sprintf(thread_name, "rdd_qp_%p", queue);
     //Created thread in the current core
-    queue->th.spdk.cq_thread = spdk_thread_create(thread_name, NULL);
+    queue->th.spdk.cq_thread = spdk_thread_create(thread_name, &cset);
     if(!queue->th.spdk.cq_thread) {
         DFLY_ERRLOG("Failed to create cq poll thread %s\n", thread_name);
         DFLY_ASSERT(0);//To do call destroy function and handle
@@ -903,9 +948,9 @@ int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
     queue->send_qd = priv->data.client.hrqsize;
 	queue->outstanding_qd = 0;
     queue->state = RDD_QUEUE_CONNECTING;
+    queue->l = l;
 
-	queue->req_submit_ring = spdk_ring_create(SPDK_RING_TYPE_MP_SC, 65536, SPDK_ENV_SOCKET_ID_ANY);
-	assert(queue->req_submit_ring);
+    pthread_mutex_init(&queue->init_lock, NULL);
 
 	queue->submit_latency = 0;
 	queue->submit_count = 0;
@@ -1206,7 +1251,9 @@ rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
 	DFLY_NOTICELOG("ctx array element size %d\n", sizeof(ctx->handle_ctx.handle_arr));
 
 	ctx->max_sgl_segs = params.max_sgl_segs;
+    ctx->num_cq_cores_per_ip = c->num_cq_cores_per_ip;
 	DFLY_DEBUGLOG(DSS_RDD, "%d max sgl segments configured\n", ctx->max_sgl_segs);
+	DFLY_DEBUGLOG(DSS_RDD, "%d cq cores alocated per rdd listen\n", ctx->max_sgl_segs);
 
 	srand(time(NULL));
 	ctx->handle_ctx.hmask = (uint16_t)rand();
@@ -1238,7 +1285,7 @@ void _rdd_listener_init(void *arg, void *dummy)
 
 	listener = (struct rdd_rdma_listener_s *)arg;
 
-	icore = dfly_get_next_core("RDD_CQ_POLLER", 1, NULL);
+	icore = dfly_get_next_core("RDD_CQ_POLLER", 1, NULL, NULL);
 
 	if (spdk_env_get_current_core() != icore) {
 		event = spdk_event_allocate(icore, _rdd_listener_init, arg, NULL);

@@ -91,12 +91,14 @@ struct rdd_ctx_s {
 		uint16_t hmask;
 	} handle_ctx;
 	uint32_t max_sgl_segs;
+    uint32_t num_cq_cores_per_ip;
 
     TAILQ_HEAD(, rdd_rdma_listener_s) listeners;
 };
 
 enum rdd_queue_state_e {
     RDD_QUEUE_CONNECTING,
+    RDD_QUEUE_READY,
     RDD_QUEUE_LIVE
 };
 
@@ -109,6 +111,7 @@ struct rdd_rdma_queue_s {
     //Internal
     uint16_t qhandle;
     enum rdd_queue_state_e state;
+    struct rdd_rdma_listener_s *l;
     rdd_rdma_cmd_t *cmds;
     struct rdd_rsp_s *rsps;
     struct rdd_req_s *reqs;
@@ -135,6 +138,8 @@ struct rdd_rdma_queue_s {
     struct ibv_qp *qp;
     struct ibv_cq *cq;
     int ncqe;
+
+    pthread_mutex_t init_lock;
 
     TAILQ_ENTRY(rdd_rdma_queue_s) link;
 

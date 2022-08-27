@@ -302,7 +302,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id,
 			launch_core = spdk_env_get_first_core();
 		}
 #else
-		launch_core = dfly_get_next_core(module->name, num_cores, NULL);
+		launch_core = dfly_get_next_core(module->name, num_cores, NULL, NULL);
 		m_inst[i].icore = launch_core;
 		DFLY_ASSERT(launch_core != -1);
 #endif

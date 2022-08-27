@@ -168,9 +168,11 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 					dfly_req->dqpair->df_ctrlr);
 	}
 
-	DFLY_INFOLOG(DFLY_LOG_IO, "Req opc: %x from: %s to: %s klen: %d sct: %x sc: %x key: [%s]\n",
-						cmd->opc, dfly_req->dqpair->listen_addr, dfly_req->dqpair->peer_addr, 
-						dfly_req->req_key.length, rsp_status->sct, rsp_status->sc, dfly_req->req_key.key); 
+    if(cmd->opc != SPDK_NVME_OPC_READ) {
+        DFLY_INFOLOG(DFLY_LOG_IO, "Req opc: %x from: %s to: %s klen: %d sct: %x sc: %x key: [%s]\n",
+                            cmd->opc, dfly_req->dqpair->listen_addr, dfly_req->dqpair->peer_addr,
+                            dfly_req->req_key.length, rsp_status->sct, rsp_status->sc, dfly_req->req_key.key);
+    }
 
 	dfly_nvmf_request_complete(nvmf_req);
 
