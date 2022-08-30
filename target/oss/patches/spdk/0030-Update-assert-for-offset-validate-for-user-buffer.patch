@@ -1,7 +1,7 @@
-From 4778c49cdcf8d67a9f63a437e4555a0d0962dd2c Mon Sep 17 00:00:00 2001
+From 323715146bea7479bf9e99088037dfaae92ca73f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 10 Feb 2021 11:09:32 -0800
-Subject: [PATCH 30/66] Update assert for offset validate for user buffer
+Subject: [PATCH 30/67] Update assert for offset validate for user buffer
 
 ---
  lib/nvmf/rdma.c | 4 +---

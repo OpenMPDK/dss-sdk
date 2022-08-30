@@ -1,7 +1,7 @@
-From f0594e1c20daf0141654f66799a18b9a816e27af Mon Sep 17 00:00:00 2001
+From 97a8e4d64a5bd5fabf694df2b2e3081202b65a05 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 6 Jun 2022 15:23:36 -0700
-Subject: [PATCH 61/66] Support for multi-sgl RDD
+Subject: [PATCH 61/67] Support for multi-sgl RDD
 
 ---
  include/spdk/nvme_spec.h      | 11 +++++++++++
