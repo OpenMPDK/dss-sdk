@@ -1,14 +1,14 @@
-From f4918f5408d611b280305af4171ec43439138667 Mon Sep 17 00:00:00 2001
+From be6ef85d18d021ca1c23f335b3c5e88d1ab278c4 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 18 Apr 2022 10:09:05 -0700
-Subject: [PATCH 60/65] IO Path support for RDD Put
+Subject: [PATCH 60/66] IO Path support for RDD Put
 
 ---
- lib/nvmf/rdma.c | 92 ++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ lib/nvmf/rdma.c | 92 ++++++++++++++++++++++++++++++++++++++++++++++---
  1 file changed, 88 insertions(+), 4 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index e111484..d35a64c 100644
+index e11148482..d35a64c60 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -109,6 +109,9 @@ enum spdk_nvmf_rdma_request_state {
@@ -181,5 +181,5 @@ index e111484..d35a64c 100644
  			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_READY_TO_EXECUTE, 0, 0,
  					  (uintptr_t)rdma_req, (uintptr_t)rqpair->cm_id);
 -- 
-1.8.3.1
+2.24.3
 

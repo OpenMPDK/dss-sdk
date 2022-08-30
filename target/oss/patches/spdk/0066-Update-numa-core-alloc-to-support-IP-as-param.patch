@@ -1,0 +1,25 @@
+From 9bd73ad3c2fa9178d03cd415b06cf87c2b4f885b Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 30 Aug 2022 11:14:51 -0700
+Subject: [PATCH 66/66] Update numa core alloc to support IP as param
+
+---
+ lib/nvmf/rdma.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 048f9401a..dfed83a99 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -781,7 +781,7 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
+     } else {
+         struct spdk_nvme_transport_id peer_trid;
+         spdk_nvmf_qpair_get_peer_trid(qpair, &peer_trid);
+-        core = dfly_get_next_core(trid.traddr, g_dragonfly->num_nw_threads, peer_trid.traddr);
++        core = dfly_get_next_core(trid.traddr, g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
+     }
+ 
+ 	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
+-- 
+2.24.3
+

@@ -1,7 +1,7 @@
-From 106cfc97cdf5d5e275547d0114b2ac5761a3c638 Mon Sep 17 00:00:00 2001
+From 68b325a3b6cc73508510ff452f16bc42c40d1513 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 30 Mar 2021 15:43:20 -0700
-Subject: [PATCH 41/65] Update BSD License
+Subject: [PATCH 41/66] Update BSD License
 
 ---
  scripts/dss_rpc.py             | 33 +++++++++++++++++++++++++++++++++
@@ -9,7 +9,7 @@ Subject: [PATCH 41/65] Update BSD License
  2 files changed, 66 insertions(+)
 
 diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
-index 5e1a58b..f1d5956 100755
+index 5e1a58b97..f1d5956be 100755
 --- a/scripts/dss_rpc.py
 +++ b/scripts/dss_rpc.py
 @@ -1,5 +1,38 @@
@@ -52,7 +52,7 @@ index 5e1a58b..f1d5956 100755
  from rpc.helpers import deprecated_aliases
  
 diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
-index c1d91f6..905345f 100644
+index c1d91f649..905345fe3 100644
 --- a/scripts/rpc/latency_profile.py
 +++ b/scripts/rpc/latency_profile.py
 @@ -1,3 +1,36 @@
@@ -93,5 +93,5 @@ index c1d91f6..905345f 100644
      """Get latency profile information for an NVMe-oF subsystem/
  
 -- 
-1.8.3.1
+2.24.3
 

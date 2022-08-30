@@ -1,14 +1,14 @@
-From d6e33438f79fd45b40c462af0b973b3c174b9a7d Mon Sep 17 00:00:00 2001
+From fb8ca68c94b44b23c5c6a7d9252442664dc1d5d4 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:44:36 -0700
-Subject: [PATCH 53/65] Handle cache alloc failure during mid write
+Subject: [PATCH 53/66] Handle cache alloc failure during mid write
 
 ---
  lib/blobfs/blobfs.c | 24 +++++++++++++++++++++---
  1 file changed, 21 insertions(+), 3 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 91abd44..a3ba661 100644
+index 91abd44f8..a3ba66120 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2674,6 +2674,7 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -51,5 +51,5 @@ index 91abd44..a3ba661 100644
  		}
  	}
 -- 
-1.8.3.1
+2.24.3
 

@@ -1,7 +1,7 @@
-From 0b2b2b8a269f8c4b258c59836b7a7909647403d8 Mon Sep 17 00:00:00 2001
+From e64264be74deb0eb373bad1980b5f54505a39954 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 13 Apr 2021 00:21:47 -0700
-Subject: [PATCH 45/65] * blobstore "ThinProvision" in [Blobfs], default as
+Subject: [PATCH 45/66] * blobstore "ThinProvision" in [Blobfs], default as
  true
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH 45/65] * blobstore "ThinProvision" in [Blobfs], default as
  3 files changed, 4 insertions(+), 1 deletion(-)
 
 diff --git a/include/spdk/blob.h b/include/spdk/blob.h
-index e17b082..9730f6a 100644
+index e17b08271..9730f6aab 100644
 --- a/include/spdk/blob.h
 +++ b/include/spdk/blob.h
 @@ -63,6 +63,7 @@
@@ -23,7 +23,7 @@ index e17b082..9730f6a 100644
  #ifdef __cplusplus
  extern "C" {
 diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
-index 5af1561..c1196ac 100644
+index 5af1561ad..c1196ac2d 100644
 --- a/lib/blob/blobstore.c
 +++ b/lib/blob/blobstore.c
 @@ -51,6 +51,7 @@
@@ -44,7 +44,7 @@ index 5af1561..c1196ac 100644
  	blob_xattrs_init(&opts->xattrs);
  	opts->use_extent_table = true;
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index a8c898f..7131c16 100644
+index a8c898f77..7131c165e 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -637,6 +637,7 @@ fs_conf_parse(void)
@@ -56,5 +56,5 @@ index a8c898f..7131c16 100644
  }
  
 -- 
-1.8.3.1
+2.24.3
 
