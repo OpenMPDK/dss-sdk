@@ -111,7 +111,7 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 	//uint64_t ticks_per_ns = spdk_get_ticks_hz()/1000000000;
 
 	if(client_handle == RDD_INVALID_CHANDLE(ctx)) {
-        DFLY_NOTICELOG("Failed to find valid chandle\n");
+        DFLY_ERRLOG("Failed to find valid chandle %x\n", client_handle);
 		return -1;
 	}
 
@@ -121,11 +121,13 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 
 	if(index >= ctx->handle_ctx.nuse) {
 		rc = -1;
+        DFLY_ERRLOG("RDD handle index not used [%d/%d]\n", index, ctx->handle_ctx.nuse);
 		goto last;
 	}
 
 	if(ctx->handle_ctx.handle_arr[index] == NULL) {
 		rc = -1;
+        DFLY_ERRLOG("RDD handle is NULL at index %d\n", index);
 		goto last;
 	}
 	
@@ -141,7 +143,7 @@ last:
 	//pthread_rwlock_unlock(&ctx->handle_ctx.rwlock);
 
    if(rc) {
-      DFLY_NOTICELOG("Failed to post to rdd queue\n");
+      DFLY_ERRLOG("Failed to post to rdd queue %p\n", q);
    }
 
 	return rc;
