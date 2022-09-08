@@ -592,6 +592,7 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 {
 	dfly_request_t *req, *req_tmp;
 	int rc;
+    int reqs_processed = 0;
 
 
 	TAILQ_FOREACH_SAFE(req, &queue->pending_reqs, rdd_info.pending, req_tmp) {
@@ -633,6 +634,10 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 			default:
 				DFLY_NOTICELOG("Unhandled opc %d\n", req->rdd_info.opc);
 		}
+        reqs_processed++;
+        if(reqs_processed >= REQ_PER_POLL) {
+            break;
+        }
 	}
 
 	return;
@@ -769,6 +774,9 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     qp_attr.cap.max_recv_sge = queue->ctx->max_sgl_segs;
 
     rc = rdma_create_qp(id, queue->pd, &qp_attr);
+    if(rc == -1) {
+        DFLY_ERRLOG("rdma_create_qp failed with errno %d\n", errno);
+    }
     DFLY_ASSERT(rc == 0);
     //TODO: Handle error case
 
