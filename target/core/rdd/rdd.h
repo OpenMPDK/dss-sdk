@@ -52,8 +52,8 @@ extern "C" {
 #include "rdd_api.h"
 
 
-#define RDD_DEFAULT_LISTEN_BACKLOG (10)
-#define RDD_DEFAULT_CM_POLL_PERIOD_IN_US (10ULL)
+#define RDD_DEFAULT_LISTEN_BACKLOG (1000)
+#define RDD_DEFAULT_CM_POLL_PERIOD_IN_US (1ULL)
 
 #define RDD_MAX_CHANDLE_CNT (65535)
 #define RDD_DEFAULT_MIN_CHANDLE_COUNT (1024)
@@ -99,7 +99,9 @@ struct rdd_ctx_s {
 enum rdd_queue_state_e {
     RDD_QUEUE_CONNECTING,
     RDD_QUEUE_READY,
-    RDD_QUEUE_LIVE
+    RDD_QUEUE_ESTABLISHED,
+    RDD_QUEUE_LIVE,
+    RDD_QUEUE_DISCONNECTING
 };
 
 struct rdd_rdma_queue_s {

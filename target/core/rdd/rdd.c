@@ -44,6 +44,8 @@
 static inline uint16_t RDD_CHANDLE2INDEX(rdd_ctx_t *ctx, uint16_t chandle) {return (ctx->handle_ctx.hmask ^ chandle);}
 static inline uint16_t RDD_INVALID_CHANDLE(rdd_ctx_t *ctx) { return RDD_CHANDLE2INDEX(ctx, RDD_MAX_CHANDLE_CNT);}
 
+uint32_t  rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue);
+
 uint16_t rdd_reg_queue2ctx(rdd_ctx_t *ctx, struct rdd_rdma_queue_s *queue)
 {
 	uint16_t id = RDD_INVALID_CHANDLE(ctx);;
@@ -104,7 +106,6 @@ void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
 int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *req)
 {
 	int rc = 0;
-	struct rdd_rdma_queue_s *q = NULL;
 	uint16_t index = RDD_CHANDLE2INDEX(ctx, client_handle);
 
 	//uint64_t start_tick = 0;
@@ -131,6 +132,7 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 		goto last;
 	}
 	
+    //TODO: Check if there can be a race here to get index while disconnecting
 	req->rdd_info.q = ctx->handle_ctx.handle_arr[index];
 	//Other rdd info needs to be filled prior to call
 
@@ -142,9 +144,9 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 last:
 	//pthread_rwlock_unlock(&ctx->handle_ctx.rwlock);
 
-   if(rc) {
-      DFLY_ERRLOG("Failed to post to rdd queue %p\n", q);
-   }
+   //if(rc) {
+   //   DFLY_ERRLOG("Failed to post to rdd queue %p\n", q);
+   //}
 
 	return rc;
 }
@@ -200,50 +202,101 @@ const struct spdk_mem_map_ops g_rdd_rdma_map_ops = {
 	.are_contiguous = rdd_rdma_check_contiguous_entries
 };
 
+static int qc = 0;
+
 int rdd_cl_queue_established(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_rdma_queue_s *queue = (struct rdd_rdma_queue_s *)id->context;
 
-    DFLY_NOTICELOG("qid %u connection estalished\n", queue->host_qid);
+    //DFLY_NOTICELOG("qid %u connection estalished\n", queue->host_qid);
 
     pthread_mutex_lock(&queue->init_lock);
-
-    queue->state = RDD_QUEUE_LIVE;
+    //TODO: Handle disconnecting;
+    if(queue->state == RDD_QUEUE_CONNECTING) {
+        queue->state = RDD_QUEUE_ESTABLISHED;
+    } else if (queue->state == RDD_QUEUE_READY) {
+        queue->state = RDD_QUEUE_LIVE;
+    }
 
     pthread_mutex_unlock(&queue->init_lock);
 
     TAILQ_INSERT_TAIL(&l->queues, queue, link);
 
+    qc++;
+    if(qc % 25 == 0) {
+        DFLY_NOTICELOG("Established %d queues\n", qc);
+    }
+
     return 0;
 }
 
+void rdd_dss_flush_n_fail_reqs(struct rdd_rdma_queue_s *q)
+{
+    dfly_request_t *req, *req_tmp;
+    TAILQ_FOREACH_SAFE(req, &q->pending_reqs, rdd_info.pending, req_tmp) {
+        TAILQ_REMOVE(&q->pending_reqs, req, rdd_info.pending);
+        dss_rdma_rdd_failed(req, NULL);
+    }
+}
+
+static void __rdd_cl_queue_disconnect(void *arg)
+{
+    struct rdd_rdma_queue_s *q = (struct rdd_rdma_queue_s *)arg;
+
+    rdd_del_queue_ctx(q->ctx, q->qhandle);//stop incoming post requests
+
+    //TODO: synchronize with submission threads
+    usleep(1000);//Give some time for incoming requests to post if pending
+
+    //TODO: Check all queue states
+    q->state = RDD_QUEUE_DISCONNECTING;
+
+    spdk_poller_unregister(&q->th.spdk.cq_poller);
+
+    while(rdd_dss_check_submit_ring(q));
+
+    spdk_ring_free(q->req_submit_ring);
+    q->req_submit_ring = NULL;
+
+    rdd_dss_flush_n_fail_reqs(q);
+
+    //TODO: Revert ib apis
+    //TODO: Stop cq_poller threads??
+
+    rdd_queue_destroy(q);
+
+    return;
+}
 
 int rdd_cl_queue_disconnect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_rdma_queue_s *queue = (struct rdd_rdma_queue_s *)id->context;
 
-	uint64_t avg_sub_latency;
 
     DFLY_NOTICELOG("qid %u disconnect receieved\n", queue->host_qid);
 
+	uint64_t avg_sub_latency;
+
+    if(queue->submit_count) {
+        avg_sub_latency = (queue->submit_latency/queue->submit_count);
+        DFLY_NOTICELOG("Average submit latency ip[%s] %lu/%lu =%lu\n", l->listen_ip, queue->submit_latency, queue->submit_count, avg_sub_latency);
+    }
+
+    spdk_thread_send_msg(queue->th.spdk.cq_thread, __rdd_cl_queue_disconnect, queue);
     //queue->state = RDD_QUEUE_LIVE;
 
     //TAILQ_INSERT_TAIL(&ctx->queues, queue, link);
 //TODO: Free resource on disconnect
-    spdk_poller_unregister(queue->th.spdk.cq_poller);
-	queue->th.spdk.cq_poller = NULL;
+//    spdk_poller_unregister(queue->th.spdk.cq_poller);
+//	queue->th.spdk.cq_poller = NULL;
 
 //	if (queue->req_submit_ring != NULL) {
 //		spdk_ring_free(queue->req_submit_ring);
 //		queue->req_submit_ring = NULL;
 //	}
 
-	if(queue->submit_count) {
-		avg_sub_latency = (queue->submit_latency/queue->submit_count);
-		DFLY_NOTICELOG("Average submit latency ip[%s] %lu/%lu =%lu\n", l->listen_ip, queue->submit_latency, queue->submit_count, avg_sub_latency);
-	}
     return 0;
 }
 struct rdd_req_s *rdd_get_free_request(struct rdd_rdma_queue_s *q)
@@ -467,14 +520,16 @@ void rdd_dss_submit_request(void * arg)
 //		spdk_thread_send_msg(q->th.spdk.cq_thread, rdd_dss_submit_request, arg);
 //		return;
 //	}
+    DFLY_ASSERT(q->state != RDD_QUEUE_DISCONNECTING);
 
 	DFLY_DEBUGLOG(DSS_RDD, "Queued data direct request for dss req %p\n", req);
 
-    if(q->state == RDD_QUEUE_CONNECTING) {//For any other state submit ring should be initialized
+    if(q->state == RDD_QUEUE_CONNECTING ||
+        q->state == RDD_QUEUE_ESTABLISHED) {//For any other state submit ring should be initialized
         //Submission path uses lock only during initialization
         pthread_mutex_lock(&q->init_lock);
         //Check again after acquiring lock
-        if(q->state == RDD_QUEUE_CONNECTING) {
+        if(q->state == RDD_QUEUE_CONNECTING || q->state == RDD_QUEUE_ESTABLISHED) {
             TAILQ_INSERT_TAIL(&q->pending_reqs, req, rdd_info.pending);
             //Unlock after inseting to pending request queue
             pthread_mutex_unlock(&q->init_lock);
@@ -577,7 +632,7 @@ int rdd_process_wc(struct ibv_wc *wc)
 
 #define REQ_PER_POLL (8)
 
-void rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
+uint32_t  rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
 {
 	int num_msgs, i;
 	void *reqs[REQ_PER_POLL] = {NULL};
@@ -586,6 +641,8 @@ void rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
 	for (i = 0; i < num_msgs; i++) {
     	TAILQ_INSERT_TAIL(&queue->pending_reqs, (dfly_request_t *)reqs[i], rdd_info.pending);
 	}
+
+    return num_msgs;
 }
 
 void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
@@ -655,7 +712,9 @@ int rdd_cq_poll(void *arg)
     int rc;
 
     //Check ring for pending requests
-    rdd_dss_check_submit_ring(queue);
+    uint32_t  nreqs;
+    nreqs = rdd_dss_check_submit_ring(queue);
+    //TODO: Set POLLER BUSY??
 
     //Process pending reqests
     rdd_dss_process_pending(queue);
@@ -689,12 +748,22 @@ static void _rdd_start_cq_poller(void *arg)
     DFLY_ASSERT(spdk_get_thread() == queue->th.spdk.cq_thread);
     DFLY_ASSERT(queue->th.spdk.cq_poller == NULL);
 
+    if(queue->state != RDD_QUEUE_CONNECTING) {
+        DFLY_WARNLOG("Queue %p not in connecting state\n", queue);
+        return;
+    }
+
     queue->req_submit_ring = spdk_ring_create(SPDK_RING_TYPE_MP_SC, 65536, SPDK_ENV_SOCKET_ID_ANY);
     assert(queue->req_submit_ring);
 
     pthread_mutex_lock(&queue->init_lock);
 
-    queue->state = RDD_QUEUE_READY;
+    if(queue->state == RDD_QUEUE_CONNECTING) {
+        queue->state = RDD_QUEUE_READY;
+    } else if (queue->state == RDD_QUEUE_ESTABLISHED) {
+        queue->state = RDD_QUEUE_LIVE;
+    }
+
     rdd_dss_process_pending(queue);
 
     pthread_mutex_unlock(&queue->init_lock);
@@ -702,7 +771,7 @@ static void _rdd_start_cq_poller(void *arg)
     queue->th.spdk.cq_poller = SPDK_POLLER_REGISTER(rdd_cq_poll, queue, 0);
     DFLY_ASSERT(queue->th.spdk.cq_poller != NULL);
 
-    DFLY_NOTICELOG("Started cq poll thread for queue %p on core %d \n", queue, spdk_env_get_current_core());
+    //DFLY_NOTICELOG("Started cq poll thread for queue %p on core %d \n", queue, spdk_env_get_current_core());
 
     return;
 }
@@ -751,12 +820,13 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     DFLY_ASSERT(queue->th.spdk.cq_thread == NULL);
     sprintf(thread_name, "rdd_qp_%p", queue);
     //Created thread in the current core
+    //TODO: Check if same thread can be used to run multiple pollers
     queue->th.spdk.cq_thread = spdk_thread_create(thread_name, &cset);
     if(!queue->th.spdk.cq_thread) {
         DFLY_ERRLOG("Failed to create cq poll thread %s\n", thread_name);
         DFLY_ASSERT(0);//To do call destroy function and handle
         //rdd_destroy(ctx);
-        return NULL;
+        return -1;
     }
 
     spdk_thread_send_msg(queue->th.spdk.cq_thread, _rdd_start_cq_poller, (void *)queue);
@@ -776,9 +846,8 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     rc = rdma_create_qp(id, queue->pd, &qp_attr);
     if(rc == -1) {
         DFLY_ERRLOG("rdma_create_qp failed with errno %d\n", errno);
+        return rc;
     }
-    DFLY_ASSERT(rc == 0);
-    //TODO: Handle error case
 
     queue->qp = id->qp;
 
@@ -932,6 +1001,7 @@ int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 {
     struct rdma_cm_id *id = ev->id;
     struct rdd_queue_priv_s *priv = (struct rdd_queue_priv_s *)ev->param.conn.private_data;
+    //TODO: Check if same thread can be used to run multiple pollers
 
     struct rdd_rdma_queue_s *queue = NULL;
 
@@ -1003,14 +1073,14 @@ int rdd_queue_destroy(struct rdd_rdma_queue_s *queue)
     int rc = 0;
 
     //TODO: Dealloc ibv queues
-    DFLY_ASSERT(0);
+    //DFLY_ASSERT(0);
 
 
-    if(queue->pd) {
-        rc = ibv_dealloc_pd(queue->pd);
-        DFLY_ASSERT(rc == 0);
-        //TODO: handle error scenario
-    }
+    //if(queue->pd) {
+    //    rc = ibv_dealloc_pd(queue->pd);
+    //    DFLY_ASSERT(rc == 0);
+    //    //TODO: handle error scenario
+    //}
 
     if(queue->cmds) {
         free(queue->cmds);
@@ -1039,7 +1109,7 @@ int rdd_cm_event_handler(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *e
 {
 	int r = 0;
 
-    DFLY_NOTICELOG("Processing event %s\n", rdma_event_str(ev->event));
+    //DFLY_NOTICELOG("Processing event %s\n", rdma_event_str(ev->event));
 	switch (ev->event) {
         case RDMA_CM_EVENT_CONNECT_REQUEST:
             r = rdd_queue_connect(l, ev);
@@ -1223,7 +1293,7 @@ err:
         rc = rdma_destroy_id(l->tr.rdma.cm_id);
         if(!rc) {
             //rc == -1
-            //ALL QP need to be free and all events acked before destroy
+            //ALL QP need to be free and    //all events acked before destroy
             DFLY_ERRLOG("rdma_destroy_id failed for ip %s port %s %d\n",
                 l->listen_ip, l->listen_port, errno);
         }
