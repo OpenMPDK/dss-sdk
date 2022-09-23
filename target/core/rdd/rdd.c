@@ -748,8 +748,8 @@ static void _rdd_start_cq_poller(void *arg)
     DFLY_ASSERT(spdk_get_thread() == queue->th.spdk.cq_thread);
     DFLY_ASSERT(queue->th.spdk.cq_poller == NULL);
 
-    if(queue->state != RDD_QUEUE_CONNECTING) {
-        DFLY_WARNLOG("Queue %p not in connecting state\n", queue);
+    if(queue->state == RDD_QUEUE_DISCONNECTING) {
+        DFLY_WARNLOG("Queue %p in disconnecting state\n", queue);
         return;
     }
 
@@ -1039,14 +1039,8 @@ int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
     TAILQ_INIT(&queue->outstanding_reqs);
     TAILQ_INIT(&queue->pending_reqs);//DSS Request queue
 
-    queue->pd = ibv_alloc_pd(id->verbs);
-    DFLY_ASSERT(queue->pd);
-
-    queue->map = spdk_mem_map_alloc(0, &g_rdd_rdma_map_ops, queue->pd);
-    if(!queue->map) {
-        //TODO: Error handling
-        DFLY_ASSERT(queue->map);
-    }
+    queue->pd = l->device->pd;
+    queue->map = l->device->map;
 
     id->context = queue;//Got back on connection establishment from client
 
@@ -1215,6 +1209,7 @@ int rdd_listener_add(rdd_ctx_t *ctx, char *ip, char *port)
     struct addrinfo hints;
 
 	struct rdd_rdma_listener_s *l;
+    struct rdd_rdma_device_s *device;
 
     memset(&hints, 0, sizeof(hints));
     //hints.ai_family = AF_UNSPEC;//Try to resolve IPV4 or IPV6 address
@@ -1251,7 +1246,7 @@ int rdd_listener_add(rdd_ctx_t *ctx, char *ip, char *port)
         goto err;
     }
 
-    rc = rdma_create_id(l->tr.rdma.ev_channel, &l->tr.rdma.cm_id, NULL, RDMA_PS_TCP);
+    rc = rdma_create_id(l->tr.rdma.ev_channel, &l->tr.rdma.cm_id, l, RDMA_PS_TCP);
     if (rc) {
         //rc == -1
         DFLY_ERRLOG("rdma_create_id failed for ip %s port %s %d\n",
@@ -1276,6 +1271,19 @@ int rdd_listener_add(rdd_ctx_t *ctx, char *ip, char *port)
                 ip, port, errno);
         goto err;
     }
+
+
+	TAILQ_FOREACH(device, &ctx->devices, link) {
+		if (device->context == l->tr.rdma.cm_id->verbs) {
+			l->device = device;
+			break;
+		}
+	}
+	if (!l->device) {
+		DFLY_ERRLOG("Accepted a connection with verbs %p, but unable to find a corresponding device.\n",
+			    l->tr.rdma.cm_id->verbs);
+        goto err;
+	}
 
     TAILQ_INSERT_TAIL(&ctx->listeners, l, link);
 	//TODO : Track Listener context live/destroying
@@ -1316,11 +1324,17 @@ rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
 
     int i, rc;
 
+    struct ibv_context **contexts;
+    struct rdd_rdma_device_s *device;
+
     ctx = (rdd_ctx_t *)calloc(1, sizeof(rdd_ctx_t));
     if(!ctx) {//Context alloc failed
         DFLY_ERRLOG("context alloc failed\n");
         return NULL;
     }
+
+	TAILQ_INIT(&ctx->devices);
+	TAILQ_INIT(&ctx->listeners);
 
 	rc = pthread_rwlock_init(&ctx->handle_ctx.rwlock, NULL);
 	DFLY_ASSERT(rc == 0);//TODO: Process error code
@@ -1339,7 +1353,36 @@ rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
 	ctx->handle_ctx.hmask = (uint16_t)rand();
 	DFLY_NOTICELOG("Generated handle mask %x\n", ctx->handle_ctx.hmask);
 
-	TAILQ_INIT(&ctx->listeners);
+    contexts = rdma_get_devices(NULL);
+    if(contexts == NULL) {
+        DFLY_ERRLOG("rdma_get_devices() failed: %s (%d)\n", spdk_strerror(errno), errno);
+        goto err;
+    }
+
+    i = 0;
+    while(contexts[i] != NULL) {
+        device = calloc(1, sizeof(*device));
+        if(!device) {
+            DFLY_ERRLOG("Unable to allocate memory for rdma device\n");
+            goto err;
+        }
+
+        device->context = contexts[i];
+        device->pd = ibv_alloc_pd(device->context);
+        if(!device->pd) {
+            DFLY_ERRLOG("Failed to allocate protection domain for device\n");
+            goto err;
+        }
+
+        device->map = spdk_mem_map_alloc(0, &g_rdd_rdma_map_ops, device->pd);
+        if(!device->map) {
+            DFLY_ERRLOG("Failed to allocate memory map for device\n");
+            goto err;
+        }
+        TAILQ_INSERT_TAIL(&ctx->devices, device, link);
+        i++;
+    }
+    rdma_free_devices(contexts);
 
 	for(i=0; i < c->n_ip; i++) {
 		rc = rdd_listener_add(ctx, c->conn_info[i].ip, c->conn_info[i].port);
@@ -1353,6 +1396,10 @@ rdd_ctx_t *rdd_init(rdd_cfg_t *c, rdd_params_t params)
 	}
 
 	return ctx;
+
+err:
+    rdd_destroy(ctx);
+    return NULL;
 }
 
 void _rdd_listener_init(void *arg, void *dummy)

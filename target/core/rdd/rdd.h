@@ -63,6 +63,7 @@ struct rdd_rdma_listener_s {
 
     char *listen_ip;
     char *listen_port;
+    struct rdd_rdma_device_s *device;
 
     union {
         struct {
@@ -82,6 +83,13 @@ struct rdd_rdma_listener_s {
     TAILQ_ENTRY(rdd_rdma_listener_s) link;
 };
 
+struct rdd_rdma_device_s {
+    struct ibv_context *context;
+    struct ibv_pd *pd;
+    struct spdk_mem_map *map;
+    TAILQ_ENTRY(rdd_rdma_device_s) link;
+};
+
 struct rdd_ctx_s {
 	struct {
 		pthread_rwlock_t rwlock;
@@ -93,6 +101,7 @@ struct rdd_ctx_s {
 	uint32_t max_sgl_segs;
     uint32_t num_cq_cores_per_ip;
 
+    TAILQ_HEAD(, rdd_rdma_device_s) devices;
     TAILQ_HEAD(, rdd_rdma_listener_s) listeners;
 };
 
