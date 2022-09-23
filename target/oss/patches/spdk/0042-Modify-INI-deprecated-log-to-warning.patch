@@ -1,7 +1,7 @@
-From dc8957385a8dd2b9620f37d1618c2cde5ac91fd5 Mon Sep 17 00:00:00 2001
+From 064965f69a4b3bba5eb49300e0725f74254ca941 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 31 Mar 2021 13:23:06 -0700
-Subject: [PATCH 42/67] Modify INI deprecated log to warning
+Subject: [PATCH 42/68] Modify INI deprecated log to warning
 
 ---
  lib/conf/conf.c | 2 +-

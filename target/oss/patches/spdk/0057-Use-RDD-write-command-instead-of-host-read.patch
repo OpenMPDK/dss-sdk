@@ -1,7 +1,7 @@
-From 3a252d7bc17dca9be9c0e97fa19418fa89b443a5 Mon Sep 17 00:00:00 2001
+From b1193796a347c1115b7080e5fd1b31560ba9a5be Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 22 Dec 2021 18:00:45 -0800
-Subject: [PATCH 57/67] Use RDD write command instead of host read
+Subject: [PATCH 57/68] Use RDD write command instead of host read
 
 ---
  lib/nvmf/rdma.c | 5 +++--
