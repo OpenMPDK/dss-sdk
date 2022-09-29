@@ -72,6 +72,11 @@ uint16_t rdd_reg_queue2ctx(rdd_ctx_t *ctx, struct rdd_rdma_queue_s *queue)
 	}
 
 
+	queue->ref = dss_ref_create();;
+    if(!queue->ref) {
+        goto err;
+    }
+
 	id = ctx->handle_ctx.hmask ^ ctx->handle_ctx.nuse;
 	ctx->handle_ctx.handle_arr[ctx->handle_ctx.nuse] = queue;
 	ctx->handle_ctx.nuse++;
@@ -82,10 +87,23 @@ err:
 	return id;
 }
 
-void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
+bool rdd_check_qref(rdd_ctx_t *ctx, uint16_t client_handle)
 {
-
 	uint16_t index = RDD_CHANDLE2INDEX(ctx, client_handle);
+    struct rdd_rdma_queue_s *q;
+
+	DFLY_ASSERT(client_handle != RDD_INVALID_CHANDLE(ctx));
+    q = ctx->handle_ctx.handle_arr[index];
+    if(!q) {
+        return false;
+    }
+    return dss_ref_check(q->ref);
+}
+
+void rdd_freeze_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
+{
+	uint16_t index = RDD_CHANDLE2INDEX(ctx, client_handle);
+    struct rdd_rdma_queue_s *q;
 
 	DFLY_ASSERT(client_handle != RDD_INVALID_CHANDLE(ctx));
 
@@ -93,6 +111,36 @@ void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
 	pthread_rwlock_wrlock(&ctx->handle_ctx.rwlock);
 
 	DFLY_ASSERT(ctx->handle_ctx.handle_arr[index] != NULL);
+    q = ctx->handle_ctx.handle_arr[index];
+    if(!q) {
+        return false;
+    }
+    dss_ref_freeze(q->ref);
+
+	pthread_rwlock_unlock(&ctx->handle_ctx.rwlock);
+
+    return;
+}
+
+
+void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
+{
+
+	uint16_t index = RDD_CHANDLE2INDEX(ctx, client_handle);
+    struct rdd_rdma_queue_s *q;
+
+	DFLY_ASSERT(client_handle != RDD_INVALID_CHANDLE(ctx));
+
+	//TODO: Reclaim unused handles
+	pthread_rwlock_wrlock(&ctx->handle_ctx.rwlock);
+
+	DFLY_ASSERT(ctx->handle_ctx.handle_arr[index] != NULL);
+    q = ctx->handle_ctx.handle_arr[index];
+    if(!q) {
+        return false;
+    }
+    dss_ref_destroy(q->ref);
+    q->ref = NULL;
 	ctx->handle_ctx.handle_arr[index] = NULL;
 
 	DFLY_NOTICELOG("Deleted client handle %d\n", index);
@@ -102,11 +150,12 @@ void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
 	return;
 }
 
-
 int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *req)
 {
 	int rc = 0;
 	uint16_t index = RDD_CHANDLE2INDEX(ctx, client_handle);
+
+    struct dss_ref_s *ref;
 
 	//uint64_t start_tick = 0;
 	//uint64_t ticks_per_ns = spdk_get_ticks_hz()/1000000000;
@@ -126,17 +175,32 @@ int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *r
 		goto last;
 	}
 
-	if(ctx->handle_ctx.handle_arr[index] == NULL) {
+	req->rdd_info.q = ctx->handle_ctx.handle_arr[index];
+
+	if(req->rdd_info.q == NULL) {
 		rc = -1;
         DFLY_ERRLOG("RDD handle is NULL at index %d\n", index);
 		goto last;
 	}
+
+    ref = req->rdd_info.q->ref;;
+    if(!ref) {
+        rc = -1;
+        goto last;
+    }
+
+    if (!dss_ref_inc(ref)) {
+        rc = -1;
+        goto last;
+    }
+
 	
     //TODO: Check if there can be a race here to get index while disconnecting
-	req->rdd_info.q = ctx->handle_ctx.handle_arr[index];
 	//Other rdd info needs to be filled prior to call
 
 	rdd_dss_submit_request((void *)req);
+
+    dss_ref_dec(ref);
 
 	//req->rdd_info.q->submit_latency += ((spdk_get_ticks() - start_tick)/ticks_per_ns);
 	//req->rdd_info.q->submit_count++;
@@ -240,19 +304,25 @@ void rdd_dss_flush_n_fail_reqs(struct rdd_rdma_queue_s *q)
     }
 }
 
-static void __rdd_cl_queue_disconnect(void *arg)
+int rdd_cq_shutdown(void *arg)
 {
     struct rdd_rdma_queue_s *q = (struct rdd_rdma_queue_s *)arg;
+    uint64_t tick_now = spdk_get_ticks();
+    uint64_t end_tick = (spdk_get_ticks_hz()/1000000) * RDD_DEFAULT_CQ_SHUTDOWN_TIMEOUT_IN_US;
 
-    rdd_del_queue_ctx(q->ctx, q->qhandle);//stop incoming post requests
+    end_tick += q->th.spdk.shutdown_start_tick;
 
-    //TODO: synchronize with submission threads
-    usleep(1000);//Give some time for incoming requests to post if pending
+    if(tick_now < end_tick) {
+        return SPDK_POLLER_BUSY;
+    }
 
-    //TODO: Check all queue states
-    q->state = RDD_QUEUE_DISCONNECTING;
+    if(rdd_check_qref(q->ctx, q->qhandle)) {
+        return SPDK_POLLER_BUSY;
+    }
 
-    spdk_poller_unregister(&q->th.spdk.cq_poller);
+    spdk_poller_unregister(&q->th.spdk.shutdown_poller);
+
+    rdd_del_queue_ctx(q->ctx, q->qhandle);
 
     while(rdd_dss_check_submit_ring(q));
 
@@ -261,10 +331,23 @@ static void __rdd_cl_queue_disconnect(void *arg)
 
     rdd_dss_flush_n_fail_reqs(q);
 
-    //TODO: Revert ib apis
-    //TODO: Stop cq_poller threads??
-
     rdd_queue_destroy(q);
+
+}
+
+static void __rdd_cl_queue_disconnect(void *arg)
+{
+    struct rdd_rdma_queue_s *q = (struct rdd_rdma_queue_s *)arg;
+
+    rdd_freeze_queue_ctx(q->ctx, q->qhandle);//stop incoming post requests
+
+    //TODO: Check all queue states
+    q->state = RDD_QUEUE_DISCONNECTING;
+
+    spdk_poller_unregister(&q->th.spdk.cq_poller);
+
+    q->th.spdk.shutdown_poller = SPDK_POLLER_REGISTER(rdd_cq_shutdown, q, RDD_DEFAULT_CQ_SHUTDOWN_TIMEOUT_IN_US);
+    q->th.spdk.shutdown_start_tick = spdk_get_ticks();
 
     return;
 }
@@ -299,6 +382,7 @@ int rdd_cl_queue_disconnect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event
 
     return 0;
 }
+
 struct rdd_req_s *rdd_get_free_request(struct rdd_rdma_queue_s *q)
 {
     struct rdd_req_s *req;
@@ -330,6 +414,8 @@ void rdd_put_free_request(struct rdd_req_s *req)
 	req->q->submit_latency += ((spdk_get_ticks() - req->start_tick)/(spdk_get_ticks_hz()/1000000));
 	req->q->submit_count++;
 
+    req->ctx = NULL;
+
     TAILQ_INSERT_TAIL(&req->q->free_reqs, req, link);
 
 	if(req->rdd_cmd->opc == RDD_CMD_HOST_READ) {
@@ -341,7 +427,7 @@ void rdd_put_free_request(struct rdd_req_s *req)
 }
 
 //Run in same thread as the queue is polled
-int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, uint32_t vlen, void *ctx)
+int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, uint64_t cuid, void *cmem, void *hmem, uint32_t vlen, void *ctx)
 {
     int rc;
     //int translation_len = 0;
@@ -362,6 +448,7 @@ int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, u
     }
 
 	req->ctx = ctx;
+    req->cuid = cuid;
     
     //TODO: Update command
     req->rdd_cmd->opc = RDD_CMD_HOST_READ;
@@ -413,7 +500,7 @@ static int rdd_update_sgl_payload(struct rdd_req_s *r, uint32_t k, void *m, uint
 }
 
 //Run in same thread as the queue is polled
-int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
+int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, uint64_t cuid, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
 {
     int rc;
     //int translation_len = 0;
@@ -434,6 +521,7 @@ int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, 
     }
 
 	req->ctx = ctx;
+    req->cuid = cuid;
     
     //TODO: Update command
     req->rdd_cmd->opc = RDD_CMD_CTRL_WRITE;
@@ -460,7 +548,7 @@ int rdd_post_cmd_ctrl_write(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, 
 }
 
 
-int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
+int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, uint64_t cuid, void *cmem, void *hmem, uint32_t hkey, uint32_t vlen, void *ctx)
 {
     int rc;
     //int translation_len = 0;
@@ -480,7 +568,8 @@ int rdd_post_cmd_ctrl_read(struct rdd_rdma_queue_s *q, void *cmem, void *hmem, u
         return -1;
     }
 
-       req->ctx = ctx;
+    req->ctx = ctx;
+    req->cuid = cuid;
 
     //TODO: Update command
     req->rdd_cmd->opc = RDD_CMD_CTRL_READ;
@@ -514,13 +603,6 @@ void rdd_dss_submit_request(void * arg)
 	int rc;
 
 	struct rdd_rdma_queue_s *q = req->rdd_info.q;
-
-	//TODO: Optimize submission path
-//	if(q->th.spdk.cq_thread != spdk_get_thread()) {
-//		spdk_thread_send_msg(q->th.spdk.cq_thread, rdd_dss_submit_request, arg);
-//		return;
-//	}
-    DFLY_ASSERT(q->state != RDD_QUEUE_DISCONNECTING);
 
 	DFLY_DEBUGLOG(DSS_RDD, "Queued data direct request for dss req %p\n", req);
 
@@ -581,6 +663,19 @@ void rdd_dss_process_nvmf(struct rdd_req_s *rdd_req) {
        return;
 }
 
+static inline bool rdd_check_cuid(struct rdd_req_s *r)
+{
+    dfly_request_t *dreq;
+
+    dreq = (dfly_request_t *)r->ctx;
+
+    if(dreq->rdd_info.req_cuid == r->cuid) {
+        return true;
+    } else {
+        DFLY_WARNLOG("Dropping rdd request not matching cuid %x\n", r);
+        return false;
+    }
+}
 int rdd_process_wc(struct ibv_wc *wc)
 {
     struct rdd_req_s *req = NULL;
@@ -591,7 +686,35 @@ int rdd_process_wc(struct ibv_wc *wc)
 
     if(wc->status != IBV_WC_SUCCESS) {
         DFLY_ERRLOG("wc error %d\n", wc->status);
-        return -1;
+        switch(rdd_wr->type) {
+            case RDD_WR_TYPE_REQ_SEND:
+                //TODO: Host recieved SEND??
+                //DFLY_NOTICELOG("Send acknowledgement recieved\n");
+                DFLY_NOTICELOG("WC %d type recieved\n", RDD_WR_TYPE_REQ_SEND);
+                return -1;
+                break;
+            case RDD_WR_TYPE_DATA_READ:
+                req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
+                break;
+            case RDD_WR_TYPE_DATA_WRITE:
+                req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
+                break;
+            case RDD_WR_TYPE_RSP_RECV:
+                rsp = SPDK_CONTAINEROF(rdd_wr, struct rdd_rsp_s, rdd_wr);
+                req = &rsp->q->reqs[rsp->rsp.cid];
+                break;
+            default:
+                DFLY_NOTICELOG("Unknown WC type recieved\n");
+                return -1;
+                break;
+        }
+        if(req->ctx) {
+            if(rdd_check_cuid(req)) {
+                dss_rdma_rdd_failed((dfly_request_t *)req->ctx, NULL);
+            }
+            rdd_put_free_request(req);
+        } //else already freed?
+        return 0;
     }
 
     switch(rdd_wr->type) {
@@ -603,12 +726,16 @@ int rdd_process_wc(struct ibv_wc *wc)
             req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
             //TODO: Process nvmf command PUT should write data now
             //rdd_process_resp(req);
-            rdd_dss_process_nvmf(req);
+            if(rdd_check_cuid(req)) {
+                rdd_dss_process_nvmf(req);
+            }
             rdd_put_free_request(req);
             break;
         case RDD_WR_TYPE_DATA_WRITE:
             req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
-			rdd_process_resp(req);
+            if(rdd_check_cuid(req)) {
+			    rdd_process_resp(req);
+            }
             rdd_put_free_request(req);
 			break;
         case RDD_WR_TYPE_RSP_RECV:
@@ -617,7 +744,9 @@ int rdd_process_wc(struct ibv_wc *wc)
             req->rsp_idx = rsp->idx;
 
             //DFLY_NOTICELOG("comand completion recieved opc %d cid %d status %d\n", req->rdd_cmd->opc, rsp->rsp.cid, rsp->rsp.status);
-			rdd_process_resp(req);
+            if(rdd_check_cuid(req)) {
+			    rdd_process_resp(req);
+            }
             rdd_put_free_request(req);
             //ibv_post_recv(rsp->q->qp, &rsp->recv_wr, NULL);
             //TODO: Handle reture code
@@ -645,6 +774,11 @@ uint32_t  rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
     return num_msgs;
 }
 
+static inline uint64_t dss_gen_cuid(rdd_ctx_t *ctx)
+{
+    __atomic_fetch_add(&ctx->cuid, 1, __ATOMIC_RELAXED);
+}
+
 void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 {
 	dfly_request_t *req, *req_tmp;
@@ -658,13 +792,15 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 		}
     	TAILQ_REMOVE(&queue->pending_reqs, req, rdd_info.pending);
 
+        req->rdd_info.req_cuid = dss_gen_cuid(queue->ctx);
+
 		switch(req->rdd_info.opc) {
 			case RDD_CMD_HOST_READ:
 				//DFLY_NOTICELOG("opc %d, cmem %p hmem %p len %d\n", req->rdd_info.opc,
 				//					(void *)req->rdd_info.cmem, (void *) req->rdd_info.hmem,
 				//						req->rdd_info.payload_len);
 				DFLY_DEBUGLOG(DSS_RDD, "Initiate direct data transfer for request %p\n", req);
-				rc = rdd_post_cmd_host_read(queue, (void *)req->rdd_info.cmem,
+				rc = rdd_post_cmd_host_read(queue, req->rdd_info.req_cuid, (void *)req->rdd_info.cmem,
 												(void *) req->rdd_info.hmem,
 												req->rdd_info.payload_len,
 												(void *)req);
@@ -672,7 +808,7 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 				break;
 			case RDD_CMD_CTRL_WRITE:
 				DFLY_DEBUGLOG(DSS_RDD, "Initiate direct data transfer ctrl write req %p\n", req);
-				rc = rdd_post_cmd_ctrl_write(queue, (void *)req->rdd_info.cmem,
+				rc = rdd_post_cmd_ctrl_write(queue, req->rdd_info.req_cuid, (void *)req->rdd_info.cmem,
 												(void *) req->rdd_info.hmem,
 												(uint32_t)req->rdd_info.hkey,
 												req->rdd_info.payload_len,
@@ -681,7 +817,7 @@ void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
 				break;
              case RDD_CMD_CTRL_READ:
                 DFLY_DEBUGLOG(DSS_RDD, "Initiate direct data transfer ctrl read req %p\n", req);
-                rc = rdd_post_cmd_ctrl_read(queue, (void *)req->rdd_info.cmem,
+                rc = rdd_post_cmd_ctrl_read(queue, req->rdd_info.req_cuid, (void *)req->rdd_info.cmem,
                                                 (void *) req->rdd_info.hmem,
                                                 (uint32_t)req->rdd_info.hkey,
                                                 req->rdd_info.payload_len,
@@ -1069,12 +1205,27 @@ int rdd_queue_destroy(struct rdd_rdma_queue_s *queue)
     //TODO: Dealloc ibv queues
     //DFLY_ASSERT(0);
 
-
-    //if(queue->pd) {
-    //    rc = ibv_dealloc_pd(queue->pd);
-    //    DFLY_ASSERT(rc == 0);
-    //    //TODO: handle error scenario
-    //}
+    //Dealloc qhandle
+    //
+    //Revert post recvs
+    //
+    //revert rdma_create_qp
+    //
+    //stop cq poller
+    //
+    //stop cq thread
+    //
+    //dealloc dfly numa core
+    //
+    //revert ibv_req_notify_cq??
+    //
+    //revert ibv_create_cq
+    //
+    //revert ivb_create_comp_channel
+    //
+    //ibv_dereg MR (cmd_mr, rsp_mr_
+    //
+    //mutex destroy??
 
     if(queue->cmds) {
         free(queue->cmds);
@@ -1095,6 +1246,8 @@ int rdd_queue_destroy(struct rdd_rdma_queue_s *queue)
         free(queue->data_sges);
         queue->data_sges = NULL;
     }
+
+    free(queue);
 
     return rc;
 }

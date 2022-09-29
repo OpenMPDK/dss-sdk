@@ -256,6 +256,7 @@ SET(FUSE_HEADERS
 )
 
 SET(RDD_SOURCES
+    ${CMAKE_SOURCE_DIR}/utils/dss_ref.c
     ${CMAKE_SOURCE_DIR}/core/rdd/rdd.c
 )
 SET(RDD_HEADERS

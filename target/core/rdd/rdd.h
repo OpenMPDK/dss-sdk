@@ -49,11 +49,13 @@ extern "C" {
 #include "spdk/string.h"
 
 #include "dragonfly.h"
+#include "utils/dss_ref.h"
 #include "rdd_api.h"
 
 
 #define RDD_DEFAULT_LISTEN_BACKLOG (1000)
 #define RDD_DEFAULT_CM_POLL_PERIOD_IN_US (1ULL)
+#define RDD_DEFAULT_CQ_SHUTDOWN_TIMEOUT_IN_US (2000ULL)
 
 #define RDD_MAX_CHANDLE_CNT (65535)
 #define RDD_DEFAULT_MIN_CHANDLE_COUNT (1024)
@@ -100,6 +102,7 @@ struct rdd_ctx_s {
 	} handle_ctx;
 	uint32_t max_sgl_segs;
     uint32_t num_cq_cores_per_ip;
+    uint64_t cuid;//Command Unique Identifier
 
     TAILQ_HEAD(, rdd_rdma_device_s) devices;
     TAILQ_HEAD(, rdd_rdma_listener_s) listeners;
@@ -119,6 +122,7 @@ struct rdd_rdma_queue_s {
     uint32_t recv_qd;
     uint32_t send_qd;
 	uint32_t outstanding_qd;
+    struct dss_ref_s *ref;
     //Internal
     uint16_t qhandle;
     enum rdd_queue_state_e state;
@@ -134,6 +138,8 @@ struct rdd_rdma_queue_s {
         struct {
             struct spdk_thread *cq_thread;
             struct spdk_poller *cq_poller;
+            struct spdk_poller *shutdown_poller;
+            uint64_t shutdown_start_tick;
         } spdk;
     } th;//Completion thread
     //IBV
@@ -197,6 +203,7 @@ struct rdd_req_s {
      	struct ibv_send_wr	data_wr;
 	    struct ibv_sge		*data_sge;
     } data;
+    uint64_t cuid;
     uint16_t rsp_idx;
     uint16_t id;
     rdd_rdma_cmd_t *rdd_cmd;
@@ -208,8 +215,6 @@ struct rdd_req_s {
 	uint64_t start_tick;
     TAILQ_ENTRY(rdd_req_s) link;
 };
-
-int rdd_post_cmd_host_read(struct rdd_rdma_queue_s *q, void *local_val, void *remote_val, uint32_t vlen, void *ctx);
 
 void rdd_dss_submit_request(void * arg);
 int rdd_post_req2queue(rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *req);

@@ -120,6 +120,7 @@ extern "C" {
 #define MB                  (1048576)
 #define MB_SHIFT			(20)
 
+#define DSS_ASSERT DFLY_ASSERT
 #define DFLY_ASSERT(x) assert((x))
 
 #define OSS_TARGET_ENABLED (1)

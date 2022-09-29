@@ -245,6 +245,7 @@ typedef struct dfly_request {
 	} iter_data;
 	struct {
 		struct rdd_rdma_queue_s *q;
+        uint64_t req_cuid;
 		uint64_t payload_len;
 		uint64_t cmem;
 		uint64_t hmem;
