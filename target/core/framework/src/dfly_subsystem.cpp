@@ -185,8 +185,12 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 
 	uint32_t ss_dss_enabled;
 	uint32_t ssid = subsys->id;
+	struct dfly_subsystem *df_subsys = NULL;
+
+	df_subsys = dfly_get_subsystem_no_lock(ssid);//Preallocated structure
 
 	ss_dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "KV_PoolEnabled", g_dragonfly->target_pool_enabled);
+	df_subsys->iomem_dev_numa_aligned = spdk_conf_section_get_boolval(subsys_sp, "iomem_dev_numa_aligned", true);
 
 	df_subsys_update_dss_enable(ssid, ss_dss_enabled);
 

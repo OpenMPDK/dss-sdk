@@ -212,6 +212,7 @@ struct dfly_subsystem {
 
 	bool shutting_down;
 	bool initialized;
+    bool iomem_dev_numa_aligned;
 	int wal_init_status;
 	int list_init_status;
 	int list_initialized_nbdev;
