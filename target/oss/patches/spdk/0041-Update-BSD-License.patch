@@ -1,7 +1,7 @@
-From c413eaf0b2eaa2bcdfd0c5c733903cc3a48d77d7 Mon Sep 17 00:00:00 2001
+From 22cb1269c343d3b9721f2f8490fe3ce6e4036c1a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 30 Mar 2021 15:43:20 -0700
-Subject: [PATCH 41/68] Update BSD License
+Subject: [PATCH 41/70] Update BSD License
 
 ---
  scripts/dss_rpc.py             | 33 +++++++++++++++++++++++++++++++++

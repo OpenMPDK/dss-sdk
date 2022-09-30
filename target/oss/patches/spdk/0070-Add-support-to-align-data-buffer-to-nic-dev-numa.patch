@@ -1,0 +1,54 @@
+From caca29479b628e02f041b4f5b02e4bca7c4dd0ee Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 29 Sep 2022 20:59:10 -0700
+Subject: [PATCH 70/70] Add support to align data buffer to nic/dev numa
+
+---
+ lib/nvmf/transport.c | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
+index 24ba92c8f..c12b5c664 100644
+--- a/lib/nvmf/transport.c
++++ b/lib/nvmf/transport.c
+@@ -683,7 +683,14 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
+ 
+ 	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
+ 	bool to_mempool = false;
+-	if(req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++	struct dfly_subsystem *df_subsys = NULL;
++
++    if(req->qpair->ctrlr && req->qpair->ctrlr->subsys->id) {
++        df_subsys = dfly_get_subsystem_no_lock(req->qpair->ctrlr->subsys->id);
++    }
++
++	if(df_subsys && df_subsys->iomem_dev_numa_aligned &&
++	      req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
+ 		numa_socket = req->data_pool_socket;
+ 		to_mempool = true;
+ 	}
+@@ -740,6 +747,11 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 	uint32_t i = 0, j;
+ 	void *buffer, *buffers[NVMF_REQ_MAX_BUFFERS];
+ 	uint32_t numa_socket = spdk_env_get_socket_id(spdk_env_get_current_core());
++	struct dfly_subsystem *df_subsys = NULL;
++
++    if(req->qpair->ctrlr && req->qpair->ctrlr->subsys->id) {
++        df_subsys = dfly_get_subsystem_no_lock(req->qpair->ctrlr->subsys->id);
++    }
+ 
+ 	/* If the number of buffers is too large, then we know the I/O is larger than allowed.
+ 	 *  Fail it.
+@@ -766,7 +778,8 @@ nvmf_request_get_buffers(struct spdk_nvmf_request *req,
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			if(g_dragonfly->target_pool_enabled) {
+ alloc_pool:
+-				if(req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
++				if(df_subsys && df_subsys->iomem_dev_numa_aligned &&
++				      req->dreq->nvme_opcode == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
+ 					struct dfly_io_device_s *iod = dfly_kd_get_device(req->dreq);
+ 					assert(iod);
+ 					if(iod->numa_node != -1) {
+-- 
+2.24.3
+

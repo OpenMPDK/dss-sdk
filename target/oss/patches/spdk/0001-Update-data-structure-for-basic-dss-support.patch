@@ -1,7 +1,7 @@
-From ee9144aadacfce25bd583af8221ae61d76175278 Mon Sep 17 00:00:00 2001
+From 981fb75a7dd3faecc679c2fba94d6052b4d92323 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 30 Jul 2020 11:35:25 -0700
-Subject: [PATCH 01/68] Update data structure for basic dss support
+Subject: [PATCH 01/70] Update data structure for basic dss support
 
     * Base spk version v20.07-rc1
     * Add dss pointers and add kv spec

@@ -1,7 +1,7 @@
-From b2c743033689cf723d5a3cbf80fa451adde5d727 Mon Sep 17 00:00:00 2001
+From 3f1d4b84218ed024aa247c2441cf9567d5147c74 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 23 Sep 2022 16:45:03 -0700
-Subject: [PATCH 68/68] [RDD] Added rdd fail commands on disconnect
+Subject: [PATCH 68/70] Added rdd fail commands on disconnect
 
     * Update the error return code on rdd data transfer failure
 ---
