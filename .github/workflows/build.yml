@@ -1,4 +1,4 @@
-name: ansible-lint
+name: Build dss-sdk
 on:
   push:
     branches:
