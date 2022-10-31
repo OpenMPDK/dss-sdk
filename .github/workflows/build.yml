@@ -21,6 +21,7 @@ jobs:
           project-name: dss-sdk
   sonarcloud:
     name: Static Analysis
+    needs: build
     runs-on: ubuntu-latest
     env:
       SONAR_SCANNER_VERSION: 4.7.0.2747
@@ -40,4 +41,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          sonar-scanner --define sonar.host.url="${{ env.SONAR_SERVER_URL }}" --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"
+          sonar-scanner --define sonar.cfamily.build-wrapper-output=bw-output --define sonar.organization=velomatt --define sonar.projectKey=velomatt_dss-sdk --define sonar.host.url="${{ env.SONAR_SERVER_URL }}" --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"
