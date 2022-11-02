@@ -35,4 +35,4 @@ jobs:
       - name: Run pycodescan on CodeBuild
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
-          project-name: dss-sdk-pycodescan
+          project-name: dss-sdk-pycodestyle
