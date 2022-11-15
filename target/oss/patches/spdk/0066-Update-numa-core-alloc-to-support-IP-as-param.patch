@@ -1,7 +1,7 @@
-From 71b53217b250f73bcf786736fbba25dea98f1f32 Mon Sep 17 00:00:00 2001
+From 0a302017cd193ad7b1d7251d1d9b63d578fca660 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 30 Aug 2022 11:14:51 -0700
-Subject: [PATCH 66/70] Update numa core alloc to support IP as param
+Subject: [PATCH 66/71] Update numa core alloc to support IP as param
 
 ---
  lib/nvmf/rdma.c | 2 +-

@@ -1,7 +1,7 @@
-From 36f719b80e50b2c654ba1faf6727d8c37ed579fa Mon Sep 17 00:00:00 2001
+From 3bfbca8a62cef5df6e8552046b67e855986961ac Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 18 Apr 2022 10:09:05 -0700
-Subject: [PATCH 60/70] IO Path support for RDD Put
+Subject: [PATCH 60/71] IO Path support for RDD Put
 
 ---
  lib/nvmf/rdma.c | 92 ++++++++++++++++++++++++++++++++++++++++++++++---

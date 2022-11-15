@@ -1,7 +1,7 @@
-From 5750abdae671ccbc796c3b5451a50bf6fdd0fcfa Mon Sep 17 00:00:00 2001
+From 4a264ac4aef4cc6aa2b3a7ed86d697ef75189d1d Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 14 Jun 2022 20:25:26 -0700
-Subject: [PATCH 63/70] blobfs: Fix when cache write fails
+Subject: [PATCH 63/71] blobfs: Fix when cache write fails
 
     * Sync data before updating file flushed counter
     * Avoid part of cached data from being not synced

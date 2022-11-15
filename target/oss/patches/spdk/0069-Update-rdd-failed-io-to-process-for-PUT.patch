@@ -1,7 +1,7 @@
-From c71513d33154227abfa8401c8a0b681403bc6da8 Mon Sep 17 00:00:00 2001
+From 06b208e724d4e8dea4c87f0404ba3ea3ba237378 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 29 Sep 2022 20:58:16 -0700
-Subject: [PATCH 69/70] Update rdd failed io to process for PUT
+Subject: [PATCH 69/71] Update rdd failed io to process for PUT
 
 ---
  lib/nvmf/rdma.c | 34 ++++++++++++++++++++++++++++------
