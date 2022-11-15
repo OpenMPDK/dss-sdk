@@ -263,8 +263,11 @@ typedef struct dfly_request {
 	TAILQ_ENTRY(dfly_request)	fuse_waiting; /**< F1 request waiting linkage for F2 */
 	TAILQ_ENTRY(dfly_request)	fuse_pending_list;
 
+	TAILQ_ENTRY(dfly_request)	outstanding;
 	int32_t waiting_for_buffer:1;
 	struct df_io_lat_ticks lat;
+    uint64_t submit_tick;
+    int print_to;
 } dfly_request_t;
 
 int dfly_req_ini(struct dfly_request *req, int flags, void *ctx);

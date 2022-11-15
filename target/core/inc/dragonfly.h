@@ -175,6 +175,7 @@ struct dfly_io_device_s {
 	struct spdk_nvmf_ns *ns;
 	uint32_t index;
 
+    char *dev_name;
 	int32_t numa_node;
 	uint32_t icore;
 	stat_kvio_t *stat_io;
@@ -361,6 +362,8 @@ struct dfly_qpair_s {
 	uint32_t npending_lock_reqs;
 	uint16_t qid;
 
+	TAILQ_HEAD(, dfly_request) qp_outstanding_reqs;
+
 	bool dss_enabled;
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
@@ -511,6 +514,9 @@ void dss_list_set_repopulate(void *ctx);
 void dss_rdma_rdd_complete(void *arg, void *dummy);
 
 int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
+
+bool dss_check_req_timeout(struct dfly_request *dreq);
+int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
 #ifdef __cplusplus
 }
 #endif

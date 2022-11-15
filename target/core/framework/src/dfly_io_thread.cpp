@@ -433,6 +433,7 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 		subsystem->devices[i].ns = nvmf_subsys->ns[i];
 		subsystem->devices[i].index = i;
 		subsystem->devices[i].numa_node = df_get_pcie_numa_node(nvmf_subsys->ns[i]->bdev);
+        subsystem->devices[i].dev_name = bdev_name;
 
 		if(i == 0) {
 			subsystem->blocklen = spdk_bdev_get_block_size(nvmf_subsys->ns[i]->bdev);
