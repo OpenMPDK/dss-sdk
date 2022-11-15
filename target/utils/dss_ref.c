@@ -107,4 +107,5 @@ bool dss_ref_check(struct dss_ref_s *r) {
             break;
         }
     }
+    return in_use;
 }
