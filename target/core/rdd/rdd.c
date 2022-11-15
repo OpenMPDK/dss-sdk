@@ -333,6 +333,7 @@ int rdd_cq_shutdown(void *arg)
 
     rdd_queue_destroy(q);
 
+    DFLY_NOTICELOG("queue %p destroyed\n", q);
 }
 
 static void __rdd_cl_queue_disconnect(void *arg)
@@ -358,13 +359,13 @@ int rdd_cl_queue_disconnect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event
     struct rdd_rdma_queue_s *queue = (struct rdd_rdma_queue_s *)id->context;
 
 
-    DFLY_NOTICELOG("qid %u disconnect receieved\n", queue->host_qid);
+    DFLY_NOTICELOG("qid %u listen [%s] peer [%s] disconnect receieved\n", queue->host_qid, l->listen_ip, queue->peer_ip);
 
 	uint64_t avg_sub_latency;
 
     if(queue->submit_count) {
         avg_sub_latency = (queue->submit_latency/queue->submit_count);
-        DFLY_NOTICELOG("Average submit latency ip[%s] %lu/%lu =%lu\n", l->listen_ip, queue->submit_latency, queue->submit_count, avg_sub_latency);
+        DFLY_NOTICELOG("Average submit latency l_ip[%s] p_ip[%s] %lu/%lu =%lu\n", l->listen_ip, queue->peer_ip, queue->submit_latency, queue->submit_count, avg_sub_latency);
     }
 
     spdk_thread_send_msg(queue->th.spdk.cq_thread, __rdd_cl_queue_disconnect, queue);
@@ -1138,6 +1139,9 @@ int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
     struct rdma_cm_id *id = ev->id;
     struct rdd_queue_priv_s *priv = (struct rdd_queue_priv_s *)ev->param.conn.private_data;
     //TODO: Check if same thread can be used to run multiple pollers
+    struct sockaddr *peer_saddr;
+    struct sockaddr_in *s4addr_in;
+	struct sockaddr_in6 *s6addr_in;
 
     struct rdd_rdma_queue_s *queue = NULL;
 
@@ -1165,6 +1169,22 @@ int rdd_queue_connect(struct rdd_rdma_listener_s  *l, struct rdma_cm_event *ev)
 	queue->outstanding_qd = 0;
     queue->state = RDD_QUEUE_CONNECTING;
     queue->l = l;
+
+    peer_saddr = rdma_get_peer_addr(id);
+    switch(peer_saddr->sa_family) {
+        case AF_INET:
+            s4addr_in = (struct sockaddr_in *)peer_saddr;
+            inet_ntop(AF_INET, &s4addr_in->sin_addr,
+                queue->peer_ip, INET6_ADDRSTRLEN);
+            break;
+        case AF_INET6:
+            s6addr_in = (struct sockaddr_in6 *)peer_saddr;
+            inet_ntop(AF_INET6, &s6addr_in->sin6_addr,
+                queue->peer_ip, INET6_ADDRSTRLEN);
+            break;
+        default:
+            DFLY_NOTICELOG("Unknown peer IP address family\n");
+    }
 
     pthread_mutex_init(&queue->init_lock, NULL);
 

@@ -44,6 +44,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
 #include <rdma/rdma_cma.h>
 #include "spdk/string.h"
@@ -163,6 +164,7 @@ struct rdd_rdma_queue_s {
 	//Debug
 	uint64_t submit_latency;
 	uint64_t submit_count;
+    char peer_ip[INET6_ADDRSTRLEN + 1];
 };
 
 enum rdd_wr_type_e {
