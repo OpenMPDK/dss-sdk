@@ -42,4 +42,3 @@ In addition to the run scripts, a file called etc_hosts is generated, containing
 config_minio should only be run on 1 server, and the output files should be distributed to the other servers in the cluster.
     
     
-
