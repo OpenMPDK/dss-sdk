@@ -1,10 +1,5 @@
 name: Build dss-sdk
 on:
-  push:
-    branches:
-      - dev
-  pull_request:
-    types: [opened, synchronize, reopened]
   pull_request_target:
     types: [assigned, opened, synchronize, reopened]
     branches:
