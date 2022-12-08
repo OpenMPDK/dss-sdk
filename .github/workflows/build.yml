@@ -10,9 +10,12 @@ jobs:
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: AWS_ACCESS_KEY_ID
+          aws-secret-access-key: AWS_SECRET_ACCESS_KEY
           aws-region: us-west-1
       - name: Build dss-sdk on CodeBuild
         uses: aws-actions/aws-codebuild-run-build@v1
