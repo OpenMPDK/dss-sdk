@@ -40,4 +40,5 @@ The script has the naming convention 'minio_startup_<IP>.sh where <IP> is the nu
 In addition to the run scripts, a file called etc_hosts is generated, containing host entries for the targets. The contents of etc_hosts must be added to /etc/hosts on every server running minio in the cluster
 
 config_minio should only be run on 1 server, and the output files should be distributed to the other servers in the cluster.
+    
 
