@@ -35,6 +35,13 @@ project(nkv-target)
 enable_language(C)
 enable_language(CXX)
 
+option(WITH_COVERAGE "Generate binaries with coverage enabled." OFF)
+if(WITH_COVERAGE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    set(SPDK_ENABLE_COVERAGE --enable-coverage)
+endif(WITH_COVERAGE)
+
 #--Judy--
 
 set(JUDY_INC_DIRS -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyL -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/ -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon)
@@ -391,14 +398,14 @@ if(BUILD_MODE_RELEASE)
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure --disable-unit-tests --disable-tests --with-rdma
+  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-unit-tests --disable-tests --with-rdma
   COMMAND make include/spdk/config.h
 )
 else()
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure --disable-unit-tests --disable-tests --enable-debug --with-rdma
+  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-unit-tests  --disable-tests --enable-debug --with-rdma
   COMMAND make include/spdk/config.h
 )
 endif()
