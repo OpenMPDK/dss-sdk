@@ -1,14 +1,14 @@
-From e654645284cf23ccc5ad5f82d80f8307f9f2a271 Mon Sep 17 00:00:00 2001
+From 0a328620e029fe3a44b2e6f59e3bd6ee54d80346 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 21 Jan 2021 16:04:26 -0800
-Subject: [PATCH 24/54] * change fs channel sem array to queue.
+Subject: [PATCH 24/55] * change fs channel sem array to queue.
 
 ---
- lib/blobfs/blobfs.c | 64 ++++++++++++++++++++++++++++++++++++++++++++---------
+ lib/blobfs/blobfs.c | 64 +++++++++++++++++++++++++++++++++++++--------
  1 file changed, 53 insertions(+), 11 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 20fae8d..21ee919 100644
+index 20fae8dbb..21ee91985 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -118,6 +118,11 @@ cache_buffer_free(struct cache_buffer *cache_buffer)
@@ -152,5 +152,5 @@ index 20fae8d..21ee919 100644
  	}
  
 -- 
-1.8.3.1
+2.24.3
 

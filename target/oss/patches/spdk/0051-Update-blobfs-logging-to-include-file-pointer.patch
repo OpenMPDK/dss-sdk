@@ -1,14 +1,14 @@
-From 11bdf1ab13097928516f4cfe0cf76c01079620f8 Mon Sep 17 00:00:00 2001
+From 8ea0691c56b19e339972d79d340f5c415add3639 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:32:07 -0700
-Subject: [PATCH 51/54] Update blobfs logging to include file pointer
+Subject: [PATCH 51/55] Update blobfs logging to include file pointer
 
 ---
  lib/blobfs/blobfs.c | 9 ++++-----
  1 file changed, 4 insertions(+), 5 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index ec115ab..9854c132 100644
+index ec115abb2..9854c1320 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -49,10 +49,10 @@
@@ -44,5 +44,5 @@ index ec115ab..9854c132 100644
  	}
  
 -- 
-1.8.3.1
+2.24.3
 
