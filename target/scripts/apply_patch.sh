@@ -53,7 +53,7 @@ found_modified_content=$(git status -uno | grep "${base}/${proj_name}" | cut -d 
 found_new_commits=$(git status -uno | grep "${base}/${proj_name}" | cut -d ':' -f 2 | grep -c "new commits" || true)
 if [ "$found_modified_content" -eq 1 ]; then
     echo "Exiting because modified content found in ${base}/${proj_name}"
-    exit 1
+    exit 0
 elif [ "$found_modified_content" -gt 1 ]; then
     echo "Unexpectedly found multiple modified lines for ${base}/${proj_name}"
     exit 1
