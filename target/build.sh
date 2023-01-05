@@ -309,12 +309,12 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
     fi
 
     if [ "$BUILD_TYPE" = "debug" ] ; then
-        cmake "${target_dir}" ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON
+        cmake "${target_dir}" "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON
     elif [ "$BUILD_TYPE" = "release" ]; then
-        cmake "${target_dir}" ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
+        cmake "${target_dir}" "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
     else
     echo "Making in default mode"
-        cmake "${target_dir}" ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug
+        cmake "${target_dir}" "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug
     fi
 
     if $BUILD_ROCKSDB;then
