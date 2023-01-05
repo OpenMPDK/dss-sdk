@@ -398,14 +398,14 @@ if(BUILD_MODE_RELEASE)
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-unit-tests --disable-tests --with-rdma
+  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-tests --with-rdma
   COMMAND make include/spdk/config.h
 )
 else()
 ADD_CUSTOM_TARGET(spdk_tcp_configure
   COMMENT "Configuring SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-unit-tests  --disable-tests --enable-debug --with-rdma
+  COMMAND ./configure ${SPDK_ENABLE_COVERAGE} --disable-tests --enable-debug --with-rdma
   COMMAND make include/spdk/config.h
 )
 endif()
