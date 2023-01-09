@@ -1,7 +1,7 @@
-From 27dae0e6fb152319e54f078fbdacf5edf44bd88d Mon Sep 17 00:00:00 2001
+From d79e97caf90431d929703e01a8c0a9c26122250e Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 21 Jul 2020 02:43:57 -0700
-Subject: [PATCH 04/54] SPDK update for rocksdb async
+Subject: [PATCH 04/55] SPDK update for rocksdb async
 
     * async blobfs read
     * add blobfs.2.h for db_bench build
@@ -11,14 +11,14 @@ Subject: [PATCH 04/54] SPDK update for rocksdb async
     * spdk_cpumask option ( db_bench --spdk_cpumask=0x1 for core0, example)
 ---
  include/spdk/blobfs.h   |  10 +++
- lib/blobfs/blobfs.c     | 171 ++++++++++++++++++++++++++++++++++++++++++------
- lib/rocksdb/blobfs.2.h  |  70 ++++++++++++++++++++
- lib/rocksdb/env_spdk.cc | 141 ++++++++++++++++++++++++++++++++++++---
+ lib/blobfs/blobfs.c     | 171 +++++++++++++++++++++++++++++++++++-----
+ lib/rocksdb/blobfs.2.h  |  70 ++++++++++++++++
+ lib/rocksdb/env_spdk.cc | 141 ++++++++++++++++++++++++++++++---
  4 files changed, 361 insertions(+), 31 deletions(-)
  create mode 100644 lib/rocksdb/blobfs.2.h
 
 diff --git a/include/spdk/blobfs.h b/include/spdk/blobfs.h
-index 2a4342d..9a67d62 100644
+index 2a4342ded..9a67d6278 100644
 --- a/include/spdk/blobfs.h
 +++ b/include/spdk/blobfs.h
 @@ -360,6 +360,16 @@ int spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -39,7 +39,7 @@ index 2a4342d..9a67d62 100644
   * Set cache size for the blobstore filesystem.
   *
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 3af6b06..1bc7379 100644
+index 3af6b0639..1bc7379ce 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -31,6 +31,7 @@
@@ -445,7 +445,7 @@ index 3af6b06..1bc7379 100644
  }
 diff --git a/lib/rocksdb/blobfs.2.h b/lib/rocksdb/blobfs.2.h
 new file mode 100644
-index 0000000..ba66f6c
+index 000000000..ba66f6ca0
 --- /dev/null
 +++ b/lib/rocksdb/blobfs.2.h
 @@ -0,0 +1,70 @@
@@ -520,7 +520,7 @@ index 0000000..ba66f6c
 +
 +#endif /* SPDK_BLOBFS_H_ */
 diff --git a/lib/rocksdb/env_spdk.cc b/lib/rocksdb/env_spdk.cc
-index 8695acc..adce207 100644
+index 8695acca6..adce2074b 100644
 --- a/lib/rocksdb/env_spdk.cc
 +++ b/lib/rocksdb/env_spdk.cc
 @@ -31,10 +31,14 @@
@@ -645,10 +645,11 @@ index 8695acc..adce207 100644
  	rc = spdk_file_read(mFile, g_sync_args.channel, scratch, offset, n);
  	if (rc >= 0) {
  		*result = Slice(scratch, n);
-@@ -232,6 +297,41 @@ SpdkRandomAccessFile::Read(uint64_t offset, size_t n, Slice *result, char *scrat
+@@ -231,6 +296,41 @@ SpdkRandomAccessFile::Read(uint64_t offset, size_t n, Slice *result, char *scrat
+ 	}
  }
  
- Status
++Status
 +SpdkRandomAccessFile::RequestRead(const RandomAccessCallback& cb,
 +    uint64_t offset, size_t n, Slice* result, char* scratch) const {
 +    Status s;
@@ -683,10 +684,9 @@ index 8695acc..adce207 100644
 +    delete spdk_ctx;
 +}
 +
-+Status
+ Status
  SpdkRandomAccessFile::InvalidateCache(__attribute__((unused)) size_t offset,
  				      __attribute__((unused)) size_t length)
- {
 @@ -276,6 +376,7 @@ public:
  	virtual Status Close() override
  	{
@@ -820,5 +820,5 @@ index 8695acc..adce207 100644
  			return spdk_env;
  		} else {
 -- 
-1.8.3.1
+2.24.3
 

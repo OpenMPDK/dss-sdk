@@ -1,14 +1,14 @@
-From f7d30489f136ba776c31fd8c74e1ec83136b7330 Mon Sep 17 00:00:00 2001
+From 26e66576167ba29569c3dc7877bee747c77197ed Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 09:42:49 -0800
-Subject: [PATCH 25/54] Fixed error due to open blobs on shutdown
+Subject: [PATCH 25/55] Fixed error due to open blobs on shutdown
 
 ---
  lib/rocksdb/env_dss.cc | 11 +++++++++++
  1 file changed, 11 insertions(+)
 
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index 35427f4..7cd721e 100644
+index 35427f4df..7cd721e5d 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -657,6 +657,17 @@ DssEnv::DssEnv(Env *base_env, const std::string &dir,
@@ -30,5 +30,5 @@ index 35427f4..7cd721e 100644
  #else
  	if(g_dss_rdb_mempool)
 -- 
-1.8.3.1
+2.24.3
 

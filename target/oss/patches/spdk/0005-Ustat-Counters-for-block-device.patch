@@ -1,7 +1,7 @@
-From c3a902dc5abc3a23d17453a89652ba44563062f2 Mon Sep 17 00:00:00 2001
+From 917ba9169466a763d20a82ac51d49a297dd17e97 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 29 Sep 2020 02:02:29 -0700
-Subject: [PATCH 05/54] Ustat Counters for block device
+Subject: [PATCH 05/55] Ustat Counters for block device
 
 ---
  include/spdk/bdev_module.h   | 2 ++
@@ -9,7 +9,7 @@ Subject: [PATCH 05/54] Ustat Counters for block device
  2 files changed, 8 insertions(+)
 
 diff --git a/include/spdk/bdev_module.h b/include/spdk/bdev_module.h
-index caa77cb..1b9c9f2 100644
+index caa77cbd9..1b9c9f227 100644
 --- a/include/spdk/bdev_module.h
 +++ b/include/spdk/bdev_module.h
 @@ -276,6 +276,8 @@ struct spdk_bdev {
@@ -22,7 +22,7 @@ index caa77cb..1b9c9f2 100644
  
  	/** Number of blocks required for write */
 diff --git a/module/bdev/nvme/bdev_nvme.c b/module/bdev/nvme/bdev_nvme.c
-index 418df9a..08649b2 100644
+index 418df9a3d..08649b298 100644
 --- a/module/bdev/nvme/bdev_nvme.c
 +++ b/module/bdev/nvme/bdev_nvme.c
 @@ -548,11 +548,13 @@ _bdev_nvme_submit_request(struct spdk_io_channel *ch, struct spdk_bdev_io *bdev_
@@ -51,5 +51,5 @@ index 418df9a..08649b2 100644
  
  static bool
 -- 
-1.8.3.1
+2.24.3
 

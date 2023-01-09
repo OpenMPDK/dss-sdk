@@ -31,7 +31,21 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
-###dss_target.py
+# Building DSS Target
+
+After installing required dependencies the 'build.sh' script can be run to build all packages.
+
+To build with the default options run the following,
+
+    ./build.sh
+
+To build binaries with gcov coverage support run with following option,
+
+    ./build.sh --with-coverage
+
+The binaries and packages are created in the output folder '../df_out'
+
+### dss_target.py
 
 A. Creates subsystems and configuration for nvmf_tgt
     Option 1: Configure based on vlan ids
