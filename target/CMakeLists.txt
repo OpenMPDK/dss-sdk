@@ -443,8 +443,7 @@ ADD_CUSTOM_TARGET(spdk_tcp
 
 endif(WITH_DSS_JUDY_LISTING)
 
-# cmake file is missing in this directory - ER
-# add_subdirectory(test)
+add_subdirectory(test)
 
 
 execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -541,3 +540,8 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   DEPENDS spdk_tcp_configure
 )
 endif()
+
+
+add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
+
+enable_testing()

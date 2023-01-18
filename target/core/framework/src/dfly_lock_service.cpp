@@ -31,8 +31,19 @@
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-# include "dragonfly.h"
 #include <unordered_map>
+
+#ifndef DSS_BUILD_CUNIT_TEST
+# include "dragonfly.h"
+
+#else
+
+#include <assert.h>
+
+#define DFLY_ASSERT assert
+#define dfly_mempool void
+
+#endif //DSS_BUILD_CUNIT_TEST
 
 struct dfly_lock_key_s {
 	uint64_t key_p1;
@@ -83,7 +94,9 @@ typedef struct lock_object_s {
 	uint16_t wlock: 1;
 	uint64_t expire_tick;
 	htable_u64_t *uuid_ht;
+#ifndef DSS_BUILD_CUNIT_TEST
 	TAILQ_HEAD(, dfly_request) pending_lock_reqs;
+#endif //DSS_BUILD_CUNIT_TEST
 } lock_object_t;
 
 typedef std::unordered_map<std::string, lock_object_t *> htable_t;
@@ -153,6 +166,11 @@ bool dfly_u64ht_delete(void *table, uint64_t value)
  * Hash APIs
  */
 
+void *dfly_ht_create_table(void)
+{
+    return (void *)(new htable_t);
+}
+
 bool dfly_ht_insert(void *table, char *index_ptr, uint32_t len, void *opaque_ptr)
 {
 	//Implementation with cpp std::unordered_map
@@ -194,6 +212,7 @@ void dfly_ht_delete(void *table, char *index_ptr, uint32_t len)
  * End Hash APIs
  */
 
+#ifndef DSS_BUILD_CUNIT_TEST
 static inline bool is_blocking_allowed(struct dfly_request *req)
 {
 	if (req->dqpair->npending_lock_reqs < req->dqpair->max_pending_lock_reqs) {
@@ -555,7 +574,7 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 
 	ls_ss_ctx->id = subsys->id;
 
-	ls_ss_ctx->active_locks = new htable_t;
+	ls_ss_ctx->active_locks = dfly_ht_create_table();
 
 	if (!ls_ss_ctx->active_locks) {
 		free(ls_ss_ctx);
@@ -611,3 +630,4 @@ void dfly_lock_service_subsystem_stop(struct dfly_subsystem *subsys, void *arg/*
 
 	return;
 }
+#endif //DSS_BUILD_CUNIT_TEST
