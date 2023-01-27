@@ -119,3 +119,5 @@ The build script can be used to conviniently build and run unit test the option 
         // while compiling for unit test
 
         #endif //DSS_BUILD_CUNIT_TEST
+
+For a working example for reference please look at `core/framework/dfly_lock_service.cpp/dss_lock_service_ut.cpp`
