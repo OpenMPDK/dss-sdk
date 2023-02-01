@@ -263,6 +263,9 @@ parse_options()
         --with-coverage)
         BUILD_WITH_COVERAGE=true
         ;;
+        --run-tests)
+        RUN_TESTS=true
+        ;;
         *)
               # unknown option
         ;;
@@ -273,6 +276,7 @@ parse_options()
 
 BUILD_ROCKSDB=false
 BUILD_WITH_COVERAGE=false
+RUN_TESTS=false
 TARGET_VER="0.5.0"
 
 parse_options "$@"
@@ -309,18 +313,32 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
     fi
 
     if [ "$BUILD_TYPE" = "debug" ] ; then
-        cmake "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON "${target_dir}"
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON "${target_dir}"
     elif [ "$BUILD_TYPE" = "release" ]; then
-        cmake "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON "${target_dir}"
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON "${target_dir}"
     else
     echo "Making in default mode"
-        cmake "${DSS_TARGET_CMAKE_OPTIONS}" -DCMAKE_BUILD_TYPE=Debug "${target_dir}"
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug "${target_dir}"
     fi
 
     if $BUILD_ROCKSDB;then
         make rocksdb
     else
         make spdk_tcp
+    fi
+
+    if ${RUN_TESTS};then
+        make
+        make test
+        if ${BUILD_WITH_COVERAGE};then
+            echo "Generating sonarqube coverage report"
+            mkdir -p reports
+            #gcovr needs to be installed from pip
+            gcovr --sonarqube reports/sonar_qube_ut_coverage_report.xml -r ../target .
+        fi
     fi
 
     makePackageDirectories "${rpm_build_dir}"

@@ -1,7 +1,7 @@
 <!--
 The Clear BSD License
 
-Copyright (c) 2022 Samsung Electronics Co., Ltd.
+Copyright (c) 2022-2023 Samsung Electronics Co., Ltd.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,14 @@ To build with the default options run the following,
 To build binaries with gcov coverage support run with following option,
 
     ./build.sh --with-coverage
+
+To build and run unit tests run  with following option
+
+    ./build.sh --run-tests
+
+To build with coverage, run tests and generate coverage report run with following options,
+
+    ./build.sh --with-coverage --run-tests
 
 The binaries and packages are created in the output folder '../df_out'
 
