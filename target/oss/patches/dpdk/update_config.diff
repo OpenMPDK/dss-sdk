@@ -1,8 +1,13 @@
 diff --git a/meson_options.txt b/meson_options.txt
-index 9bf18ab..10f2aa8 100644
+index 9bf18ab..45720ab 100644
 --- a/meson_options.txt
 +++ b/meson_options.txt
-@@ -26,9 +26,9 @@ option('machine', type: 'string', value: 'native',
+@@ -22,13 +22,13 @@ option('kernel_dir', type: 'string', value: '',
+ 	description: 'Path to the kernel for building kernel modules. Headers must be in $kernel_dir/build. Modules will be installed in $DEST_DIR/$kernel_dir/extra/dpdk.')
+ option('lib_musdk_dir', type: 'string', value: '',
+ 	description: 'path to the MUSDK library installation directory')
+-option('machine', type: 'string', value: 'native',
++option('machine', type: 'string', value: 'generic',
  	description: 'set the target machine type')
  option('max_ethports', type: 'integer', value: 32,
  	description: 'maximum number of Ethernet devices')
