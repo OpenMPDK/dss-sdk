@@ -1,3 +1,16 @@
+diff --git a/config/x86/meson.build b/config/x86/meson.build
+index adc857b..d2ed053 100644
+--- a/config/x86/meson.build
++++ b/config/x86/meson.build
+@@ -28,7 +28,7 @@ endforeach
+ 
+ optional_flags = ['AES', 'PCLMUL',
+ 		'AVX', 'AVX2', 'AVX512F',
+-		'RDRND', 'RDSEED']
++		'RDRND']
+ foreach f:optional_flags
+ 	if cc.get_define('__@0@__'.format(f), args: machine_args) == '1'
+ 		if f == 'PCLMUL' # special case flags with different defines
 diff --git a/meson_options.txt b/meson_options.txt
 index 9bf18ab..45720ab 100644
 --- a/meson_options.txt
