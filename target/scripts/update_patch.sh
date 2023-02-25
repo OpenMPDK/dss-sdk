@@ -63,7 +63,7 @@ commit_hash=$(cat "${patch_folder}"/base_commit)
 echo "Creating patches from base commit" "${commit_hash}"
 
 pushd "${base}"/"${proj_name}"/
-git am --abort
+#Assumes there are not uncommited changes in the submodule
 git format-patch -o ../../"${patch_folder}" "${commit_hash}"
 popd
 

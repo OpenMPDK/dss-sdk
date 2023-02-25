@@ -260,6 +260,12 @@ parse_options()
         fi
         shift # past argument=value
         ;;
+        --with-coverage)
+        BUILD_WITH_COVERAGE=true
+        ;;
+        --run-tests)
+        RUN_TESTS=true
+        ;;
         *)
               # unknown option
         ;;
@@ -269,10 +275,13 @@ parse_options()
 ####################### main #######################################
 
 BUILD_ROCKSDB=false
+BUILD_WITH_COVERAGE=false
+RUN_TESTS=false
 TARGET_VER="0.5.0"
 
 parse_options "$@"
-echo "Build rockdb: $BUILD_ROCKSDB"
+echo "Build rockdb only: $BUILD_ROCKSDB"
+echo "Building with coverage: ${BUILD_WITH_COVERAGE}"
 echo "Target Version: $TARGET_VER"
 echo "Build Type: $BUILD_TYPE"
 
@@ -288,6 +297,7 @@ packageName="nkv-target"
 targetVersion=${TARGET_VER}
 gitVersion="$(git describe --abbrev=4 --always --tags)"
 
+DSS_TARGET_CMAKE_OPTIONS=""
 
 pushd "${target_dir}/oss" || die "Can't change to ${target_dir}/oss dir"
     ./apply-patch.sh
@@ -298,19 +308,37 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
         updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
     popd || die "Can't exit ${target_dir} dir"
 
+    if $BUILD_WITH_COVERAGE;then
+       DSS_TARGET_CMAKE_OPTIONS="${DSS_TARGET_CMAKE_OPTIONS} -DWITH_COVERAGE=ON"
+    fi
+
     if [ "$BUILD_TYPE" = "debug" ] ; then
-        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON "${target_dir}"
     elif [ "$BUILD_TYPE" = "release" ]; then
-        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON "${target_dir}"
     else
     echo "Making in default mode"
-        cmake "${target_dir}" -DCMAKE_BUILD_TYPE=Debug
+        # shellcheck disable=SC2086
+        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug "${target_dir}"
     fi
 
     if $BUILD_ROCKSDB;then
         make rocksdb
     else
         make spdk_tcp
+    fi
+
+    if ${RUN_TESTS};then
+        make
+        make test
+        if ${BUILD_WITH_COVERAGE};then
+            echo "Generating sonarqube coverage report"
+            mkdir -p reports
+            #gcovr needs to be installed from pip
+            gcovr --sonarqube reports/sonar_qube_ut_coverage_report.xml -r ../target .
+        fi
     fi
 
     makePackageDirectories "${rpm_build_dir}"

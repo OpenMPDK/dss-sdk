@@ -1,0 +1,261 @@
+From 87cd905a3bf87d8be2a3556eb50142981d2994d8 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 5 Jan 2023 14:14:14 -0800
+Subject: [PATCH 55/55] Add stubs to support SPDK unit test build
+
+---
+ .../blobfs/blobfs_async_ut/blobfs_async_ut.c  |  9 +++
+ .../blobfs/blobfs_sync_ut/blobfs_sync_ut.c    |  8 +++
+ test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c         | 12 ++++
+ .../ctrlr_discovery.c/ctrlr_discovery_ut.c    |  7 ++
+ test/unit/lib/nvmf/rdma.c/rdma_ut.c           | 54 +++++++++++++++
+ test/unit/lib/nvmf/subsystem.c/subsystem_ut.c |  7 ++
+ test/unit/lib/nvmf/tcp.c/tcp_ut.c             | 69 +++++++++++++++++++
+ 7 files changed, 166 insertions(+)
+
+diff --git a/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c b/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
+index 134b8bfe9..800bac3c8 100644
+--- a/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
++++ b/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
+@@ -58,6 +58,15 @@ DEFINE_STUB_V(spdk_trace_register_description, (const char *name,
+ DEFINE_STUB_V(_spdk_trace_record, (uint64_t tsc, uint16_t tpoint_id, uint16_t poller_id,
+ 				   uint32_t size, uint64_t object_id, uint64_t arg1));
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++/* Return default values. */
++bool
++spdk_conf_section_get_boolval(struct spdk_conf_section *sp, const char *key, bool default_val)
++{
++	return default_val;
++}
++
+ /* Return NULL to test hardcoded defaults. */
+ struct spdk_conf_section *
+ spdk_conf_find_section(struct spdk_conf *cp, const char *name)
+diff --git a/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c b/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
+index f9d00226c..60c73c0e1 100644
+--- a/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
++++ b/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
+@@ -51,6 +51,14 @@ struct spdk_file *g_file;
+ int g_fserrno;
+ struct spdk_thread *g_dispatch_thread = NULL;
+ struct spdk_trace_histories *g_trace_histories;
++
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB(spdk_conf_section_get_boolval,
++                bool,
++                (struct spdk_conf_section *sp, const char *key, bool default_val),
++                true);
++
+ DEFINE_STUB_V(spdk_trace_add_register_fn, (struct spdk_trace_register_fn *reg_fn));
+ DEFINE_STUB_V(spdk_trace_register_description, (const char *name,
+ 		uint16_t tpoint_id, uint8_t owner_type,
+diff --git a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+index 1da8f9d54..f7d177614 100644
+--- a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
++++ b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+@@ -50,6 +50,18 @@ struct spdk_bdev {
+ const char subsystem_default_sn[SPDK_NVME_CTRLR_SN_LEN + 1] = "subsys_default_sn";
+ const char subsystem_default_mn[SPDK_NVME_CTRLR_MN_LEN + 1] = "subsys_default_mn";
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB(dfly_handle_request,
++      int,
++      (struct dfly_request *req),
++      0);
++
++DEFINE_STUB(dfly_ustat_init_qpair_stat,
++        int,
++        (void *qpair),
++        0);
++
+ DEFINE_STUB(spdk_nvmf_tgt_find_subsystem,
+ 	    struct spdk_nvmf_subsystem *,
+ 	    (struct spdk_nvmf_tgt *tgt, const char *subnqn),
+diff --git a/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c b/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
+index 29e923de8..f4af56dbf 100644
+--- a/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
++++ b/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
+@@ -42,6 +42,13 @@
+ 
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB(df_subsystem_enabled,
++        uint32_t,
++        (uint32_t ssid),
++        0);
++
+ DEFINE_STUB_V(spdk_bdev_module_release_bdev,
+ 	      (struct spdk_bdev *bdev));
+ 
+diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+index b0af58d18..e19e7c575 100644
+--- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
++++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+@@ -54,6 +54,60 @@ struct spdk_nvmf_transport_opts g_rdma_ut_transport_opts = {
+ 	.num_shared_buffers = SPDK_NVMF_RDMA_DEFAULT_NUM_SHARED_BUFFERS,
+ };
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB_V(*dfly_kd_get_device,
++        (struct dfly_request *req));
++
++DEFINE_STUB(dfly_get_next_core, uint32_t,
++        (char *conn, int num_cpu, char *peer_addr), 0);
++
++DEFINE_STUB(dfly_put_core, uint32_t,
++        (char *conn, int core, char *peer_addr), 0);
++
++DEFINE_STUB(dfly_req_fini, int,
++        (struct dfly_request *req), 0);
++
++DEFINE_STUB_V(dfly_nvmf_req_init,
++        (struct spdk_nvmf_request *req));
++
++DEFINE_STUB_V(dfly_req_init_nvmf_info,
++        (struct dfly_request *req));
++
++DEFINE_STUB(df_qpair_susbsys_enabled, uint32_t,
++        (struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req), 0);
++
++DEFINE_STUB(dfly_qpair_init, int,
++        (struct spdk_nvmf_qpair *nvmf_qpair), 0);
++
++DEFINE_STUB(dfly_qpair_init_reqs, int,
++        (struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs), 0);
++
++DEFINE_STUB(dfly_qpair_destroy, int,
++        (struct dfly_qpair_s *dqpair), 0);
++
++DEFINE_STUB_V(df_lat_update_tick,
++        (struct dfly_request *dreq, uint32_t state));
++
++DEFINE_STUB_V(df_print_tick,
++        (struct dfly_request *dreq));
++
++DEFINE_STUB(spdk_nvmf_qpair_get_peer_trid, int,
++        (struct spdk_nvmf_qpair *qpair, struct spdk_nvme_transport_id *trid), 0);
++
++DEFINE_STUB(spdk_nvmf_qpair_get_local_trid, int,
++        (struct spdk_nvmf_qpair *qpair, struct spdk_nvme_transport_id *trid), 0);
++
++DEFINE_STUB(dfly_poller_qos_recv,
++      int,
++      (dfly_request_t *req,void *tr_p, dfly_ctrl_t *ctrl),
++      0);
++
++DEFINE_STUB(dfly_poller_qos_sched,
++        int,
++        (void *poller, void **shuttle, size_t max_seats),
++        0);
++
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ DEFINE_STUB(spdk_mem_map_set_translation, int, (struct spdk_mem_map *map, uint64_t vaddr,
+ 		uint64_t size, uint64_t translation), 0);
+diff --git a/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c b/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
+index 149c22da1..8b49f9e27 100644
+--- a/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
++++ b/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
+@@ -42,6 +42,13 @@
+ 
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB(df_subsystem_enabled,
++        uint32_t,
++        (uint32_t ssid),
++        0);
++
+ DEFINE_STUB(spdk_bdev_module_claim_bdev,
+ 	    int,
+ 	    (struct spdk_bdev *bdev, struct spdk_bdev_desc *desc,
+diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+index a6d6d9da3..ee75d7285 100644
+--- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c
++++ b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+@@ -58,6 +58,75 @@
+ 
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ 
++struct dragonfly *g_dragonfly;//Dummy
++
++DEFINE_STUB_V(df_lat_update_tick,
++      (struct dfly_request *dreq, uint32_t state));
++
++DEFINE_STUB_V(dfly_nvmf_req_init,
++      (struct spdk_nvmf_request *req));
++
++DEFINE_STUB(df_qpair_susbsys_enabled,
++      uint32_t,
++      (struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req),
++      0);
++
++DEFINE_STUB_V(dfly_req_init_nvmf_info,
++      (struct dfly_request *req));
++
++DEFINE_STUB(dfly_poller_qos_recv,
++      int,
++      (dfly_request_t *req,void *tr_p, dfly_ctrl_t *ctrl),
++      0);
++
++DEFINE_STUB_V(df_print_tick,
++      (struct dfly_request *dreq));
++
++DEFINE_STUB(dfly_req_fini,
++      int,
++      (struct dfly_request *req),
++      0);
++
++DEFINE_STUB(dfly_ustat_init_qpair_stat,
++        int,
++        (void *qpair),
++        0);
++
++DEFINE_STUB(dfly_handle_request,
++      int,
++      (struct dfly_request *req),
++      0);
++
++DEFINE_STUB(dfly_qpair_init,
++      int,
++      (struct spdk_nvmf_qpair *nvmf_qpair),
++      0);
++
++DEFINE_STUB(dfly_qpair_init_reqs,
++      int,
++      (struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs),
++      0);
++
++DEFINE_STUB(dfly_qpair_destroy,
++      int,
++      (struct dfly_qpair_s *dqpair),
++      0);
++
++DEFINE_STUB(dfly_poller_qos_sched,
++        int,
++        (void *poller, void **shuttle, size_t max_seats),
++        0);
++
++DEFINE_STUB(dfly_req_get_command,
++      uint32_t,
++      (struct dfly_request *req),
++      0);
++
++DEFINE_STUB(df_subsystem_enabled,
++        uint32_t,
++        (uint32_t ssid),
++        0);
++
+ DEFINE_STUB(spdk_nvmf_qpair_get_listen_trid,
+ 	    int,
+ 	    (struct spdk_nvmf_qpair *qpair, struct spdk_nvme_transport_id *trid),
+-- 
+2.24.3
+
