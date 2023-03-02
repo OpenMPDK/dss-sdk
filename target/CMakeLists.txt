@@ -460,7 +460,7 @@ ADD_CUSTOM_TARGET(test_rdd
 )
 
 set(RDD_CL_LIBS -lpthread -lrdmacm -libverbs)
-set(RDD_CL_CFLAGS -g -march=native)
+set(RDD_CL_CFLAGS -g -march=native -D_GNU_SOURCE)
 set(RDD_CL_SOURCES
 ${CMAKE_SOURCE_DIR}/test/test_rdd_cl/rdd_cl.h
     ${CMAKE_SOURCE_DIR}/test/test_rdd_cl/rdd_client.c
