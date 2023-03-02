@@ -1,14 +1,14 @@
-From 1db64c397d01de6da1034cc9cb08e4079ef250fd Mon Sep 17 00:00:00 2001
+From 9c869a3e6d9ba029b96d80f2963defb1587da5ca Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 12 Feb 2021 21:00:55 -0800
-Subject: [PATCH 31/71] * less prefetch on read to save cache
+Subject: [PATCH 31/73] * less prefetch on read to save cache
 
 ---
  lib/blobfs/blobfs.c | 8 +-------
  1 file changed, 1 insertion(+), 7 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 21ee91985..9f4274a56 100644
+index 21ee919..9f4274a 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2904,12 +2904,6 @@ spdk_file_read(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -34,5 +34,5 @@ index 21ee91985..9f4274a56 100644
  				tree_remove_buffer(file->tree, buf);
  				if (file->tree->present_mask == 0) {
 -- 
-2.24.3
+1.8.3.1
 

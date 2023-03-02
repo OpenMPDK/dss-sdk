@@ -1,14 +1,14 @@
-From 131ae48f8b42fcf24c69668a2cc399d94456925e Mon Sep 17 00:00:00 2001
+From b4445da720e79e12fac5f07b164535d3f6c4423e Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 17 Feb 2022 17:20:40 -0800
-Subject: [PATCH 59/71] RDD Multi listener support
+Subject: [PATCH 59/73] RDD Multi listener support
 
 ---
  lib/nvmf/rdma.c | 8 +++++++-
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 461e51ee3..e11148482 100644
+index 461e51e..e111484 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -959,7 +959,7 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
@@ -41,5 +41,5 @@ index 461e51ee3..e11148482 100644
  							req->dreq, sgl->address, sgl->keyed.key, sgl->keyed.length,
  							req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
 -- 
-2.24.3
+1.8.3.1
 

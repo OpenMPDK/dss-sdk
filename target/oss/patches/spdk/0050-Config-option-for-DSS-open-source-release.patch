@@ -1,7 +1,7 @@
-From 2cef062784073db9b8b6451b5fd6cc6aa5385007 Mon Sep 17 00:00:00 2001
+From dc7aef14f27c055f703addf2f9906c60841e61a7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 12 Oct 2021 13:56:33 -0700
-Subject: [PATCH 50/71] Config option for DSS open source release
+Subject: [PATCH 50/73] Config option for DSS open source release
 
 ---
  CONFIG         | 3 +++
@@ -9,7 +9,7 @@ Subject: [PATCH 50/71] Config option for DSS open source release
  2 files changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/CONFIG b/CONFIG
-index d947909e9..c8fd1a8ba 100644
+index d947909..c8fd1a8 100644
 --- a/CONFIG
 +++ b/CONFIG
 @@ -170,3 +170,6 @@ CONFIG_RAID5=n
@@ -20,7 +20,7 @@ index d947909e9..c8fd1a8ba 100644
 +#Build for DSS Open Source Release
 +CONFIG_DSS_OSS=n
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index 559396b56..80569b744 100644
+index 559396b..80569b7 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,7 +48,11 @@ endif
@@ -37,5 +37,5 @@ index 559396b56..80569b744 100644
  CLEAN_FILES = $(APP)
  
 -- 
-2.24.3
+1.8.3.1
 

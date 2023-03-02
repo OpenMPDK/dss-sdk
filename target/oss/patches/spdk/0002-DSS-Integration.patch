@@ -1,7 +1,7 @@
-From 4d82c8ff07cfd56323c2f38d0f99e288b5352ed8 Mon Sep 17 00:00:00 2001
+From 7ccab4c863ab527f4d944606fe0739311bb6e7f8 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 13 Aug 2020 21:25:48 -0700
-Subject: [PATCH 02/71] DSS Integration
+Subject: [PATCH 02/73] DSS Integration
 
 ---
  configure                               |   2 +-
@@ -10,24 +10,24 @@ Subject: [PATCH 02/71] DSS Integration
  include/spdk/bdev_module.h              |   8 +
  include/spdk/nvme_spec.h                |  28 +-
  lib/bdev/bdev.c                         |  29 +-
- lib/nvme/nvme_ctrlr.c                   |  15 +
+ lib/nvme/nvme_ctrlr.c                   |  15 ++
  lib/nvme/nvme_ns.c                      |   8 +
  lib/nvme/nvme_pcie.c                    |  10 +-
- lib/nvmf/ctrlr.c                        |  30 ++
- lib/nvmf/ctrlr_bdev.c                   |  37 +-
+ lib/nvmf/ctrlr.c                        |  30 +++
+ lib/nvmf/ctrlr_bdev.c                   |  37 ++-
  lib/nvmf/nvmf.c                         |  10 +
  lib/nvmf/nvmf_internal.h                |   4 +
- lib/nvmf/rdma.c                         | 460 +++++++++++++++++++++++-
- lib/nvmf/tcp.c                          | 379 ++++++++++++++++++-
+ lib/nvmf/rdma.c                         | 460 +++++++++++++++++++++++++++++++-
+ lib/nvmf/tcp.c                          | 379 +++++++++++++++++++++++++-
  mk/spdk.app.mk                          |   2 +
  mk/spdk.common.mk                       |   6 +
  module/bdev/nvme/bdev_nvme.c            |   8 +
  module/event/subsystems/nvmf/conf.c     |   4 +
- module/event/subsystems/nvmf/nvmf_tgt.c |  30 ++
+ module/event/subsystems/nvmf/nvmf_tgt.c |  30 +++
  20 files changed, 1075 insertions(+), 18 deletions(-)
 
 diff --git a/configure b/configure
-index 4c9772adf..6f693e6cb 100755
+index 4c9772a..6f693e6 100755
 --- a/configure
 +++ b/configure
 @@ -608,7 +608,7 @@ if [ "${CONFIG[RDMA]}" = "y" ]; then
@@ -40,7 +40,7 @@ index 4c9772adf..6f693e6cb 100755
  		CONFIG[RDMA_SEND_WITH_INVAL]="n"
  		echo "
 diff --git a/examples/Makefile b/examples/Makefile
-index 516cf83fc..616878c6e 100644
+index 516cf83..616878c 100644
 --- a/examples/Makefile
 +++ b/examples/Makefile
 @@ -34,7 +34,8 @@
@@ -54,7 +54,7 @@ index 516cf83fc..616878c6e 100644
  .PHONY: all clean $(DIRS-y)
  
 diff --git a/include/spdk/bdev.h b/include/spdk/bdev.h
-index 0bb39c410..0ce146e4e 100644
+index 0bb39c4..0ce146e 100644
 --- a/include/spdk/bdev.h
 +++ b/include/spdk/bdev.h
 @@ -437,6 +437,26 @@ uint32_t spdk_bdev_get_write_unit_size(const struct spdk_bdev *bdev);
@@ -85,7 +85,7 @@ index 0bb39c410..0ce146e4e 100644
   * Get the string of quality of service rate limit.
   *
 diff --git a/include/spdk/bdev_module.h b/include/spdk/bdev_module.h
-index edf967897..caa77cbd9 100644
+index edf9678..caa77cb 100644
 --- a/include/spdk/bdev_module.h
 +++ b/include/spdk/bdev_module.h
 @@ -270,6 +270,14 @@ struct spdk_bdev {
@@ -104,7 +104,7 @@ index edf967897..caa77cbd9 100644
  	uint32_t write_unit_size;
  
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
-index 7fd2ee273..74b668899 100644
+index 7fd2ee2..74b6688 100644
 --- a/include/spdk/nvme_spec.h
 +++ b/include/spdk/nvme_spec.h
 @@ -1370,7 +1370,16 @@ enum spdk_nvme_data_transfer {
@@ -151,7 +151,7 @@ index 7fd2ee273..74b668899 100644
  #define spdk_nvme_cpl_is_success(cpl)	(!spdk_nvme_cpl_is_error(cpl))
  
 diff --git a/lib/bdev/bdev.c b/lib/bdev/bdev.c
-index af8c05aaa..be27b70f4 100644
+index af8c05a..be27b70 100644
 --- a/lib/bdev/bdev.c
 +++ b/lib/bdev/bdev.c
 @@ -2979,6 +2979,28 @@ spdk_bdev_get_num_blocks(const struct spdk_bdev *bdev)
@@ -198,7 +198,7 @@ index af8c05aaa..be27b70f4 100644
  
  	bdev_io = bdev_channel_get_io(channel);
 diff --git a/lib/nvme/nvme_ctrlr.c b/lib/nvme/nvme_ctrlr.c
-index 5d8b519e6..26cfba0d2 100644
+index 5d8b519..26cfba0 100644
 --- a/lib/nvme/nvme_ctrlr.c
 +++ b/lib/nvme/nvme_ctrlr.c
 @@ -3628,3 +3628,18 @@ spdk_nvme_map_prps(void *prv, struct spdk_nvme_cmd *cmd, struct iovec *iovs,
@@ -221,7 +221,7 @@ index 5d8b519e6..26cfba0d2 100644
 +}
 +//END - SPDK_CONFIG_OSS_TARGET
 diff --git a/lib/nvme/nvme_ns.c b/lib/nvme/nvme_ns.c
-index 5d424e5c7..036589ad8 100644
+index 5d424e5..036589a 100644
 --- a/lib/nvme/nvme_ns.c
 +++ b/lib/nvme/nvme_ns.c
 @@ -32,6 +32,14 @@
@@ -240,7 +240,7 @@ index 5d424e5c7..036589ad8 100644
  static inline struct spdk_nvme_ns_data *
  _nvme_ns_get_data(struct spdk_nvme_ns *ns)
 diff --git a/lib/nvme/nvme_pcie.c b/lib/nvme/nvme_pcie.c
-index 132e34cdc..8af28e1ec 100644
+index 132e34c..8af28e1 100644
 --- a/lib/nvme/nvme_pcie.c
 +++ b/lib/nvme/nvme_pcie.c
 @@ -56,7 +56,7 @@
@@ -275,7 +275,7 @@ index 132e34cdc..8af28e1ec 100644
  SPDK_STATIC_ASSERT((offsetof(struct nvme_tracker, meta_sgl) & 7) == 0, "SGL must be Qword aligned");
  
 diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
-index 638cde9d2..f9520af98 100644
+index 638cde9..f9520af 100644
 --- a/lib/nvmf/ctrlr.c
 +++ b/lib/nvmf/ctrlr.c
 @@ -48,6 +48,15 @@
@@ -344,7 +344,7 @@ index 638cde9d2..f9520af98 100644
  	}
  
 diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
-index 13e0a4309..c7d718df0 100644
+index 13e0a43..c7d718d 100644
 --- a/lib/nvmf/ctrlr_bdev.c
 +++ b/lib/nvmf/ctrlr_bdev.c
 @@ -49,6 +49,10 @@
@@ -399,7 +399,7 @@ index 13e0a4309..c7d718df0 100644
  	nsdata->flbas.format = 0;
  	nsdata->nacwu = spdk_bdev_get_acwu(bdev);
 diff --git a/lib/nvmf/nvmf.c b/lib/nvmf/nvmf.c
-index 73fa0742e..47779a21f 100644
+index 73fa074..47779a2 100644
 --- a/lib/nvmf/nvmf.c
 +++ b/lib/nvmf/nvmf.c
 @@ -47,6 +47,10 @@
@@ -427,7 +427,7 @@ index 73fa0742e..47779a21f 100644
  	if (subsystem->id >= group->num_sgroups) {
  		return -ENOMEM;
 diff --git a/lib/nvmf/nvmf_internal.h b/lib/nvmf/nvmf_internal.h
-index ce85dbc66..926c2409d 100644
+index ce85dbc..926c240 100644
 --- a/lib/nvmf/nvmf_internal.h
 +++ b/lib/nvmf/nvmf_internal.h
 @@ -47,6 +47,10 @@
@@ -442,7 +442,7 @@ index ce85dbc66..926c2409d 100644
  
  enum spdk_nvmf_subsystem_state {
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 1cf3af3f3..226d5daaa 100644
+index 1cf3af3..226d5da 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -88,6 +88,12 @@ enum spdk_nvmf_rdma_request_state {
@@ -1148,7 +1148,7 @@ index 1cf3af3f3..226d5daaa 100644
  		STAILQ_REMOVE(&rqpair->pending_rdma_read_queue, rdma_req_to_abort,
  			      spdk_nvmf_rdma_request, state_link);
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index 391d4bcf1..99a2f7122 100644
+index 391d4bc..99a2f71 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -62,6 +62,9 @@ enum spdk_nvmf_tcp_req_state {
@@ -1657,7 +1657,7 @@ index 391d4bcf1..99a2f7122 100644
  }
  
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index f6fb17a1f..c2aa82e65 100644
+index f6fb17a..c2aa82e 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,6 +48,8 @@ endif
@@ -1670,7 +1670,7 @@ index f6fb17a1f..c2aa82e65 100644
  
  all : $(APP)
 diff --git a/mk/spdk.common.mk b/mk/spdk.common.mk
-index e53e6ff76..a3286e20c 100644
+index e53e6ff..a3286e2 100644
 --- a/mk/spdk.common.mk
 +++ b/mk/spdk.common.mk
 @@ -149,6 +149,12 @@ LIBS += -L$(CONFIG_VPP_DIR)/lib64
@@ -1687,7 +1687,7 @@ index e53e6ff76..a3286e20c 100644
  SYS_LIBS += -libverbs -lrdmacm
  endif
 diff --git a/module/bdev/nvme/bdev_nvme.c b/module/bdev/nvme/bdev_nvme.c
-index 4a89b8eb2..418df9a3d 100644
+index 4a89b8e..418df9a 100644
 --- a/module/bdev/nvme/bdev_nvme.c
 +++ b/module/bdev/nvme/bdev_nvme.c
 @@ -51,6 +51,10 @@
@@ -1713,7 +1713,7 @@ index 4a89b8eb2..418df9a3d 100644
  	uuid = spdk_nvme_ns_get_uuid(ns);
  	if (uuid != NULL) {
 diff --git a/module/event/subsystems/nvmf/conf.c b/module/event/subsystems/nvmf/conf.c
-index b92a92acc..24e34ce56 100644
+index b92a92a..24e34ce 100644
 --- a/module/event/subsystems/nvmf/conf.c
 +++ b/module/event/subsystems/nvmf/conf.c
 @@ -486,6 +486,10 @@ nvmf_parse_subsystem(struct spdk_conf_section *sp)
@@ -1728,7 +1728,7 @@ index b92a92acc..24e34ce56 100644
  	return (subsystem != NULL) ? 0 : -1;
  }
 diff --git a/module/event/subsystems/nvmf/nvmf_tgt.c b/module/event/subsystems/nvmf/nvmf_tgt.c
-index 0ffac50c6..cd252a487 100644
+index 0ffac50..cd252a4 100644
 --- a/module/event/subsystems/nvmf/nvmf_tgt.c
 +++ b/module/event/subsystems/nvmf/nvmf_tgt.c
 @@ -41,6 +41,10 @@
@@ -1797,5 +1797,5 @@ index 0ffac50c6..cd252a487 100644
  nvmf_subsystem_init(void)
  {
 -- 
-2.24.3
+1.8.3.1
 

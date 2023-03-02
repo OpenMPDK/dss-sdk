@@ -1,7 +1,7 @@
-From ff0d7f9b08dd13783a80e63b31b0829722f54fa0 Mon Sep 17 00:00:00 2001
+From ed1108bdc0c92b59015605043494b7fa41428326 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 27 Jan 2021 01:30:16 -0800
-Subject: [PATCH 27/71] Support aborting nvme cmd for DSS KV/KB-Block
+Subject: [PATCH 27/73] Support aborting nvme cmd for DSS KV/KB-Block
 
 ---
  lib/nvmf/ctrlr.c |  7 +++++++
@@ -9,7 +9,7 @@ Subject: [PATCH 27/71] Support aborting nvme cmd for DSS KV/KB-Block
  2 files changed, 29 insertions(+)
 
 diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
-index f9520af98..7bcc525a9 100644
+index f9520af..7bcc525 100644
 --- a/lib/nvmf/ctrlr.c
 +++ b/lib/nvmf/ctrlr.c
 @@ -3198,6 +3198,13 @@ spdk_nvmf_request_get_bdev(uint32_t nsid, struct spdk_nvmf_request *req,
@@ -27,7 +27,7 @@ index f9520af98..7bcc525a9 100644
  	if (ns == NULL || ns->bdev == NULL) {
  		return -EINVAL;
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index da43ee23b..ca8b64ae3 100644
+index da43ee2..ca8b64a 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -88,6 +88,7 @@ enum spdk_nvmf_rdma_request_state {
@@ -102,5 +102,5 @@ index da43ee23b..ca8b64ae3 100644
  		break;
  	}
 -- 
-2.24.3
+1.8.3.1
 

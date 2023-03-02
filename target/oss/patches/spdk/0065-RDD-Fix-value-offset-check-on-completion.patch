@@ -1,14 +1,14 @@
-From bf231555dde680c11b299903ed5672abba4d8cb3 Mon Sep 17 00:00:00 2001
+From 97cd5ff70ffd531b3797697146513379cf1fd004 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 22 Jun 2022 13:23:33 -0700
-Subject: [PATCH 65/71] RDD - Fix value offset check on completion
+Subject: [PATCH 65/73] RDD - Fix value offset check on completion
 
 ---
  lib/nvmf/rdma.c | 22 ++++++++++++++--------
  1 file changed, 14 insertions(+), 8 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index c5a2d3405..048f9401a 100644
+index c5a2d34..048f940 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -992,14 +992,20 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
@@ -41,5 +41,5 @@ index c5a2d3405..048f9401a 100644
  	rc = rdd_post_req2queue(g_dragonfly->rdd_ctx, dfly_req->rdd_info.qhandle, dfly_req);
  
 -- 
-2.24.3
+1.8.3.1
 
