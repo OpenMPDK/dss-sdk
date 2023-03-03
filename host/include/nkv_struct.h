@@ -142,31 +142,31 @@ typedef struct {
 
 typedef struct { 
 
-  int8_t nkv_store_compressed:1;
-  int8_t nkv_store_ecrypted:1;
-  int8_t nkv_store_crc_in_meta:1;
-  int8_t nkv_store_no_overwrite:1;
-  int8_t nkv_store_atomic:1;
-  int8_t nkv_store_update_only:1;
-  int8_t nkv_store_append:1;
-  int8_t nkv_store_rdd:1;
+  uint8_t nkv_store_compressed:1;
+  uint8_t nkv_store_ecrypted:1;
+  uint8_t nkv_store_crc_in_meta:1;
+  uint8_t nkv_store_no_overwrite:1;
+  uint8_t nkv_store_atomic:1;
+  uint8_t nkv_store_update_only:1;
+  uint8_t nkv_store_append:1;
+  uint8_t nkv_store_rdd:1;
 
 } nkv_store_option;
 
 typedef struct {
 
-  int8_t nkv_retrieve_decompress:1;
-  int8_t nkv_retrieve_decrypt:1;
-  int8_t nkv_compare_crc:1;
-  int8_t nkv_retrieve_delete:1;
-  int8_t nkv_retrieve_rdd:1;
+  uint8_t nkv_retrieve_decompress:1;
+  uint8_t nkv_retrieve_decrypt:1;
+  uint8_t nkv_compare_crc:1;
+  uint8_t nkv_retrieve_delete:1;
+  uint8_t nkv_retrieve_rdd:1;
 
 } nkv_retrieve_option;
 
 typedef struct {
-  int8_t nkv_lock_priority:2;
-  int8_t nkv_lock_writer:1;
-  int8_t nkv_lock_blocking:1;
+  uint8_t nkv_lock_priority:2;
+  uint8_t nkv_lock_writer:1;
+  uint8_t nkv_lock_blocking:1;
   uint32_t nkv_lock_duration;
   uint64_t nkv_lock_uuid;
 }nkv_lock_option;
