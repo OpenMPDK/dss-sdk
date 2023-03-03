@@ -37,6 +37,7 @@
 
 //MAX_RDD_SEG_SIZE 8MB
 #define MAX_RDD_SEG_SIZE (0x800000)
+#define MAX_LISTENER_NAME (256)
 
 
 //Client Handle framework APIs
@@ -113,7 +114,8 @@ void rdd_freeze_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
 	DFLY_ASSERT(ctx->handle_ctx.handle_arr[index] != NULL);
     q = ctx->handle_ctx.handle_arr[index];
     if(!q) {
-        return false;
+        DFLY_ASSERT(q != NULL);
+        return;
     }
     dss_ref_freeze(q->ref);
 
@@ -137,7 +139,8 @@ void rdd_del_queue_ctx(rdd_ctx_t *ctx, uint16_t client_handle)
 	DFLY_ASSERT(ctx->handle_ctx.handle_arr[index] != NULL);
     q = ctx->handle_ctx.handle_arr[index];
     if(!q) {
-        return false;
+        DFLY_ASSERT(q != NULL);
+        return;
     }
     dss_ref_destroy(q->ref);
     q->ref = NULL;
@@ -225,7 +228,7 @@ rdd_rdma_mem_notify(void *cb_ctx, struct spdk_mem_map *map,
 {
 	struct ibv_pd *pd = cb_ctx;
 	struct ibv_mr *mr;
-	int rc;
+	int rc = -1;
 
 	switch (action) {
 	case SPDK_MEM_MAP_NOTIFY_REGISTER:
@@ -245,9 +248,9 @@ rdd_rdma_mem_notify(void *cb_ctx, struct spdk_mem_map *map,
 		if (mr) {
 			ibv_dereg_mr(mr);
 		}
+		rc = spdk_mem_map_clear_translation(map, (uint64_t)vaddr, size);
 		break;
 	default:
-		//SPDK_UNREACHABLE();
         abort();
 	}
 
@@ -334,6 +337,7 @@ int rdd_cq_shutdown(void *arg)
     rdd_queue_destroy(q);
 
     DFLY_NOTICELOG("queue %p destroyed\n", q);
+    return SPDK_POLLER_IDLE;
 }
 
 static void __rdd_cl_queue_disconnect(void *arg)
@@ -682,6 +686,7 @@ int rdd_process_wc(struct ibv_wc *wc)
     struct rdd_req_s *req = NULL;
     struct rdd_rsp_s *rsp;
     struct rdd_wr_s *rdd_wr = (struct rdd_wr_s *)wc->wr_id;
+    int rc = -1;
 
     //DFLY_NOTICELOG("Got wc with opcode %d and status %s\n", wc->opcode, ibv_wc_status_str(wc->status));
 
@@ -692,30 +697,31 @@ int rdd_process_wc(struct ibv_wc *wc)
                 //TODO: Host recieved SEND??
                 //DFLY_NOTICELOG("Send acknowledgement recieved\n");
                 DFLY_NOTICELOG("WC %d type recieved\n", RDD_WR_TYPE_REQ_SEND);
-                return -1;
                 break;
             case RDD_WR_TYPE_DATA_READ:
                 req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
+                rc = 0;
                 break;
             case RDD_WR_TYPE_DATA_WRITE:
                 req = SPDK_CONTAINEROF(rdd_wr, struct rdd_req_s, data);
+                rc = 0;
                 break;
             case RDD_WR_TYPE_RSP_RECV:
                 rsp = SPDK_CONTAINEROF(rdd_wr, struct rdd_rsp_s, rdd_wr);
                 req = &rsp->q->reqs[rsp->rsp.cid];
+                rc = 0;
                 break;
             default:
                 DFLY_NOTICELOG("Unknown WC type recieved\n");
-                return -1;
                 break;
         }
-        if(req->ctx) {
+        if(req && req->ctx) {
             if(rdd_check_cuid(req)) {
                 dss_rdma_rdd_failed((dfly_request_t *)req->ctx, NULL);
             }
             rdd_put_free_request(req);
         } //else already freed?
-        return 0;
+        return rc;
     }
 
     switch(rdd_wr->type) {
@@ -777,7 +783,7 @@ uint32_t  rdd_dss_check_submit_ring(struct rdd_rdma_queue_s *queue)
 
 static inline uint64_t dss_gen_cuid(rdd_ctx_t *ctx)
 {
-    __atomic_fetch_add(&ctx->cuid, 1, __ATOMIC_RELAXED);
+    return __atomic_fetch_add(&ctx->cuid, 1, __ATOMIC_RELAXED);
 }
 
 void rdd_dss_process_pending(struct rdd_rdma_queue_s *queue)
@@ -921,7 +927,7 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     struct rdma_cm_id *id = queue->cm_id;
 
     int cqc;
-    char thread_name[256] = {0};
+    char thread_name[MAX_LISTENER_NAME] = {0};
     int rc = 0;
     int i;
 
@@ -955,7 +961,7 @@ static int rdd_queue_ib_create(struct rdd_rdma_queue_s *queue)
     spdk_cpuset_set_cpu(&cset, icore, true);
 
     DFLY_ASSERT(queue->th.spdk.cq_thread == NULL);
-    sprintf(thread_name, "rdd_qp_%p", queue);
+    snprintf(thread_name, MAX_LISTENER_NAME, "rdd_qp_%p", queue);
     //Created thread in the current core
     //TODO: Check if same thread can be used to run multiple pollers
     queue->th.spdk.cq_thread = spdk_thread_create(thread_name, &cset);
@@ -1342,7 +1348,7 @@ static void _rdd_start_cm_event_poller(void *arg)
     rc = fcntl(l->tr.rdma.ev_channel->fd, F_SETFL, flags | O_NONBLOCK);
     if (rc < 0) {
         DFLY_ERRLOG("Failed to change file descriptor of cm event channel\n");
-        abort();
+        DFLY_ASSERT(rc == 0);;
         return; //Handle error scenario
     }
 
@@ -1581,7 +1587,7 @@ void _rdd_listener_init(void *arg, void *dummy)
 	struct spdk_event *event;
 
     struct rdd_rdma_listener_s  *listener;
-    char thread_name[256] = {0};
+    char thread_name[MAX_LISTENER_NAME] = {0};
 
 	listener = (struct rdd_rdma_listener_s *)arg;
 
@@ -1597,13 +1603,14 @@ void _rdd_listener_init(void *arg, void *dummy)
 
     DFLY_NOTICELOG("Starting cm thread on %u core\n", icore);
 
-    sprintf(thread_name, "rdd_%p", listener->tr.rdma.cm_id);
+    snprintf(thread_name, MAX_LISTENER_NAME, "rdd_%p", listener->tr.rdma.cm_id);
     //Created thread in the current core
     listener->th.spdk.cm_thread = spdk_thread_create(thread_name, NULL);
     if(!listener->th.spdk.cm_thread) {
         DFLY_ERRLOG("Failed to create cm event thread %s\n", thread_name);
         rdd_destroy(listener->prctx);
-        return NULL;
+        DFLY_ASSERT(listener->th.spdk.cm_thread != NULL);
+        return;
     }
 
     spdk_thread_send_msg(listener->th.spdk.cm_thread, _rdd_start_cm_event_poller, (void *)listener);

@@ -68,8 +68,6 @@ typedef struct rdd_cfg_s {
  * 
  */
 typedef struct rdd_params_s {
-    char *ip;
-    uint16_t port;
 	uint32_t max_sgl_segs;
 } rdd_params_t;
 

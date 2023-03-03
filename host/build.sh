@@ -84,7 +84,7 @@ then
       git branch "${BRANCH_NAME}" "${COMMIT_ID}"
       git config diff.nodiff.command /bin/true
       echo "*.pdf diff=nodiff" >> .gitattributes
-      if [ ${OPENMPDK_BRANCH} != '' ]; then
+      if [ "${OPENMPDK_BRANCH}" != '' ]; then
         git diff "${BRANCH_NAME}" "${REMOTE_NAME}/${OPENMPDK_BRANCH}" > "${PATCH_PATH}"
       else
         git diff "${BRANCH_NAME}" "${REMOTE_NAME}/master" > "${PATCH_PATH}"

@@ -88,7 +88,6 @@ int rdd_cl_process_wc(struct ibv_wc *wc)
 {
     if (wc->status != IBV_WC_SUCCESS) {
 		fprintf(stderr, "wc error %d\n", wc->status);
-        abort();
 		return -1;
 	}
 
@@ -424,6 +423,7 @@ rdd_cl_conn_ctx_t *rdd_cl_create_conn(struct rdd_client_ctx_s *cl_ctx, rdd_cl_co
     rc = rdd_cl_init_queues(conn_ctx);
     if(rc) {
         rdd_cl_destroy_connection(conn_ctx);
+        return NULL;
     }
 
 	do {
