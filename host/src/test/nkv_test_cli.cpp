@@ -1694,7 +1694,7 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  	\n"\ 
+  printf("-o      op_type         :  	\n"\
                                         "\t\t\t 0: Put; 1: Get; 2: Delete; \n "\
 					"\t\t\t 3: Put, Get and delete (only sync); 4: listing; \n"\
 					"\t\t\t 5: Put and list 6: Lock&Unlock 7: chunked Put \n"\

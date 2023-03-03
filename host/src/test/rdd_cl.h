@@ -99,7 +99,7 @@ typedef struct {
 typedef struct rdd_cl_conn_params_s {
     const char *ip;
     const char *port;
-    uint32_t qd;
+    //uint32_t qd;
 } rdd_cl_conn_params_t;
 
 typedef struct rdd_cl_dev_s {
