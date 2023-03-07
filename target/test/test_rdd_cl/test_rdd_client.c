@@ -32,10 +32,11 @@
  */
 //#include <assert.h>
 
-#include "rdd_cl.h"
+#include "rdd_cl_api.h"
 
 int main(int argc, char **argv)
 {
+    rdd_cl_ctx_params_t cl_ctx_params;
     struct rdd_client_ctx_s *cl_ctx = NULL;
     rdd_cl_conn_ctx_t *conn = NULL;
     rdd_cl_conn_params_t params;
@@ -44,11 +45,13 @@ int main(int argc, char **argv)
         printf("param%d [%s]\n", argc, argv[argc]);
     }
 
+    cl_ctx_params.pd_type = RDD_PD_GLOBAL;
+
     params.ip = argv[1];
     params.port = argv[2];
     params.qd = 128;
 
-    cl_ctx = rdd_cl_init();
+    cl_ctx = rdd_cl_init(cl_ctx_params);
     if(!cl_ctx) {
         printf("rdd client init failed\n");
         exit(1);
@@ -59,7 +62,7 @@ int main(int argc, char **argv)
         printf("rdd connect failed\n");
     }
 
-    pthread_join(cl_ctx->th.pt.cm_thread, NULL);
+    _rdd_cl_wait(cl_ctx);
 
     return 0;
 }

@@ -30,5 +30,19 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(unit)
-add_subdirectory(test_rdd_cl)
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/../utils/ ${CMAKE_BINARY_DIR}/utils/)
+
+set(RDD_CL_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/../utils/include)
+set(RDD_CL_LIBS -L${CMAKE_BINARY_DIR}/utils/rdd_cl/ -lpthread -lrdmacm -libverbs -lrdd_cl)
+set(RDD_CL_CFLAGS -g -march=native -D_GNU_SOURCE)
+set(RDD_CL_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_rdd_client.c
+)
+
+add_executable(test_rdd_cl ${RDD_CL_SOURCES})
+target_compile_options(test_rdd_cl PRIVATE ${RDD_CL_CFLAGS})
+target_include_directories(test_rdd_cl PRIVATE ${RDD_CL_INCLUDE_DIR})
+target_link_libraries(test_rdd_cl ${RDD_CL_LIBS})
+add_dependencies(test_rdd_cl rdd_cl)
+

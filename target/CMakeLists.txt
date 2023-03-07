@@ -459,18 +459,6 @@ ADD_CUSTOM_TARGET(test_rdd
     DEPENDS spdk_tcp
 )
 
-set(RDD_CL_LIBS -lpthread -lrdmacm -libverbs)
-set(RDD_CL_CFLAGS -g -march=native -D_GNU_SOURCE)
-set(RDD_CL_SOURCES
-${CMAKE_SOURCE_DIR}/test/test_rdd_cl/rdd_cl.h
-    ${CMAKE_SOURCE_DIR}/test/test_rdd_cl/rdd_client.c
-    ${CMAKE_SOURCE_DIR}/test/test_rdd_cl/test_rdd_client.c
-)
-
-add_executable(test_rdd_cl ${RDD_CL_SOURCES})
-target_compile_options(test_rdd_cl PRIVATE ${RDD_CL_CFLAGS})
-target_link_libraries(test_rdd_cl ${RDD_CL_LIBS})
-
 execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
         TARGET spdk_tcp POST_BUILD

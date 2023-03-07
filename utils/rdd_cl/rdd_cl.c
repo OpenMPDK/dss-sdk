@@ -531,3 +531,8 @@ void rdd_cl_destroy(struct rdd_client_ctx_s *ctx)
         free(ctx);
     }
 }
+
+void _rdd_cl_wait(struct rdd_client_ctx_s *ctx)
+{
+        pthread_join(ctx->th.pt.cm_thread, NULL);
+}
