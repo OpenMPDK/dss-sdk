@@ -92,6 +92,8 @@ extern "C" {
 #include "df_counters.h"
 #include "uthash.h"
 
+#include "rdd_api.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -118,6 +120,7 @@ extern "C" {
 #define MB                  (1048576)
 #define MB_SHIFT			(20)
 
+#define DSS_ASSERT DFLY_ASSERT
 #define DFLY_ASSERT(x) assert((x))
 
 #define OSS_TARGET_ENABLED (1)
@@ -172,6 +175,7 @@ struct dfly_io_device_s {
 	struct spdk_nvmf_ns *ns;
 	uint32_t index;
 
+    char *dev_name;
 	int32_t numa_node;
 	uint32_t icore;
 	stat_kvio_t *stat_io;
@@ -187,6 +191,7 @@ struct dfly_subsystem {
 	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
+	rdd_ctx_t *rdd_ctx;
 
 	int id;
 	char *name;//spdk_nvmf_subsystem subnqn
@@ -208,6 +213,7 @@ struct dfly_subsystem {
 
 	bool shutting_down;
 	bool initialized;
+    bool iomem_dev_numa_aligned;
 	int wal_init_status;
 	int list_init_status;
 	int list_initialized_nbdev;
@@ -328,6 +334,9 @@ struct dragonfly {
 	dict_t	 			*disk_stat_table;
 	uint64_t req_lat_to;//Request latency timeout
 	bool enable_latency_profiling;
+
+	rdd_cfg_t *rddcfg;
+	rdd_ctx_t *rdd_ctx;
 };
 
 struct dfly_qpair_s {
@@ -352,6 +361,8 @@ struct dfly_qpair_s {
 	uint32_t max_pending_lock_reqs;
 	uint32_t npending_lock_reqs;
 	uint16_t qid;
+
+	TAILQ_HEAD(, dfly_request) qp_outstanding_reqs;
 
 	bool dss_enabled;
 	struct dss_lat_ctx_s *lat_ctx;
@@ -500,7 +511,12 @@ struct dfly_tpool_s *dss_tpool_start(const char *name, int id,
 void dss_tpool_post_request(struct dfly_tpool_s *module, struct dfly_request *req);
 void dss_list_set_repopulate(void *ctx);
 
+void dss_rdma_rdd_complete(void *arg, void *dummy);
+
 int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
+
+bool dss_check_req_timeout(struct dfly_request *dreq);
+int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
 #ifdef __cplusplus
 }
 #endif

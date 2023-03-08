@@ -403,7 +403,7 @@ dfly_cpu_group_context_t *dfly_lookup_group_no_fail(unsigned socket_id)
 	return grp_info->group;
 }
 
-dfly_cpu_group_context_t *dfly_lookup_add_group(char *name, int num_cpu)
+dfly_cpu_group_context_t *dfly_lookup_add_group(char *name, char *ip, int num_cpu)
 {
 	struct dfly_numa_group_list_item_s *grp_info, *tmp_grp_info;
 
@@ -413,7 +413,7 @@ dfly_cpu_group_context_t *dfly_lookup_add_group(char *name, int num_cpu)
 	grp_info = dfly_lookup_group(name);
 
 	if (!grp_info) {
-		int numa_node;
+		int numa_node = -1;
 
 		grp_info = (struct dfly_numa_group_list_item_s *)calloc(1, sizeof(dfly_numa_group_list_item_t));
 		if (!grp_info) {
@@ -423,7 +423,9 @@ dfly_cpu_group_context_t *dfly_lookup_add_group(char *name, int num_cpu)
 		}
 
 		strncpy(grp_info->id_str, name, MAX_STRING_LEN);
-		numa_node = dfly_spdk_get_ifaddr_numa_node(name);
+        if(ip) {
+		    numa_node = dfly_spdk_get_ifaddr_numa_node(ip);
+        }
 		if (numa_node == -1) {
 			DFLY_INFOLOG(DFLY_LOG_NUMA, "No NUMA alignment for %s\n", grp_info->id_str);
 		}
@@ -529,7 +531,7 @@ dfly_cpu_info_t *dfly_get_next_available_cpu(dfly_cpu_group_context_t *cpu_group
 	return cpu_info;
 }
 
-uint32_t dfly_get_next_conn_core(char *conn, int num_cpu, char *peer_addr)
+uint32_t dfly_get_next_conn_core(char *conn, int num_cpu, char *ip, char *peer_addr)
 {
 	dfly_cpu_group_context_t *cpu_group;
 
@@ -538,7 +540,7 @@ uint32_t dfly_get_next_conn_core(char *conn, int num_cpu, char *peer_addr)
 
 	assert(g_dfly_numa_ctx.initialized == true);
 
-	cpu_group = dfly_lookup_add_group(conn, num_cpu);
+	cpu_group = dfly_lookup_add_group(conn, ip, num_cpu);
 	assert(cpu_group);
 
 	pthread_mutex_lock(&cpu_group->group_lock);//LOCK BEGIN
@@ -637,11 +639,11 @@ uint32_t dfly_put_conn_core(char *conn, uint32_t core, char *peer_addr)
 
 }
 
-uint32_t dfly_get_next_core(char *conn, int num_cpu, char *peer_addr)
+uint32_t dfly_get_next_core(char *conn, int num_cpu, char *ip, char *peer_addr)
 {
 	assert(g_dfly_numa_ctx.initialized == true);
 
-	return dfly_get_next_conn_core(conn, num_cpu, peer_addr);
+	return dfly_get_next_conn_core(conn, num_cpu, ip, peer_addr);
 }
 
 uint32_t dfly_put_core(char *conn, int core, char *peer_addr)

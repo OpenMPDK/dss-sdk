@@ -1,0 +1,7 @@
+#Auto Generated File do not modify
+configure_file(../../test/test_rdd/Makefile ../../test/test_rdd/Makefile COPYONLY)
+configure_file(../../test/test_rdd/test_rdd.c ../../test/test_rdd/test_rdd.c COPYONLY)
+#Symbolic links
+#TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference
+ADD_CUSTOM_TARGET(copy_test_rdd_links
+)

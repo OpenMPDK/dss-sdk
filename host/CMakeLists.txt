@@ -21,6 +21,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(Boost_INCLUDE_DIR /usr/include/boost/)
@@ -91,6 +93,9 @@ else()
 
 endif()
 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../utils/ ${CMAKE_BINARY_DIR}/utils/)
+set(RDD_CL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils/include)
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/ ${CMAKE_BINARY_DIR}/lib)
 set(KVAPI_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -lkvapi)
 set(NKVAPI_LINK_LIBS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L${LOG_LIBRARY_DIR} -L${ZMQ_LIBRARY_DIR} -L${USTAT_LIBRARY_DIR} -pthread -lkvapi -lnkvapi -lsmglog -lzmq -lzmqpp)
@@ -113,19 +118,21 @@ SET(HEADERS_NKV_KDD
 set(NKVAPI_CXXFLAGS "-std=c++11 -MMD -MP -Wall -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${NKVAPI_CFLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${NKVAPI_CXXFLAGS}")
-set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -lsmglog -lzmq -lzmqpp -march=native  ${CMAKE_BINARY_DIR}/lib/libdssd.a)
+set(NKVAPI_LIBS ${NKVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lcurl -std=c++11 -lnuma -lrt -lboost_filesystem ${KVAPI_LIBS} -lsmglog -lzmq -lzmqpp -march=native  ${CMAKE_BINARY_DIR}/lib/libdssd.a -lrdd_cl)
 
 set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/include)
 set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/include_private)
 
 add_library(nkvapi SHARED ${SOURCES_NKV_KDD} ${HEADERS_NKV_KDD})
-target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR})
+target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${RDD_CL_INCLUDE_DIR})
 target_link_libraries (nkvapi ${NKVAPI_LIBS})
+add_dependencies(nkvapi rdd_cl)
 add_dependencies(nkvapi smglog zmqpp)
 add_dependencies(nkvapi kvapi)
 
 add_executable(nkv_test_cli ${CMAKE_CURRENT_SOURCE_DIR}/src/test/nkv_test_cli.cpp)
-target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS})
+target_include_directories(nkv_test_cli PRIVATE ${RDD_CL_INCLUDE_DIR})
+target_link_libraries(nkv_test_cli ${NKVAPI_LINK_LIBS} ${OPENSSL_LIBRARIES} -lcrypto -lrdd_cl)
 add_dependencies(nkv_test_cli nkvapi)
 
 execute_process(COMMAND date "+%Y%m%d" OUTPUT_VARIABLE DATE OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -156,6 +163,7 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_emul.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_remote.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/nkv_config_rdd.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/conf/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/event_mapping.json ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/smglogger.properties ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/disk_stats.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/

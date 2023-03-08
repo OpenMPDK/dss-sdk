@@ -1,0 +1,76 @@
+From f011484da7aaaaf4e6c0c40230d85674560feb0a Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Fri, 23 Sep 2022 16:45:03 -0700
+Subject: [PATCH 68/73] Added rdd fail commands on disconnect
+
+    * Update the error return code on rdd data transfer failure
+---
+ lib/nvmf/rdma.c | 38 ++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 36 insertions(+), 2 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index d845325..5c23776 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -977,6 +977,40 @@ void dss_rdma_rdd_in_data_ready(void *arg, void *dummy)
+ 	return;
+ }
+ 
++void dss_rdma_rdd_failed(void *arg, void *dummy)
++{
++	struct dfly_request *req = (struct dfly_request *)arg;
++	struct spdk_event *event;
++	unsigned lcore = spdk_env_get_current_core();
++	struct spdk_nvmf_request	*nvmf_req;
++	struct spdk_nvmf_rdma_request	*rdma_req;
++	struct spdk_nvmf_rdma_transport *rtransport;
++	struct spdk_nvme_cpl		*rsp = NULL;
++
++	if (req->src_core != lcore) {
++		event = spdk_event_allocate(req->src_core, dss_rdma_rdd_failed, (void *)req, NULL);
++		assert(event != NULL);
++		spdk_event_call(event);
++	} else {
++//TODO: Uncomment when ref dec is available
++//		if(dss_qp_ref_dec(req->dqpair) == -1) {
++//            return;//Qpair is shutting down
++//        }
++
++	    nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
++	    rdma_req = SPDK_CONTAINEROF(nvmf_req, struct spdk_nvmf_rdma_request, req);
++	    rtransport = SPDK_CONTAINEROF(rdma_req->req.qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++	    rsp = &rdma_req->req.rsp->nvme_cpl;
++
++		DFLY_DEBUGLOG(DSS_RDD, "RDD failed for command %p\n", req);
++		rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
++		rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++
++		nvmf_rdma_request_process(rtransport, rdma_req);
++	}
++
++	return;
++}
+ 
+ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ {
+@@ -2776,7 +2810,7 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			if (!rc) {
+ 				rdma_req->state = RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER;
+ 			} else {
+-				rsp->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
++				rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
+ 				rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
+ 			}
+ 			break;
+@@ -2909,7 +2943,7 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			} else {
+                 if(data_posted == -1) {
+                     //Set error and state to completed
+-				    rsp->status.sc = SPDK_NVME_SC_INTERNAL_DEVICE_ERROR;
++				    rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
+ 				    rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
+                 } else {
+ 				    rdma_req->state = data_posted ? RDMA_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST :
+-- 
+1.8.3.1
+

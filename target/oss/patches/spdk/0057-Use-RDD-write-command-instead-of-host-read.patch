@@ -1,0 +1,30 @@
+From b1b471107bdd5c66cfa4b28365975d575ca6f8a0 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 22 Dec 2021 18:00:45 -0800
+Subject: [PATCH 57/73] Use RDD write command instead of host read
+
+---
+ lib/nvmf/rdma.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 0000505..f92f096 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2400,10 +2400,11 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 		dss_set_rdd_transfer(req->dreq);
+ 
+ 		//TODO: Make this direct write to the client
+-		req->dreq->rdd_info.opc = RDD_CMD_HOST_READ;
++		//req->dreq->rdd_info.opc = RDD_CMD_HOST_READ;
++		req->dreq->rdd_info.opc = RDD_CMD_CTRL_WRITE;
+ 		req->dreq->rdd_info.payload_len = sgl->keyed.length;//May reduce after Get from device
+ 		req->dreq->rdd_info.hmem = sgl->address;
+-		//req->rdd_info.hkey = sgl->keyed.key;;
++		req->dreq->rdd_info.hkey = sgl->keyed.key;;
+ 		req->dreq->rdd_info.cmem = req->data;
+ 		req->dreq->rdd_info.qhandle = req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle;
+ 		//req->rdd_info.ckey need to be updated for the rdd queue
+-- 
+1.8.3.1
+

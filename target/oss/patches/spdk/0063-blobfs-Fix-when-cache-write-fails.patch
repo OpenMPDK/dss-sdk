@@ -1,0 +1,66 @@
+From 7953d56c9b789c7ca51b50bbcc04953b3d16bf11 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 14 Jun 2022 20:25:26 -0700
+Subject: [PATCH 63/73] blobfs: Fix when cache write fails
+
+    * Sync data before updating file flushed counter
+    * Avoid part of cached data from being not synced
+---
+ lib/blobfs/blobfs.c | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
+index afc56d4..f029906 100644
+--- a/lib/blobfs/blobfs.c
++++ b/lib/blobfs/blobfs.c
+@@ -2692,13 +2692,18 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 
+ 	if(g_dragonfly->rdb_blobfs_cache_enable) {
+ 	if ((file->last == NULL) && (file->append_pos % CACHE_BUFFER_SIZE == 0)) {
+-		cache_append_buffer(file);
++        void *chk_ptr = NULL;
++		chk_ptr = (void *)cache_append_buffer(file);
++        if(!chk_ptr) {
++            DFLY_ASSERT(file->last == NULL);
++        }
+ 	}
+ 	} else {
+ 		assert(file->last == NULL);
+ 	}
+ 
+ 	if (file->last == NULL) {
++		DFLY_ASSERT(file->length_flushed == file->append_pos);
+ 		file->append_pos += length;
+ 		file->length_flushed = file->append_pos;
+ 
+@@ -2764,6 +2769,17 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 			cache_buffers_filled++;
+ 			last = cache_append_buffer(file);
+ 			if (last == NULL) {
++
++				pthread_spin_unlock(&file->lock);
++
++				free_fs_request(flush_req);
++
++				spdk_file_sync(file, channel);
++
++				pthread_spin_lock(&file->lock);
++
++				DFLY_ASSERT(file->length_flushed == file->append_pos);
++
+ 				write_offset = file->append_pos;
+ 				file->append_pos += rem_length;
+ 				file->length_flushed = file->append_pos;
+@@ -2772,9 +2788,6 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
+ 
+ 				pthread_spin_unlock(&file->lock);
+ 
+-				free_fs_request(flush_req);
+-
+-				spdk_file_sync(file, channel);
+ 				rw_cb_args.rw_errno = 0;
+ 				rw_cb_args.psem = fs_channel_get_sem(channel);
+ 
+-- 
+1.8.3.1
+

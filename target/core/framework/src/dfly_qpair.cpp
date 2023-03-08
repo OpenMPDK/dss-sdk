@@ -86,6 +86,8 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 		dqpair->dss_enabled = false;
 		dqpair->df_poller = dfly_poller_init(0);
 
+        TAILQ_INIT(&dqpair->qp_outstanding_reqs);
+
 		nvmf_qpair->dqpair = dqpair;
 
 		rc = spdk_nvmf_qpair_get_local_trid(nvmf_qpair, &trid);
@@ -116,6 +118,28 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 	}
 
 	return 0;
+}
+
+//10 Seconds
+#define DSS_REQ_TO (10)
+
+bool dss_check_req_timeout(struct dfly_request *dreq)
+{
+    uint64_t tick_now = spdk_get_ticks();
+    uint64_t expire_tick;
+
+    expire_tick = dreq->submit_tick + (spdk_get_ticks_hz() * DSS_REQ_TO);
+
+    if(!dreq->print_to && tick_now > expire_tick) {
+        dreq->print_to = 1;
+        DFLY_NOTICELOG("req[%p] pending opc[%x] state[%d] dev[%s] rdd[%d] qh[%p]\n", 
+            dreq, dreq->nvme_opcode, dreq->req_ctx?(dss_get_rdma_req_state((struct spdk_nvmf_request *)dreq->req_ctx)):-1,
+            dreq->io_device?((struct dfly_io_device_s *)dreq->io_device)->dev_name:"",
+            dreq->data_direct, dreq->rdd_info.qhandle);
+        return true;
+    }
+
+    return false;
 }
 
 int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs)

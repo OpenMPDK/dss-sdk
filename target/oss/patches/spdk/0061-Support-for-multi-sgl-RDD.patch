@@ -1,0 +1,94 @@
+From 3ae785eeb61ac1980a5d2c89de4b0542b1d39aa5 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 6 Jun 2022 15:23:36 -0700
+Subject: [PATCH 61/73] Support for multi-sgl RDD
+
+---
+ include/spdk/nvme_spec.h      | 11 +++++++++++
+ include/spdk/nvmf_transport.h |  5 +++++
+ lib/nvmf/rdma.c               | 12 ++++++------
+ 3 files changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
+index 6f1d889..120cea5 100644
+--- a/include/spdk/nvme_spec.h
++++ b/include/spdk/nvme_spec.h
+@@ -1405,6 +1405,17 @@ static inline enum spdk_nvme_data_transfer spdk_nvme_opc_get_data_transfer(uint8
+    }
+ }
+ 
++static inline bool spdk_nvme_is_kv_data_cmd(uint8_t opc)
++{
++    switch(opc) {
++       case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
++       case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
++            return true;
++        default:
++            return false;
++    }
++}
++
+ enum spdk_nvme_feat {
+ 	/* 0x00 - reserved */
+ 
+diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
+index e2d2f86..ecb07e6 100644
+--- a/include/spdk/nvmf_transport.h
++++ b/include/spdk/nvmf_transport.h
+@@ -471,6 +471,11 @@ spdk_nvmf_req_get_xfer(struct spdk_nvmf_request *req) {
+ 		return xfer;
+ 	}
+ 
++    if(spdk_nvme_is_kv_data_cmd(cmd->opc))
++    {
++        return xfer;
++    }
++
+ 	/* Even for commands that may transfer data, they could have specified 0 length.
+ 	 * We want those to show up with xfer SPDK_NVME_DATA_NONE.
+ 	 */
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index d35a64c..b58939f 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -992,7 +992,7 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+ 	data_offset = dfly_req->req_value.offset;
+ 	data_length = rsp->cdw0;
+ 
+-	SPDK_NOTICELOG("key %s data offset %d\n", dfly_req->req_key.key, dfly_req->req_value.offset);
++	DFLY_DEBUGLOG(DSS_RDD, "key %s data offset %d\n", dfly_req->req_key.key, dfly_req->req_value.offset);
+ 	if(data_offset + data_length < dfly_req->rdd_info.payload_len) {
+ 		dfly_req->rdd_info.cmem += data_offset;
+ 		dfly_req->rdd_info.payload_len = data_length;
+@@ -2436,15 +2436,15 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
+ 		sgl->keyed.subtype == SPDK_NVME_SGL_SUBTYPE_ADDRESS /*RDMA Direct*/) {
+ 
+ rdd_req:
+-		DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
+-							req->dreq, sgl->address, sgl->keyed.key, sgl->keyed.length,
+-							req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
+ 
+ 		//TODO: Validate command is only Get
+ 
+ 
+-		length = sgl->keyed.length;
++        length = (req->cmd->nvme_cmd.cdw10 << 2);//Get from val length field
+ 
++        DFLY_DEBUGLOG(DSS_RDD, "RDMA Data Direct request %p raddr:%p rkey %x len %d client handle %x\n",
++                                            req->dreq, sgl->address, sgl->keyed.key, length,
++                                            req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle);
+ 		/*TODO: RDD - length validation to be based on the direct data connection*/
+ 
+ 		/* fill request length and populate iovs */
+@@ -2478,7 +2478,7 @@ rdd_req:
+ 			assert(rdma_req->req.xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST);
+ 			req->dreq->rdd_info.opc = RDD_CMD_CTRL_WRITE;
+ 		}
+-		req->dreq->rdd_info.payload_len = sgl->keyed.length;//May reduce after Get from device
++        req->dreq->rdd_info.payload_len = length;//May reduce after Get from device
+ 		req->dreq->rdd_info.hmem = sgl->address;
+ 		req->dreq->rdd_info.hkey = sgl->keyed.key;;
+ 		req->dreq->rdd_info.cmem = req->data;
+-- 
+1.8.3.1
+

@@ -59,6 +59,7 @@ int dfly_req_fini(struct dfly_request *req)
 
 	if(req->dqpair) {
 		dfly_ustat_update_rqpair_stat(req->dqpair ,1);
+        TAILQ_REMOVE(&req->dqpair->qp_outstanding_reqs, req, outstanding);
 	}
 
 	if(ss->initialized == true) {
@@ -83,6 +84,8 @@ int dfly_req_fini(struct dfly_request *req)
 	req->log_rc = -1;
 	req->zone_flush_flags = -1;
 #endif
+
+	req->data_direct = false;
 
 	return 0;
 }
@@ -360,6 +363,11 @@ void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 			req->dreq->io_seq_no = req->qpair->dqpair->io_counter++;
 			req->dreq->abort_cmd = false;
 			req->dreq->dqpair = req->qpair->dqpair;
+
+            req->dreq->submit_tick = spdk_get_ticks();
+            if(req->dreq->dqpair) {
+    	        TAILQ_INSERT_TAIL(&req->qpair->dqpair->qp_outstanding_reqs, req->dreq, outstanding);
+            }
 		}
 	}
 }
@@ -385,4 +393,9 @@ int dfly_nvmf_qpair_deinit_requests(void *req_arr)
 	free(req_arr);
 	//dfly_fuse_release(req);
 	//req->req_ss->nvmf_complete_cb((struct spdk_nvmf_request *)req->req_ctx);
+}
+
+void dss_set_rdd_transfer(struct dfly_request *req)
+{
+	req->data_direct = true;
 }

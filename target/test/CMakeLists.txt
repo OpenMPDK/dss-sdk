@@ -31,3 +31,4 @@
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 add_subdirectory(unit)
+add_subdirectory(test_rdd_cl)

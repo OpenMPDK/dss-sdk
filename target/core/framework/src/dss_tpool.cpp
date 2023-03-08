@@ -233,7 +233,7 @@ struct dfly_tpool_s *dss_tpool_start(const char *name, int id,
 		m_inst[i].ctx = ctx;
 		m_inst[i].module = module;
 		//m_inst[i].icore = spdk_env_get_current_core();
-		m_inst[i].icore = dfly_get_next_core(tpool_name, 1, NULL);
+		m_inst[i].icore = dfly_get_next_core(tpool_name, 1, NULL, NULL);
 
 		TAILQ_INSERT_TAIL(&module->active_threads, &m_inst[i], link);
 

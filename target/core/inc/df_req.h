@@ -178,6 +178,8 @@ typedef struct dfly_request {
 	bool		status;
 	bool		abort_cmd;
 
+	bool  data_direct;
+
 	//From nvme command
 	uint8_t nvme_opcode;
 
@@ -241,6 +243,18 @@ typedef struct dfly_request {
 		void *dev_iter_info;
 		void *internal_cb;
 	} iter_data;
+	struct {
+		struct rdd_rdma_queue_s *q;
+        uint64_t req_cuid;
+		uint64_t payload_len;
+		uint64_t cmem;
+		uint64_t hmem;
+		uint32_t ckey;
+		uint32_t hkey;
+		uint16_t qhandle;
+		uint8_t  opc;
+		TAILQ_ENTRY(dfly_request)	pending;
+	} rdd_info;
 	dfly_list_info_t list_data;
 	struct dss_list_read_process_ctx_s lp_ctx;
 	TAILQ_ENTRY(dfly_request)	fuse_delay; /**< request pool linkage for retry */
@@ -249,8 +263,11 @@ typedef struct dfly_request {
 	TAILQ_ENTRY(dfly_request)	fuse_waiting; /**< F1 request waiting linkage for F2 */
 	TAILQ_ENTRY(dfly_request)	fuse_pending_list;
 
+	TAILQ_ENTRY(dfly_request)	outstanding;
 	int32_t waiting_for_buffer:1;
 	struct df_io_lat_ticks lat;
+    uint64_t submit_tick;
+    int print_to;
 } dfly_request_t;
 
 int dfly_req_ini(struct dfly_request *req, int flags, void *ctx);
@@ -303,6 +320,7 @@ void dfly_req_init_nvme_info(struct dfly_request *req);
 bool dfly_cmd_sequential(struct dfly_request *req1, struct dfly_request *req2);
 void dfly_set_status_code(struct dfly_request *req, int sct, int sc);
 
+void dss_set_rdd_transfer(struct dfly_request *req);
 #ifdef __cplusplus
 }
 #endif

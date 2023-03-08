@@ -14,7 +14,7 @@ index 4782774..b418ce2 100644
  A clear and concise description of what the bug is.
  
 diff --git a/PDK/core/CMakeLists.txt b/PDK/core/CMakeLists.txt
-index 5558681..015e364 100644
+index 5558681..bfae9ee 100644
 --- a/PDK/core/CMakeLists.txt
 +++ b/PDK/core/CMakeLists.txt
 @@ -5,6 +5,7 @@ option(WITH_EMU "Enable Emulator support" OFF)
@@ -35,7 +35,33 @@ index 5558681..015e364 100644
  endif()
  
  if(WITH_KDD)
-@@ -170,7 +174,11 @@ elseif(WITH_SPDK)
+@@ -32,6 +36,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/kerne
+ # SOURCE CODE
+ 
+ SET(HEADERS_API
++    ${CMAKE_CURRENT_SOURCE_DIR}/src/api/include/rdd_cl.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/include/kvs_adi.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/kernel_driver_adapter/kadi.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/kernel_driver_adapter/kadi_debug.h
+@@ -62,7 +67,7 @@ add_definitions(-DWITH_KDD)
+ set(KVAPI_CXXFLAGS "-O2 -std=c++11 -MMD -MP -Wall -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -march=native")
+ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${KVAPI_CFLAGS}")
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${KVAPI_CXXFLAGS}")
+-set(KVAPI_LIBS ${KVAPI_LIBS} -pthread -Wl,--no-as-needed -fPIC -lnuma -lrt -march=native)
++set(KVAPI_LIBS ${KVAPI_LIBS} -pthread -lrdmacm -libverbs -Wl,--no-as-needed -fPIC -lnuma -lrt -march=native)
+ 
+ include_directories (${CMAKE_CURRENT_SOURCE_DIR}/src/api/include)
+ include_directories (${CMAKE_CURRENT_SOURCE_DIR}/src/api/include/private)
+@@ -77,7 +82,7 @@ target_link_libraries (kvapi_static ${KVAPI_LIBS})
+ 
+ # ${SOURCES_API} 
+ add_executable(sample_code_async ${CMAKE_CURRENT_SOURCE_DIR}/sample_code/test_async.cpp ${HEADERS_API})
+-target_link_libraries(sample_code_async kvapi_static)
++target_link_libraries(sample_code_async kvapi)
+ add_dependencies(sample_code_async kvapi_static)
+ #${SOURCES_API} ${HEADERS_API}
+ add_executable(sample_code_sync ${CMAKE_CURRENT_SOURCE_DIR}/sample_code/test_sync.cpp ${HEADERS_API})
+@@ -170,7 +175,11 @@ elseif(WITH_SPDK)
    include_directories (${CMAKE_CURRENT_SOURCE_DIR}/src/api/include/private)
    include_directories (${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/include/private)
    
@@ -48,7 +74,7 @@ index 5558681..015e364 100644
    SET(SOURCES_API
      ${SOURCES_API}
      ${CMAKE_CURRENT_SOURCE_DIR}/src/api/src/uddenv.cpp
-@@ -180,7 +188,7 @@ elseif(WITH_SPDK)
+@@ -180,7 +189,7 @@ elseif(WITH_SPDK)
      ${CMAKE_CURRENT_SOURCE_DIR}/src/api/src/private_cfrontend.cpp
      ${CMAKE_CURRENT_SOURCE_DIR}/src/device_abstract_layer/emulator/src/kv_config.cpp
      )
@@ -58,7 +84,7 @@ index 5558681..015e364 100644
    message("SPDK is enabled")
  
 diff --git a/PDK/core/include/kvs_api.h b/PDK/core/include/kvs_api.h
-index 4ed900d..80bfdec 100644
+index 4ed900d..fe926eb 100644
 --- a/PDK/core/include/kvs_api.h
 +++ b/PDK/core/include/kvs_api.h
 @@ -49,9 +49,9 @@ extern "C" {
@@ -85,7 +111,7 @@ index 4ed900d..80bfdec 100644
  kvs_result kvs_get_container_info (kvs_container_handle cont_hd, kvs_container *cont);
  
  
-@@ -246,6 +243,57 @@ kvs_result kvs_exist_tuples(kvs_container_handle cont_hd, uint32_t key_cnt, cons
+@@ -246,6 +243,91 @@ kvs_result kvs_exist_tuples(kvs_container_handle cont_hd, uint32_t key_cnt, cons
    
  kvs_result kvs_exist_tuples_async(kvs_container_handle cont_hd, uint32_t key_cnt, const kvs_key *keys, uint32_t buffer_size, uint8_t *result_buffer, const kvs_exist_context *ctx, kvs_callback_function cbfn);
  
@@ -138,12 +164,46 @@ index 4ed900d..80bfdec 100644
 +
 +kvs_result kvs_list_tuple_async(kvs_container_handle cont_hd, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, const kvs_list_context *ctx, kvs_callback_function cbfn);
 +
++/*! Retrieve key(s) with direct data transfer to the client
++ *
++ *  This command is meant for giving a performance improvement over regular retrieve command where end clients are remote and openmpdk stack
++ *  is not installed on clients, for example, clients doing s3 api call to our dss stack. In such case, dss target will directly transfer payload value
++ *  to the remote client bypassing entire dss host stack on return.
++ *
++ *  \param cont_hd container handle
++ *  \param key key to retrieve
++ *  \param remote_address remote client address where value will be RDMA into
++ *  \param transfer_length value length it is expecting
++ *  \param remote_client_id remote client identifier for RDMA transfer
++ *  \param ctx options
++ *  \ingroup KV_API
++ */
++kvs_result kvs_retrieve_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_retrieve_context *ctx);
++
++/*! Store key(s) with direct data transfer to the client
++ *  
++ *  This command is meant for giving a performance improvement over regular retrieve command where end clients are remote and openmpdk stack
++ *  is not installed on clients, for example, clients doing s3 api call to our dss stack. In such case, dss target will directly transfer payload value
++ *  to the remote client bypassing entire dss host stack on return.
++ *  
++ *  \param cont_hd container handle
++ *  \param key key to retrieve
++ *  \param remote_address remote client address where value will be RDMA into
++ *  \param transfer_length value length it is expecting
++ *  \param remote_client_id remote client identifier for RDMA transfer
++ *  \param ctx options
++ *  \ingroup KV_API
++ *  
++ */
++kvs_result kvs_store_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_store_context *ctx);
++
++
 +#endif
 +  
  /*! Open an iterator
   *
   * \param cont_hd container handle
-@@ -741,7 +789,7 @@ kvs_result kvs_retrieve_kvp(kvs_key_space_handle ks_hd, kvs_key *key, kvs_option
+@@ -741,7 +823,7 @@ kvs_result kvs_retrieve_kvp(kvs_key_space_handle ks_hd, kvs_key *key, kvs_option
    As an input value.value contains the buffer to store the key value pair value and value.length contains the buffer size.
    The key value pair value is copied to value.value buffer and value.length is set to the retrieved value size. If the offset of value is not zero,
    the value of key value pair is copied into the buffer, skipping the first offset bytes of the value of key value pair.
@@ -152,7 +212,7 @@ index 4ed900d..80bfdec 100644
    If the offset is not aligned, a KVS_ERR_VALUE_OFFSET_MISALIGNED error is returned. If an allocated value buffer is not big enough to hold the value,
    it will set value.actual_value_size to the actual value length and return KVS_ERR_BUFFER_SMALL.
  
-@@ -982,7 +1030,7 @@ kvs_result kvs_exist_kv_pairs_async(kvs_key_space_handle ks_hd, uint32_t key_cnt
+@@ -982,7 +1064,7 @@ kvs_result kvs_exist_kv_pairs_async(kvs_key_space_handle ks_hd, uint32_t key_cnt
  *
    This API enables applications to set up a Key Group such that the keys in that Key Group may be iterated within a Key Space
    (i.e., kvs_crearte_iterator() enables a device to prepare a Key Group of keys for iteration by matching a given bit pattern (it_fltr.bit_pattern) to all keys in the Key Space
@@ -161,7 +221,7 @@ index 4ed900d..80bfdec 100644
  
    PARAMETERS
    IN ks_hd Key Space handle
-@@ -1031,8 +1079,8 @@ kvs_result kvs_delete_iterator(kvs_key_space_handle ks_hd, kvs_iterator_handle i
+@@ -1031,8 +1113,8 @@ kvs_result kvs_delete_iterator(kvs_key_space_handle ks_hd, kvs_iterator_handle i
    buffer_size is the iterator buffer (iter_list) size in bytes. The retrieved values (iter_list) are either keys or key-value pairs based on the iterator option
    which is specified by kvs_create_iterator().
    Output values (iter_list.it_list) are determined by the iterator option specified by an application.
@@ -172,7 +232,7 @@ index 4ed900d..80bfdec 100644
  
    PARAMETERS
    IN ks_hd Key Space handle
-@@ -1057,8 +1105,8 @@ kvs_result kvs_iterate_next(kvs_key_space_handle ks_hd, kvs_iterator_handle iter
+@@ -1057,8 +1139,8 @@ kvs_result kvs_iterate_next(kvs_key_space_handle ks_hd, kvs_iterator_handle iter
    This API obtains a subset of key or key-value pairs from an iterator Key Group of iter_hd within a Key Space
    (i.e., kvs_iterator_next() retrieves a next Key Group of keys or key-value pairs in the iterator key group (iter_hd) that is set with kvs_create_iterator() command).
    Output values (iter_list.it_list) are determined by the iterator option set by an application.
@@ -905,27 +965,38 @@ index a319a24..028f01c 100644
  }
  #endif
 diff --git a/PDK/core/sample_code/test_sync.cpp b/PDK/core/sample_code/test_sync.cpp
-index 6e680f9..83d8e1c 100644
+index 6e680f9..d2a890a 100644
 --- a/PDK/core/sample_code/test_sync.cpp
 +++ b/PDK/core/sample_code/test_sync.cpp
-@@ -46,6 +46,9 @@
+@@ -39,6 +39,8 @@
+ #include <queue>
+ #include <kvs_api.h>
+ 
++#include "rdd_cl.h"
++
+ #define SUCCESS 0
+ #define FAILED 1
+ #define WRITE_OP  1
+@@ -46,6 +48,11 @@
  #define DELETE_OP 3
  #define ITERATOR_OP 4
  #define KEY_EXIST_OP 5
 +#define KEY_LIST_OP 6
 +#define KEY_READER_LOCK_UNLOCK_OP 7
 +#define KEY_WRITER_LOCK_UNLOCK_OP 8
++#define RDD_READ_OP 9
++#define RDD_WRITE_OP 10
  
  void usage(char *program)
  {
-@@ -53,10 +56,13 @@ void usage(char *program)
+@@ -53,11 +60,15 @@ void usage(char *program)
    printf("usage: %s -d device_path [-n num_ios] [-o op_type] [-k klen] [-v vlen] [-t threads]\n", program);
    printf("-d      device_path  :  kvssd device path. e.g. emul: /dev/kvemul; kdd: /dev/nvme0n1; udd: 0000:06:00.0\n");
    printf("-n      num_ios      :  total number of ios (ignore this for iterator)\n");
 -  printf("-o      op_type      :  1: write; 2: read; 3: delete; 4: iterator;"
 -                                " 5: key exist check;\n");
 -  printf("-k      klen         :  key length (ignore this for iterator)\n");
-+  printf("-o      op_type      :  1: write; 2: read; 3: delete; 4: iterator; 5: key exist check 6: list, 7: read lock/unlock test, 8: write lock/unlock test\n");
++  printf("-o      op_type      :  1: write; 2: read; 3: delete; 4: iterator; 5: key exist check 6: list, 7: read lock/unlock test, 8: write lock/unlock, 9: RDMA direct read test, 10: RDMA direct write test\n");
 +  printf("-k      klen         :  key length (ignore this for list and iterator)\n");
    printf("-v      vlen         :  value length (ignore this for iterator)\n");
 +  printf("-p      pfx_key      :  target list: use this key as prefix\n");
@@ -933,9 +1004,23 @@ index 6e680f9..83d8e1c 100644
 +  printf("-m      max_keys     :  max keys to list from target\n");
 +  printf("-a      start_key    :  target list: use this key as start key\n");
    printf("-t      threads      :  number of threads\n");
++  printf("-r      ip_addr      :  IP Address to connect for RDMA Direct connections\n");
    printf("==============\n");
  }
-@@ -81,6 +87,10 @@ struct thread_args{
+ 
+@@ -65,6 +76,11 @@ void usage(char *program)
+ 
+ #ifdef SAMSUNG_API
+ 
++char *g_rdd_ip = NULL;
++char *g_rdd_port = (char *)"1234";
++struct rdd_client_ctx_s *g_rdd_cl_ctx = NULL;
++rdd_cl_conn_ctx_t *g_rdd_conn = NULL;
++
+ static int use_udd = 0;
+ 
+ struct iterator_info{
+@@ -81,6 +97,10 @@ struct thread_args{
    int count;
    int op_type;
    kvs_container_handle cont_hd;
@@ -946,7 +1031,7 @@ index 6e680f9..83d8e1c 100644
  };
  
  void print_iterator_keyvals(kvs_iterator_list *iter_list, kvs_iterator_option g_iter_mode){
-@@ -154,7 +164,7 @@ int perform_iterator(kvs_container_handle cont_hd,
+@@ -154,7 +174,7 @@ int perform_iterator(kvs_container_handle cont_hd,
    char prefix_str[5] = "0000";
    unsigned int PREFIX_KV = 0;
    for (int i = 0; i < 4; i++){
@@ -955,7 +1040,94 @@ index 6e680f9..83d8e1c 100644
    }
  
    iter_ctx_open.bit_pattern = PREFIX_KV;
-@@ -375,8 +385,133 @@ int perform_key_exist(int id, kvs_container_handle cont_hd, int count, kvs_key_t
+@@ -273,6 +293,86 @@ int perform_read(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen
+   return SUCCESS;
+ }
+ 
++int perform_rdd_read(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint32_t vlen) {
++  int ret;
++  char *key   = (char*)kvs_malloc(klen, 4096);
++  char *value = (char*)kvs_malloc(vlen, 4096);
++  if(key == NULL || value == NULL) {
++    fprintf(stderr, "failed to allocate\n");
++    return FAILED;
++  }
++
++  int start_key = id * count;
++  for (int i = start_key; i < start_key + count; i++) {
++    memset(value, 0, vlen);
++    sprintf(key, "%0*d", klen - 1, i);
++    kvs_retrieve_option option;
++    memset(&option, 0, sizeof(kvs_retrieve_option));
++    option.kvs_retrieve_decompress = false;
++    option.kvs_retrieve_delete = false;
++
++    const kvs_retrieve_context ret_ctx = {option, 0, 0};
++    const kvs_key  kvskey = {key, klen };
++    kvs_value kvsvalue = { value, vlen , 0, 0 /*offset */};
++
++    struct ibv_mr *mr = rdd_cl_conn_get_mr(g_rdd_conn, value, vlen);
++    ret = kvs_retrieve_tuple_direct(cont_hd, &kvskey, &kvsvalue, mr->rkey, g_rdd_conn->qhandle, &ret_ctx);
++    if(mr) rdd_cl_conn_put_mr(mr);
++
++    if(ret != KVS_SUCCESS) {
++      fprintf(stderr, "retrieve tuple direct %s failed with error 0x%x - %s\n", key, ret, kvs_errstr(ret));
++    } else {
++
++    }
++  }
++
++  if(key) kvs_free(key);
++  if(value) kvs_free(value);
++
++  return SUCCESS;
++}
++
++int perform_rdd_insert(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint32_t vlen) {
++  int ret;
++  char *key   = (char*)kvs_malloc(klen, 4096);
++  char *value = (char*)kvs_malloc(vlen, 4096);
++  if(key == NULL || value == NULL) {
++    fprintf(stderr, "failed to allocate\n");
++    return FAILED;
++  }
++
++  int start_key = id * count;
++  for (int i = start_key; i < start_key + count; i++) {
++    memset(value, 0, vlen);
++    sprintf(key, "%0*d", klen - 1, i);
++    sprintf(value, "%0*d", klen - 1, i + 10);
++
++    kvs_store_option option;
++    option.st_type = KVS_STORE_POST;
++    option.kvs_store_compress = false;
++
++    kvs_store_context put_ctx = {option, 0, 0};
++
++    const kvs_key  kvskey = {key, klen };
++    kvs_value kvsvalue = { value, vlen , 0, 0 /*offset */};
++
++    struct ibv_mr *mr = rdd_cl_conn_get_mr(g_rdd_conn, value, vlen);
++    ret = kvs_store_tuple_direct(cont_hd, &kvskey, &kvsvalue, mr->rkey, g_rdd_conn->qhandle, &put_ctx);
++    if(mr) rdd_cl_conn_put_mr(mr);
++
++    if(ret != KVS_SUCCESS) {
++      fprintf(stderr, "put tuple direct %s failed with error 0x%x - %s\n", key, ret, kvs_errstr(ret));
++    } else {
++
++    }
++  }
++
++  if(key) kvs_free(key);
++  if(value) kvs_free(value);
++
++  return SUCCESS;
++}
++
+ 
+ int perform_insertion(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint32_t vlen) {
+ 
+@@ -375,17 +475,149 @@ int perform_key_exist(int id, kvs_container_handle cont_hd, int count, kvs_key_t
    return SUCCESS;
  }
  
@@ -1090,7 +1262,23 @@ index 6e680f9..83d8e1c 100644
  
    switch(op_type) {
    case WRITE_OP:
-@@ -400,6 +535,15 @@ void do_io(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint
+     perform_insertion(id, cont_hd, count, klen, vlen);
+     break;
++  case RDD_WRITE_OP:
++    perform_rdd_insert(id, cont_hd, count, klen, vlen);
++    break;
++
+   case READ_OP:
+     //perform_insertion(id, cont_hd, count, klen, vlen);
+     perform_read(id, cont_hd, count, klen, vlen);
+     break;
++  case RDD_READ_OP:
++    perform_rdd_read(id, cont_hd, count, klen, vlen);
++    break;
+   case DELETE_OP:
+     //perform_insertion(id, cont_hd, count, klen, vlen);
+     perform_delete(id, cont_hd, count, klen, vlen);
+@@ -400,6 +632,15 @@ void do_io(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint
      //perform_insertion(id, cont_hd, count, klen, vlen);
      perform_key_exist(id, cont_hd, count, klen, vlen);
      break;
@@ -1106,7 +1294,7 @@ index 6e680f9..83d8e1c 100644
    default:
      fprintf(stderr, "Please specify a correct op_type for testing\n");
      return;
-@@ -410,119 +554,22 @@ void do_io(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint
+@@ -410,119 +651,23 @@ void do_io(int id, kvs_container_handle cont_hd, int count, kvs_key_t klen, uint
  void *iothread(void *args)
  {
    thread_args *targs = (thread_args *)args;
@@ -1225,13 +1413,14 @@ index 6e680f9..83d8e1c 100644
    uint32_t vlen = 4096;
    int ret, c, t = 1;
 +  uint16_t max_keys = 0;
++  rdd_cl_conn_params_t rdd_params;
  
 -  while ((c = getopt(argc, argv, "d:n:o:k:v:t:h")) != -1) {
-+  while ((c = getopt(argc, argv, "d:n:o:k:v:t:p:l:m:a:h")) != -1) {
++  while ((c = getopt(argc, argv, "d:n:o:k:v:t:p:l:m:a:r:h")) != -1) {
      switch(c) {
      case 'd':
        dev_path = optarg;
-@@ -542,6 +589,18 @@ int main(int argc, char *argv[]) {
+@@ -542,6 +687,21 @@ int main(int argc, char *argv[]) {
      case 't':
        t = atoi(optarg);
        break;
@@ -1247,10 +1436,42 @@ index 6e680f9..83d8e1c 100644
 +    case 'a':
 +      key = optarg;
 +      break;
++	case 'r':
++		g_rdd_ip = optarg;
++		break;
      case 'h':
        usage(argv[0]);
        return SUCCESS;
-@@ -562,6 +621,10 @@ int main(int argc, char *argv[]) {
+@@ -557,11 +717,39 @@ int main(int argc, char *argv[]) {
+     return SUCCESS;
+   }
+ 
++  if ((op_type == RDD_READ_OP) || (op_type == RDD_WRITE_OP)) {
++    if(g_rdd_ip) {
++      rdd_cl_ctx_params_t param = {RDD_PD_GLOBAL};
++      g_rdd_cl_ctx = rdd_cl_init(param);
++      if(!g_rdd_cl_ctx) {
++        fprintf(stderr, "Could not initialize rdd library\n");
++        return SUCCESS;
++      }
++
++      rdd_params.ip = g_rdd_ip;
++      rdd_params.port = g_rdd_port;
++
++      g_rdd_conn = rdd_cl_create_conn(g_rdd_cl_ctx, rdd_params);
++      if(!g_rdd_conn) {
++        fprintf(stderr, "Could not establish direct data connection\n");
++        return SUCCESS;
++      }
++    } else {
++      fprintf(stderr, "RDMA direct needs IP to connect in -r option\n");
++      usage(argv[0]);
++      return SUCCESS;
++    }
++  }
++
+   if(op_type == ITERATOR_OP && t > 1) {
+     fprintf(stdout, "Iterator only supports single thread \n");
      return FAILED;
    }
    
@@ -1261,7 +1482,7 @@ index 6e680f9..83d8e1c 100644
    kvs_init_options options;
    kvs_init_env_opts(&options);
  
-@@ -594,11 +657,21 @@ int main(int argc, char *argv[]) {
+@@ -594,11 +782,21 @@ int main(int argc, char *argv[]) {
      options.memory.use_dpdk = 0;
    }
  
@@ -1286,7 +1507,7 @@ index 6e680f9..83d8e1c 100644
  
    thread_args args[t];
    pthread_t tid[t];
-@@ -613,6 +686,10 @@ int main(int argc, char *argv[]) {
+@@ -613,6 +811,10 @@ int main(int argc, char *argv[]) {
      args[i].count = num_ios;
      args[i].cont_hd = cont_handle;
      args[i].op_type = op_type;
@@ -1297,7 +1518,7 @@ index 6e680f9..83d8e1c 100644
      pthread_attr_t *attr = (pthread_attr_t *)malloc(sizeof(pthread_attr_t));
      cpu_set_t cpus;
      pthread_attr_init(attr);
-@@ -642,8 +719,10 @@ int main(int argc, char *argv[]) {
+@@ -642,8 +844,10 @@ int main(int argc, char *argv[]) {
      double sec = (double)(end - start) / 1000000000L;
      fprintf(stdout, "Total time %.2f sec; Throughput %.2f ops/sec\n", sec, (double) num_ios * t /sec );
    }
@@ -1310,7 +1531,7 @@ index 6e680f9..83d8e1c 100644
    return SUCCESS;
  }
  
-@@ -766,6 +845,7 @@ int perform_key_exist(int id, kvs_key_space_handle ks_hd, int count, uint16_t kl
+@@ -766,6 +970,7 @@ int perform_key_exist(int id, kvs_key_space_handle ks_hd, int count, uint16_t kl
      fprintf(stderr, "failed to allocate\n");
      return FAILED;
    }
@@ -1318,7 +1539,7 @@ index 6e680f9..83d8e1c 100644
    int start_key = id * count;
    uint8_t exist_status;
    kvs_exist_list list;
-@@ -801,15 +881,20 @@ int perform_iterator(kvs_key_space_handle ks_hd,
+@@ -801,15 +1006,20 @@ int perform_iterator(kvs_key_space_handle ks_hd,
    /* Open iterator */
    kvs_key_group_filter iter_fltr;
  
@@ -1347,7 +1568,7 @@ index 6e680f9..83d8e1c 100644
  
    ret = kvs_create_iterator(ks_hd, &(iter_info->g_iter_mode), &iter_fltr, &(iter_info->iter_handle));
    if(ret != KVS_SUCCESS) {
-@@ -912,116 +997,8 @@ void *iothread(void *args)
+@@ -912,116 +1122,8 @@ void *iothread(void *args)
    return NULL;
  }
  
@@ -1465,7 +1686,7 @@ index 6e680f9..83d8e1c 100644
    int num_ios = 10;
    int op_type = 1;
    uint16_t klen = 16;
-@@ -1067,13 +1044,24 @@ int main(int argc, char *argv[]) {
+@@ -1067,13 +1169,24 @@ int main(int argc, char *argv[]) {
      fprintf(stdout, "Iterator only supports single thread \n");
      return FAILED;
    }
@@ -1495,7 +1716,7 @@ index 6e680f9..83d8e1c 100644
  
    thread_args args[t];
    pthread_t tid[t];
-@@ -1117,9 +1105,10 @@ int main(int argc, char *argv[]) {
+@@ -1117,9 +1230,10 @@ int main(int argc, char *argv[]) {
      double sec = (double)(end - start) / 1000000000L;
      fprintf(stdout, "Total time %.2f sec; Throughput %.2f ops/sec\n", sec, (double) num_ios * t /sec );
    }
@@ -1554,10 +1775,10 @@ index 255178a..7330156 100644
    std::string datapath;
  };
 diff --git a/PDK/core/src/api/include/private/kvkdd.hpp b/PDK/core/src/api/include/private/kvkdd.hpp
-index a8e07e6..10ed29a 100644
+index a8e07e6..a58bdca 100644
 --- a/PDK/core/src/api/include/private/kvkdd.hpp
 +++ b/PDK/core/src/api/include/private/kvkdd.hpp
-@@ -80,32 +80,34 @@ public:
+@@ -80,32 +80,38 @@ public:
    virtual ~KDDriver();
    virtual int32_t init(const char*devpath, const char* configfile, int queuedepth, int is_polling) override;
    virtual int32_t process_completions(int max) override;
@@ -1588,6 +1809,10 @@ index a8e07e6..10ed29a 100644
 +    virtual int32_t lock_tuple(int contid, const kvs_key *key, uint64_t instance_uuid, kvs_lock_option option, void *private1=NULL, void *private2=NULL, bool syncio = false, kvs_callback_function cbfn = NULL);
 +    virtual int32_t unlock_tuple(int contid, const kvs_key *key, uint64_t instance_uuid, kvs_lock_option option, void *private1=NULL, void *private2=NULL, bool syncio = false, kvs_callback_function cnfn = NULL);
 +    virtual int32_t list_tuple(int contid, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) override;
++    virtual int32_t retrieve_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_retrieve_option option/*uint8_t option*/,
++                                          void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) override;
++    virtual int32_t store_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_store_option option/*uint8_t option*/,
++                                          void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) override;
 +  #endif
  
  private:
@@ -1679,7 +1904,7 @@ index 928f554..b6b7489 100644
 +
  #endif /* INCLUDE_KVS_UTILS_H_ */
 diff --git a/PDK/core/src/api/include/private/private_api.h b/PDK/core/src/api/include/private/private_api.h
-index f7cb1da..77d02f3 100644
+index f7cb1da..464aa66 100644
 --- a/PDK/core/src/api/include/private/private_api.h
 +++ b/PDK/core/src/api/include/private/private_api.h
 @@ -50,12 +50,10 @@ kvs_result kvs_init_env_opts(kvs_init_options* options);
@@ -1709,7 +1934,7 @@ index f7cb1da..77d02f3 100644
  kvs_result kvs_open_iterator(kvs_container_handle cont_hd, const kvs_iterator_context *ctx, kvs_iterator_handle *iter_hd);
  kvs_result kvs_close_iterator(kvs_container_handle cont_hd, kvs_iterator_handle hiter, const kvs_iterator_context *ctx);
  kvs_result kvs_close_iterator_all(kvs_container_handle cont_hd);
-@@ -83,13 +80,17 @@ kvs_result kvs_get_max_key_length (kvs_device_handle dev_hd, int32_t *max_key_le
+@@ -83,13 +80,19 @@ kvs_result kvs_get_max_key_length (kvs_device_handle dev_hd, int32_t *max_key_le
  kvs_result kvs_get_min_value_length (kvs_device_handle dev_hd, int32_t *min_value_length);
  kvs_result kvs_get_max_value_length (kvs_device_handle dev_hd, int32_t *max_value_length);
  kvs_result kvs_get_optimal_value_length (kvs_device_handle dev_hd, int32_t *opt_value_length);
@@ -1720,6 +1945,8 @@ index f7cb1da..77d02f3 100644
 +  kvs_result kvs_unlock_tuple(kvs_container_handle cont_hd, const kvs_key *key, uint64_t instance_uuid, const kvs_lock_context *ctx);
 +  kvs_result kvs_list_tuple(kvs_container_handle cont_hd, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, const kvs_list_context *ctx);
 +  kvs_result kvs_list_tuple_async(kvs_container_handle cont_hd, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, const kvs_list_context *ctx, kvs_callback_function cbfn);
++  kvs_result kvs_retrieve_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_retrieve_context *ctx);
++  kvs_result kvs_store_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_store_context *ctx);
 +#endif
  const char *kvs_errstr(int32_t errorno);
  // memory
@@ -1731,7 +1958,7 @@ index f7cb1da..77d02f3 100644
  #define _LOCATION       __FILE__ ":" _INT2STRING(__LINE__)
  
  void *_kvs_zalloc(size_t size_bytes, size_t alignment, const char *file);
-@@ -120,5 +121,5 @@ void  _kvs_free(void * buf, const char *file);
+@@ -120,5 +123,5 @@ void  _kvs_free(void * buf, const char *file);
   */
  #define kvs_free(buf) _kvs_free(buf, _LOCATION)
  #define kvs_memstat() _kvs_report_memstat()
@@ -1873,7 +2100,7 @@ index ab2cdf7..44608b6 100644
 +}
  #endif
 diff --git a/PDK/core/src/api/include/private/private_types.h b/PDK/core/src/api/include/private/private_types.h
-index 6c30762..da47f69 100644
+index 6c30762..403ec16 100644
 --- a/PDK/core/src/api/include/private/private_types.h
 +++ b/PDK/core/src/api/include/private/private_types.h
 @@ -53,25 +53,7 @@ extern "C" {
@@ -1910,7 +2137,7 @@ index 6c30762..da47f69 100644
      num_opened_qpairs = 0;
    }
  
-@@ -146,21 +127,24 @@ public:
+@@ -146,21 +127,28 @@ public:
    virtual int32_t init(const char* devpath, bool syncio, uint64_t sq_core, uint64_t cq_core, uint32_t mem_size_mb, int queue_depth) {return 0;}
    virtual int32_t init(const char* devpath, bool syncio) {return 0;}
    virtual int32_t process_completions(int max) =0;
@@ -1942,11 +2169,15 @@ index 6c30762..da47f69 100644
 +    virtual int32_t lock_tuple(int contid, const kvs_key *key, uint64_t instance_uuid, kvs_lock_option option, void *private1=NULL, void *private2=NULL, bool syncio = false, kvs_callback_function cbfn = NULL) = 0;
 +    virtual int32_t unlock_tuple(int contid, const kvs_key *key, uint64_t instance_uuid, kvs_lock_option option, void *private1=NULL, void *private2=NULL, bool syncio = false, kvs_callback_function cbfn = NULL) = 0;
 +    virtual int32_t list_tuple(int contid, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) = 0;
++    virtual int32_t retrieve_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_retrieve_option option/*uint8_t option*/, 
++                                          void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) = 0;
++    virtual int32_t store_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_store_option option/*uint8_t option*/,
++                                          void *private1=NULL, void *private2=NULL, bool sync = false, kvs_callback_function cbfn = NULL) = 0;
 +  #endif
    std::string path;
  };
  
-@@ -168,15 +152,12 @@ struct _kvs_device_handle {
+@@ -168,15 +156,12 @@ struct _kvs_device_handle {
    kv_device_priv * dev;
    KvsDriver* driver;
    char* dev_path;
@@ -2025,6 +2256,672 @@ index 7d9bcc6..b9c2a8b 100644
  };
  }
  
+diff --git a/PDK/core/src/api/include/rdd_cl.h b/PDK/core/src/api/include/rdd_cl.h
+new file mode 100644
+index 0000000..d10cda4
+--- /dev/null
++++ b/PDK/core/src/api/include/rdd_cl.h
+@@ -0,0 +1,660 @@
++/**
++ *   BSD LICENSE
++ *
++ *   Copyright (c) 2021 Samsung Electronics Co., Ltd.
++ *   All rights reserved.
++ *
++ *   Redistribution and use in source and binary forms, with or without
++ *   modification, are permitted provided that the following conditions
++ *   are met:
++ *
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above copyright
++ *       notice, this list of conditions and the following disclaimer in
++ *       the documentation and/or other materials provided with the
++ *       distribution.
++ *     * Neither the name of Samsung Electronics Co., Ltd. nor the names of
++ *       its contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#ifndef RDD_CL_H
++#define RDD_CL_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <netdb.h>
++#include <assert.h>
++#include <sys/queue.h>
++
++#include <rdma/rdma_cma.h>
++
++
++#define RDD_PROTOCOL_VERSION (0xCAB00001)
++
++#define RDD_RDMA_MAX_KEYED_SGL_LENGTH ((1u << 24u) - 1)
++
++struct rdd_queue_priv_s {
++    union {
++        struct {
++            uint32_t proto_ver;
++            uint32_t qid;
++	        uint32_t hsqsize;
++	        uint32_t hrqsize;
++        } client;//Private data from client
++        struct {
++            uint32_t proto_ver;
++            uint16_t qhandle; //Hash identifier provided to client for direct transfer
++        } server;//Private data from server
++    } data;
++};//RDD queue private
++
++/* Offset of member MEMBER in a struct of type TYPE. */
++#define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
++#define containerof(ptr, type, member) ((type *)((uintptr_t)ptr - offsetof(type, member)))
++
++
++#define RDD_CL_MAX_DEFAULT_QUEUEC (1)
++#define RDD_CL_DEFAULT_QDEPTH (128)
++#define RDD_CL_DEFAULT_SEND_WR_NUM RDD_CL_DEFAULT_QDEPTH
++#define RDD_CL_DEFAULT_RECV_WR_NUM RDD_CL_DEFAULT_SEND_WR_NUM
++#define RDD_CL_CQ_QDEPTH (RDD_CL_DEFAULT_SEND_WR_NUM + RDD_CL_DEFAULT_RECV_WR_NUM)
++
++#define RDD_CL_TIMEOUT_IN_MS (500)
++
++typedef struct rdd_cl_conn_ctx_s rdd_cl_conn_ctx_t;
++
++enum rdd_cl_queue_state_e {
++    RDD_CL_Q_INIT = 0,
++    RDD_CL_Q_LIVE,
++};
++
++
++typedef enum {
++	RDD_PD_GLOBAL = 0, // One Global Protection Domain per Client context
++	RDD_PD_CONN, // Each RDMA Direct queue gets it's own protection Domain
++} rdd_cl_pd_type_e;
++
++typedef struct {
++	rdd_cl_pd_type_e pd_type;//RDMA protection domain type for client context
++} rdd_cl_ctx_params_t;
++
++typedef struct rdd_cl_conn_params_s {
++    const char *ip;
++    const char *port;
++    uint32_t qd;
++} rdd_cl_conn_params_t;
++
++typedef struct rdd_cl_dev_s {
++    //TODO: ??Required??//struct ibv_pd *pd;
++	//TODO: ??Required??//struct ibv_mr *mr;
++	//TODO: ??Required??//struct ibv_mw *mw;
++	struct ibv_device *dev;
++    TAILQ_ENTRY(rdd_cl_dev_s) dev_link;
++} rdd_cl_dev_t;
++
++typedef struct rdd_cl_queue_s {
++    uint32_t qid;
++    rdd_cl_conn_ctx_t *conn;
++    pthread_mutex_t qlock;
++    enum rdd_cl_queue_state_e state;
++    struct rdma_cm_id *cm_id;
++    struct ibv_pd *pd;
++    struct ibv_context *ibv_ctx;
++    struct ibv_qp *qp;
++
++    struct ibv_mr *cmd_mr;
++    struct ibv_mr *rsp_mr;
++
++} rdd_cl_queue_t;
++
++struct rdd_cl_conn_ctx_s {
++    int conn_id;
++    struct addrinfo *ai;
++	uint16_t qhandle;
++    uint32_t qd;
++    uint32_t queuec;
++    rdd_cl_queue_t *queues;
++    rdd_cl_dev_t *device;
++    //IBV
++    struct ibv_comp_channel *ch;
++    union {
++        struct {
++            pthread_t cq_poll_thread;
++        }pt;//Pthread
++    }th;//Thread
++
++    pthread_mutex_t conn_lock;
++
++    struct rdd_client_ctx_s *cl_ctx;
++};
++
++struct rdd_client_ctx_s {
++    struct ibv_device **ibv_devs;
++    struct rdma_event_channel *cm_ch;
++    union {
++        struct {
++            pthread_t cm_thread;
++        }pt;//Pthread
++    }th;//Thread
++    struct ibv_pd *pd;//Valid when PD is global otherwise NULL
++    TAILQ_HEAD(, rdd_cl_dev_s) devices;
++};
++
++struct rdd_client_ctx_s *rdd_cl_init(rdd_cl_ctx_params_t params);
++void rdd_cl_destroy(struct rdd_client_ctx_s *ctx);
++
++rdd_cl_conn_ctx_t *rdd_cl_create_conn(struct rdd_client_ctx_s *cl_ctx, rdd_cl_conn_params_t params);
++void rdd_cl_destroy_connection(rdd_cl_conn_ctx_t *ctx);
++
++uint16_t rdd_cl_conn_get_qhandle(void * arg);
++struct ibv_mr *rdd_cl_conn_get_mr(void *ctx, void *addr, size_t len);
++void rdd_cl_conn_put_mr(struct ibv_mr *mr);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif // RDD_CL_H
++
++void rdd_cl_destory_queues(rdd_cl_conn_ctx_t *ctx);
++
++struct rdd_cl_dev_s *rdd_cl_find_dev(struct rdd_client_ctx_s *cl_ctx, const char *name)
++{
++    struct rdd_cl_dev_s *dev;
++    TAILQ_FOREACH(dev, &cl_ctx->devices, dev_link) {
++        if (!strcmp(dev->dev->name, name))
++			return dev;
++    }
++	return NULL;
++}
++
++static int rdd_cl_init_ib_queue(rdd_cl_queue_t *q)
++{
++ 	struct ibv_cq *cq;
++ 	struct ibv_qp_init_attr qp_attr;
++ 	struct rdma_cm_id *id = q->cm_id;
++    rdd_cl_conn_ctx_t * conn = q->conn;
++
++    int rc;
++    
++    //q->pd = ibv_alloc_pd(q->cm_id->verbs);
++    //assert(q->pd != NULL);//TODO: Handle error case
++
++  	cq = ibv_create_cq(id->verbs, RDD_CL_CQ_QDEPTH, NULL, conn->ch,
++ 			           q->qid % id->verbs->num_comp_vectors);
++ 	ibv_req_notify_cq(cq, 0);
++
++ 	memset(&qp_attr, 0, sizeof (struct ibv_qp_init_attr));
++
++ 	qp_attr.send_cq = cq;
++ 	qp_attr.recv_cq = cq;
++ 	qp_attr.qp_type = IBV_QPT_RC;
++
++ 	qp_attr.cap.max_send_wr = conn->qd;
++   	qp_attr.cap.max_recv_wr = conn->qd;
++ 	qp_attr.cap.max_send_sge = 16;
++ 	qp_attr.cap.max_recv_sge = 16;
++
++ 	rc = rdma_create_qp(id, NULL, &qp_attr);
++    assert(rc == 0);
++ 	q->qp = id->qp;
++    q->pd = id->qp->pd;
++
++	fprintf(stderr, "Setting pd for q %p with pd %p\n", q, q->pd); 
++
++ 	return 0;
++}
++
++int rdd_cl_process_wc(struct ibv_wc *wc)
++{
++    if (wc->status != IBV_WC_SUCCESS) {
++		fprintf(stderr, "wc error %d\n", wc->status);
++        abort();
++		return -1;
++	}
++
++	fprintf(stderr, "Recieved unexpected wc %d\n", wc->status);
++
++    return 0;
++}
++
++void *poll_cq(void *arg)
++{
++    struct ibv_comp_channel *ch = (struct ibv_comp_channel *)arg;
++    int rc;
++
++    while(1) {
++        struct ibv_cq *cq;
++		struct ibv_wc wc;
++		void *ctx;
++
++        ibv_get_cq_event(ch, &cq, &ctx);
++		ibv_ack_cq_events(cq, 1);
++		ibv_req_notify_cq(cq, 0);
++
++        while (ibv_poll_cq(cq, 1, &wc)) {
++			rc = rdd_cl_process_wc(&wc);
++            //TODO: Process error case
++            assert(rc == 0);
++        }
++    }
++    
++    return NULL;
++}
++
++int rdd_cl_cm_addr_resolved(struct rdma_cm_id *id)
++{
++	const char *name;
++    int rc = 0;
++	struct rdd_cl_dev_s *dev;
++	struct ibv_device_attr_ex device_attr;
++    rdd_cl_queue_t *queue = (rdd_cl_queue_t *)id->context;
++	
++    rdd_cl_conn_ctx_t *conn_ctx = queue->conn;
++
++	fprintf(stdout, "qid %u # of completion vector: %d\n",
++			queue->qid, id->verbs->num_comp_vectors);
++
++	ibv_query_device_ex(id->verbs, NULL, &device_attr);
++	if (device_attr.orig_attr.device_cap_flags & IBV_DEVICE_MEM_WINDOW ||
++		device_attr.orig_attr.device_cap_flags & IBV_DEVICE_MEM_WINDOW_TYPE_2B) {
++			printf("MW Supported\n");
++	} else {
++ 			printf("MW Unupported\n");
++	}
++
++    pthread_mutex_lock(&conn_ctx->conn_lock);
++
++	name = ibv_get_device_name(id->verbs->device);
++	dev = rdd_cl_find_dev(conn_ctx->cl_ctx, name);
++	if (dev == NULL) {
++		fprintf(stderr, "No matching device %s\n", name);
++		return -1;
++	}
++
++	//tgt->dev = ddev;//TODO: Find and assign target device
++    conn_ctx->device = dev;
++  	queue->ibv_ctx = id->verbs;
++
++    if(conn_ctx->ch == NULL) {
++        conn_ctx->ch = ibv_create_comp_channel(queue->cm_id->verbs);
++
++        pthread_create(&conn_ctx->th.pt.cq_poll_thread, NULL, poll_cq, conn_ctx->ch);
++    }
++
++	pthread_setschedprio(conn_ctx->th.pt.cq_poll_thread, sched_get_priority_max(SCHED_OTHER));
++
++    pthread_mutex_unlock(&conn_ctx->conn_lock);
++
++	rc = rdd_cl_init_ib_queue(queue);
++    assert(rc == 0);
++
++	rc = rdma_resolve_route(queue->cm_id, RDD_CL_TIMEOUT_IN_MS);
++    assert(rc == 0);
++
++	return 0;
++}
++
++int rdd_cl_cm_route_resolved(struct rdma_cm_id *id)
++{
++	int ret;
++    struct rdd_queue_priv_s priv;
++	struct rdma_conn_param conn_param;
++	struct ibv_device_attr device_attr;
++    rdd_cl_queue_t *queue = (rdd_cl_queue_t *)id->context;
++    rdd_cl_conn_ctx_t *conn = queue->conn;
++
++	fprintf(stdout, "qid %u route resolved.\n", queue->qid);
++
++    priv.data.client.proto_ver = RDD_PROTOCOL_VERSION;
++    priv.data.client.qid = queue->qid;
++    priv.data.client.hsqsize = conn->qd;
++    priv.data.client.hrqsize = conn->qd;
++
++	 memset(&conn_param, 0, sizeof(struct rdma_conn_param));
++
++	 ret = ibv_query_device(id->verbs, &device_attr);
++	 if (ret) {
++	 	fprintf(stderr, "Failed to query device %s", id->verbs->device->name);
++	 	return -1;
++	 }
++
++	conn_param.initiator_depth = device_attr.max_qp_init_rd_atom;
++	conn_param.responder_resources = device_attr.max_qp_rd_atom;
++	conn_param.retry_count = 7;
++	conn_param.rnr_retry_count = 7;
++	conn_param.flow_control = 1;
++	conn_param.private_data = &priv;
++	conn_param.private_data_len = sizeof (priv);
++
++	 ret = rdma_connect(id, &conn_param);
++	 if (ret) {
++	 	fprintf(stderr, "Failed to connect to qpair %d\n", queue->qid);
++	 	return -1;
++	 }
++
++	return 0;
++}
++
++uint16_t rdd_cl_conn_get_qhandle(void *arg)
++{
++	rdd_cl_conn_ctx_t *conn = (rdd_cl_conn_ctx_t *)arg;
++
++	return conn->qhandle;
++}
++
++struct ibv_mr *rdd_cl_conn_get_mr(void *ctx, void *addr, size_t len)
++{
++	rdd_cl_conn_ctx_t *conn = (rdd_cl_conn_ctx_t *)ctx;
++
++	//assume one IO queue per connection
++	return ibv_reg_mr(conn->queues[0].pd, addr, len,
++         					IBV_ACCESS_LOCAL_WRITE |
++						    IBV_ACCESS_REMOTE_WRITE |
++							IBV_ACCESS_REMOTE_READ);                   
++
++}
++
++
++void rdd_cl_conn_put_mr(struct ibv_mr *mr)
++{
++	ibv_dereg_mr(mr);
++	return;
++}
++
++
++int rdd_cl_cm_conn_established(struct rdma_cm_event *ev) {
++    struct rdma_cm_id *id = ev->id;
++	rdd_cl_queue_t *q = (rdd_cl_queue_t *)id->context;
++	rdd_cl_conn_ctx_t *conn = q->conn;
++    struct rdd_queue_priv_s *priv = (struct rdd_queue_priv_s *) ev->param.conn.private_data;
++
++	fprintf(stdout, "qid %u connection established\n", q->qid);
++    fprintf(stdout, "qid %u client handle %8x\n", q->qid, priv->data.server.qhandle);
++
++	conn->qhandle = priv->data.server.qhandle;
++
++	q->state = RDD_CL_Q_LIVE;
++
++    //TODO: Increment live queue counter
++
++	return 0;
++}
++
++int rdd_cl_on_disconnect(struct rdma_cm_id *id)
++{
++  printf("disconnected.\n");
++
++  //TODO: tear down connection?? wait for all queues
++  return 1; /* exit event loop */
++}
++
++static int rdd_cl_cm_event_handler(struct rdma_cm_event *ev)
++{
++	int r = 0;
++
++	switch (ev->event) {
++        case RDMA_CM_EVENT_ADDR_RESOLVED:
++            r = rdd_cl_cm_addr_resolved(ev->id);
++            break;
++        case RDMA_CM_EVENT_ROUTE_RESOLVED:
++            r = rdd_cl_cm_route_resolved(ev->id);
++            break;
++        case RDMA_CM_EVENT_ESTABLISHED:
++            r = rdd_cl_cm_conn_established(ev);
++            break;
++        case RDMA_CM_EVENT_DISCONNECTED:
++            r = rdd_cl_on_disconnect(ev->id);
++            break;
++        case RDMA_CM_EVENT_REJECTED:
++            fprintf(stderr, "event status %d\n", ev->status);
++            break;
++        default:
++            fprintf(stderr, "unsupported cm_event_handler: %d\n", ev->event);
++            //die("on_event: unknown event.");
++	}
++
++	return r;
++}
++
++void *_rdd_cl_cm_event_task(void *arg)
++{
++    struct rdd_client_ctx_s *ctx = (struct rdd_client_ctx_s *)arg;
++	struct rdma_event_channel *ch = ctx->cm_ch;
++	struct rdma_cm_event *event;
++
++	while (rdma_get_cm_event(ch, &event) == 0) {
++        printf("Processing event %s\n", rdma_event_str(event->event));
++		if (rdd_cl_cm_event_handler(event))
++    		break;
++
++		rdma_ack_cm_event(event);
++        //TODO: Respond to cancellation request
++  	}
++    printf("Exiting cm event task %p\n", ctx);
++
++	return NULL;
++}
++
++int rdd_cl_init_queues(rdd_cl_conn_ctx_t *ctx)
++{
++    int rc;
++	uint32_t i;
++    rdd_cl_queue_t *queue;
++
++    //TODO: validate upper limit for queuec
++    ctx->queues = (rdd_cl_queue_t *) calloc(ctx->queuec, sizeof(rdd_cl_queue_t));
++    if(!ctx->queues) {
++        return -1;
++    }
++
++    for(i=0; i < ctx->queuec; i++) {
++        queue = ctx->queues + i;
++        queue->conn = ctx;
++        rc = pthread_mutex_init(&queue->qlock, NULL);
++        if(rc) {
++            rdd_cl_destory_queues(ctx);
++            return rc;
++        }
++
++        rc = rdma_create_id(ctx->cl_ctx->cm_ch, &queue->cm_id, NULL, RDMA_PS_TCP);
++        if (rc) {
++            fprintf(stderr, "failed to create cm_id");
++            rdd_cl_destory_queues(ctx);
++            return rc;
++        }
++
++        queue->qid = i;
++        queue->state = RDD_CL_Q_INIT;
++        queue->cm_id->context = queue;
++
++        //TODO: Check if need to be moved
++        //queue->pd = ibv_alloc_pd(queue->cm_id->verbs);
++        //assert(queue->pd != NULL);//TODO: Handle error case
++
++        rc = rdma_resolve_addr(queue->cm_id, NULL, ctx->ai->ai_addr, RDD_CL_TIMEOUT_IN_MS);
++        if(rc != 0) {
++            assert(rc == -1);
++            fprintf(stderr, "rdma resolve failed %d\n", errno);
++            abort();
++        }
++        //TODO: Handle error
++    }
++
++    return 0;
++}
++
++void rdd_cl_destory_queues(rdd_cl_conn_ctx_t *ctx)
++{
++    uint32_t i;
++
++    if(ctx->queues) {
++        for (i=0; i<ctx->queuec; i++) {
++            if(ctx->queues[i].cm_id) {
++                rdma_destroy_id(ctx->queues[i].cm_id);
++            }
++
++            pthread_mutex_destroy(&ctx->queues[i].qlock);
++            //Error code?
++        }
++
++        free(ctx->queues);
++        ctx->queues = NULL;
++    }
++}
++
++rdd_cl_conn_ctx_t *rdd_cl_create_conn(struct rdd_client_ctx_s *cl_ctx, rdd_cl_conn_params_t params)
++{
++    rdd_cl_conn_ctx_t *conn_ctx = NULL;
++    int rc = 0;
++
++	int is_connect_done = 0;
++	uint32_t i;
++
++    conn_ctx = (rdd_cl_conn_ctx_t *)calloc(1, sizeof(rdd_cl_conn_ctx_t));
++    if(!conn_ctx) {
++        fprintf(stderr, "Failed to allocate context\n");
++        return NULL;
++    }
++
++    conn_ctx->cl_ctx = cl_ctx;
++    pthread_mutex_init(&conn_ctx->conn_lock, NULL);
++    //TODO: Handle failure
++
++    rc = getaddrinfo(params.ip, params.port, NULL, &conn_ctx->ai);
++    if (rc) {
++        fprintf(stderr, "failed to parse target addr: %s\n", gai_strerror(rc));
++        conn_ctx->ai = NULL; //Reset in case it is not defined
++        rdd_cl_destroy_connection(conn_ctx);
++        return NULL;
++    }
++
++    //TODO: Update from params
++    conn_ctx->queuec = RDD_CL_MAX_DEFAULT_QUEUEC;
++    conn_ctx->qd = RDD_CL_DEFAULT_SEND_WR_NUM;
++
++    rc = rdd_cl_init_queues(conn_ctx);
++    if(rc) {
++        rdd_cl_destroy_connection(conn_ctx);
++    }
++
++	do {
++		for(i=0; i< conn_ctx->queuec; i++) {
++			if(conn_ctx->queues[i].state != RDD_CL_Q_LIVE)
++				break;//This queue is not intialized.
++			if(i == conn_ctx->queuec - 1)
++				is_connect_done = 1;
++		}
++	} while(!is_connect_done);//Wait for all queues to connect
++
++    return conn_ctx;
++}
++
++void rdd_cl_destroy_connection(rdd_cl_conn_ctx_t *ctx)
++{
++    if(ctx) {
++        if(ctx->queues) {
++            rdd_cl_destory_queues(ctx);
++        }
++
++        if(ctx->ai) {
++            freeaddrinfo(ctx->ai);
++        }
++
++        ctx->ai = NULL;
++
++        pthread_mutex_destroy(&ctx->conn_lock);
++        //Handle failure??
++
++        free(ctx);
++
++    }
++}
++
++struct rdd_client_ctx_s *rdd_cl_init(rdd_cl_ctx_params_t params)
++{
++    struct rdd_client_ctx_s *ctx;
++    int rc = 0;
++    int device_count = 0;
++    int i;
++
++    ctx = (struct rdd_client_ctx_s *) calloc(1, sizeof(struct rdd_client_ctx_s));
++    if(!ctx) {
++        fprintf(stderr, "Failed to allocate context\n");
++        return NULL;
++    }
++
++    TAILQ_INIT(&ctx->devices);
++
++    //TODO: lock this devices data structure in case need to be updated
++    ctx->ibv_devs = ibv_get_device_list(&device_count);
++    if(ctx->ibv_devs == NULL) {
++        fprintf(stderr, "Failed to get rdma device list %d\n", errno);
++        rdd_cl_destroy(ctx);
++        return NULL;
++    }
++
++    for(i=0; i < device_count; i++) {
++        rdd_cl_dev_t *dev = (rdd_cl_dev_t *)calloc(1, sizeof(rdd_cl_dev_t));
++        assert(dev != NULL);//TODO: handle error
++        dev->dev = ctx->ibv_devs[i];
++        TAILQ_INSERT_TAIL(&ctx->devices, dev, dev_link);
++    }
++
++    ctx->cm_ch = rdma_create_event_channel();
++    if(!ctx->cm_ch) {
++        fprintf(stderr, "Failed to create rdma event channel %d\n", errno);
++        rdd_cl_destroy(ctx);
++        return NULL;
++    }
++
++    rc = pthread_create(&ctx->th.pt.cm_thread, NULL, _rdd_cl_cm_event_task, ctx);
++    if(rc) {
++        fprintf(stderr, "pthread create failed with error %d\n", rc);
++        rdd_cl_destroy(ctx);
++        return NULL;
++    }
++
++    return ctx;
++
++}
++
++void rdd_cl_destroy(struct rdd_client_ctx_s *ctx)
++{
++	int rc = 0;
++
++    if(ctx->th.pt.cm_thread) {
++        rc = pthread_cancel(ctx->th.pt.cm_thread);
++        //TODO: validate error code
++
++        rc = pthread_join(ctx->th.pt.cm_thread, NULL);
++        //TODO: validate error code
++        assert(rc ==0);
++    }
++
++    if(ctx->cm_ch) {
++        rdma_destroy_event_channel(ctx->cm_ch);
++    }
++
++    if(ctx) {
++        free(ctx);
++    }
++}
 diff --git a/PDK/core/src/api/include/udd/kv_types.h b/PDK/core/src/api/include/udd/kv_types.h
 index a6134d6..d4912fe 100644
 --- a/PDK/core/src/api/include/udd/kv_types.h
@@ -22282,7 +23179,7 @@ index 995caf8..5cfe14a 100644
  
  #endif /* SPDK_VHOST_H */
 diff --git a/PDK/core/src/api/src/cfrontend.cpp b/PDK/core/src/api/src/cfrontend.cpp
-index 7454c63..a0ac784 100644
+index 7454c63..cd1b3b4 100644
 --- a/PDK/core/src/api/src/cfrontend.cpp
 +++ b/PDK/core/src/api/src/cfrontend.cpp
 @@ -86,17 +86,8 @@ kvs_result kvs_close_container (kvs_container_handle cont_hd) {
@@ -22304,7 +23201,7 @@ index 7454c63..a0ac784 100644
  }
  
  int32_t kvs_get_ioevents(kvs_container_handle cont_hd, int maxevents) {
-@@ -141,6 +132,17 @@ kvs_result kvs_exist_tuples_async(kvs_container_handle cont_hd, uint32_t key_cnt
+@@ -141,6 +132,26 @@ kvs_result kvs_exist_tuples_async(kvs_container_handle cont_hd, uint32_t key_cnt
    return (kvs_result)api_private::kvs_exist_tuples_async((api_private::kvs_container_handle)cont_hd, key_cnt, (const api_private::kvs_key*)keys, buffer_size, result_buffer, (const api_private::kvs_exist_context*)ctx, (api_private::kvs_callback_function)cbfn);
  }
  
@@ -22317,12 +23214,21 @@ index 7454c63..a0ac784 100644
 +  return (kvs_result)api_private::kvs_list_tuple_async( (api_private::kvs_container_handle)cont_hd, (const api_private::kvs_key*)prefix_key, (const api_private::kvs_key*)start_key, max_keys_to_list, (api_private::kvs_value*)value, \
 +      (const api_private::kvs_list_context*)ctx, (api_private::kvs_callback_function)cbfn);
 +}
++
++kvs_result kvs_retrieve_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_retrieve_context *ctx) {
++  return (kvs_result)api_private::kvs_retrieve_tuple_direct( (api_private::kvs_container_handle)cont_hd, (const api_private::kvs_key*)key, (const api_private::kvs_value*)value, client_rdma_key, client_rdma_qhandle, (const api_private::kvs_retrieve_context*)ctx);
++}
++
++kvs_result kvs_store_tuple_direct(kvs_container_handle cont_hd, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_store_context *ctx) {
++  return (kvs_result)api_private::kvs_store_tuple_direct( (api_private::kvs_container_handle)cont_hd, (const api_private::kvs_key*)key, (const api_private::kvs_value*)value, client_rdma_key, client_rdma_qhandle, (const api_private::kvs_store_context*)ctx);
++}
++
 +#endif
 +
  kvs_result kvs_open_iterator(kvs_container_handle cont_hd, const kvs_iterator_context *ctx, kvs_iterator_handle *iter_hd) {
    return (kvs_result)api_private::kvs_open_iterator( (api_private::kvs_container_handle)cont_hd, (const api_private::kvs_iterator_context*)ctx, (api_private::kvs_iterator_handle*)iter_hd);
  }
-@@ -202,6 +204,22 @@ kvs_result kvs_get_optimal_value_length (kvs_device_handle dev_hd, int32_t *opt_
+@@ -202,6 +213,22 @@ kvs_result kvs_get_optimal_value_length (kvs_device_handle dev_hd, int32_t *opt_
    return (kvs_result)api_private::kvs_get_optimal_value_length( (api_private::kvs_device_handle)dev_hd, opt_value_length);
  }
  
@@ -22345,7 +23251,7 @@ index 7454c63..a0ac784 100644
  const char *kvs_errstr(int32_t errorno) {
    return api_private::kvs_errstr(errorno);
  }
-@@ -242,12 +260,14 @@ typedef struct {
+@@ -242,12 +269,14 @@ typedef struct {
  
  api_private::kvs_key* _get_private_key(kvs_key* k) {
    api_private::kvs_key* key = new api_private::kvs_key();
@@ -22363,7 +23269,7 @@ index 7454c63..a0ac784 100644
  void init_result_mapping() {
  #define RES_MAP(res1, res2) (result_mapping[api_private::res1] = res2)
    RES_MAP(KVS_SUCCESS, KVS_SUCCESS);
-@@ -285,7 +305,7 @@ void init_result_mapping() {
+@@ -285,7 +314,7 @@ void init_result_mapping() {
    RES_MAP(KVS_ERR_UNCORRECTIBLE, KVS_ERR_SYS_IO);
    RES_MAP(KVS_ERR_VALUE_LENGTH_INVALID, KVS_ERR_VALUE_LENGTH_INVALID);
    RES_MAP(KVS_ERR_VALUE_LENGTH_MISALIGNED, KVS_ERR_PARAM_INVALID);
@@ -22372,7 +23278,7 @@ index 7454c63..a0ac784 100644
    RES_MAP(KVS_ERR_VALUE_UPDATE_NOT_ALLOWED, KVS_ERR_VALUE_UPDATE_NOT_ALLOWED);
    RES_MAP(KVS_ERR_VENDOR, KVS_ERR_SYS_IO);
    RES_MAP(KVS_ERR_PERMISSION, KVS_ERR_SYS_IO);
-@@ -325,10 +345,7 @@ void init_result_mapping() {
+@@ -325,10 +354,7 @@ void init_result_mapping() {
    RES_MAP(KVS_ERR_CONT_NAME, KVS_ERR_KS_NAME);
    RES_MAP(KVS_ERR_CONT_NOT_EXIST, KVS_ERR_KS_NOT_EXIST);
    RES_MAP(KVS_ERR_CONT_OPEN, KVS_ERR_KS_OPEN);
@@ -22383,7 +23289,7 @@ index 7454c63..a0ac784 100644
  }
  
  static void filter2context(kvs_key_group_filter* fltr, api_private::kvs_iterator_context* ctx) {
-@@ -337,7 +354,7 @@ static void filter2context(kvs_key_group_filter* fltr, api_private::kvs_iterator
+@@ -337,7 +363,7 @@ static void filter2context(kvs_key_group_filter* fltr, api_private::kvs_iterator
  }
  
  static kvs_result _check_key_length(kvs_key* key) {
@@ -22392,7 +23298,7 @@ index 7454c63..a0ac784 100644
      return KVS_ERR_KEY_LENGTH_INVALID;
    return KVS_SUCCESS;
  }
-@@ -348,8 +365,8 @@ void init_default_option(api_private::kvs_init_options &options) {
+@@ -348,8 +374,8 @@ void init_default_option(api_private::kvs_init_options &options) {
    options.aio.queuedepth = 64;
    options.memory.use_dpdk = 0;
    const char* configfile = "../kvssd_emul.conf";
@@ -22403,7 +23309,7 @@ index 7454c63..a0ac784 100644
    char* core;
    core = options.udd.core_mask_str;
    *core = '0';
-@@ -381,13 +398,13 @@ void init_env_from_cfgfile(api_private::kvs_init_options &options) {
+@@ -381,13 +407,13 @@ void init_env_from_cfgfile(api_private::kvs_init_options &options) {
    options.aio.queuedepth = queue_depth == 0 ? options.aio.queuedepth : (uint32_t)queue_depth;
    std::string cfg_file_path = cfg.getkv("emu", "cfg_file");
    if (cfg_file_path != "") {
@@ -22420,7 +23326,7 @@ index 7454c63..a0ac784 100644
      strcpy(options.udd.cq_thread_mask, cfg.getkv("udd", "cq_thread_mask").c_str());
    int mem_size = atoi(cfg.getkv("udd", "memory_size").c_str());
    options.udd.mem_size_mb = mem_size == 0 ? options.udd.mem_size_mb : (uint32_t)mem_size;
-@@ -412,7 +429,7 @@ api_private::kvs_result init_env() {
+@@ -412,7 +438,7 @@ api_private::kvs_result init_env() {
    api_private::kvs_init_options options;
    init_env_from_cfgfile(options);
    ret = api_private::kvs_init_env(&options);
@@ -22429,7 +23335,7 @@ index 7454c63..a0ac784 100644
    if (ret != api_private::KVS_SUCCESS)
      return ret;
  
-@@ -550,52 +567,24 @@ kvs_result kvs_get_optimal_value_length(kvs_device_handle dev_hd, uint32_t *opt_
+@@ -550,52 +576,24 @@ kvs_result kvs_get_optimal_value_length(kvs_device_handle dev_hd, uint32_t *opt_
    return convert_res(ret);
  }
  
@@ -22490,7 +23396,7 @@ index 7454c63..a0ac784 100644
    return convert_res(ret);
  }
  
-@@ -605,18 +594,21 @@ kvs_result kvs_close_key_space(kvs_key_space_handle ks_hd) {
+@@ -605,18 +603,21 @@ kvs_result kvs_close_key_space(kvs_key_space_handle ks_hd) {
  }
  
  kvs_result kvs_get_key_space_info(kvs_key_space_handle ks_hd, kvs_key_space *ks) {
@@ -22516,7 +23422,7 @@ index 7454c63..a0ac784 100644
    return convert_res(ret);
  }
  
-@@ -660,9 +652,7 @@ kvs_result kvs_retrieve_kvp(kvs_key_space_handle ks_hd, kvs_key *key, kvs_option
+@@ -660,9 +661,7 @@ kvs_result kvs_retrieve_kvp(kvs_key_space_handle ks_hd, kvs_key *key, kvs_option
  }
  
  static kvs_context op2context(uint8_t op) {
@@ -22527,7 +23433,7 @@ index 7454c63..a0ac784 100644
    return op_code[op];
  }
  
-@@ -670,8 +660,8 @@ void private_callback_func(api_private::kvs_callback_context* ioctx) {
+@@ -670,8 +669,8 @@ void private_callback_func(api_private::kvs_callback_context* ioctx) {
    kvs_postprocess_context postctx;
  
    postctx.context = op2context(ioctx->opcode);
@@ -22538,7 +23444,7 @@ index 7454c63..a0ac784 100644
    postctx.value = (kvs_value*)ioctx->value;
    // key is in private1
    postprocess_data* pd = (postprocess_data*)ioctx->private1;
-@@ -805,12 +795,6 @@ kvs_result kvs_create_iterator(kvs_key_space_handle ks_hd, kvs_option_iterator *
+@@ -805,12 +804,6 @@ kvs_result kvs_create_iterator(kvs_key_space_handle ks_hd, kvs_option_iterator *
  
    ctx.option.iter_type = (api_private::kvs_iterator_type)iter_op->iter_type;
    filter2context(iter_fltr, &ctx);
@@ -22551,7 +23457,7 @@ index 7454c63..a0ac784 100644
  
    return convert_res(api_private::kvs_open_iterator(cont_hd, &ctx, (api_private::kvs_iterator_handle*)iter_hd));
  }
-@@ -852,12 +836,9 @@ kvs_result kvs_iterate_next_async(kvs_key_space_handle ks_hd, kvs_iterator_handl
+@@ -852,12 +845,9 @@ kvs_result kvs_iterate_next_async(kvs_key_space_handle ks_hd, kvs_iterator_handl
    api_private::kvs_iterator_handle it_hd = (api_private::kvs_iterator_handle)iter_hd;
    api_private::kvs_iterator_context ctx;
    iterator_data *iter_data = (iterator_data*)malloc(sizeof(iterator_data));
@@ -22566,7 +23472,7 @@ index 7454c63..a0ac784 100644
  
    iter_data->iter_list = iter_list;
    iter_data->pri_list.it_list = iter_list->it_list;
-@@ -909,9 +890,6 @@ kvs_result kvs_exist_kv_pairs_async(kvs_key_space_handle ks_hd, uint32_t key_cnt
+@@ -909,9 +899,6 @@ kvs_result kvs_exist_kv_pairs_async(kvs_key_space_handle ks_hd, uint32_t key_cnt
    list->num_keys = key_cnt;
  
    exist_data* ed = (exist_data*)malloc(sizeof(exist_data));
@@ -22576,7 +23482,7 @@ index 7454c63..a0ac784 100644
    ed->list = list;
    ed->key = key_list;
    ctx.private1 = (void*)(new postprocess_data(post_fn, keys));
-@@ -1017,3 +995,5 @@ kvs_result kvs_delete_key_group_async(kvs_key_space_handle ks_hd, kvs_key_group_
+@@ -1017,3 +1004,5 @@ kvs_result kvs_delete_key_group_async(kvs_key_space_handle ks_hd, kvs_key_group_
    return KVS_SUCCESS;
  }
  #endif
@@ -22946,7 +23852,7 @@ index 1d45734..be500e2 100644
    // shutdown device
    if(this->int_handler) {
 diff --git a/PDK/core/src/api/src/driver_adapter/kvkdd.cpp b/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
-index 98356eb..47df09c 100644
+index 98356eb..419083f 100644
 --- a/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
 +++ b/PDK/core/src/api/src/driver_adapter/kvkdd.cpp
 @@ -34,7 +34,6 @@
@@ -23096,25 +24002,26 @@ index 98356eb..47df09c 100644
    return KVS_ERR_SYS_IO;
  
  }
-@@ -403,9 +525,16 @@ void kdd_on_io_complete(kv_io_context *context){
+@@ -403,10 +525,17 @@ void kdd_on_io_complete(kv_io_context *context){
    if(iocb->opcode == IOCB_ASYNC_GET_CMD) {
      iocb->value->actual_value_size = context->value->actual_value_size;
      iocb->value->length = context->value->length;
 -    //when it is not a partial retrieve and actual length bigger than buffer length user inputted
 -    if(iocb->value->length < iocb->value->actual_value_size)
 +    if(iocb->value->length < iocb->value->actual_value_size)  //actual length bigger than buffer length user inputted
-+      iocb->result = KVS_ERR_BUFFER_SMALL;
-+  }
+       iocb->result = KVS_ERR_BUFFER_SMALL;
+   }
 +  else if(iocb->opcode == IOCB_ASYNC_LIST_CMD) {
 +    iocb->value->actual_value_size = context->value->actual_value_size;
 +    iocb->value->length = context->value->length;
 +    if(iocb->value->length < iocb->value->actual_value_size)  //actual length bigger than buffer length user inputted
-       iocb->result = KVS_ERR_BUFFER_SMALL;
++      iocb->result = KVS_ERR_BUFFER_SMALL;
 +    //if(iocb->result == 0 && iocb->value->actual_value_size == 0)
 +    //    iocb->result = KVS_ERR_END_OF_LIST; //this shouldnt happen
-   }
++  }
    else if (iocb->opcode == IOCB_ASYNC_ITER_NEXT_CMD && context->retcode == 0) {
  
+     kvs_iterator_list* list = (kvs_iterator_list*) iocb->result_buffer;
 @@ -439,9 +568,19 @@ void kdd_on_io_complete(kv_io_context *context){
      ctx->done_cond_sync.notify_one();
  
@@ -23135,7 +24042,7 @@ index 98356eb..47df09c 100644
      delete ctx;
      ctx = NULL;
    }
-@@ -507,25 +646,62 @@ int32_t KDDriver::init(const char* devpath, const char* configfile, int queue_de
+@@ -507,27 +646,64 @@ int32_t KDDriver::init(const char* devpath, const char* configfile, int queue_de
  
  /* MAIN ENTRY POINT */
  
@@ -23208,16 +24115,19 @@ index 98356eb..47df09c 100644
 -      (kv_value*)value, option_adi, &f);
 +    ret = kv_store(this->sqH, this->nsH, (kv_key*)key, (kv_value*)value, option_adi, &f);
    }
-   
+-  
++  																								
    if(syncio && ret == 0) {
-@@ -537,9 +713,67 @@ int32_t KDDriver::store_tuple(kvs_container_handle cont_hd, const kvs_key *key,
+     wait_for_io(ctx);
+     ret = ctx->iocb.result;
+@@ -537,9 +713,178 @@ int32_t KDDriver::store_tuple(kvs_container_handle cont_hd, const kvs_key *key,
  
    free_if_error(ret, ctx);
  
 +
-   return ret;
- }
- 
++  return ret;
++}
++
 +#ifdef KVS_REMOTE
 +int32_t KDDriver::list_tuple(int contid, const kvs_key *prefix_key, const kvs_key *start_key, uint16_t max_keys_to_list, kvs_value *value, void *private1, void *private2, bool syncio, kvs_callback_function cbfn) {
 +
@@ -23271,14 +24181,125 @@ index 98356eb..47df09c 100644
 +  free_if_error(ret, ctx);
 +
 +
+   return ret;
+ }
+ 
++int32_t KDDriver::retrieve_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_retrieve_option option/*uint8_t option*/,
++                                        void *private1, void *private2, bool syncio, kvs_callback_function cbfn) {
++
++  auto ctx = prep_io_context(IOCB_ASYNC_GET_CMD, contid, key, value, private1, private2, syncio, cbfn);
++  kv_postprocess_function f = {kdd_on_io_complete, (void*)ctx};
++
++  kv_retrieve_option option_adi;
++  if(!option.kvs_retrieve_delete) {
++    if(!option.kvs_retrieve_decompress)
++      option_adi = KV_RETRIEVE_OPT_DEFAULT;
++    else
++      option_adi = KV_RETRIEVE_OPT_DECOMPRESS;
++  } else {
++    if(!option.kvs_retrieve_decompress)
++      option_adi = KV_RETRIEVE_OPT_DELETE;
++    else
++      option_adi = KV_RETRIEVE_OPT_DECOMPRESS_DELETE;
++  }
++
++  int ret = kv_retrieve_direct(this->sqH, this->nsH, (kv_key*)key, option_adi, (kv_value *)value , client_rdma_key, client_rdma_qhandle, &f);
++
++  while(ret == KV_ERR_QUEUE_IS_FULL) {
++    ret = kv_retrieve_direct(this->sqH, this->nsH, (kv_key*)key, option_adi, (kv_value *)value, client_rdma_key, client_rdma_qhandle, &f);
++  }
++
++  if(syncio && ret == 0) {
++
++     wait_for_io(ctx);
++     ret = ctx->iocb.result;
++
++    delete ctx;
++    ctx = NULL;
++  }
++
++  free_if_error(ret, ctx);
 +  return ret;
++
 +}
++
++int32_t KDDriver::store_tuple_direct(int contid, const kvs_key *key, const kvs_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, kvs_store_option option/*uint8_t option*/,
++                                        void *private1, void *private2, bool syncio, kvs_callback_function cbfn) {
++
++  auto ctx = prep_io_context(IOCB_ASYNC_GET_CMD, contid, key, value, private1, private2, syncio, cbfn);
++  kv_postprocess_function f = {kdd_on_io_complete, (void*)ctx};
++
++  kv_store_option option_adi;
++  if(!option.kvs_store_compress) {
++
++    switch(option.st_type) {
++    case KVS_STORE_POST:
++      option_adi = KV_STORE_OPT_DEFAULT;
++      break;
++    case KVS_STORE_UPDATE_ONLY:
++      option_adi = KV_STORE_OPT_UPDATE_ONLY;
++      break;
++    case KVS_STORE_NOOVERWRITE:
++      option_adi = KV_STORE_OPT_IDEMPOTENT;
++      break;
++    case KVS_STORE_APPEND:
++      option_adi = KV_STORE_OPT_APPEND;
++      break;
++    default:
++      fprintf(stderr, "WARN: Wrong store option\n");
++      delete ctx;
++      ctx = NULL;
++      return KVS_ERR_OPTION_INVALID;
++    }
++  } else {
++
++    switch(option.st_type) {
++    case KVS_STORE_POST:
++      option_adi = KV_STORE_OPT_POST_WITH_COMPRESS;
++      break;
++    case KVS_STORE_UPDATE_ONLY:
++      option_adi = KV_STORE_OPT_UPDATE_ONLY_COMPRESS;
++      break;
++    case KVS_STORE_NOOVERWRITE:
++      option_adi = KV_STORE_OPT_NOOVERWRITE_COMPRESS;
++      break;
++    case KVS_STORE_APPEND:
++      option_adi = KV_STORE_OPT_APPEND_COMPRESS;
++      break;
++    default:
++      delete ctx;
++      ctx = NULL;
++      fprintf(stderr, "WARN: Wrong store option\n");
++      return KVS_ERR_OPTION_INVALID;
++    }
++  }
++
++  int ret = kv_store_direct(this->sqH, this->nsH, (kv_key*)key, option_adi, (kv_value *)value , client_rdma_key, client_rdma_qhandle, &f);
++
++  while(ret == KV_ERR_QUEUE_IS_FULL) {
++    ret = kv_store_direct(this->sqH, this->nsH, (kv_key*)key, option_adi, (kv_value *)value, client_rdma_key, client_rdma_qhandle, &f);
++  }
++
++  if(syncio && ret == 0) {
++
++     wait_for_io(ctx);
++     ret = ctx->iocb.result;
++
++    delete ctx;
++    ctx = NULL;
++  }
++
++  free_if_error(ret, ctx);
++  return ret;
++
++}
++
 +#endif
 +
  void KDDriver::wait_for_io(kv_kdd_context *ctx) {
      std::unique_lock<std::mutex> lock(ctx->lock_sync);
  
-@@ -548,10 +782,9 @@ void KDDriver::wait_for_io(kv_kdd_context *ctx) {
+@@ -548,10 +893,9 @@ void KDDriver::wait_for_io(kv_kdd_context *ctx) {
  
  }
  
@@ -23292,7 +24313,7 @@ index 98356eb..47df09c 100644
    kv_postprocess_function f = {kdd_on_io_complete, (void*)ctx};
  
    kv_retrieve_option option_adi;
-@@ -567,29 +800,27 @@ int32_t KDDriver::retrieve_tuple(kvs_container_handle cont_hd, const kvs_key *ke
+@@ -567,29 +911,27 @@ int32_t KDDriver::retrieve_tuple(kvs_container_handle cont_hd, const kvs_key *ke
        option_adi = KV_RETRIEVE_OPT_DECOMPRESS_DELETE;
    }
    
@@ -23330,7 +24351,7 @@ index 98356eb..47df09c 100644
    kv_postprocess_function f = {kdd_on_io_complete, (void*)ctx};
  
    kv_delete_option option_adi;
-@@ -598,17 +829,17 @@ int32_t KDDriver::delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
+@@ -598,17 +940,17 @@ int32_t KDDriver::delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
    else
      option_adi = KV_DELETE_OPT_ERROR;
    
@@ -23352,7 +24373,7 @@ index 98356eb..47df09c 100644
      delete ctx;
      ctx = NULL;
    }    
-@@ -618,30 +849,28 @@ int32_t KDDriver::delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
+@@ -618,30 +960,28 @@ int32_t KDDriver::delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
  }
  
  
@@ -23390,7 +24411,7 @@ index 98356eb..47df09c 100644
      delete ctx;
      ctx = NULL;
    }
-@@ -651,8 +880,57 @@ int32_t KDDriver::exist_tuple(kvs_container_handle cont_hd, uint32_t key_cnt,
+@@ -651,8 +991,57 @@ int32_t KDDriver::exist_tuple(kvs_container_handle cont_hd, uint32_t key_cnt,
    return ret;
  }
  
@@ -23450,7 +24471,7 @@ index 98356eb..47df09c 100644
    kv_iterator kv_iters[SAMSUNG_MAX_ITERATORS];
    memset(kv_iters, 0, sizeof(kv_iters));
    uint32_t count = SAMSUNG_MAX_ITERATORS;
-@@ -666,7 +944,6 @@ int KDDriver::check_opened_iterators(uint32_t bitmask, uint32_t bit_pattern,
+@@ -666,7 +1055,6 @@ int KDDriver::check_opened_iterators(uint32_t bitmask, uint32_t bit_pattern,
        opened++;
        //fprintf(stdout, "found handler %d, prefix 0x%x 0x%x\n", kv_iters[i].handle_id, kv_iters[i].prefix, kv_iters[i].bitmask);
        if(kv_iters[i].prefix == bit_pattern && kv_iters[i].bitmask == bitmask) {
@@ -23458,7 +24479,7 @@ index 98356eb..47df09c 100644
  	      fprintf(stdout, "WARN: Iterator with same prefix/bitmask is already opened\n");
  	      return KVS_ERR_ITERATOR_OPEN;
        }
-@@ -679,13 +956,13 @@ int KDDriver::check_opened_iterators(uint32_t bitmask, uint32_t bit_pattern,
+@@ -679,13 +1067,13 @@ int KDDriver::check_opened_iterators(uint32_t bitmask, uint32_t bit_pattern,
    return 0;
  }
  
@@ -23476,7 +24497,7 @@ index 98356eb..47df09c 100644
    kv_group_condition grp_cond = {bitmask, bit_pattern};
    kv_iterator_option option_adi;
    switch(option.iter_type) {
-@@ -703,23 +980,23 @@ int32_t KDDriver::open_iterator(kvs_container_handle cont_hd, kvs_iterator_optio
+@@ -703,23 +1091,23 @@ int32_t KDDriver::open_iterator(kvs_container_handle cont_hd, kvs_iterator_optio
      return KVS_ERR_OPTION_INVALID;
    }
    
@@ -23506,7 +24527,7 @@ index 98356eb..47df09c 100644
    int ret = kv_list_iterators_sync(sqH, nsH, (kv_iterator *)kvs_iters, &count);
    if(ret == KV_SUCCESS){
       for(uint32_t idx = 0; idx < count; idx++){
-@@ -731,10 +1008,6 @@ int32_t KDDriver::list_iterators(kvs_container_handle cont_hd, kvs_iterator_info
+@@ -731,10 +1119,6 @@ int32_t KDDriver::list_iterators(kvs_container_handle cont_hd, kvs_iterator_info
            ret = KVS_ERR_ITERATOR_COND_INVALID;
          break;
        }
@@ -23517,7 +24538,7 @@ index 98356eb..47df09c 100644
      }
    }
    if(ret == KV_ERR_PARAM_INVALID)
-@@ -743,24 +1016,31 @@ int32_t KDDriver::list_iterators(kvs_container_handle cont_hd, kvs_iterator_info
+@@ -743,24 +1127,31 @@ int32_t KDDriver::list_iterators(kvs_container_handle cont_hd, kvs_iterator_info
  }
  
  
@@ -23554,7 +24575,7 @@ index 98356eb..47df09c 100644
        delete ctx;
        ctx = NULL;
      }
-@@ -783,11 +1063,9 @@ int32_t KDDriver::get_used_size(int32_t *dev_util){
+@@ -783,11 +1174,9 @@ int32_t KDDriver::get_used_size(int32_t *dev_util){
      if(stat) free(stat);
      return ret;
    }
@@ -23568,7 +24589,7 @@ index 98356eb..47df09c 100644
    
    return ret;
  }
-@@ -805,10 +1083,9 @@ int32_t KDDriver::get_total_size(int64_t *dev_capa) {
+@@ -805,10 +1194,9 @@ int32_t KDDriver::get_total_size(int64_t *dev_capa) {
      return ret;
    }
  
@@ -23582,7 +24603,7 @@ index 98356eb..47df09c 100644
    return ret;
  }
  
-@@ -840,13 +1117,16 @@ KDDriver::~KDDriver() {
+@@ -840,13 +1228,16 @@ KDDriver::~KDDriver() {
    kv_cleanup_device(devH);
  }
  
@@ -23603,7 +24624,7 @@ index 98356eb..47df09c 100644
    if(key) {
      ctx->iocb.key = (kvs_key*)key;
    } else {
-@@ -859,6 +1139,9 @@ KDDriver::kv_kdd_context* KDDriver::prep_io_context(int opcode, kvs_container_ha
+@@ -859,6 +1250,9 @@ KDDriver::kv_kdd_context* KDDriver::prep_io_context(int opcode, kvs_container_ha
      ctx->iocb.value = 0;
    }
  
@@ -23613,7 +24634,7 @@ index 98356eb..47df09c 100644
    ctx->iocb.private1 = private1;
    ctx->iocb.private2 = private2;
    ctx->iocb.result_buffer = NULL;
-@@ -893,51 +1176,6 @@ int32_t KDDriver::trans_iter_type(uint8_t dev_it_type, uint8_t* kvs_it_type){
+@@ -893,51 +1287,6 @@ int32_t KDDriver::trans_iter_type(uint8_t dev_it_type, uint8_t* kvs_it_type){
    return ret;
  }
  
@@ -24381,7 +25402,7 @@ index 6e18ae7..abcc436 100644
    /*
    while(!this->udd_context_pool.empty()){
 diff --git a/PDK/core/src/api/src/private_cfrontend.cpp b/PDK/core/src/api/src/private_cfrontend.cpp
-index d37d892..f4cb256 100644
+index d37d892..b946c03 100644
 --- a/PDK/core/src/api/src/private_cfrontend.cpp
 +++ b/PDK/core/src/api/src/private_cfrontend.cpp
 @@ -31,7 +31,7 @@
@@ -25561,7 +26582,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1481,13 +705,80 @@ kvs_result kvs_retrieve_tuple_async(kvs_container_handle cont_hd, const kvs_key
+@@ -1481,14 +705,123 @@ kvs_result kvs_retrieve_tuple_async(kvs_container_handle cont_hd, const kvs_key
    ret = validate_request(key, value);
    if(ret)
      return (kvs_result)ret;
@@ -25604,13 +26625,15 @@ index d37d892..f4cb256 100644
 +    return (kvs_result)ret;
 +
 +  if (value->length % KVS_ALIGNMENT_UNIT)
-+      return KVS_ERR_VALUE_LENGTH_MISALIGNED;
-+
+       return KVS_ERR_VALUE_LENGTH_MISALIGNED;
+ 
+-  ret = cont_hd->dev->driver->retrieve_tuple(cont_hd, key, value,
+-    ctx->option, ctx->private1, ctx->private2, 0, cbfn);
 +  ret = cont_hd->dev->driver->list_tuple(0, prefix_key, start_key, max_keys_to_list, value,
 +                                             ctx->private1, ctx->private2, 1, 0);
-+  return (kvs_result)ret;
-+}
-+
+   return (kvs_result)ret;
+ }
+ 
 +kvs_result kvs_list_tuple_async(kvs_container_handle cont_hd, const kvs_key *prefix_key, const kvs_key *start_key,
 +                                    uint16_t max_keys_to_list,
 +                                    kvs_value *value, const kvs_list_context *ctx,
@@ -25633,19 +26656,60 @@ index d37d892..f4cb256 100644
 +    return (kvs_result)ret;
 +
 +  if (value->length % KVS_ALIGNMENT_UNIT)
-       return KVS_ERR_VALUE_LENGTH_MISALIGNED;
- 
--  ret = cont_hd->dev->driver->retrieve_tuple(cont_hd, key, value,
--    ctx->option, ctx->private1, ctx->private2, 0, cbfn);
++      return KVS_ERR_VALUE_LENGTH_MISALIGNED;
++
 +  ret = cont_hd->dev->driver->list_tuple(0, prefix_key, start_key, max_keys_to_list, value,
 +                                         ctx->private1, ctx->private2, 0, cbfn);
-   return (kvs_result)ret;
- }
++  return (kvs_result)ret;
++}
++
++kvs_result kvs_retrieve_tuple_direct(kvs_container_handle cont_hd, 
++                                     const kvs_key *key, const kvs_value *value, 
++                                     uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_retrieve_context *ctx) {
++
++  int ret = _check_container_handle(cont_hd);
++  if (ret!=KVS_SUCCESS) {
++    return (kvs_result)ret;
++  }
++  if((key == NULL) || (ctx == NULL)) {
++    return KVS_ERR_PARAM_INVALID;
++  }
++  ret = validate_request(key, NULL);
++  if(ret)
++    return (kvs_result)ret;
++
++  ret = cont_hd->dev->driver->retrieve_tuple_direct(0, key, value, client_rdma_key, client_rdma_qhandle, ctx->option,
++                                             ctx->private1, ctx->private2, 1, 0);
++  return (kvs_result)ret;
++}
++
++kvs_result kvs_store_tuple_direct(kvs_container_handle cont_hd,
++                                     const kvs_key *key, const kvs_value *value,
++                                     uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kvs_store_context *ctx) {
++
++  int ret = _check_container_handle(cont_hd);
++  if (ret!=KVS_SUCCESS) {
++    return (kvs_result)ret;
++  }
++  if((key == NULL) || (ctx == NULL)) {
++    return KVS_ERR_PARAM_INVALID;
++  }
++  ret = validate_request(key, NULL);
++  if(ret)
++    return (kvs_result)ret;
++
++  ret = cont_hd->dev->driver->store_tuple_direct(0, key, value, client_rdma_key, client_rdma_qhandle, ctx->option,
++                                             ctx->private1, ctx->private2, 1, 0);
++  return (kvs_result)ret;
++}
++
++
 +#endif
- 
++
  kvs_result kvs_delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
  		const kvs_delete_context *ctx) {
-@@ -1502,8 +793,8 @@ kvs_result kvs_delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
+   int ret = _check_container_handle(cont_hd);
+@@ -1502,8 +835,8 @@ kvs_result kvs_delete_tuple(kvs_container_handle cont_hd, const kvs_key *key,
    if(ret)
      return (kvs_result)ret;
  
@@ -25656,7 +26720,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1519,8 +810,8 @@ kvs_result kvs_delete_tuple_async(kvs_container_handle cont_hd, const kvs_key* k
+@@ -1519,8 +852,8 @@ kvs_result kvs_delete_tuple_async(kvs_container_handle cont_hd, const kvs_key* k
    ret = validate_request(key, 0);
    if(ret) return (kvs_result)ret;
    
@@ -25667,7 +26731,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1538,14 +829,12 @@ kvs_result kvs_exist_tuples(kvs_container_handle cont_hd, uint32_t key_cnt, cons
+@@ -1538,14 +871,12 @@ kvs_result kvs_exist_tuples(kvs_container_handle cont_hd, uint32_t key_cnt, cons
    ret = validate_request(keys, 0);
    if(ret) return (kvs_result)ret;
    
@@ -25684,7 +26748,7 @@ index d37d892..f4cb256 100644
    int ret = _check_container_handle(cont_hd);
    if (ret!=KVS_SUCCESS) {
      return (kvs_result)ret;
-@@ -1558,9 +847,8 @@ kvs_result kvs_exist_tuples_async(kvs_container_handle cont_hd, uint32_t key_cnt
+@@ -1558,9 +889,8 @@ kvs_result kvs_exist_tuples_async(kvs_container_handle cont_hd, uint32_t key_cnt
    ret = validate_request(keys, 0);
    if(ret) return (kvs_result)ret;
    
@@ -25696,7 +26760,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1576,8 +864,8 @@ kvs_result kvs_open_iterator(kvs_container_handle cont_hd, const kvs_iterator_co
+@@ -1576,8 +906,8 @@ kvs_result kvs_open_iterator(kvs_container_handle cont_hd, const kvs_iterator_co
    if(!_is_valid_bitmask(ctx->bitmask))
      return KVS_ERR_ITERATOR_COND_INVALID;
  
@@ -25707,7 +26771,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1591,7 +879,7 @@ kvs_result kvs_close_iterator(kvs_container_handle cont_hd, kvs_iterator_handle
+@@ -1591,7 +921,7 @@ kvs_result kvs_close_iterator(kvs_container_handle cont_hd, kvs_iterator_handle
      return KVS_ERR_PARAM_INVALID;
    }
  
@@ -25716,7 +26780,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1602,7 +890,7 @@ kvs_result kvs_close_iterator_all(kvs_container_handle cont_hd) {
+@@ -1602,7 +932,7 @@ kvs_result kvs_close_iterator_all(kvs_container_handle cont_hd) {
      return (kvs_result)ret;
    }
  
@@ -25725,7 +26789,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1616,8 +904,7 @@ kvs_result kvs_list_iterators(kvs_container_handle cont_hd, kvs_iterator_info *k
+@@ -1616,8 +946,7 @@ kvs_result kvs_list_iterators(kvs_container_handle cont_hd, kvs_iterator_info *k
    if(count < 1 || count > KVS_MAX_ITERATE_HANDLE)
      return KVS_ERR_ITERATOR_NUM_OUT_RANGE;
  
@@ -25735,7 +26799,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1633,7 +920,7 @@ kvs_result kvs_iterator_next(kvs_container_handle cont_hd, kvs_iterator_handle h
+@@ -1633,7 +962,7 @@ kvs_result kvs_iterator_next(kvs_container_handle cont_hd, kvs_iterator_handle h
      return KVS_ERR_ITERATOR_BUFFER_SIZE;
    }
  
@@ -25744,7 +26808,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1650,7 +937,7 @@ kvs_result kvs_iterator_next_async(kvs_container_handle cont_hd, kvs_iterator_ha
+@@ -1650,7 +979,7 @@ kvs_result kvs_iterator_next_async(kvs_container_handle cont_hd, kvs_iterator_ha
      return KVS_ERR_ITERATOR_BUFFER_SIZE;
    }
  
@@ -25753,7 +26817,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1691,9 +978,9 @@ kvs_result kvs_get_device_utilization(kvs_device_handle dev_hd, int32_t *dev_uti
+@@ -1691,9 +1020,9 @@ kvs_result kvs_get_device_utilization(kvs_device_handle dev_hd, int32_t *dev_uti
    }
    if (!_device_opened(dev_hd)) {
      ret = KVS_ERR_DEV_NOT_OPENED;
@@ -25765,7 +26829,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1704,9 +991,8 @@ kvs_result kvs_get_device_capacity(kvs_device_handle dev_hd, int64_t *dev_capa)
+@@ -1704,9 +1033,8 @@ kvs_result kvs_get_device_capacity(kvs_device_handle dev_hd, int64_t *dev_capa)
    }
    if (!_device_opened(dev_hd)) {
      ret = KVS_ERR_DEV_NOT_OPENED;
@@ -25776,7 +26840,7 @@ index d37d892..f4cb256 100644
    return (kvs_result)ret;
  }
  
-@@ -1765,6 +1051,44 @@ kvs_result kvs_get_optimal_value_length (kvs_device_handle dev_hd, int32_t *opt_
+@@ -1765,6 +1093,44 @@ kvs_result kvs_get_optimal_value_length (kvs_device_handle dev_hd, int32_t *opt_
    return KVS_SUCCESS;
  }
  
@@ -25821,7 +26885,7 @@ index d37d892..f4cb256 100644
  
  void *_kvs_zalloc(size_t size_bytes, size_t alignment, const char *file) {
    WRITE_LOG("kvs_zalloc size: %ld, align: %ld, from %s\n", size_bytes, alignment, file);
-@@ -1798,5 +1122,4 @@ void _kvs_free(void * buf, const char *file) {
+@@ -1798,5 +1164,4 @@ void _kvs_free(void * buf, const char *file) {
  int32_t kvs_get_ioevents(kvs_container_handle cont_hd, int maxevents) {
    return cont_hd->dev->driver->process_completions(maxevents);
  }
@@ -29608,7 +30672,7 @@ index 0000000..bf0ce40
 +    return 0;
 +}
 diff --git a/PDK/core/src/device_abstract_layer/include/kvs_adi.h b/PDK/core/src/device_abstract_layer/include/kvs_adi.h
-index 6adc3c0..ad956cc 100644
+index 6adc3c0..0b0ebd5 100644
 --- a/PDK/core/src/device_abstract_layer/include/kvs_adi.h
 +++ b/PDK/core/src/device_abstract_layer/include/kvs_adi.h
 @@ -34,6 +34,7 @@
@@ -29770,16 +30834,23 @@ index 6adc3c0..ad956cc 100644
  
  /**
    kv_retrieve 
-@@ -1441,7 +1431,7 @@ kv_result kv_exist(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, uint8_t
+@@ -1441,7 +1431,14 @@ kv_result kv_exist(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, uint8_t
    KV_ERR_VALUE_LENGTH_INVALID	the value length is out of range of kv_device.min_value_len and kv_device.max_value_len
    KV_ERR_VENDOR			vendor-specific error is returned, check the system log for more details
    */
 -kv_result kv_retrieve(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, uint8_t ks_id, const kv_key *key, kv_retrieve_option option, kv_value *value,  const kv_postprocess_function *post_fn);
 +kv_result kv_retrieve(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, kv_retrieve_option option, kv_value *value,  const kv_postprocess_function *post_fn);
++
++
++kv_result kv_retrieve_direct(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, kv_retrieve_option option, const kv_value *value, 
++                             uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *post_fn);
++
++kv_result kv_store_direct(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, kv_store_option option, const kv_value *value,
++                             uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *post_fn);
  
  /**
    kv_store
-@@ -1494,7 +1484,56 @@ kv_result kv_retrieve(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, uint8
+@@ -1494,7 +1491,56 @@ kv_result kv_retrieve(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, uint8
    KV_ERR_VENDOR			vendor-specific error is returned, check the system log for more details
  
    */
@@ -30072,10 +31143,18 @@ index 92fba96..0429156 100644
  6). 
  ----
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
-index e7af33f..cb71108 100644
+index e7af33f..8159c00 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.cpp
-@@ -38,10 +38,10 @@ struct epoll_event list_of_events[1];
+@@ -25,6 +25,7 @@
+ #include "kadi.h"
+ #include "linux_nvme_ioctl.h"
+ #include "kadi_debug.h"
++#include <errno.h>
+ 
+ //#define DUMP_ISSUE_CMD 1
+ 
+@@ -38,10 +39,10 @@ struct epoll_event list_of_events[1];
  
  const int identify_ret_data_size = 4096;
  
@@ -30088,7 +31167,7 @@ index e7af33f..cb71108 100644
      if (r != 0)
          return r;
      while (!iter_ctx->end)
-@@ -84,9 +84,7 @@ int KADI::open(std::string &devpath)
+@@ -84,9 +85,7 @@ int KADI::open(std::string &devpath)
      for (int i = 0; i < qdepth; i++)
      {
          aio_cmd_ctx *ctx = (aio_cmd_ctx *)calloc(1, sizeof(aio_cmd_ctx));
@@ -30099,7 +31178,7 @@ index e7af33f..cb71108 100644
          free_cmdctxs.push_back(ctx);
      }
  #ifdef EPOLL_DEV
-@@ -162,10 +160,7 @@ int KADI::close()
+@@ -162,10 +161,7 @@ int KADI::close()
              free((void*)p);
          }
  
@@ -30111,7 +31190,7 @@ index e7af33f..cb71108 100644
          ::close((int)aioctx.eventfd);
          ::close(fd);
          std::cerr << "KV device is closed: fd " << fd << std::endl;
-@@ -181,6 +176,7 @@ int KADI::close()
+@@ -181,6 +177,7 @@ int KADI::close()
  KADI::aio_cmd_ctx *KADI::get_cmd_ctx(const kv_postprocess_function *cb)
  {
      std::unique_lock<std::mutex> lock(cmdctx_lock);
@@ -30119,7 +31198,7 @@ index e7af33f..cb71108 100644
      while (free_cmdctxs.empty())
      {
          if (cmdctx_cond.wait_for(lock, std::chrono::seconds(5)) == std::cv_status::timeout)
-@@ -191,13 +187,9 @@ KADI::aio_cmd_ctx *KADI::get_cmd_ctx(const kv_postprocess_function *cb)
+@@ -191,13 +188,9 @@ KADI::aio_cmd_ctx *KADI::get_cmd_ctx(const kv_postprocess_function *cb)
  
      aio_cmd_ctx *p = free_cmdctxs.back();
      free_cmdctxs.pop_back();
@@ -30136,7 +31215,7 @@ index e7af33f..cb71108 100644
      pending_cmdctxs.insert(std::make_pair(p->index, p));
      return p;
  }
-@@ -211,14 +203,13 @@ void KADI::release_cmd_ctx(aio_cmd_ctx *p)
+@@ -211,14 +204,13 @@ void KADI::release_cmd_ctx(aio_cmd_ctx *p)
      cmdctx_cond.notify_one();
  }
  
@@ -30153,7 +31232,7 @@ index e7af33f..cb71108 100644
      cmd.nsid = nsid;
      cmd.cdw4 = (ITER_OPTION_OPEN | option);
      cmd.cdw12 = iter_handle->prefix;
-@@ -243,7 +234,7 @@ kv_result KADI::iter_close(kv_iter_context *iter_handle)
+@@ -243,7 +235,7 @@ kv_result KADI::iter_close(kv_iter_context *iter_handle)
      struct nvme_passthru_kv_cmd cmd;
      memset(&cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
      cmd.opcode = nvme_cmd_kv_iter_req;
@@ -30162,7 +31241,7 @@ index e7af33f..cb71108 100644
      cmd.nsid = nsid;
      cmd.cdw4 = ITER_OPTION_CLOSE;
      cmd.cdw5 = iter_handle->handle;
-@@ -265,7 +256,7 @@ kv_result KADI::iter_read_async(kv_iter_context *iter_handle, const kv_postproce
+@@ -265,7 +257,7 @@ kv_result KADI::iter_read_async(kv_iter_context *iter_handle, const kv_postproce
      ioctx->buf = iter_handle->buf;
      ioctx->cmd.opcode = nvme_cmd_kv_iter_read;
      ioctx->cmd.nsid = nsid;
@@ -30171,7 +31250,7 @@ index e7af33f..cb71108 100644
      ioctx->cmd.cdw5 = iter_handle->handle;
      ioctx->cmd.data_addr = (__u64)iter_handle->buf;
      ioctx->cmd.data_length = iter_handle->buflen;
-@@ -292,7 +283,7 @@ kv_result KADI::iter_read(kv_iter_context *iter_handle)
+@@ -292,7 +284,7 @@ kv_result KADI::iter_read(kv_iter_context *iter_handle)
  
      cmd.opcode = nvme_cmd_kv_iter_read;
      cmd.nsid = nsid;
@@ -30180,7 +31259,7 @@ index e7af33f..cb71108 100644
      cmd.cdw5 = iter_handle->handle;
      cmd.data_addr = (__u64)iter_handle->buf;
      cmd.data_length = iter_handle->buflen;
-@@ -374,11 +365,6 @@ kv_result KADI::iter_list(kv_iterator *iter_list, uint32_t *count)
+@@ -374,11 +366,6 @@ kv_result KADI::iter_list(kv_iterator *iter_list, uint32_t *count)
          iter_list[open_count].reserved[2] = (*(uint8_t *)(logbuf + offset + 15));
          // fprintf(stderr, "handle_id=%d status=%d type=%d prefix=%08x bitmask=%08x is_eof=%d\n",
          //             iter_list[open_count].handle_id, iter_list[open_count].status, iter_list[open_count].type, iter_list[open_count].prefix, iter_list[open_count].bitmask, iter_list[open_count].is_eof);
@@ -30192,7 +31271,7 @@ index e7af33f..cb71108 100644
          open_count++;
      }
      *count = open_count;
-@@ -414,11 +400,8 @@ redo:
+@@ -414,11 +401,8 @@ redo:
      afterKeygap = (((*length + 3) >> 2) << 2);
      bufoffset += afterKeygap;
  
@@ -30206,7 +31285,7 @@ index e7af33f..cb71108 100644
          goto redo;
      }
  
-@@ -449,13 +432,12 @@ uint32_t KADI::get_dev_waf()
+@@ -449,13 +433,12 @@ uint32_t KADI::get_dev_waf()
          return KV_ERR_SYS_IO;
      }
  
@@ -30223,7 +31302,7 @@ index e7af33f..cb71108 100644
  {
    if (!key || !key->key || !value)
     {
-@@ -469,27 +451,32 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
+@@ -469,27 +452,29 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
  
      ioctx->cmd.opcode = nvme_cmd_kv_store;
      ioctx->cmd.nsid = nsid;
@@ -30232,19 +31311,16 @@ index e7af33f..cb71108 100644
      if (key->length > KVCMD_INLINE_KEY_MAX)
      {
          ioctx->cmd.key_addr = (__u64)key->key;
-+        ioctx->cmd.rsvd5 = key->length;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
      else
      {
          memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
      }
      ioctx->cmd.cdw5 = value->offset;
 -    ioctx->cmd.key_length = key->length;
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
-+    }
      ioctx->cmd.cdw4 = option;
 -    ioctx->cmd.cdw11 = key->length - 1;
 +    //ioctx->cmd.cdw11 = key->length - 1;
@@ -30261,7 +31337,7 @@ index e7af33f..cb71108 100644
      std::cerr << "IO:kv_store: key = " << print_key((const char *)key->key, key->length) << ", len = " << (int)key->length << std::endl;
  #endif
  
-@@ -503,7 +490,62 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
+@@ -503,7 +488,58 @@ kv_result KADI::kv_store(uint8_t ks_id, kv_key *key, kv_value *value,
      return 0;
  }
  
@@ -30287,21 +31363,17 @@ index e7af33f..cb71108 100644
 +    if (key->length <= KVCMD_INLINE_KEY_MAX)
 +    {
 +        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
 +    }
 +    else
 +    {
 +        ioctx->cmd.key_addr = (__u64)key->key;
-+        ioctx->cmd.rsvd5 = key->length;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
 +    }
 +
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
-+    }
-+
-+    ioctx->cmd.rsvd2 = key_offset;
-+    ioctx->cmd.rsvd3 = max_keys_to_list;
++    ioctx->cmd.list_key_offset = key_offset;
++    ioctx->cmd.list_max_keys = max_keys_to_list;
 +    ioctx->cmd.reqid = ioctx->index;
 +    ioctx->cmd.ctxid = aioctx.ctxid;
 +
@@ -30325,7 +31397,7 @@ index e7af33f..cb71108 100644
  {
     if (!key || !key->key || !value)
     {
-@@ -517,7 +559,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -517,7 +553,7 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
  
      ioctx->cmd.opcode = nvme_cmd_kv_retrieve;
      ioctx->cmd.nsid = nsid;
@@ -30334,28 +31406,149 @@ index e7af33f..cb71108 100644
      ioctx->cmd.cdw4 = 0;
      ioctx->cmd.cdw5 = value->offset;
      ioctx->cmd.data_addr = (__u64)value->value;
-@@ -529,8 +571,15 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -525,12 +561,15 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+     if (key->length <= KVCMD_INLINE_KEY_MAX)
+     {
+         memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
+     }
      else
      {
          ioctx->cmd.key_addr = (__u64)key->key;
-+        ioctx->cmd.rsvd5 = key->length;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
 -    ioctx->cmd.key_length = key->length;
-+
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
-+    }
 +
      ioctx->cmd.reqid = ioctx->index;
      ioctx->cmd.ctxid = aioctx.ctxid;
  
-@@ -549,7 +598,100 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
+@@ -549,7 +588,221 @@ kv_result KADI::kv_retrieve(uint8_t ks_id, kv_key *key, kv_value *value, const k
      return 0;
  }
  
 -kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
++
++kv_result KADI::kv_retrieve_direct(kv_key *key, kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *cb)
++{
++    if (!key || !key->key )
++    {
++        return KADI_ERR_NULL_INPUT;
++    }
++
++    aio_cmd_ctx *ioctx = get_cmd_ctx(cb);
++    memset((void *)&ioctx->cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
++
++    ioctx->key = key;
++    ioctx->value = value;
++
++    ioctx->cmd.opcode = nvme_cmd_kv_retrieve;
++    ioctx->cmd.nsid = nsid;
++    ioctx->cmd.cdw3 = space_id;
++    ioctx->cmd.cdw4 = 0;
++    ioctx->cmd.cdw5 = 0;
++    ioctx->cmd.data_addr = (__u64)value->value;
++    ioctx->cmd.cdw10 = value->length;
++
++    ioctx->cmd.rkey[0] = (__u8)client_rdma_key;
++    ioctx->cmd.rkey[1] = (__u8)(client_rdma_key >> 8);
++    ioctx->cmd.rkey[2] = (__u8)(client_rdma_key >> 16);
++    ioctx->cmd.rkey[3] = (__u8)(client_rdma_key >> 24);
++
++    ioctx->cmd.type = 0xF;
++
++    if (key->length <= KVCMD_INLINE_KEY_MAX)
++    {
++        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
++    }
++    else
++    {
++        ioctx->cmd.key_addr = (__u64)key->key;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
++    }
++
++    ioctx->cmd.rdd_chandle = client_rdma_qhandle;
++
++    ioctx->cmd.reqid = ioctx->index;
++    ioctx->cmd.ctxid = aioctx.ctxid;
++
++#ifdef DUMP_ISSUE_CMD
++    dump_retrieve_cmd(&ioctx->cmd);
++    std::cerr << "IO:kv_retrieve direct sync: key = " << print_key((const char *)key->key, key->length) << ", len = " << (int)key->length << std::endl;
++#endif
++
++    int ret = ioctl(fd, NVME_IOCTL_AIO_CMD, &ioctx->cmd);
++    if (ret < 0)
++    {
++        release_cmd_ctx(ioctx);
++        return KV_ERR_SYS_IO;
++    }
++
++    return 0;
++}
++
++kv_result KADI::kv_store_direct(kv_key *key, kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *cb)
++{
++    if (!key || !key->key )
++    {
++        return KADI_ERR_NULL_INPUT;
++    }
++
++    aio_cmd_ctx *ioctx = get_cmd_ctx(cb);
++    memset((void *)&ioctx->cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
++
++    ioctx->key = key;
++    ioctx->value = value;
++
++    ioctx->cmd.opcode = nvme_cmd_kv_store;
++    ioctx->cmd.nsid = nsid;
++    ioctx->cmd.cdw3 = space_id;
++    ioctx->cmd.cdw4 = 0;
++    ioctx->cmd.cdw5 = 0;
++    ioctx->cmd.data_addr = (__u64)value->value;
++    ioctx->cmd.cdw10 = value->length;
++
++    ioctx->cmd.rkey[0] = (__u8)client_rdma_key;
++    ioctx->cmd.rkey[1] = (__u8)(client_rdma_key >> 8);
++    ioctx->cmd.rkey[2] = (__u8)(client_rdma_key >> 16);
++    ioctx->cmd.rkey[3] = (__u8)(client_rdma_key >> 24);
++
++    ioctx->cmd.type = 0xF;
++
++    if (key->length <= KVCMD_INLINE_KEY_MAX)
++    {
++        memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
++    }
++    else
++    {
++        ioctx->cmd.key_addr = (__u64)key->key;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
++    }
++
++    ioctx->cmd.rdd_chandle = client_rdma_qhandle;
++
++    ioctx->cmd.reqid = ioctx->index;
++    ioctx->cmd.ctxid = aioctx.ctxid;
++#ifdef DUMP_ISSUE_CMD
++    dump_retrieve_cmd(&ioctx->cmd);
++    std::cerr << "IO:kv_store_direct sync: key = " << print_key((const char *)key->key, key->length) << ", len = " << (int)key->length << std::endl;
++#endif
++
++    int ret = ioctl(fd, NVME_IOCTL_AIO_CMD, &ioctx->cmd);
++    if (ret < 0)
++    {
++        release_cmd_ctx(ioctx);
++        return KV_ERR_SYS_IO;
++    }
++
++    return 0;
++}
++
++
 +    kv_result KADI::kv_lock(kv_key *key, nvme_kv_lock_req_option option, uint8_t priority, uint64_t ins_uuid, uint32_t lock_duration, const kv_postprocess_function *cb) {
 +
 +      if (!key || !key->key)
@@ -30385,7 +31578,7 @@ index e7af33f..cb71108 100644
 +
 +        return KADI_ERR_KEY;
 +      }
-+      ioctx->cmd.key_length = key->length;
++      ioctx->cmd.kv_klen = key->length;
 +
 +      ioctx->cmd.reqid = ioctx->index;
 +      ioctx->cmd.ctxid = aioctx.ctxid;
@@ -30429,7 +31622,7 @@ index e7af33f..cb71108 100644
 +
 +        return KADI_ERR_KEY;
 +      }
-+      ioctx->cmd.key_length = key->length;
++      ioctx->cmd.kv_klen = key->length;
 +
 +      ioctx->cmd.reqid = ioctx->index;
 +      ioctx->cmd.ctxid = aioctx.ctxid;
@@ -30453,7 +31646,7 @@ index e7af33f..cb71108 100644
  {
      if (!key || !key->key || !value || !value->value)
      {
-@@ -560,7 +702,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+@@ -560,20 +813,22 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
      memset((void *)&cmd, 0, sizeof(struct nvme_passthru_kv_cmd));
      cmd.opcode = nvme_cmd_kv_retrieve;
      cmd.nsid = nsid;
@@ -30462,23 +31655,32 @@ index e7af33f..cb71108 100644
      cmd.cdw4 = 0;
      cmd.cdw5 = value->offset;
      cmd.data_addr = (__u64)value->value;
-@@ -572,8 +714,14 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+     cmd.data_length = value->length;
+     if (key->length <= KVCMD_INLINE_KEY_MAX)
+     {
+-        //memcpy((void*)cmd.key, (void*)key->key, key->length);
++        memcpy((void*)cmd.key, (void*)key->key, key->length);
++        cmd.kv_klen = key->length;
+     }
      else
      {
          cmd.key_addr = (__u64)key->key;
-+        cmd.rsvd5 = key->length;
-+    }
-+
-+    if(key->length > 256) {
-+      cmd.key_length = 0xff;
-+    } else {
-+      cmd.key_length = key->length;
++        cmd.key_length = key->length;
++        cmd.kv_klen = 0xff;
      }
 -    cmd.key_length = key->length;
  
  #ifdef DUMP_ISSUE_CMD
      dump_retrieve_cmd(&cmd);
-@@ -609,9 +757,6 @@ kv_result KADI::update_capacity()
+@@ -593,6 +848,7 @@ kv_result KADI::kv_retrieve_sync(uint8_t ks_id, kv_key *key, kv_value *value)
+     return ret;
+ }
+ 
++
+ kv_result KADI::update_capacity()
+ {
+     uint64_t bytesused, capacity;
+@@ -609,9 +865,6 @@ kv_result KADI::update_capacity()
  kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &utilization)
  {
      char *data = (char *)calloc(1, identify_ret_data_size);
@@ -30488,7 +31690,7 @@ index e7af33f..cb71108 100644
      struct nvme_passthru_cmd cmd;
      memset(&cmd, 0, sizeof(struct nvme_passthru_cmd));
      cmd.opcode = nvme_cmd_admin_identify;
-@@ -622,10 +767,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -622,10 +875,8 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
  
      if (ioctl(fd, NVME_IOCTL_ADMIN_CMD, &cmd) < 0)
      {
@@ -30500,7 +31702,7 @@ index e7af33f..cb71108 100644
          return KV_ERR_SYS_IO;
      }
  
-@@ -634,25 +777,29 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
+@@ -634,29 +885,30 @@ kv_result KADI::get_freespace(uint64_t &bytesused, uint64_t &capacity, double &u
      capacity = namespace_size * BLOCK_SIZE;
      bytesused = namespace_utilization * BLOCK_SIZE;
      utilization = (1.0 * namespace_utilization) / namespace_size;
@@ -30523,20 +31725,21 @@ index e7af33f..cb71108 100644
 -    ioctx->cmd.cdw3 = ks_id;
 -    ioctx->cmd.key_length = length;
 +    ioctx->cmd.cdw3 = space_id;
-+    if (((kv_key*)key)->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = length;
-+    }
 +
      if (length > KVCMD_INLINE_KEY_MAX)
      {
          ioctx->cmd.key_addr = (__u64)key;
-+        ioctx->cmd.rsvd5 = ((kv_key*)key)->length;
++        ioctx->cmd.key_length = ((kv_key*)key)->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
      else
      {
-@@ -679,13 +826,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
+         memcpy((void*)ioctx->cmd.key, key, length);
++        ioctx->cmd.kv_klen = length;
+     }
+     ioctx->cmd.ctxid = aioctx.ctxid;
+     ioctx->cmd.reqid = ioctx->index;
+@@ -679,13 +931,12 @@ bool KADI::exist(uint8_t ks_id, void *key, int length, const kv_postprocess_func
      return (ret == 0) ? true : false;
  }
  
@@ -30553,7 +31756,7 @@ index e7af33f..cb71108 100644
  {
      if (!key || !key->key)
      {
-@@ -699,7 +845,7 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+@@ -699,17 +950,20 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
  
      ioctx->cmd.opcode = nvme_cmd_kv_delete;
      ioctx->cmd.nsid = nsid;
@@ -30562,24 +31765,21 @@ index e7af33f..cb71108 100644
      ioctx->cmd.cdw4 = check_exist;
      if (key->length <= KVCMD_INLINE_KEY_MAX)
      {
-@@ -708,8 +854,15 @@ kv_result KADI::kv_delete(uint8_t ks_id, kv_key *key,
+         memcpy((void *)ioctx->cmd.key, (void *)key->key, key->length);
++        ioctx->cmd.kv_klen = key->length;
+     }
      else
      {
          ioctx->cmd.key_addr = (__u64)key->key;
-+        ioctx->cmd.rsvd5 = key->length;
-+    }
-+
-+    if(key->length > 255) {
-+      ioctx->cmd.key_length = 0xff;
-+    } else {
-+      ioctx->cmd.key_length = key->length;
++        ioctx->cmd.key_length = key->length;
++        ioctx->cmd.kv_klen = 0xff;
      }
 -    ioctx->cmd.key_length = key->length;
 +
      ioctx->cmd.reqid = ioctx->index;
      ioctx->cmd.ctxid = aioctx.ctxid;
  
-@@ -839,9 +992,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -839,9 +1093,8 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
          break;
      }
  
@@ -30590,7 +31790,7 @@ index e7af33f..cb71108 100644
  
      switch (ioresult.opcode)
      {
-@@ -850,12 +1002,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
+@@ -850,12 +1103,18 @@ kv_result KADI::fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioeve
  
          if (ioctx.value)
          {
@@ -30616,10 +31816,22 @@ index e7af33f..cb71108 100644
          }
          break;
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-index 6bdd8f0..974fc0f 100644
+index 6bdd8f0..676bf44 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kadi.h
-@@ -33,11 +33,12 @@
+@@ -22,8 +22,9 @@
+ 
+ 
+ #define KVCMD_INLINE_KEY_MAX	(16)
+-#define KVCMD_MAX_KEY_SIZE		(255)
+-#define KVCMD_MIN_KEY_SIZE		(255)
++#define KVCMD_MAX_KEY_SIZE		(1024)
++#define KVCMD_KLEN_IN_PAYLOAD   (255)
++#define KVCMD_MIN_KEY_SIZE		(4)
+ #define ITER_LIST_ITER_TYPE_OFFSET (1)
+ //#define DUMP_ISSUE_CMD
+ #define KV_SPACE
+@@ -33,11 +34,12 @@
  
  #define ITER_BUFSIZE 32768
  
@@ -30633,7 +31845,7 @@ index 6bdd8f0..974fc0f 100644
  typedef uint32_t kv_value_t;
  typedef int kv_result;
  
-@@ -69,6 +70,13 @@ enum nvme_kv_iter_req_option {
+@@ -69,6 +71,13 @@ enum nvme_kv_iter_req_option {
      ITER_OPTION_DEL_KEY_VALUE = 0x10,
  };
  
@@ -30647,7 +31859,7 @@ index 6bdd8f0..974fc0f 100644
  enum nvme_kv_opcode {
      nvme_cmd_admin_get_log_page	= 0x02,
      nvme_cmd_admin_identify	= 0x06,
-@@ -79,10 +87,12 @@ enum nvme_kv_opcode {
+@@ -79,10 +88,12 @@ enum nvme_kv_opcode {
      nvme_cmd_kv_iter_req	= 0xB1,
      nvme_cmd_kv_iter_read	= 0xB2,
      nvme_cmd_kv_exist	= 0xB3,
@@ -30662,7 +31874,7 @@ index 6bdd8f0..974fc0f 100644
  /*
  typedef struct {
      int opcode;
-@@ -197,7 +207,7 @@ public:
+@@ -197,7 +208,7 @@ public:
      uint64_t capacity;
      typedef std::list<std::pair<kv_key *, kv_value *> >::iterator aio_iter;
      typedef struct {
@@ -30671,7 +31883,7 @@ index 6bdd8f0..974fc0f 100644
          kv_key* key = 0;
          kv_value *value = 0;
          void *buf = 0;
-@@ -232,7 +242,7 @@ private:
+@@ -232,7 +243,7 @@ private:
      std::condition_variable cmdctx_cond;
  
      std::vector<aio_cmd_ctx *>   free_cmdctxs;
@@ -30680,7 +31892,7 @@ index 6bdd8f0..974fc0f 100644
  
      int qdepth;
      
-@@ -253,20 +263,21 @@ private:
+@@ -253,20 +264,23 @@ private:
  public:
  
      uint32_t  get_dev_waf();
@@ -30692,6 +31904,8 @@ index 6bdd8f0..974fc0f 100644
 +    kv_result kv_store(kv_key *key, kv_value *value, nvme_kv_store_option option, const kv_postprocess_function* cb);
 +    kv_result kv_retrieve(kv_key *key, kv_value *value, const kv_postprocess_function* cb);
 +    kv_result kv_retrieve_sync(kv_key *key, kv_value *value);
++    kv_result kv_retrieve_direct(kv_key *key, kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function* cb);
++    kv_result kv_store_direct(kv_key *key, kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function* cb);
 +    kv_result kv_list(kv_key *key, uint8_t key_offset, uint16_t max_keys_to_list, kv_value *value, const kv_postprocess_function* cb);
 +    kv_result kv_delete(kv_key *key, const kv_postprocess_function* cb, int check_exist = 0);
 +    kv_result iter_open(kv_iter_context *iter_handle, nvme_kv_iter_req_option option);
@@ -30711,7 +31925,7 @@ index 6bdd8f0..974fc0f 100644
      int open(std::string &devpath);
      int close();
      int fill_ioresult(const aio_cmd_ctx &ioctx, const struct nvme_aioevent &event, kv_io_context &result);
-@@ -279,7 +290,8 @@ public:
+@@ -279,7 +293,8 @@ public:
      }
      bool is_opened() { return (fd != -1); }
      void dump_cmd(struct nvme_passthru_kv_cmd *cmd);
@@ -30721,7 +31935,7 @@ index 6bdd8f0..974fc0f 100644
  };
  
  
-@@ -308,6 +320,7 @@ public:
+@@ -308,6 +323,7 @@ public:
  #define KADI_ERR_TUPLE_NOT_EXIST	(-22)
  #define KADI_ERR_VALUE	(-23)
  
@@ -30877,7 +32091,7 @@ index 08878d7..cd2502a 100644
  }
 \ No newline at end of file
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kvs_adi.cpp b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kvs_adi.cpp
-index 78494c5..f7c2d35 100644
+index 78494c5..71d97b6 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kvs_adi.cpp
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/kvs_adi.cpp
 @@ -115,9 +115,6 @@ kv_result kv_initialize_device(void *dev_init, kv_device_handle *dev_hdl) {
@@ -31074,7 +32288,7 @@ index 78494c5..f7c2d35 100644
      if (que_hdl == NULL || ns_hdl == NULL || key_cnt < 1 ) {
          return KV_ERR_PARAM_INVALID;
      }
-@@ -527,43 +556,50 @@ kv_result kv_exist(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl,
+@@ -527,43 +556,74 @@ kv_result kv_exist(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl,
      }
  
      KADI *dev = (KADI *) que_hdl->dev;
@@ -31113,10 +32327,34 @@ index 78494c5..f7c2d35 100644
      KADI *dev = (KADI *) que_hdl->dev;
 -    return dev->kv_retrieve(ks_id, (kv_key*)key, value, post_fn);
 +    return dev->kv_retrieve_sync((kv_key*)key, value);
++}
++
++kv_result kv_retrieve_direct(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, kv_retrieve_option option, 
++                             const kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *post_fn) {
++    FTRACE
++    if (que_hdl == NULL || ns_hdl == NULL || key == NULL ) {
++        return KV_ERR_PARAM_INVALID;
++    }
++    KADI *dev = (KADI *) que_hdl->dev;
++    return dev->kv_retrieve_direct((kv_key*)key, (kv_value *)value, client_rdma_key, client_rdma_qhandle, post_fn);
++
++}
++
++kv_result kv_store_direct(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, kv_store_option option,
++                             const kv_value *value, uint32_t client_rdma_key, uint16_t client_rdma_qhandle, const kv_postprocess_function *post_fn) {
++    FTRACE
++    if (que_hdl == NULL || ns_hdl == NULL || key == NULL ) {
++        return KV_ERR_PARAM_INVALID;
++    }
++    KADI *dev = (KADI *) que_hdl->dev;
++    return dev->kv_store_direct((kv_key*)key, (kv_value *)value, client_rdma_key, client_rdma_qhandle, post_fn);
++
  }
  
 -kv_result kv_retrieve_sync(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl,
 -  uint8_t ks_id, const kv_key *key, kv_retrieve_option option, kv_value *value) {
++
++
 +kv_result kv_list(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl, const kv_key *key, uint8_t key_offset, uint16_t max_keys_to_list, kv_value *value, const kv_postprocess_function *post_fn) {
      FTRACE
 +
@@ -31138,7 +32376,7 @@ index 78494c5..f7c2d35 100644
      if (que_hdl == NULL || ns_hdl == NULL || key == NULL || value == NULL) {
          return KV_ERR_PARAM_INVALID;
      }
-@@ -585,9 +621,10 @@ kv_result kv_store(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl,
+@@ -585,9 +645,10 @@ kv_result kv_store(kv_queue_handle que_hdl, kv_namespace_handle ns_hdl,
        default:
          return KV_ERR_OPTION_INVALID;
      }
@@ -31151,22 +32389,66 @@ index 78494c5..f7c2d35 100644
      FTRACE
      if (que_hdl == NULL || num_events == NULL) {
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
-index 7fc9f2b..07a9af0 100644
+index 7fc9f2b..47335fb 100644
 --- a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
 +++ b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/linux_nvme_ioctl.h
-@@ -64,8 +64,10 @@ struct nvme_passthru_kv_cmd {
+@@ -62,15 +62,35 @@ struct nvme_passthru_kv_cmd {
+ 	__u32	cdw3;
+ 	__u32	cdw4;
  	__u32	cdw5;
- 	__u64	data_addr;
- 	__u32	data_length;
+-	__u64	data_addr;
+-	__u32	data_length;
 -	__u32	key_length;
--	__u32	cdw10;
-+        __u8    key_length;
-+        __u8    rsvd2;
-+        __u16   rsvd3;
-+        __u32	cdw10;
- 	__u32	cdw11;
++	struct {
++		__u64	data_addr;
++		union {
++			struct {
++				__u32	data_length;
++				__u8	rsvd2;//Not used
++				__u8	list_key_offset;//List key offset
++				__u16	list_max_keys;//List max keys
++			};
++			struct {
++				__u8    length[3];//Length in 24 bit
++				__u8    rkey[4];//RDMA remote key
++				__u8    type;//SGL Type
++			};//Keyed SGL second half
++		};
++	};//dptr
+ 	__u32	cdw10;
+-	__u32	cdw11;
++	union {
++		__u32	cdw11;
++		struct {
++			__u8 kv_klen;
++			__u8 kv_option;
++			__u16 rdd_chandle;//RDMA direct client handle
++		};
++	};
  	union {
  		struct {
+ 			__u64 key_addr;
+-			__u32 rsvd5;
++			__u32 key_length;
+ 			__u32 rsvd6;
+ 		};
+ 		__u8 key[16];
+@@ -108,7 +128,6 @@ struct nvme_aioevents {
+ 	struct nvme_aioevent events[MAX_AIO_EVENTS];
+ };
+ 
+-
+ #define nvme_admin_cmd nvme_passthru_cmd
+ 
+ #define NVME_IOCTL_ID		_IO('N', 0x40)
+@@ -118,7 +137,6 @@ struct nvme_aioevents {
+ #define NVME_IOCTL_RESET	_IO('N', 0x44)
+ #define NVME_IOCTL_SUBSYS_RESET	_IO('N', 0x45)
+ #define NVME_IOCTL_RESCAN	_IO('N', 0x46)
+-
+ #define NVME_IOCTL_AIO_CMD		_IOWR('N', 0x47, struct nvme_passthru_kv_cmd)
+ #define NVME_IOCTL_SET_AIOCTX	_IOWR('N', 0x48, struct nvme_aioctx)
+ #define NVME_IOCTL_DEL_AIOCTX	_IOWR('N', 0x49, struct nvme_aioctx)
 diff --git a/PDK/core/src/device_abstract_layer/kernel_driver_adapter/sample_code/sample_interrupt.cpp b/PDK/core/src/device_abstract_layer/kernel_driver_adapter/sample_code/sample_interrupt.cpp
 new file mode 100644
 index 0000000..7719fab
@@ -42124,6 +43406,43 @@ index 4ceed89..b08a3b8 100644
  		if (result)
  			*result = le32_to_cpu(nvme_req(req)->result.u32);
  		if (status)
+diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/linux_nvme_ioctl.h b/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/linux_nvme_ioctl.h
+index 8edc08e..359f29e 100644
+--- a/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/linux_nvme_ioctl.h
++++ b/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/linux_nvme_ioctl.h
+@@ -88,15 +88,28 @@ struct nvme_passthru_kv_cmd {
+ 	__u32	cdw3;
+ 	__u32	cdw4;
+ 	__u32	cdw5;
+-	__u64	data_addr;
+-	__u32	data_length;
+-	__u32	key_length;
++	struct {
++		__u64	data_addr;
++		union {
++			struct {
++				__u32	data_length;
++				__u8	rsvd2;//Not used
++				__u8	list_key_offset;//List key offset
++				__u16	list_max_keys;//List max keys
++			};
++			struct {
++				__u8    length[3];//Length in 24 bit
++				__u8    rkey[4];//RDMA remote key
++				__u8    type;//SGL Type
++			};//Keyed SGL second half
++		};
++	};//dptr
+ 	__u32	cdw10;
+ 	__u32	cdw11;
+ 	union {
+ 		struct {
+ 			__u64 key_addr;
+-			__u32 rsvd5;
++			__u32 key_length;
+ 			__u32 rsvd6;
+ 		};
+ 		__u8 key[16];
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/re_insmod.sh b/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-1062-centos-7_7/re_insmod.sh
 old mode 100644
 new mode 100755
@@ -50345,6 +51664,43 @@ index 9d2cb7b..da00466 100644
  unregister_aio_service:
  	aio_service_exit();
  #endif
+diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/linux_nvme_ioctl.h b/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/linux_nvme_ioctl.h
+index 8edc08e..359f29e 100644
+--- a/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/linux_nvme_ioctl.h
++++ b/PDK/driver/PCIe/kernel_driver/kernel_v3.10.0-693-centos-7_4/linux_nvme_ioctl.h
+@@ -88,15 +88,28 @@ struct nvme_passthru_kv_cmd {
+ 	__u32	cdw3;
+ 	__u32	cdw4;
+ 	__u32	cdw5;
+-	__u64	data_addr;
+-	__u32	data_length;
+-	__u32	key_length;
++	struct {
++		__u64	data_addr;
++		union {
++			struct {
++				__u32	data_length;
++				__u8	rsvd2;//Not used
++				__u8	list_key_offset;//List key offset
++				__u16	list_max_keys;//List max keys
++			};
++			struct {
++				__u8    length[3];//Length in 24 bit
++				__u8    rkey[4];//RDMA remote key
++				__u8    type;//SGL Type
++			};//Keyed SGL second half
++		};
++	};//dptr
+ 	__u32	cdw10;
+ 	__u32	cdw11;
+ 	union {
+ 		struct {
+ 			__u64 key_addr;
+-			__u32 rsvd5;
++			__u32 key_length;
+ 			__u32 rsvd6;
+ 		};
+ 		__u8 key[16];
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v4.13.15-041315-ubuntu-16_04/core.c b/PDK/driver/PCIe/kernel_driver/kernel_v4.13.15-041315-ubuntu-16_04/core.c
 index 30716b1..e7f9a5b 100644
 --- a/PDK/driver/PCIe/kernel_driver/kernel_v4.13.15-041315-ubuntu-16_04/core.c
@@ -67390,10 +68746,10 @@ index 0000000..f075564
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
 new file mode 100644
-index 0000000..022643d
+index 0000000..c18ccfc
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/core.c
-@@ -0,0 +1,5559 @@
+@@ -0,0 +1,5680 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NVM Express device driver
@@ -69434,6 +70790,14 @@ index 0000000..022643d
 +		goto OUT_REQ;
 +	}
 +
++	//Check if the command is RDMA Data Direct and set flag
++	if (pthr_cmd->type == NVME_SGL_TYPE_VENDOR_SPECIFIC && \
++				pthr_cmd->rdd_chandle != 0) {
++		kv_req(req)->kv_rddpt = 1;
++	} else {
++		kv_req(req)->kv_rddpt = 0;
++	}
++
 +	pr_debug("%s: request_queue %px req %px opc 0x%x tag %u"
 +		 "kbuf 0x%px key_ulen %u vbuf 0x%px ulen %u\n",
 +		 __FUNCTION__, q, req, pthr_cmd->opcode, req->tag,
@@ -69457,6 +70821,9 @@ index 0000000..022643d
 +	if (ret)
 +		goto OUT_KCB;
 +
++	if(kv_req(req)->kv_rddpt == 1)
++		goto Q_RDD;
++
 +	ret = kv_rq_map_user(req, &i, !rq_data_dir(req), false, GFP_KERNEL);
 +	if (ret)
 +		goto OUT_KCB;
@@ -69474,6 +70841,8 @@ index 0000000..022643d
 +		}
 +	}
 +#endif
++//RDMA Data Direct skips data mapping
++Q_RDD:
 +	pr_debug("%s: cpu %u enqueue ctxid %u req 0x%px tag %u\n",
 +		__FUNCTION__, smp_processor_id(), pthr_cmd->ctxid, req, req->tag);
 +
@@ -69499,12 +70868,18 @@ index 0000000..022643d
 +		goto SUCCESS;
 +
 +	/* logic XOR */
-+	if (!key != !len)
++	if (!key != !len) {
++        pr_err("%s !(%d) != !(%d)\n", __FUNCTION__, key, len);
 +		goto ERROR;
++    }
 +
 +       	if (len > KVCMD_MAX_KEY_SIZE ||
 +            len < KVCMD_MIN_KEY_SIZE)
-+		goto ERROR;
++        {
++            pr_err("Invalid key size [%d] recieved allowed min[%d] max[%d]\n",
++                        len, KVCMD_MIN_KEY_SIZE, KVCMD_MAX_KEY_SIZE);
++		    goto ERROR;
++        }
 +SUCCESS:
 +	return 0;
 +ERROR:
@@ -69512,16 +70887,25 @@ index 0000000..022643d
 +}
 +
 +static inline int
-+kv_value_len_check(__u64 data, size_t len)
++kv_value_len_check(__u64 data, size_t len, bool is_rdd)
 +{
++    size_t max_len = KVCMD_MAX_VALUE_SIZE;
++
++    if(is_rdd) max_len = KVCMD_MAX_RDD_VALUE_SIZE;
++
 +	if (!data && !len)
 +		goto SUCCESS;
 +
-+	if (!data != !len)
++	if (!data != !len) {
++        pr_err("%s !(%d) != !(%d), is_rdd[%d]\n", __FUNCTION__, data, len, is_rdd);
 +		goto ERROR;
++    }
 +
-+       	if (len > KVCMD_MAX_VALUE_SIZE)
++    if (len > max_len)
++	{
++		pr_err("Failed Value size limit max allowed [%x] got [%x]\n", max_len, len);
 +		goto ERROR;
++	}
 +SUCCESS:
 +	return 0;
 +ERROR:
@@ -69531,12 +70915,37 @@ index 0000000..022643d
 +static inline int
 +kv_cmd_sanity_check(struct nvme_passthru_kv_cmd *cmd)
 +{
-+	if (!is_kv_cmd(cmd->opcode))
++	size_t data_len;
++    size_t key_len;
++
++    if(cmd->kv_klen > KVCMD_INLINE_KEY_MAX) {
++        key_len = cmd->key_length;
++    } else {
++        key_len = cmd->kv_klen;
++    }
++
++	if (!is_kv_cmd(cmd->opcode)) {
++        pr_err("%s: Invalid opcode 0x%x\n", __FUNCTION__, cmd->opcode);
 +		return -1;
-+	else if (kv_key_len_check(cmd->key_addr, cmd->key_length))
++    }
++	else if (kv_key_len_check(cmd->key_addr, key_len))
 +		return -1;
-+	else if (kv_value_len_check(cmd->data_addr, cmd->data_length))
-+		return -1;
++	else {
++		if (cmd->opcode == nvme_cmd_kv_retrieve || cmd->opcode == nvme_cmd_kv_store) {
++			if (cmd->type == NVME_SGL_TYPE_VENDOR_SPECIFIC && cmd->rdd_chandle != 0) {
++				data_len = cmd->cdw10;
++				//Check 3 byte value length for RDMA direct request
++				if (kv_value_len_check(cmd->data_addr, data_len, true))
++					return -1;
++			} else {
++				if (kv_value_len_check(cmd->data_addr, cmd->data_length, false))
++					return -1;
++			}
++		} else {
++			if (kv_value_len_check(cmd->data_addr, cmd->data_length, false))
++				return -1;
++		}
++	}
 +
 +	return 0;
 +}
@@ -69551,6 +70960,7 @@ index 0000000..022643d
 +	void __user *metadata = NULL;
 +	struct nvme_passthru_kv_cmd cmd;
 +	struct nvme_command c;
++	unsigned data_len = 0;
 +
 +	if (!capable(CAP_SYS_ADMIN))
 +		return -EACCES;
@@ -69562,11 +70972,13 @@ index 0000000..022643d
 +	/* Sanity check */
 +	if (kv_cmd_sanity_check(&cmd)) {
 +		pr_err("%s: Invalid passthru cmd:opc 0x%x key_addr %llu key_len %u "
-+			"data_addr %llu data_len %u \n", __FUNCTION__, cmd.opcode,
++			"data_addr %x data_len %x \n", __FUNCTION__, cmd.opcode,
 +			cmd.key_addr, cmd.key_length, cmd.data_addr, cmd.data_length);
 +		status = -EINVAL;
 +		goto exit;
 +	}
++
++	data_len = cmd.data_length;
 +
 +	memset(&c, 0, sizeof(c));
 +	c.common.opcode = cmd.opcode;
@@ -69582,35 +70994,67 @@ index 0000000..022643d
 +	case nvme_cmd_kv_store:
 +        case nvme_cmd_kv_append:
 +		c.kv_store.offset = cpu_to_le32(cmd.cdw5);
-+		c.kv_store.key_len = cpu_to_le32(cmd.key_length - 1); /* key len -1 */
 +		c.kv_store.option = cpu_to_le32(cmd.cdw4) & 0xff;
-+		c.kv_store.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
-+		c.kv_store.invalid_byte = P2NPHASE(cpu_to_le32(cmd.data_length), 4);
++		if (cmd.opcode == nvme_cmd_kv_store && cmd.type == NVME_SGL_TYPE_VENDOR_SPECIFIC && cmd.rdd_chandle != 0) {//RDMA Data direct Store
++			data_len = cmd.cdw10;
++			c.kv_store.rdd_chandle = cmd.rdd_chandle;//Copy before changing option/invalid_bytes
 +
++			c.kv_store.value_len = P2ROUNDUP(cpu_to_le32(data_len), 4) >> 2;
++			c.kv_store.invalid_byte = P2NPHASE(cpu_to_le32(data_len), 4);
++
++
++			c.kv_store.dptr.ksgl.addr = cmd.data_addr;
++
++			c.kv_store.dptr.ksgl.length[0] = cmd.length[0];
++			c.kv_store.dptr.ksgl.length[1] = cmd.length[1];
++			c.kv_store.dptr.ksgl.length[2] = cmd.length[2];
++
++			c.kv_store.dptr.ksgl.key[0] = cmd.rkey[0];
++			c.kv_store.dptr.ksgl.key[1] = cmd.rkey[1];
++			c.kv_store.dptr.ksgl.key[2] = cmd.rkey[2];
++			c.kv_store.dptr.ksgl.key[3] = cmd.rkey[3];
++
++			//SGL Vendor Specific
++			c.kv_store.dptr.ksgl.type = (NVME_SGL_TYPE_VENDOR_SPECIFIC << 4);;
++
++			pr_debug("Data direct store data length %x value len %x\n", data_len, c.kv_retrieve.value_len);
++		} else {
++			c.kv_store.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
++			c.kv_store.invalid_byte = P2NPHASE(cpu_to_le32(cmd.data_length), 4);
++		}
 +		/* The prev max key len the key len come from cmd.key_length. For key len [256, 1024],
 +		    openMPDK uses cmd.key_length_large field to convey new key len and the old key_length is fixed to
 +		    255 */
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			//meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
-+		} else {
-+			memcpy(c.kv_store.key, cmd.key, cmd.key_length);
++			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++                c.kv_store.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++                c.kv_store.key_len = cpu_to_le32(meta_len - 1); /* key len -1 */
++            }
++        } else {
++			memcpy(c.kv_store.key, cmd.key, cmd.kv_klen);
++            c.kv_store.key_len = cpu_to_le32(cmd.kv_klen - 1); /* key len -1 */
 +		}
 +		break;
 +        case nvme_cmd_kv_list:
-+                c.kv_list.key_len = cmd.key_length -1; /* key len - 1 */
 +                c.kv_list.rsvd = cmd.cdw2 & 0xf;
 +                c.kv_list.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
-+                c.kv_list.key_offset = cmd.rsvd2;
-+                c.kv_list.max_keys = cmd.rsvd3;
++                c.kv_list.key_offset = cmd.list_key_offset;
++                c.kv_list.max_keys = cmd.list_max_keys;
 +
-+                if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++                if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +                        metadata = (void __user*) cmd.key_addr;
-+                        //meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
++                        meta_len = cmd.key_length;
++                        if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++                            c.kv_list.key_len = KVCMD_KLEN_IN_PAYLOAD;
++                        } else {
++                            c.kv_list.key_len = cpu_to_le32(meta_len -1); /* key len - 1 */
++                        }
 +                } else {
-+                        memcpy(c.kv_list.key, cmd.key, cmd.key_length);
++                        memcpy(c.kv_list.key, cmd.key, cmd.kv_klen);
++                        c.kv_list.key_len = cpu_to_le32(cmd.kv_klen -1); /* key len - 1 */
 +                }
 +                break;
 +        case nvme_cmd_kv_lock:
@@ -69624,49 +71068,82 @@ index 0000000..022643d
 +
 +                if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
 +                        metadata = (void __user*) cmd.key_addr;
-+                        //meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
++                        meta_len = cmd.key_length;
 +                } else {
 +                        memcpy(c.kv_list.key, cmd.key, cmd.key_length);
 +                }
 +                break;
 +        case nvme_cmd_kv_retrieve:
 +		c.kv_retrieve.offset = cpu_to_le32(cmd.cdw5);
-+		c.kv_retrieve.key_len = cpu_to_le32(cmd.key_length - 1); /* key len - 1 */
 +		c.kv_retrieve.option = cpu_to_le32(cmd.cdw4) & 0xff;
-+		c.kv_retrieve.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
++		if (cmd.type == NVME_SGL_TYPE_VENDOR_SPECIFIC && cmd.rdd_chandle != 0) {//RDMA Data direct Get
++			data_len = cmd.cdw10;
++			c.kv_retrieve.value_len = P2ROUNDUP(cpu_to_le32(data_len), 4) >> 2;
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
-+			metadata = (void __user*) cmd.key_addr;
-+			//meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
++			c.kv_retrieve.rdd_chandle = cmd.rdd_chandle;
++
++			c.kv_retrieve.dptr.ksgl.addr = cmd.data_addr;
++
++			c.kv_retrieve.dptr.ksgl.length[0] = cmd.length[0];
++			c.kv_retrieve.dptr.ksgl.length[1] = cmd.length[1];
++			c.kv_retrieve.dptr.ksgl.length[2] = cmd.length[2];
++
++			c.kv_retrieve.dptr.ksgl.key[0] = cmd.rkey[0];
++			c.kv_retrieve.dptr.ksgl.key[1] = cmd.rkey[1];
++			c.kv_retrieve.dptr.ksgl.key[2] = cmd.rkey[2];
++			c.kv_retrieve.dptr.ksgl.key[3] = cmd.rkey[3];
++
++			//SGL Vendor Specific
++			c.kv_retrieve.dptr.ksgl.type = (NVME_SGL_TYPE_VENDOR_SPECIFIC << 4);;
++
++			pr_debug("Data direct retrieve data length %x value len %x\n", data_len, c.kv_retrieve.value_len);
 +		} else {
-+			memcpy(c.kv_retrieve.key, cmd.key, cmd.key_length);
++			c.kv_retrieve.value_len = P2ROUNDUP(cpu_to_le32(cmd.data_length), 4) >> 2;
++		}
++
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
++			metadata = (void __user*) cmd.key_addr;
++			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_retrieve.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_retrieve.key_len = cpu_to_le32(meta_len - 1); /* key len - 1 */
++            }
++		} else {
++			memcpy(c.kv_retrieve.key, cmd.key, cmd.kv_klen);
++		    c.kv_retrieve.key_len = cpu_to_le32(cmd.kv_klen - 1); /* key len - 1 */
 +		}
 +		break;
 +	case nvme_cmd_kv_delete:
-+		c.kv_delete.key_len = cpu_to_le32(cmd.key_length - 1);
 +		c.kv_delete.option = cpu_to_le32(cmd.cdw4) & 0xff;
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			//meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
++			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_delete.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_delete.key_len = cpu_to_le32(meta_len - 1);
++            }
 +		} else {
-+			memcpy(c.kv_delete.key, cmd.key, cmd.key_length);
++			memcpy(c.kv_delete.key, cmd.key, cmd.kv_klen);
++		    c.kv_delete.key_len = cpu_to_le32(cmd.kv_klen - 1);
 +		}
 +		break;
 +	case nvme_cmd_kv_exist:
-+		c.kv_exist.key_len = cpu_to_le32(cmd.key_length - 1);
 +		c.kv_exist.option = (cpu_to_le32(cmd.cdw4) & 0xff);
 +
-+		if (cmd.key_length > KVCMD_INLINE_KEY_MAX) {
++		if (cmd.kv_klen > KVCMD_INLINE_KEY_MAX) {
 +			metadata = (void __user *) cmd.key_addr;
-+			//meta_len = cmd.key_length;
-+			meta_len = cmd.key_length_large ? cmd.key_length_large : cmd.key_length; // TODO: support for large key
-+
++			meta_len = cmd.key_length;
++            if(meta_len >= KVCMD_KLEN_IN_PAYLOAD) {
++		        c.kv_exist.key_len = KVCMD_KLEN_IN_PAYLOAD;
++            } else {
++		        c.kv_exist.key_len = cpu_to_le32(meta_len - 1);
++            }
 +		} else {
-+			memcpy(c.kv_exist.key, cmd.key, cmd.key_length);
++			memcpy(c.kv_exist.key, cmd.key, cmd.kv_klen);
++		    c.kv_exist.key_len = cpu_to_le32(cmd.kv_klen - 1);
 +		}
 +		break;
 +	case nvme_cmd_kv_iter_req:
@@ -69691,7 +71168,7 @@ index 0000000..022643d
 +	if (likely(aio))
 +		status = kv_submit_async_cmd(ns->queue, &c, &cmd,
 +					     (void __user *) cmd.data_addr,
-+					     cmd.data_length, metadata, meta_len, 0,
++					     data_len, metadata, meta_len, 0,
 +					     &cmd.result, &cmd.status, timeout);
 +#if 0
 +	else
@@ -79207,10 +80684,10 @@ index 0000000..949e29e
 +};
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
 new file mode 100644
-index 0000000..a7b1003
+index 0000000..716f712
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme.h
-@@ -0,0 +1,1594 @@
+@@ -0,0 +1,1612 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Definitions for the NVM Express interface
@@ -79791,8 +81268,10 @@ index 0000000..a7b1003
 +//#define KVCMD_MAX_KEY_SIZE	(255)
 +#define KVCMD_MAX_KEY_SIZE	(1024)
 +#define KVCMD_MIN_KEY_SIZE	(4)
++#define KVCMD_KLEN_IN_PAYLOAD (255)
 +
-+#define KVCMD_MAX_VALUE_SIZE	(SZ_2M)
++#define KVCMD_MAX_VALUE_SIZE	(SZ_1M)
++#define KVCMD_MAX_RDD_VALUE_SIZE	(SZ_64M)
 +
 +/*
 + * Descriptor subtype - lower 4 bits of nvme_(keyed_)sgl_desc identifier
@@ -79830,6 +81309,8 @@ index 0000000..a7b1003
 +	NVME_SGL_FMT_LAST_SEG_DESC	= 0x03,
 +	NVME_KEY_SGL_FMT_DATA_DESC	= 0x04,
 +	NVME_TRANSPORT_SGL_DATA_DESC	= 0x05,
++	/* 0x6 - 0xE reserved */
++	NVME_SGL_TYPE_VENDOR_SPECIFIC   = 0x0F
 +};
 +
 +struct nvme_sgl_desc {
@@ -80011,9 +81492,16 @@ index 0000000..a7b1003
 +	__u8			flags;
 +	__u16			command_id;
 +	__le32			nsid;
-+	__u64			rsvd;
++    union {
++	    __u64			rsvd;
++        struct {
++            __u32       rsvd2_1;
++            __u16       rdd_chandle;
++            __u16       rsvd3_1;
++        };
++    };
 +	__le32			offset;
-+	__u32			rsvd2;
++    __u32			rsvd2;
 +	union nvme_data_ptr	dptr; /* value dptr prp1,2 */
 +	__le32			value_len; /* size in word */
 +	__u8			key_len; /* 0 ~ 255 (key len -1) */
@@ -80117,7 +81605,14 @@ index 0000000..a7b1003
 +	__u8			flags;
 +	__u16			command_id;
 +	__le32			nsid;
-+	__u64			rsvd;
++    union {
++	    __u64			rsvd;
++        struct {
++            __u32       rsvd2_1;
++            __u16       rdd_chandle;
++            __u16       rsvd3_1;
++        };
++    };
 +	__le32			offset;
 +	__u32			rsvd2;
 +	union nvme_data_ptr	dptr; /* value dptr prp1,2 */
@@ -80807,10 +82302,10 @@ index 0000000..a7b1003
 +#endif /* _LINUX_NVME_H */
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h
 new file mode 100644
-index 0000000..896349f
+index 0000000..b4809e0
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/linux_nvme_ioctl.h
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,165 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +/*
 + * Definitions for the NVM Express ioctl interface
@@ -80882,6 +82377,8 @@ index 0000000..896349f
 +#define KVS_ERR_TUPLE_EXIST	(-21)
 +#define KVS_ERR_TUPLE_NOT_EXIST	(-22)
 +#define KVS_ERR_VALUE	(-23)
++
++
 +struct nvme_passthru_kv_cmd {
 +	__u8	opcode;
 +	__u8	flags;
@@ -80891,17 +82388,35 @@ index 0000000..896349f
 +	__u32	cdw3;
 +	__u32	cdw4;
 +	__u32	cdw5;
-+	__u64	data_addr;
-+	__u32	data_length;
-+        __u8    key_length;
-+        __u8    rsvd2;
-+        __u16   rsvd3;
-+        __u32	cdw10;
-+	__u32	cdw11;
++	struct {
++		__u64	data_addr;
++		union {
++			struct {
++				__u32	data_length;
++				__u8	rsvd2;//Not used
++				__u8	list_key_offset;//List key offset
++				__u16	list_max_keys;//List max keys
++			};
++			struct {
++				__u8    length[3];//Length in 24 bit
++				__u8    rkey[4];//RDMA remote key
++				__u8    type;//SGL Type
++			};//Keyed SGL second half
++		};
++	};//dptr
++	__u32	cdw10;
++	union {
++		__u32	cdw11;
++		struct {
++			__u8 kv_klen;
++			__u8 kv_option;
++			__u16 rdd_chandle;//RDMA direct client handle
++		};
++	};
 +	union {
 +		struct {
 +			__u64 key_addr;
-+			__u32 key_length_large;
++			__u32 key_length;
 +			__u32 rsvd6;
 +		};
 +		__u8 key[16];
@@ -81619,10 +83134,10 @@ index 0000000..f0716f6
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
 new file mode 100644
-index 0000000..b07fdd0
+index 0000000..1dced5f
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/nvme.h
-@@ -0,0 +1,627 @@
+@@ -0,0 +1,628 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * Copyright (c) 2011-2014, Intel Corporation.
@@ -81643,7 +83158,7 @@ index 0000000..b07fdd0
 +#include <linux/fault-inject.h>
 +#include <linux/rcupdate.h>
 +
-+#define KV_DRV_VERSION     "20210331"
++#define KV_DRV_VERSION     "20220825"
 +
 +#define is_kv_append_cmd(opcode)	((opcode) == nvme_cmd_kv_append)
 +#define is_kv_store_cmd(opcode)	   	((opcode) == nvme_cmd_kv_store)
@@ -81762,6 +83277,7 @@ index 0000000..b07fdd0
 +	};
 +	int kv_data_nents;
 +	int kv_data_len;
++	int kv_rddpt;//RDMA Data Direct Pass through
 +};
 +
 +/* So I don't need to make changes in pci.c */
@@ -85413,10 +86929,10 @@ index 0000000..1e4747f
 +module_exit(nvme_exit);
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
 new file mode 100644
-index 0000000..e489eb2
+index 0000000..06e4152
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/rdma.c
-@@ -0,0 +1,2473 @@
+@@ -0,0 +1,2481 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * NVMe over Fabrics RDMA host code.
@@ -86650,6 +88166,10 @@ index 0000000..e489eb2
 +		req->key_sgl = NULL;
 +	}
 +
++	if(kv_req(rq)->kv_rddpt == 1) {
++		return;
++	}
++
 +	if (!blk_rq_nr_phys_segments(rq))
 +		return;
 +
@@ -87003,6 +88523,10 @@ index 0000000..e489eb2
 +		put_unaligned_le32(req->key_mr->rkey, sgl->key);
 +		sgl->type = (NVME_KEY_SGL_FMT_DATA_DESC << 4) |
 +			    NVME_SGL_FMT_ADDRESS;/* NVME_SGL_FMT_INVALIDATE; */
++	}
++
++	if(kv_req(rq)->kv_rddpt == 1) {
++		return 0;
 +	}
 +
 +	if (!blk_rq_nr_phys_segments(rq))
@@ -87892,25 +89416,27 @@ index 0000000..e489eb2
 +MODULE_LICENSE("GPL v2");
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh
 new file mode 100755
-index 0000000..11e507e
+index 0000000..f5838e3
 --- /dev/null
 +++ b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/re_insmod.sh
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,19 @@
 +#!/bin/bash
 +
 +echo "Disconnect all remote device ..."
 +nvme disconnect-all
 +
 +echo "Remove driver modules ..."
++sudo rmmod nvme-rdma.ko
 +sudo rmmod nvme-tcp.ko
 +sudo rmmod nvme-fabrics.ko
 +sudo rmmod nvme
 +sudo rmmod nvme_core
 +
 +echo "Insert driver module ..."
-+sudo insmod nvme-core.ko
++sudo insmod nvme-core.ko mem_align=4
 +sudo insmod nvme.ko
 +sudo insmod nvme-fabrics.ko
++sudo insmod nvme-rdma.ko
 +sudo insmod nvme-tcp.ko
 +
 diff --git a/PDK/driver/PCIe/kernel_driver/kernel_v5.1/tcp.c b/PDK/driver/PCIe/kernel_driver/kernel_v5.1/tcp.c

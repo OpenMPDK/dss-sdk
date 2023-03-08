@@ -168,9 +168,11 @@ void dfly_nvmf_complete_event_fn(void *ctx, void *arg2)
 					dfly_req->dqpair->df_ctrlr);
 	}
 
-	DFLY_INFOLOG(DFLY_LOG_IO, "Req opc: %x from: %s to: %s klen: %d sct: %x sc: %x key: [%s]\n",
-						cmd->opc, dfly_req->dqpair->listen_addr, dfly_req->dqpair->peer_addr, 
-						dfly_req->req_key.length, rsp_status->sct, rsp_status->sc, dfly_req->req_key.key); 
+    if(cmd->opc != SPDK_NVME_OPC_READ) {
+        DFLY_INFOLOG(DFLY_LOG_IO, "Req opc: %x from: %s to: %s klen: %d sct: %x sc: %x key: [%s]\n",
+                            cmd->opc, dfly_req->dqpair->listen_addr, dfly_req->dqpair->peer_addr,
+                            dfly_req->req_key.length, rsp_status->sct, rsp_status->sc, dfly_req->req_key.key);
+    }
 
 	dfly_nvmf_request_complete(nvmf_req);
 
@@ -431,6 +433,7 @@ int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 		subsystem->devices[i].ns = nvmf_subsys->ns[i];
 		subsystem->devices[i].index = i;
 		subsystem->devices[i].numa_node = df_get_pcie_numa_node(nvmf_subsys->ns[i]->bdev);
+        subsystem->devices[i].dev_name = bdev_name;
 
 		if(i == 0) {
 			subsystem->blocklen = spdk_bdev_get_block_size(nvmf_subsys->ns[i]->bdev);

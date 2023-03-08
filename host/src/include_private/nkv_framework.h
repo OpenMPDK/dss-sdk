@@ -49,15 +49,19 @@
 #include "nkv_utils.h"
 #include "auto_discovery.h"
 #include "nkv_stats.h"
+//#include "rdd_cl.h"
 #include <condition_variable>
 #include <pthread.h>
 #include <mutex>
+#include <string.h>
 
   #define SLEEP_FOR_MICRO_SEC 100
   #define NKV_STORE_OP      0
   #define NKV_RETRIEVE_OP   1
   #define NKV_DELETE_OP     2
   #define MAX_PATH_PER_SUBSYS 4
+  #define NKV_RETRIEVE_OP_RDD 5
+  #define NKV_STORE_OP_RDD 6
 
   #define AUTOTHROTTLING 0.7
   #define NKV_LIST_OP       3
@@ -213,6 +217,7 @@
     std::string path_cont_name;
     std::string dev_path;
     std::string path_ip;
+    std::string path_nqn;
     int32_t path_port;
     int32_t addr_family;
     int32_t path_speed;
@@ -246,7 +251,9 @@
     stat_io_t* device_stat;
     vector<stat_io_t*> cpu_stats;
     std::atomic<bool> cpu_stat_initialized;
-
+    //rdd_cl_conn_ctx_t *path_rdd_conn;
+    void *path_rdd_conn;
+    int32_t path_enable_rdd;
   public:
     NKVTargetPath (uint64_t p_hash, int32_t p_id, std::string& p_ip, int32_t port, int32_t fam, int32_t p_speed, 
 		  int32_t p_stat, int32_t numa_aligned, int32_t p_type):
@@ -286,61 +293,11 @@
       //nkv_init_path_io_stats(device_stat, )
       cpu_stat_initialized = false;
       pthread_rwlock_init(&lru_rw_lock, NULL);
+      path_rdd_conn = NULL;
+      path_enable_rdd = 0;
     }
 
-    ~NKVTargetPath() {
-      kvs_result ret;
-      if (listing_with_cached_keys) {
-        nkv_path_stopping.fetch_add(1, std::memory_order_relaxed);
-        wait_for_thread_completion();
-      }
- 
-      if (! dev_path.empty() && get_target_path_status() && !nkv_in_memory_exec ) {
-        #ifdef SAMSUNG_API
-          ret = kvs_close_container(path_cont_handle);
-          assert(ret == KVS_SUCCESS);
-        #else
-          kvs_close_key_space(path_ks_handle);
-          kvs_delete_key_space(path_handle, &path_ks_name);
-        #endif
-
-        ret = kvs_close_device(path_handle);
-        assert(ret == KVS_SUCCESS);
-      } 
-
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        pthread_rwlock_destroy(&cache_rw_lock_list[iter]);
-      }
-      for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-        pthread_rwlock_destroy(&data_rw_lock_list[iter]);
-      }
-
-      if (nkv_in_memory_exec) {
-        for (int iter = 0; iter < nkv_listing_cache_num_shards; iter++) {
-          for (auto x: data_cache[iter]) {
-            delete x.second;
-          }
-        }
-      }
-
-      delete[] cache_rw_lock_list;
-      delete[] listing_keys;
-      if (nkv_in_memory_exec) {
-        delete[] data_cache;
-      }
-      delete[] cnt_cache;
-      smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
- 
-      // delete ustat
-      if( device_stat) {
-        nkv_ustat_delete(device_stat);
-      }
-      for(auto cpu_stat: cpu_stats){
-        nkv_ustat_delete(cpu_stat);
-      }
-      cpu_stats.clear();
-      pthread_rwlock_destroy(&lru_rw_lock);
-    }
+    ~NKVTargetPath();
 
     void add_device_path (std::string& p_dev_path) {
       dev_path = p_dev_path;
@@ -448,8 +405,10 @@
     }
  
     nkv_result map_kvs_err_code_to_nkv_err_code (int32_t kvs_code);
-    nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
-    nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn); 
+    nkv_result do_store_io_to_path (const nkv_key* key, const nkv_store_option* opt, nkv_value* value, nkv_postprocess_function* post_fn,
+                                    uint32_t client_rdma_key, uint16_t client_rdma_qhandle); 
+    nkv_result do_retrieve_io_from_path (const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value, nkv_postprocess_function* post_fn,
+                                         uint32_t client_rdma_key, uint16_t client_rdma_qhandle); 
     nkv_result do_delete_io_from_path (const nkv_key* key, nkv_postprocess_function* post_fn); 
     nkv_result do_lock_io_from_path (const nkv_key* key,
 		const nkv_lock_option *opt, nkv_postprocess_function* post_fn); 
@@ -571,7 +530,8 @@
     } 
 
     nkv_result  send_io_to_path(uint64_t container_path_hash, const nkv_key* key, 
-                                void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
+                                void* opt, nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn,
+                                uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
       nkv_result status = NKV_SUCCESS; 
       NKVTargetPath* one_p = NULL;
       std::unordered_set<uint64_t> visited_path;
@@ -638,6 +598,7 @@
           uint64_t v_len = 0;
           switch(which_op) {
             case NKV_STORE_OP:
+            case NKV_STORE_OP_RDD:
               if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
                 core = sched_getcpu();
@@ -660,9 +621,11 @@
                 nkv_ustat_atomic_inc_u64(cpu_stat, &cpu_stat->put);
                 nkv_ustat_atomic_inc_u64(one_p->device_stat, &one_p->device_stat->put);
               }
-              status = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn);
+              status = one_p->do_store_io_to_path(key, (const nkv_store_option*)opt, value, post_fn,
+                                                        client_rdma_key, client_rdma_qhandle);
               break;
             case NKV_RETRIEVE_OP:
+            case NKV_RETRIEVE_OP_RDD:
 
               if (!post_fn && get_path_stat_collection()) {
                 v_len = value->length;
@@ -693,7 +656,8 @@
                 } 
                 nkv_ustat_atomic_inc_u64(one_p->device_stat, &one_p->device_stat->get);
               }
-              status = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn);
+              status = one_p->do_retrieve_io_from_path(key, (const nkv_retrieve_option*)opt, value, post_fn, 
+                                                             client_rdma_key, client_rdma_qhandle);
               break;
             case NKV_DELETE_OP:
               if (!post_fn && get_path_stat_collection()) {
@@ -1137,6 +1101,7 @@
           transportlist[cur_pop_index].status = (one_path->path_status).load(std::memory_order_relaxed);
           one_path->path_ip.copy(transportlist[cur_pop_index].ip_addr, one_path->path_ip.length());
           one_path->dev_path.copy(transportlist[cur_pop_index].mount_point, one_path->dev_path.length());
+          one_path->path_nqn.copy(transportlist[cur_pop_index].nqn_name, one_path->path_nqn.length());
 
           cur_pop_index++;
 	  if(nic_load_balance && one_path->path_status) {
@@ -1313,19 +1278,16 @@
     uint64_t instance_uuid;
     uint64_t nkv_handle;
     ustat_handle_t* nkv_ustat_handle;
+    //struct rdd_client_ctx_s *g_rdd_cl_ctx;
+    void *g_rdd_cl_ctx;
   public:
     NKVContainerList(uint64_t latest_version, const char* a_uuid, uint64_t ins_uuid, uint64_t n_handle): 
                     cache_version(latest_version), app_name(a_uuid), instance_uuid(ins_uuid), 
-                    nkv_handle(n_handle), nkv_ustat_handle(NULL){
+                    nkv_handle(n_handle), nkv_ustat_handle(NULL), g_rdd_cl_ctx(NULL) {
 
 
     }
-    ~NKVContainerList() {
-      for (auto m_iter = cnt_list.begin(); m_iter != cnt_list.end(); m_iter++) {
-        delete(m_iter->second);
-      }
-      cnt_list.clear();
-    }
+    ~NKVContainerList(); 
 
     uint64_t get_nkv_handle() {
       return nkv_handle;
@@ -1348,7 +1310,8 @@
     }
 
     nkv_result nkv_send_io(uint64_t container_hash, uint64_t container_path_hash, const nkv_key* key, void* opt, 
-                           nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn) {
+                           nkv_value* value, int32_t which_op, nkv_postprocess_function* post_fn,
+                           uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
       nkv_result stat = NKV_SUCCESS;
 
       auto c_iter = cnt_list.find(container_hash);
@@ -1365,7 +1328,8 @@
       NKVTarget* one_cnt = c_iter->second;
       // A Subsystem UP is indicated by status 0
       if (one_cnt && ! one_cnt->get_ss_status()) {
-        stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn);
+        stat = one_cnt->send_io_to_path(container_path_hash, key, opt, value, which_op, post_fn, 
+                                        client_rdma_key, client_rdma_qhandle);
       } else {
         smg_error(logger, "NULL Container found for hash = %u!!", container_hash);
         return NKV_ERR_NO_CNT_FOUND;
@@ -1606,62 +1570,7 @@
     }
  
     // This is for LKV based deployment
-    int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt) {
-      uint64_t ss_hash = std::hash<std::string>{}(host_name_ip);
-
-      NKVTarget* one_cnt = new NKVTarget(0, "", host_name_ip, host_name_ip, ss_hash);
-      assert(one_cnt != NULL);
-      //Making it similar to remote, 0 means up, 1 means down
-      one_cnt->set_ss_status(0);
-      one_cnt->set_space_avail_percent(100);
-      int32_t path_id = 0;
-
-      try {
-        BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("nkv_local_mounts")) {
-          assert(v.first.empty());
-          boost::property_tree::ptree pc = v.second;
-          std::string local_mount = pc.get<std::string>("mount_point");
-          std::string local_address = "127.0.0.1";
-          std::string local_node = host_name_ip;
-          int32_t local_port = host_port;
-          int32_t numa_node_attached = -1;
-          int32_t driver_thread_core = -1;
-
-          if (core_pinning_required) {
-            numa_node_attached = pc.get<int>("numa_node_attached");
-            driver_thread_core = pc.get<int>("driver_thread_core");
-          }
-
-          smg_alert(logger, "Adding local device path, mount point = %s, address = %s, host_name_ip = %s, port = %d, numa = %d, core = %d",
-                    local_mount.c_str(), local_address.c_str(), host_name_ip, local_port, numa_node_attached, driver_thread_core);
-
-          std::string h_path_str = host_name_ip + local_mount;
-          uint64_t ss_p_hash = std::hash<std::string>{}(h_path_str);
-          NKVTargetPath* one_path = new NKVTargetPath(ss_p_hash, path_id, local_address, local_port, -1, -1, 1, -1, -1);
-          assert(one_path != NULL);
-          one_path->add_device_path(local_mount);
-          one_path->path_numa_node = numa_node_attached;
-          one_path->core_to_pin = driver_thread_core;
-
-          one_cnt->add_network_path(one_path, ss_p_hash);
-          path_id++;
-
-        }
-      }
-      catch (std::exception& e) {
-        smg_error(logger, "%s%s", "Error reading config file while adding path mount point, Error = ", e.what());
-        return 1;
-      }
-      auto cnt_iter = cnt_list.find(ss_hash);
-      assert (cnt_iter == cnt_list.end());
-      cnt_list[ss_hash] = one_cnt;
-
-      smg_info (logger, "Local Container added, hash = %u, id = %u, host_name_ip = %s, container count = %d",
-                ss_hash, 0, host_name_ip, cnt_list.size());
-
-      return 0;
-
-    }
+    int32_t add_local_container_and_path (const char* host_name_ip, uint32_t host_port, boost::property_tree::ptree & pt);
 
     // This is for Network KV based deployment
     /* Function Name: parse_add_container

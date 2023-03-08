@@ -46,6 +46,8 @@
 #include <thread>
 #include <unordered_set>
 #include <math.h>
+#include "rdd_cl_api.h"
+#include <openssl/md5.h>
 
 c_smglogger* logger = NULL;
 std::atomic<int> submitted(0);
@@ -83,6 +85,7 @@ struct nkv_thread_args{
   void* app_ustat_ctx;
   int simulate_minio;
   int num_ec_p_chunk;
+  std::vector<rdd_cl_conn_ctx_t*> rdd_conn_list;
 };
 
 /* Generate samples in [0, 1] following uniform distribution */
@@ -160,6 +163,26 @@ void memHexDump (void *addr, int len) {
 
     printf ("  %s\n", buff);
 }
+
+void logMD5(unsigned char* md, long size = MD5_DIGEST_LENGTH) {
+    for (int i=0; i<size; i++) {
+      std::cout<< std::hex << std::setw(2) << std::setfill('0') << (int) md[i];
+    }
+    std::cout << std::endl;
+}
+
+void compareMD5(unsigned char* md1, unsigned char* md2, long size = MD5_DIGEST_LENGTH) {
+    for (int i=0; i<size; i++) {
+      if ((int) md1[i] != (int) md2[i]) {
+       smg_error(logger, "MD5 mismatch at byte = %d, %x, %x", i, (int) md1[i],(int) md2[i]);
+       logMD5(md1);
+       logMD5(md2);
+       return;
+      }
+    }
+    smg_info(logger, "MD5 is same, no corruption !");
+}
+
 
 void nkv_aio_complete (nkv_aio_construct* op_data, int32_t num_op) {
 
@@ -311,7 +334,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
       //smg_alert(logger, "Got one IO, th_io_ctx = %d, num_ios = %u, iter = %u", th_io_ctx, num_ios.load(), iter);
       /*char *key_name   = (char*)nkv_malloc(targs->klen);
       memset(key_name, 0, targs->klen);
-      sprintf(key_name, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
+      snprintf(key_name, targs->klen, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
       uint32_t klen = targs->klen;
       nkv_result status = NKV_SUCCESS; 
       char* val = (char*)nkv_zalloc(io_size); 
@@ -336,13 +359,13 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
           {
             key_name   = (char*)nkv_malloc(targs->klen);
             memset(key_name, 0, targs->klen);
-            sprintf(key_name, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
+            snprintf(key_name, targs->klen, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
             uint32_t klen = targs->klen;
             const nkv_key  nkvkey = { (void*)key_name, klen};
 
             val = (char*)nkv_zalloc(io_size);
             nkv_value nkvvalue = { (void*)val, io_size, 0 };
-            sprintf(val, "%0*d", klen, iter);
+            snprintf(val, io_size, "%0*d", klen, iter);
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkey, targs->s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Minio Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
@@ -360,11 +383,11 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_5, 0, NKV_TEST_META_KEY_LEN);
-            //sprintf(meta_key_1, "meta/.minio.sys/tmp/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-            //sprintf(meta_key_2, "meta/.minio.sys/tmp/%s/%u_%u_%d/part1.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-            sprintf(meta_key_3, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-            sprintf(meta_key_4, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-            sprintf(meta_key_5, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
+            //snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta/.minio.sys/tmp/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            //snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta/.minio.sys/tmp/%s/%u_%u_%d/part1.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+            snprintf(meta_key_5, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
             //const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
             //const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
@@ -376,10 +399,10 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN_DATA);
             char* meta_val_5 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
-            //sprintf(meta_val_1, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.xl.json", targs->id, iter, th_io_ctx);
-            //sprintf(meta_val_2, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.part1.json", targs->id, iter, th_io_ctx);
-            sprintf(meta_val_4, "%s_%s_%d_%u_%d",targs->key_prefix, "data.xl.json", targs->id, iter, th_io_ctx);
-            sprintf(meta_val_5, "%s_%s_%d_%u_%d",targs->key_prefix, "meta.part.1", targs->id, iter, th_io_ctx);
+            //snprintf(meta_val_1, NKV_TEST_META_VAL_LEN, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.xl.json", targs->id, iter, th_io_ctx);
+            //snprintf(meta_val_2, NKV_TEST_META_VAL_LEN, "%s_%s_%d_%u_%d",targs->key_prefix, "tmp.part1.json", targs->id, iter, th_io_ctx);
+            snprintf(meta_val_4, NKV_TEST_META_VAL_LEN, "%s_%s_%d_%u_%d",targs->key_prefix, "data.xl.json", targs->id, iter, th_io_ctx);
+            snprintf(meta_val_5, NKV_TEST_META_VAL_LEN, "%s_%s_%d_%u_%d",targs->key_prefix, "meta.part.1", targs->id, iter, th_io_ctx);
 
             //nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
             //nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
@@ -404,7 +427,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               smg_info(logger, "NKV Minio Retrieve meta1 successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkeymeta3.key,
                       (char*) nkvvaluemeta3.value, nkvvaluemeta3.length, nkvvaluemeta3.actual_length);
             }
-            sprintf(meta_val_3, "%s_%s_%d_%u_%d",targs->key_prefix, "xl.json", targs->id, iter, th_io_ctx);
+            snprintf(meta_val_3, NKV_TEST_META_VAL_LEN, "%s_%s_%d_%u_%d",targs->key_prefix, "xl.json", targs->id, iter, th_io_ctx);
 
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[th_io_ctx], &nkvkeymeta4, targs->s_option, &nkvvaluemeta4);
             if (status != 0) {
@@ -547,8 +570,8 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
               memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
               memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-              sprintf(meta_key_3, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-              sprintf(meta_key_4, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
               const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
               const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
 
@@ -594,7 +617,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
 
               key_name   = (char*)nkv_malloc(targs->klen);
               memset(key_name, 0, targs->klen);
-              sprintf(key_name, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
+              snprintf(key_name, targs->klen, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
               uint32_t klen = targs->klen;
               val = (char*)nkv_zalloc(io_size);
               const nkv_key  nkvkey = { (void*)key_name, klen};
@@ -602,7 +625,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
 
               char*meta_key_5   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
               memset(meta_key_5, 0, NKV_TEST_META_KEY_LEN);
-              sprintf(meta_key_5, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_5, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
               const nkv_key  nkvkeymeta5 = { (void*)meta_key_5, NKV_TEST_META_KEY_LEN};
               char* meta_val_5 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
               nkv_value nkvvaluemeta5 = { (void*)meta_val_5, NKV_TEST_META_VAL_LEN, 0 };
@@ -645,7 +668,7 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
             if (num_ios.load() > 0) {
               key_name   = (char*)nkv_malloc(targs->klen);
               memset(key_name, 0, targs->klen);
-              sprintf(key_name, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
+              snprintf(key_name, targs->klen, "data/%s_%d_%d_%d", targs->key_prefix, targs->id, th_io_ctx, iter);
               uint32_t klen = targs->klen;
               const nkv_key  nkvkey = { (void*)key_name, klen};
 
@@ -655,9 +678,9 @@ void miniothread (nkv_thread_args *targs, uint64_t io_size, std::atomic<int16_t>
               memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
               memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
               memset(meta_key_5, 0, NKV_TEST_META_KEY_LEN);
-              sprintf(meta_key_3, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-              sprintf(meta_key_4, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
-              sprintf(meta_key_5, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "data/%s/%u_%u_%d/xl.json", targs->key_prefix, targs->id, iter, th_io_ctx);
+              snprintf(meta_key_5, NKV_TEST_META_KEY_LEN, "meta/%s/%u_%u_%d/part.1", targs->key_prefix, targs->id, iter, th_io_ctx);
               const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
               const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
               const nkv_key  nkvkeymeta5 = { (void*)meta_key_5, NKV_TEST_META_KEY_LEN};
@@ -892,7 +915,7 @@ void *iothread(void *args)
   for(int32_t iter = 0; iter < targs->count; iter++) {
     char *key_name   = (char*)nkv_malloc(targs->klen);
     memset(key_name, 0, targs->klen);
-    sprintf(key_name, "%s_%d_%u", targs->key_prefix, targs->id, iter);
+    snprintf(key_name, targs->klen, "%s_%d_%u", targs->key_prefix, targs->id, iter);
     uint32_t klen = targs->klen;
     char* val = NULL;
     
@@ -932,10 +955,10 @@ void *iothread(void *args)
             memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_1, "meta/tmp/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
-            sprintf(meta_key_2, "meta/tmp/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta/tmp/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta/tmp/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
             char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
@@ -948,10 +971,10 @@ void *iothread(void *args)
             const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta3 = { (void*)meta_key_3, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta4 = { (void*)meta_key_4, NKV_TEST_META_KEY_LEN};
-            sprintf(meta_val_1, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
-            sprintf(meta_val_2, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
-            sprintf(meta_val_3, "%s_%d_%u","nkv_test_meta1_bucket_xl.json", targs->id,iter);
-            sprintf(meta_val_4, "%s_%d_%u","nkv_test_meta1_bucket_part1.json", targs->id,iter);
+            snprintf(meta_val_1, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
+            snprintf(meta_val_2, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
+            snprintf(meta_val_3, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_xl.json", targs->id,iter);
+            snprintf(meta_val_4, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_part1.json", targs->id,iter);
             nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
             nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
             nkv_value nkvvaluemeta3 = { (void*)meta_val_3, NKV_TEST_META_VAL_LEN, 0 };
@@ -1009,7 +1032,7 @@ void *iothread(void *args)
             } else {
               smg_info(logger, "NKV Store meta4 successful, key = %s", (char*) nkvkeymeta4.key);
             }
-            sprintf(val, "%0*d", klen, iter);
+            snprintf(val, targs->vlen, "%0*d", klen, iter);
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
@@ -1053,17 +1076,116 @@ void *iothread(void *args)
 
           } else {
 
-            sprintf(val, "%0*d", klen, iter);
+            snprintf(val, targs->vlen,  "%0*d", klen, iter);
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
               return 0;
             } else {
               smg_info(logger, "NKV Store successful, key = %s", key_name);
+              if (targs->check_integrity) {
+                unsigned char checksum[MD5_DIGEST_LENGTH];
+                MD5((unsigned char*) val, targs->vlen, checksum);
+                snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter); 
+                const nkv_key  nkvkey = { (void*)key_name, klen};
+                nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
+                status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+                if (status != 0) {
+                  smg_error(logger, "NKV Store KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                  return 0;
+                } else {
+                  smg_info(logger, "NKV Store checksum successful, key = %s", key_name);
+                }
+              }
             }
           }
         }
         break;
+
+      case 11: //RDD PUT
+        {
+          if (!targs->is_mixed) {
+            targs->s_option->nkv_store_rdd = 1;
+            struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
+            status = nkv_store_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option,
+                                         &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
+            if (status != 0) {
+              smg_error(logger, "NKV RDD store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV RDD store successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, rdd key = %x, rdd_q_handle = %x",
+                      (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, mr->rkey,
+                      rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
+
+              if (targs->check_integrity) {
+                unsigned char checksum[MD5_DIGEST_LENGTH];
+                MD5((unsigned char*) val, targs->vlen, checksum);
+                snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+                const nkv_key  nkvkey = { (void*)key_name, klen};
+                nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
+                status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+                if (status != 0) {
+                  smg_error(logger, "NKV RDD Store KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                  return 0;
+                } else {
+                  smg_info(logger, "NKV RDD Store checksum successful, key = %s", key_name);
+                }
+              }
+
+            }
+            if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }
+          }
+        }
+        break;
+
+      case 7: //chunked PUT
+        {
+          if (!targs->is_mixed) {
+            //val   = (char*)nkv_zalloc(vlen);
+            //memset(val, 0, vlen);
+            char* chunk_start = val;
+            uint64_t chunk_size = (targs->vlen /targs->ioctx_cnt);
+            for (uint32_t tgt = 0; tgt < targs->ioctx_cnt; tgt++) {
+              snprintf(key_name, targs->klen, "%s_chk_%u", key_name, tgt);
+              if (tgt == (targs->ioctx_cnt - 1) && (targs->vlen % targs->ioctx_cnt != 0)) { //Last chunk and not equal division
+                chunk_size += (targs->vlen % targs->ioctx_cnt);
+              }
+              nkv_value nkvvalue = { (void*)chunk_start, chunk_size, 0 };
+              snprintf(chunk_start, chunk_size, "%0*d_%0*d_%d", klen/2, iter, klen/2, tgt, targs->id);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+              status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[tgt], &nkvkey_chunked, targs->s_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Store KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                return 0;
+              }
+              smg_info(logger, "NKV chunked Store successful, key = %s, value size = %u", key_name, chunk_size);
+              if (tgt != (targs->ioctx_cnt - 1)) { //Not Last chunk
+                chunk_start += chunk_size;
+              }
+            }
+            if (targs->check_integrity) {
+              unsigned char checksum[MD5_DIGEST_LENGTH] = {0};
+              MD5((unsigned char*) val, targs->vlen, checksum);
+              snprintf(key_name, targs->klen, "crc_chunked_put_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              const nkv_key  nkvkey = { (void*)key_name, klen};
+              nkv_value nkvvalue = { (void*)checksum, MD5_DIGEST_LENGTH, 0 };
+              status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV Store KVP chunked checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                return 0;
+              } else {
+                smg_info(logger, "NKV Store chunked checksum successful, key = %s", key_name);
+              }
+            }
+
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", targs->op_type);
+          }
+        }
+        break;
+        
       case 1: /*GET*/
         {
           //if ((targs->is_mixed) && ( iter % 3 == 0)) {
@@ -1073,8 +1195,8 @@ void *iothread(void *args)
             char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             memset(meta_val_3, 0, NKV_TEST_META_VAL_LEN);
@@ -1124,9 +1246,127 @@ void *iothread(void *args)
           } else {
             smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
                     (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
+            if (targs->check_integrity) {
+              unsigned char checksum1[MD5_DIGEST_LENGTH] = {0};
+              unsigned char checksum2[MD5_DIGEST_LENGTH] = {0};
+              MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
+              snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              const nkv_key  nkvkey = { (void*)key_name, klen};
+              nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV retrieve KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                return 0;
+              } else {
+                smg_info(logger, "NKV retrieve checksum successful, key = %s", key_name);
+                compareMD5(checksum1, checksum2);
+              }
+            }
+
           }
 
 
+
+        }
+        break;
+      case 8: //RDD GET
+        {
+          if (!targs->is_mixed) {
+            //val = (char*)nkv_zalloc(vlen);
+            //memset(val, 0, vlen);
+            targs->r_option->nkv_retrieve_rdd = 1;
+            //nkv_value nkvvalue = { (void*)val, vlen, 0 };
+            struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
+            status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue, 
+                                          mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
+            /*if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }*/
+            if (status != 0) {
+              smg_error(logger, "NKV RDD Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              return 0;
+            } else {
+              smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, value_buffer_addr = %llx, len = %u, got actual length = %u, rdd key = %x, rdd_q_handle = %x", 
+                               (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, nkvvalue.actual_length, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
+            }
+
+            if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }
+
+            if (targs->check_integrity) {
+              unsigned char checksum1[MD5_DIGEST_LENGTH];
+              unsigned char checksum2[MD5_DIGEST_LENGTH];
+              MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
+              snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              
+              const nkv_key  nkvkey = { (void*)key_name, klen};
+              nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV RDD retrieve KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                return 0;
+              } else {
+                smg_info(logger, "NKV RDD retrieve checksum successful, key = %s", key_name);
+                compareMD5(checksum1, checksum2);
+              }
+            }
+
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", targs->op_type);
+          }
+        }
+        break;
+      case 9: //RDD chunked GET
+        {
+          if (!targs->is_mixed) {
+            //val   = (char*)nkv_zalloc(vlen);
+            //memset(val, 0, vlen);
+            targs->r_option->nkv_retrieve_rdd = 1;
+            char* chunk_start = val;
+            uint64_t chunk_size = 0;
+            for (uint32_t tgt = 0; tgt < targs->ioctx_cnt; tgt++) {
+              snprintf(key_name, targs->klen, "%s_chk_%u", key_name, tgt);
+              uint64_t val_len = (targs->vlen - tgt*chunk_size);
+              nkv_value nkvvalue = { (void*)chunk_start, val_len, 0 };
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen};
+              struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[tgt], chunk_start, val_len);
+              status = nkv_retrieve_kvp_rdd(targs->nkv_handle, &targs->ioctx[tgt], &nkvkey_chunked, targs->r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(targs->rdd_conn_list[tgt]));
+              if (mr) {
+                rdd_cl_conn_put_mr(mr);
+              }
+
+              if (status != 0) {
+                smg_error(logger, "NKV RDD chunked Get KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                return 0;
+              }
+              smg_info(logger, "NKV RDD chunked Get successful, key = %s, value size = %u", key_name, nkvvalue.actual_length);
+              chunk_size = nkvvalue.actual_length;
+              if (tgt != (targs->ioctx_cnt - 1)) { //Not Last chunk
+                chunk_start += chunk_size;
+              }
+            }
+            if (targs->check_integrity) {
+              unsigned char checksum1[MD5_DIGEST_LENGTH];
+              unsigned char checksum2[MD5_DIGEST_LENGTH];
+              //MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
+              MD5((unsigned char*) val, targs->vlen, checksum1);
+              snprintf(key_name, targs->klen, "crc_chunked_put_%s_%d_%u", targs->key_prefix, targs->id, iter);
+              const nkv_key  nkvkey = { (void*)key_name, klen};
+              nkv_value nkvvalue = { (void*)checksum2, MD5_DIGEST_LENGTH, 0 };
+              status = nkv_retrieve_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->r_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV RDD chunked retrieve KVP checksum call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                return 0;
+              } else {
+                smg_info(logger, "NKV RDD chunked retrieve checksum successful, key = %s", key_name);
+                compareMD5(checksum1, checksum2);
+              }
+            }
+
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", targs->op_type);
+          }
 
         }
         break;
@@ -1139,8 +1379,8 @@ void *iothread(void *args)
             char*meta_key_4   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             memset(meta_key_3, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_4, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_3, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
-            sprintf(meta_key_4, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_3, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/xl.json", targs->id, iter, targs->key_prefix);
+            snprintf(meta_key_4, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/%s/part1.json", targs->id, iter, targs->key_prefix);
 
             char* meta_val_3 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_4 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
@@ -1176,8 +1416,8 @@ void *iothread(void *args)
             char*meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
             memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
             memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
-            sprintf(meta_key_1, "meta/bucket_%u/%u/1234/xl.json", targs->id, iter);
-            sprintf(meta_key_2, "meta/bucket_%u/%u/1234/part1.json", targs->id, iter);
+            snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/1234/xl.json", targs->id, iter);
+            snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta/bucket_%u/%u/1234/part1.json", targs->id, iter);
 
             char* meta_val_1 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
             char* meta_val_2 = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
@@ -1185,8 +1425,8 @@ void *iothread(void *args)
             memset(meta_val_2, 0, NKV_TEST_META_VAL_LEN);
             const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, NKV_TEST_META_KEY_LEN};
             const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, NKV_TEST_META_KEY_LEN};
-            sprintf(meta_val_1, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
-            sprintf(meta_val_2, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
+            snprintf(meta_val_1, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_1234_xl.json", targs->id,iter);
+            snprintf(meta_val_2, NKV_TEST_META_VAL_LEN, "%s_%d_%u","nkv_test_meta1_bucket_1234_part1.json", targs->id,iter);
 
             nkv_value nkvvaluemeta1 = { (void*)meta_val_1, NKV_TEST_META_VAL_LEN, 0 };
             nkv_value nkvvaluemeta2 = { (void*)meta_val_2, NKV_TEST_META_VAL_LEN, 0 };
@@ -1274,17 +1514,60 @@ void *iothread(void *args)
               return 0;
             } else {
               smg_info(logger, "NKV Delete successful, key = %s", (char*) nkvkey.key);
+              if (targs->check_integrity) {
+                snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+                const nkv_key  nkvkey = { (void*)key_name, klen};
+                status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
+                if (status != 0) {
+                  smg_error(logger, "NKV CRC Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                  return 0;
+                } else {
+                  smg_info(logger, "NKV CRC Delete successful, key = %s", (char*) nkvkey.key);
+                }
+              }
             }
           }
 
         }
         break;
 
+      case 10:
+        {
+          if (!targs->is_mixed) {
+            for (uint32_t tgt = 0; tgt < targs->ioctx_cnt; tgt++) {
+              snprintf(key_name, targs->klen, "%s_chk_%u", key_name, tgt);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+
+              status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[tgt], &nkvkey_chunked);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Delete KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                return 0;
+              }
+              smg_info(logger, "NKV chunked Delete successful, key = %s", key_name);
+              if (targs->check_integrity) {
+                snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
+                const nkv_key  nkvkey = { (void*)key_name, klen};
+                status = nkv_delete_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey);
+                if (status != 0) {
+                  smg_error(logger, "NKV CRC chunked Delete KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+                  return 0;
+                } else {
+                  smg_info(logger, "NKV CRC chunked Delete successful, key = %s", (char*) nkvkey.key);
+                }
+              }
+
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", targs->op_type);
+          }
+
+        }
+        break;
 
       case 3: /*PUT, GET, DEL*/
         {
           memset(val, 0, targs->vlen);
-          sprintf(val, "%0*d", klen, iter);
+          snprintf(val, targs->vlen, "%0*d", klen, iter);
           
           if (targs->check_integrity) {
             memset(cmpval, 0, targs->vlen);
@@ -1411,15 +1694,17 @@ void usage(char *program)
   printf("-p      host_port       :  Host port this nkv instance will bind to\n");
   printf("-b      key_prefix      :  Key name prefix to be used\n");
   printf("-n      num_ios         :  total number of ios\n");
-  printf("-o      op_type         :  0: Put; 1: Get; 2: Delete; "\
-					"3: Put, Get and delete (only sync); 4: listing; "\
-					"5: Put and list 6: Lock&Unlock\n");
+  printf("-o      op_type         :  	\n"\
+                                        "\t\t\t 0: Put; 1: Get; 2: Delete; \n "\
+					"\t\t\t 3: Put, Get and delete (only sync); 4: listing; \n"\
+					"\t\t\t 5: Put and list 6: Lock&Unlock 7: chunked Put \n"\
+                                        "\t\t\t 8: RDD Get 9: RDD chunked Get 10: chunked Del 11: RDD PUT \n");
   printf("-k      klen            :  key length \n");
   printf("-v      vlen            :  value length \n");
   printf("-y      rnd_klen_dist   :  random key length distribution. n: Normal; e: Exponantial; u: Uniform \n");
   printf("-S      rnd_seed        :  random seed  \n");
   printf("-e      is_exclusive    :  Idempotent Put \n");
-  printf("-m      check_integrity :  Data integrity check during Get, only valid for op_type = 3  \n");
+  printf("-m      check_integrity :  Data integrity check  \n");
   printf("-a      async_mode      :  Execution will be done in async mode  \n");
   printf("-w      working key     :  CLI will only work on the key passed  \n");
   printf("-s      mount_point     :  CLI will send io to this mount_point only  \n");
@@ -1649,6 +1934,23 @@ do {
     parent_op_type = 5;
     op_type = 0;
   }
+  bool is_rdd_req = false;
+  struct rdd_client_ctx_s *g_rdd_cl_ctx = NULL;
+  std::vector<rdd_cl_conn_ctx_t*> rdd_conn_list;
+  //rdd_cl_conn_ctx_t *g_rdd_conn = NULL;
+  rdd_cl_conn_params_t rdd_params;
+
+  if ((op_type == 8) || (op_type == 9) || (op_type == 11)) {
+    is_rdd_req = true;
+    rdd_cl_ctx_params_t param = {RDD_PD_GLOBAL};
+    g_rdd_cl_ctx = rdd_cl_init(param);
+    if(!g_rdd_cl_ctx) {
+      smg_error(logger, "NKV Could not initialize rdd library !!");
+      nkv_close (nkv_handle, instance_uuid);
+      exit(1);
+    }
+
+  }
   uint32_t index = 0;
   uint32_t cnt_count = NKV_MAX_ENTRIES_PER_CALL;
   nkv_container_info *cntlist = new nkv_container_info[NKV_MAX_ENTRIES_PER_CALL];
@@ -1688,13 +1990,28 @@ do {
 
     smg_info(logger,"Number of Container transport = %d", cntlist[i].num_container_transport);
     for (int p = 0; p < cntlist[i].num_container_transport; p++) {
-      smg_info(logger,"Transport information :: hash = %u, id = %d, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
-              cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, cntlist[i].transport_list[p].ip_addr, 
+      smg_info(logger,"Transport information :: hash = %u, id = %d, nqn_name = %s, address = %s, port = %d, family = %d, speed = %d, status = %d, numa_node = %d, mount_point = %s",
+              cntlist[i].transport_list[p].network_path_hash, cntlist[i].transport_list[p].network_path_id, 
+              cntlist[i].transport_list[p].nqn_name, cntlist[i].transport_list[p].ip_addr, 
               cntlist[i].transport_list[p].port, cntlist[i].transport_list[p].addr_family, cntlist[i].transport_list[p].speed, 
               cntlist[i].transport_list[p].status, cntlist[i].transport_list[p].numa_node, cntlist[i].transport_list[p].mount_point);
 
       if (subsystem_mp && (0 != strcmp(cntlist[i].transport_list[p].mount_point, subsystem_mp)))
         continue;
+      if (is_rdd_req) {
+        rdd_params.ip = cntlist[i].transport_list[p].ip_addr;
+        rdd_params.port = (std::to_string(cntlist[i].transport_list[p].port)).c_str();
+        smg_info(logger, "About to open NKV rdd connection to ip = %s, port = %s ", rdd_params.ip, rdd_params.port);
+        rdd_cl_conn_ctx_t *one_rdd_conn = rdd_cl_create_conn(g_rdd_cl_ctx, rdd_params);
+        if(!one_rdd_conn) {
+          smg_error(logger, "NKV Could not create rdd connection to ip = %s, port = %d !!", cntlist[i].transport_list[p].ip_addr, cntlist[i].transport_list[p].port);
+          nkv_close (nkv_handle, instance_uuid);
+          exit(1);
+        } else {
+          smg_info(logger, "NKV rdd connection to ip = %s, port = %d is successful!!", cntlist[i].transport_list[p].ip_addr, cntlist[i].transport_list[p].port);
+        }
+        rdd_conn_list.push_back(one_rdd_conn);
+      }
       io_ctx[io_ctx_cnt].is_pass_through = 1;
       io_ctx[io_ctx_cnt].container_hash = cntlist[i].container_hash;
       if (op_type != 4) { //not listing
@@ -1802,7 +2119,7 @@ do {
     if (klen != 16) {
       key_name   = (char*)nkv_malloc(klen);
       memset(key_name, 0, klen);
-      sprintf(key_name, "%s", key_to_work);
+      snprintf(key_name, klen, "%s", key_to_work);
     } else {
 
       klen = strlen (key_to_work);
@@ -1816,7 +2133,7 @@ do {
     switch(op_type) {
       case 0: //PUT
         {
-          sprintf(val, "%0*d", klen, 1980);
+          snprintf(val, vlen, "%0*d", klen, 1980);
           
           status = nkv_store_kvp (nkv_handle, &io_ctx[0], &nkvkey, &s_option, &nkvvalue);
           if (status != 0) {
@@ -1917,6 +2234,8 @@ do {
       args[i].app_ustat_ctx = stat_ctx;
       args[i].simulate_minio = simulate_minio;
       args[i].num_ec_p_chunk = num_ec_p_chunk;
+      //args[i].rdd_conn_list = std::move(rdd_conn_list);
+      args[i].rdd_conn_list = rdd_conn_list;
     
 
       /*cpu_set_t cpus;
@@ -2084,10 +2403,10 @@ do {
     if (is_async && is_mixed) {
       meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
       memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
-      sprintf(meta_key_2, "meta_2_%u", iter);
+      snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta_2_%u", iter);
       meta2_klen = NKV_TEST_META_KEY_LEN; //strlen(meta_key_2);
     }
-    sprintf(key_name, "%s_%u", key_beginning, iter);
+    snprintf(key_name, klen, "%s_%u", key_beginning, iter);
     //klen = strlen (key_name);
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_postprocess_function* p_fn = NULL;
@@ -2107,7 +2426,7 @@ do {
           val   = (char*)nkv_zalloc(vlen);
           memset(val, 0, vlen);
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
-          sprintf(val, "%0*d", klen, iter);
+          snprintf(val, vlen, "%0*d", klen, iter);
 
           if (!is_async) {
             status = nkv_store_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &s_option, &nkvvalue);
@@ -2123,12 +2442,12 @@ do {
               {
                 meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
-                sprintf(meta_key_1, "meta_1_%u", iter);
+                snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta_1_%u", iter);
                 meta1_klen = NKV_TEST_META_KEY_LEN;//strlen(meta_key_1);
                 meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, meta1_klen};
-                sprintf(meta_val, "%s_%d","nkv_test_meta1_", iter); 
+                snprintf(meta_val, NKV_TEST_META_VAL_LEN, "%s_%d","nkv_test_meta1_", iter); 
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
                 int32_t is_done = 0;
 
@@ -2154,7 +2473,7 @@ do {
               {
                 meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
-                sprintf(meta_key_1, "meta_1_%u", iter);
+                snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta_1_%u", iter);
                 meta1_klen = strlen(meta_key_1);
                 meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
@@ -2185,7 +2504,7 @@ do {
               {
                 meta_key_1   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_1, 0, NKV_TEST_META_KEY_LEN);
-                sprintf(meta_key_1, "meta_1_%u", iter);
+                snprintf(meta_key_1, NKV_TEST_META_KEY_LEN, "meta_1_%u", iter);
                 meta1_klen = strlen(meta_key_1);
                 const nkv_key  nkvkeymeta1 = { (void*)meta_key_1, meta1_klen};
 
@@ -2207,7 +2526,7 @@ do {
               {
                 meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
-                sprintf(meta_val, "%s_%d","nkv_test_meta2_", iter);
+                snprintf(meta_val, NKV_TEST_META_VAL_LEN, "%s_%d","nkv_test_meta2_", iter);
                 nkv_value nkvvaluemeta = { (void*)meta_val, NKV_TEST_META_VAL_LEN, 0 };
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
 
@@ -2243,6 +2562,37 @@ do {
         }
         break;
 
+      case 7: //chunked PUT
+        {
+          if (!is_async && !is_mixed) {
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            char* chunk_start = val;
+            uint64_t chunk_size = (vlen /io_ctx_cnt);
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              snprintf(key_name, klen, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              if (tgt == (io_ctx_cnt - 1) && (vlen % io_ctx_cnt != 0)) { //Last chunk and not equal division
+                chunk_size += (vlen % io_ctx_cnt); 
+              }
+              nkv_value nkvvalue = { (void*)chunk_start, chunk_size, 0 };
+              snprintf(val, vlen, "%0*d_%0*d", klen/2, iter, klen/2, tgt);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+              status = nkv_store_kvp (nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &s_option, &nkvvalue);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Store KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV chunked Store successful, key = %s, value size = %u", key_name, chunk_size);
+              if (tgt != (io_ctx_cnt - 1)) { //Not Last chunk 
+                chunk_start += chunk_size;
+              }
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+        }
+        break;
       case 1: //GET
         {
           val   = (char*)nkv_zalloc(vlen);
@@ -2285,7 +2635,7 @@ do {
               {
                 meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
-                sprintf(meta_key_2, "meta_2_%u", iter);
+                snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta_2_%u", iter);
                 meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
@@ -2309,7 +2659,7 @@ do {
               {
                 meta_key_2   = (char*)nkv_malloc(NKV_TEST_META_KEY_LEN);
                 memset(meta_key_2, 0, NKV_TEST_META_KEY_LEN);
-                sprintf(meta_key_2, "meta_2_%u", iter);
+                snprintf(meta_key_2, NKV_TEST_META_KEY_LEN, "meta_2_%u", iter);
                 meta_val = (char*)nkv_zalloc(NKV_TEST_META_VAL_LEN);
                 memset(meta_val, 0, NKV_TEST_META_VAL_LEN);
                 const nkv_key  nkvkeymeta2 = { (void*)meta_key_2, meta2_klen};
@@ -2341,6 +2691,69 @@ do {
             smg_info(logger, "NKV Retrieve async IO done starting, Submitted = %u, completed = %u",
                      submitted.load(), completed.load());
 
+          }
+
+        }
+        break;
+
+      case 8: //RDD GET
+        {
+          if (!is_async && !is_mixed) {
+            val = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            r_option.nkv_retrieve_rdd = 1;
+            nkv_value nkvvalue = { (void*)val, vlen, 0 };
+            struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[iter % io_ctx_cnt], val, vlen);
+            status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(rdd_conn_list[iter % io_ctx_cnt]));
+            if (mr) {
+              rdd_cl_conn_put_mr(mr);
+            }
+            if (status != 0) {
+              smg_error(logger, "NKV RDD Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
+              nkv_close (nkv_handle, instance_uuid);
+              exit(1);
+            } else {
+              smg_info(logger, "NKV RDD Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
+                       (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
+            }
+            
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+        }
+        break;
+      case 9: //RDD chunked GET
+        {
+          if (!is_async && !is_mixed) {
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            r_option.nkv_retrieve_rdd = 1;
+            char* chunk_start = val;
+            uint64_t chunk_size = 0;
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              snprintf(key_name, klen, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              uint64_t val_len = (vlen - tgt*chunk_size);
+              nkv_value nkvvalue = { (void*)chunk_start, val_len, 0 };
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen};
+              struct ibv_mr *mr = rdd_cl_conn_get_mr(rdd_conn_list[tgt], chunk_start, val_len);
+              status = nkv_retrieve_kvp_rdd(nkv_handle, &io_ctx[tgt], &nkvkey_chunked, &r_option, &nkvvalue, mr->rkey, rdd_cl_conn_get_qhandle(rdd_conn_list[tgt]));
+              if (mr) {
+                rdd_cl_conn_put_mr(mr);
+              }
+
+              if (status != 0) {
+                smg_error(logger, "NKV RDD chunked Get KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV RDD chunked Get successful, key = %s, value size = %u", key_name, nkvvalue.actual_length);
+              chunk_size = nkvvalue.actual_length;
+              if (tgt != (io_ctx_cnt - 1)) { //Not Last chunk 
+                chunk_start += chunk_size;
+              }
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
           }
 
         }
@@ -2392,6 +2805,27 @@ do {
         }
         break;
 
+      case 10:
+        {
+          if (!is_async && !is_mixed) {
+            for (uint32_t tgt = 0; tgt < io_ctx_cnt; tgt++) {
+              snprintf(key_name, klen, "%s_%u_chk_%u", key_beginning, iter, tgt);
+              const nkv_key  nkvkey_chunked = { (void*)key_name, klen };
+
+              status = nkv_delete_kvp (nkv_handle, &io_ctx[tgt], &nkvkey_chunked);
+              if (status != 0) {
+                smg_error(logger, "NKV chunked Delete KVP call failed !!, key = %s, chunked_key = %s, error = %d", (char*) nkvkey.key, key_name, status);
+                nkv_close (nkv_handle, instance_uuid);
+                exit(1);
+              }
+              smg_info(logger, "NKV chunked Delete successful, key = %s", key_name);
+            }
+          } else {
+            smg_error(logger,"Unsupported RDD operation for async or mixed IO cases, op = %d", op_type);
+          }
+
+        }
+        break;
 
       case 3: //PUT, GET, DEL
         {
@@ -2399,7 +2833,7 @@ do {
           memset(val, 0, vlen);
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
 
-          sprintf(val, "%0*d", klen, iter);
+          snprintf(val, vlen, "%0*d", klen, iter);
           if (!is_async) {
             //const nkv_key  nkvkey = { (void*)key_name, klen};
             //nkv_value nkvvalue = { (void*)val, vlen, 0 };

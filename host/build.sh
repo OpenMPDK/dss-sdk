@@ -70,19 +70,25 @@ fi
 if [ "$2" == "-p" ]
 then
   OPENMPDK_URL=$3
+  OPENMPDK_BRANCH=$4
   REMOTE_NAME="remote_patch"
   BRANCH_NAME="openmpdk_patch"
   if [ "${OPENMPDK_URL}" != '' ]
   then
     pushd "${CWD}/src/openmpdk"
-      echo "Generating openmpdk patch from ${OPENMPDK_URL}" 
+      echo "Generating openmpdk patch from ${OPENMPDK_URL} and ${OPENMPDK_BRANCH}" 
       git remote add "${REMOTE_NAME}" "${OPENMPDK_URL}"
+      echo "Fetching ${REMOTE_NAME}"
       git fetch "${REMOTE_NAME}"
       COMMIT_ID=$(git reflog | head -1 | cut -d ' ' -f 1)
       git branch "${BRANCH_NAME}" "${COMMIT_ID}"
       git config diff.nodiff.command /bin/true
       echo "*.pdf diff=nodiff" >> .gitattributes
-      git diff "${BRANCH_NAME}" "${REMOTE_NAME}/master" > "${PATCH_PATH}"
+      if [ "${OPENMPDK_BRANCH}" != '' ]; then
+        git diff "${BRANCH_NAME}" "${REMOTE_NAME}/${OPENMPDK_BRANCH}" > "${PATCH_PATH}"
+      else
+        git diff "${BRANCH_NAME}" "${REMOTE_NAME}/master" > "${PATCH_PATH}"
+      fi
       git remote remove "${REMOTE_NAME}"
       git branch -d "${BRANCH_NAME}"
     popd

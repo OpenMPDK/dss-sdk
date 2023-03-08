@@ -27,6 +27,9 @@ configure_file(../../core/inc/df_numa.h ../../oss/spdk_tcp/include/oss/df_numa.h
 configure_file(../../core/inc/dragonfly.h ../../oss/spdk_tcp/include/oss/dragonfly.h COPYONLY)
 configure_file(../../core/inc/murmurhash3.h ../../oss/spdk_tcp/include/oss/murmurhash3.h COPYONLY)
 configure_file(../../core/inc/uthash.h ../../oss/spdk_tcp/include/oss/uthash.h COPYONLY)
+configure_file(../../core/inc/rdd_api.h ../../oss/spdk_tcp/include/oss/rdd_api.h COPYONLY)
+configure_file(../../core/rdd/rdd.h ../../oss/spdk_tcp/include/oss/rdd.h COPYONLY)
+configure_file(../../include/utils/dss_ref.h ../../oss/spdk_tcp/include/oss/utils/dss_ref.h COPYONLY)
 
 configure_file(../../core/framework/src/nvme_samsung_kv_cmd.c ../../oss/spdk_tcp/lib/nvme/nvme_samsung_kv_cmd.c COPYONLY)
 configure_file(../../core/framework/src/dfly_rpc.c ../../oss/spdk_tcp/app/nvmf_tgt/ COPYONLY)

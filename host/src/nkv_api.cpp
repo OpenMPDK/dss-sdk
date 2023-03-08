@@ -622,7 +622,8 @@ void nkv_free(void* buf) {
 
 
 nkv_result nkv_send_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, void* opt, nkv_value* value, 
-                         int32_t which_op, nkv_postprocess_function* post_fn = NULL) {
+                         int32_t which_op, nkv_postprocess_function* post_fn = NULL, 
+                         uint32_t client_rdma_key = 0, uint16_t client_rdma_qhandle = 0) {
 
   if (core_pinning_required && core_running_app_thread == -1 && post_fn) {
     nkv_app_thread_count.fetch_add(1, std::memory_order_relaxed);
@@ -694,11 +695,10 @@ nkv_result nkv_send_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_k
 
       if ((uint64_t)value % nkv_check_alignment != 0) {
         smg_warn(logger, "Non %u Byte Aligned value address = 0x%x, op = %d, performance will be impacted !!", nkv_check_alignment, value, which_op);
-        //assert(0);
       }
       
     } 
-    stat = nkv_cnt_list->nkv_send_io(cnt_hash, cnt_path_hash, key, (void*)opt, value, which_op, post_fn); 
+    stat = nkv_cnt_list->nkv_send_io(cnt_hash, cnt_path_hash, key, (void*)opt, value, which_op, post_fn, client_rdma_key, client_rdma_qhandle); 
 
   } else {
     smg_error(logger, "Wrong input, nkv non-pass through mode is not supported yet, op = %d !", which_op);
@@ -709,6 +709,7 @@ done:
   nkv_pending_calls.fetch_sub(1, std::memory_order_relaxed);
   return stat;
 }
+
 
 nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value) {
 
@@ -724,6 +725,24 @@ nkv_result nkv_store_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_
     smg_info(logger, "NKV store operation is successful for nkv_handle = %u, key = %s, key_length = %u, value_length = %u", 
              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0);
   return stat;
+}
+
+nkv_result nkv_store_kvp_rdd (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_store_option* opt, nkv_value* value,
+                                 uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
+  if (nkv_dynamic_logging) {
+    nkv_app_get_count.fetch_add(1, std::memory_order_relaxed);
+  }
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_STORE_OP_RDD, NULL, client_rdma_key, client_rdma_qhandle);
+
+  if (stat != NKV_SUCCESS)
+    smg_error(logger, "NKV store direct operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d",
+              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0, stat);
+  else
+    smg_info(logger, "NKV store direct operation is successful for nkv_handle = %u, key = %s, key_length = %u, value_length = %u",
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0);
+
+  return stat;
+
 }
 
 nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value) {
@@ -747,6 +766,32 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
     if (value->actual_length == 0)
       smg_error(logger, "NKV retrieve operation returned 0 value length object !!, nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
                 nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length); 
+  }
+  return stat;
+
+}
+
+nkv_result nkv_retrieve_kvp_rdd (uint64_t nkv_handle, nkv_io_context* ioctx, const nkv_key* key, const nkv_retrieve_option* opt, nkv_value* value,
+                                 uint32_t client_rdma_key, uint16_t client_rdma_qhandle) {
+  if (nkv_dynamic_logging) {
+    nkv_app_get_count.fetch_add(1, std::memory_order_relaxed);
+  }
+  nkv_result stat = nkv_send_kvp(nkv_handle, ioctx, key, (void*) opt, value, NKV_RETRIEVE_OP_RDD, NULL, client_rdma_key, client_rdma_qhandle);
+  if (stat != NKV_SUCCESS) {
+    if (stat != NKV_ERR_KEY_NOT_EXIST) {
+      smg_error(logger, "NKV retrieve direct operation failed for nkv_handle = %u, key = %s, key_length = %u, value_length = %u, code = %d", nkv_handle,
+                 key ? (char*)key->key: "NULL", key ? key->length:0, value ? value->length:0, stat);
+    } else {
+      smg_info(logger, "NKV retrieve direct operation failed for nkv_handle = %u, key = %s, key_length = %u, code = %d", nkv_handle,
+                key ? (char*)key->key: "NULL", key ? key->length:0, stat);
+    }
+  }
+  else {
+    smg_info(logger, "NKV retrieve direct operation is successful for nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
+             nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length);
+    if (value->actual_length == 0)
+      smg_error(logger, "NKV retrieve direct operation returned 0 value length object !!, nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
+                nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length);
   }
   return stat;
 

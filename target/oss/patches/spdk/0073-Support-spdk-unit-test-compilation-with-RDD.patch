@@ -1,0 +1,76 @@
+From fbb06f47a31c34addc60bd61ec1437e6d7c81387 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 2 Mar 2023 11:28:24 -0800
+Subject: [PATCH 73/73] Support spdk unit test compilation with RDD
+
+---
+ lib/nvmf/rdma.c                     |  2 ++
+ test/unit/lib/nvmf/rdma.c/rdma_ut.c | 25 ++++++++++++++++++++++++-
+ 2 files changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 71b6dd8..d8a9207 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -50,6 +50,8 @@
+ 
+ #include "nvmf_internal.h"
+ 
++#include "rdd.h"
++
+ struct spdk_nvme_rdma_hooks g_nvmf_hooks = {};
+ const struct spdk_nvmf_transport_ops spdk_nvmf_transport_rdma;
+ 
+diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+index e19e7c5..ecb1d75 100644
+--- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
++++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+@@ -31,6 +31,10 @@
+  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#define DSS_RDD SPDK_LOG_RDMA
++#define DFLY_DEBUGLOG(...) SPDK_DEBUGLOG(...)
++#define dfly_log spdk_log
++
+ #include "spdk/stdinc.h"
+ #include "spdk_cunit.h"
+ #include "common/lib/test_env.c"
+@@ -60,7 +64,7 @@ DEFINE_STUB_V(*dfly_kd_get_device,
+         (struct dfly_request *req));
+ 
+ DEFINE_STUB(dfly_get_next_core, uint32_t,
+-        (char *conn, int num_cpu, char *peer_addr), 0);
++        (char *conn, int num_cpu, char *ip, char *peer_addr), 0);
+ 
+ DEFINE_STUB(dfly_put_core, uint32_t,
+         (char *conn, int core, char *peer_addr), 0);
+@@ -108,6 +112,25 @@ DEFINE_STUB(dfly_poller_qos_sched,
+         (void *poller, void **shuttle, size_t max_seats),
+         0);
+ 
++DEFINE_STUB(dfly_get_subsystem_no_lock,
++            struct dfly_subsystem *,
++            (uint32_t ssid),
++            NULL);
++
++DEFINE_STUB(rdd_post_req2queue,
++            int,
++            (rdd_ctx_t *ctx, uint16_t client_handle, dfly_request_t *req),
++            0);
++
++DEFINE_STUB_V(dss_set_rdd_transfer,
++                (struct dfly_request *req));
++
++DEFINE_STUB(dss_check_req_timeout,
++                bool,
++                (struct dfly_request *dreq),
++                false);
++
++
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ DEFINE_STUB(spdk_mem_map_set_translation, int, (struct spdk_mem_map *map, uint64_t vaddr,
+ 		uint64_t size, uint64_t translation), 0);
+-- 
+1.8.3.1
+

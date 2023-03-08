@@ -262,7 +262,14 @@ SET(FUSE_HEADERS
     ${CMAKE_SOURCE_DIR}/core/inc/module_hash.h
 )
 
-
+SET(RDD_SOURCES
+    ${CMAKE_SOURCE_DIR}/utils/dss_ref.c
+    ${CMAKE_SOURCE_DIR}/core/rdd/rdd.c
+)
+SET(RDD_HEADERS
+    ${CMAKE_SOURCE_DIR}/core/rdd/rdd.h
+    ${CMAKE_SOURCE_DIR}/core/inc/rdd_api.h
+)
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/oss/dssd DESTINATION ${CMAKE_BINARY_DIR})
 ADD_CUSTOM_TARGET(dssd
@@ -379,7 +386,7 @@ set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissiv
 endif()
 
 
-add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
+add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${RDD_SOURCES} ${RDD_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
 target_link_libraries (oss ${OSS_LIBS})
 target_compile_options(oss PRIVATE ${OSS_CFLAGS})
 add_dependencies(oss spdk_tcp_configure)
@@ -445,6 +452,12 @@ endif(WITH_DSS_JUDY_LISTING)
 
 add_subdirectory(test)
 
+ADD_CUSTOM_TARGET(test_rdd
+    COMMENT "Building test rdma data direct"
+    WORKING_DIRECTORY test/test_rdd
+    COMMAND make
+    DEPENDS spdk_tcp
+)
 
 execute_process(COMMAND git describe --abbrev=4 --always --tags OUTPUT_VARIABLE DSS_VER OUTPUT_STRIP_TRAILING_WHITESPACE)
 add_custom_command(
@@ -504,6 +517,12 @@ add_dependencies(dss_hsl judyL)
 add_custom_command(
         TARGET dss_hsl PRE_BUILD
         COMMENT ${CMAKE_SOURCE_DIR}
+)
+
+ADD_CUSTOM_TARGET(trigger_build_sh
+	COMMENT "Building trigger build.sh script"
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	COMMAND ./build.sh
 )
 
 ADD_CUSTOM_TARGET(test_hsl

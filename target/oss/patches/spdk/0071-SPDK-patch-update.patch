@@ -1,0 +1,83 @@
+From feb321b7811bfd764a020d4d238bee9b4c210137 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Tue, 15 Nov 2022 12:44:12 -0800
+Subject: [PATCH 71/73] SPDK patch update
+
+    * Add api to get RDMA req state `dss_get_rdma_req_state`
+    * Check outstanding IOs if pending for more than 10s
+    * Relax buffer alignment requirement to be within the allocated
+    * buffer
+---
+ lib/nvmf/rdma.c | 25 ++++++++++++++++++++++---
+ 1 file changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 9250498..71b6dd8 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -977,6 +977,14 @@ void dss_rdma_rdd_in_data_ready(void *arg, void *dummy)
+ 	return;
+ }
+ 
++int dss_get_rdma_req_state( struct spdk_nvmf_request *req)
++{
++	struct spdk_nvmf_rdma_request	*rdma_req;
++	rdma_req = SPDK_CONTAINEROF(req, struct spdk_nvmf_rdma_request, req);
++
++    return rdma_req->state;
++}
++
+ void dss_rdma_rdd_failed(void *arg, void *dummy)
+ {
+ 	struct dfly_request *req = (struct dfly_request *)arg;
+@@ -1033,7 +1041,7 @@ void dss_rdma_rdd_failed(void *arg, void *dummy)
+ 	return;
+ }
+ 
+-int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
++int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nvmf_rdma_request *rdma_req)
+ {
+ 	struct dfly_request *dfly_req = rdma_req->req.dreq;
+ 	struct spdk_nvme_cpl		*rsp = &rdma_req->req.rsp->nvme_cpl;
+@@ -1051,10 +1059,12 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
+             dfly_req->req_value.offset, dfly_req->rdd_info.payload_len, dfly_req->req_value.length);
+ 
+     DFLY_ASSERT(data_length <= dfly_req->rdd_info.payload_len);
++
+     if(data_length > dfly_req->rdd_info.payload_len) {
+         data_length = dfly_req->rdd_info.payload_len;
+     }
+-    DFLY_ASSERT(data_offset < NVMF_DATA_BUFFER_ALIGNMENT);
++    DFLY_ASSERT(rqpair->qpair.transport->opts.io_unit_size + NVMF_DATA_BUFFER_ALIGNMENT > data_offset + data_length);
++    //DFLY_ASSERT(data_offset < NVMF_DATA_BUFFER_ALIGNMENT);
+ 
+ 	dfly_req->rdd_info.cmem += data_offset;
+ 
+@@ -1711,7 +1721,7 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
+ 			//SPDK_NOTICELOG("Skipping data transfer for RDMA Direct");
+ 			rdma_req->num_outstanding_data_wr = 0;
+ 
+-			rc = dfly_rdma_setup_post_rdd_out(rdma_req);
++			rc = dfly_rdma_setup_post_rdd_out(rqpair, rdma_req);
+ 			if(!rc) {
+ 				*data_posted = 1;
+ 				//TODO: Add new dfly_request state
+@@ -3557,6 +3567,15 @@ nvmf_rdma_qpair_process_pending(struct spdk_nvmf_rdma_transport *rtransport,
+ 			break;
+ 		}
+ 	}
++    if(rqpair->qpair.dqpair) {
++        struct dfly_request *dreq, *tmp_dreq;
++        TAILQ_FOREACH_SAFE(dreq, &rqpair->qpair.dqpair->qp_outstanding_reqs, outstanding, tmp_dreq) {
++            if (dss_check_req_timeout(dreq) == false) {
++                break;
++            }
++        }
++    }
++
+ 	if (!STAILQ_EMPTY(&resources->incoming_queue) && STAILQ_EMPTY(&resources->free_queue)) {
+ 		rqpair->poller->stat.pending_free_request++;
+ 	}
+-- 
+1.8.3.1
+

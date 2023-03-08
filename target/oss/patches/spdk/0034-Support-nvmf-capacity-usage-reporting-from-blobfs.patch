@@ -1,16 +1,16 @@
-From 1d40fa8b9c2b1699043ca2bd03a134b88024909a Mon Sep 17 00:00:00 2001
+From e3464557d6ea0d115507d0c213f81ca8290866aa Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 15 Mar 2021 20:03:52 -0700
-Subject: [PATCH 34/55] Support nvmf capacity/usage reporting from blobfs
+Subject: [PATCH 34/73] Support nvmf capacity/usage reporting from blobfs
 
 ---
  include/spdk/blobfs.h |  1 +
- lib/blobfs/blobfs.c   |  4 +++
- lib/nvmf/ctrlr_bdev.c | 66 +++++++++++++++++++++++++++++++++++--------
+ lib/blobfs/blobfs.c   |  4 ++++
+ lib/nvmf/ctrlr_bdev.c | 66 +++++++++++++++++++++++++++++++++++++++++----------
  3 files changed, 59 insertions(+), 12 deletions(-)
 
 diff --git a/include/spdk/blobfs.h b/include/spdk/blobfs.h
-index c83ced065..709c5518a 100644
+index c83ced0..709c551 100644
 --- a/include/spdk/blobfs.h
 +++ b/include/spdk/blobfs.h
 @@ -371,6 +371,7 @@ void spdk_free_fs_request(void *data);
@@ -22,7 +22,7 @@ index c83ced065..709c5518a 100644
  /**
   * Set cache size for the blobstore filesystem.
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index a762160ad..15caf8437 100644
+index a762160..15caf84 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2170,6 +2170,10 @@ uint32_t spdk_fs_get_lba_size(struct spdk_filesystem *fs)
@@ -37,7 +37,7 @@ index a762160ad..15caf8437 100644
  static void __file_flush(void *ctx);
  
 diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
-index c7d718df0..b0677c2f3 100644
+index c7d718d..b0677c2 100644
 --- a/lib/nvmf/ctrlr_bdev.c
 +++ b/lib/nvmf/ctrlr_bdev.c
 @@ -50,6 +50,8 @@
@@ -130,5 +130,5 @@ index c7d718df0..b0677c2f3 100644
          nsdata->nsze = num_blocks;
          nsdata->ncap = num_blocks;
 -- 
-2.24.3
+1.8.3.1
 

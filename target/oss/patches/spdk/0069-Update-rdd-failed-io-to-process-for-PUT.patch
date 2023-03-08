@@ -1,0 +1,77 @@
+From db8f8ff99c6d2c0194185e63837d0a1f2f16277b Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 29 Sep 2022 20:58:16 -0700
+Subject: [PATCH 69/73] Update rdd failed io to process for PUT
+
+---
+ lib/nvmf/rdma.c | 34 ++++++++++++++++++++++++++++------
+ 1 file changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 5c23776..9250498 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -986,6 +986,8 @@ void dss_rdma_rdd_failed(void *arg, void *dummy)
+ 	struct spdk_nvmf_rdma_request	*rdma_req;
+ 	struct spdk_nvmf_rdma_transport *rtransport;
+ 	struct spdk_nvme_cpl		*rsp = NULL;
++	struct spdk_nvmf_rdma_qpair	*rqpair;
++	struct ibv_send_wr		*first = NULL;
+ 
+ 	if (req->src_core != lcore) {
+ 		event = spdk_event_allocate(req->src_core, dss_rdma_rdd_failed, (void *)req, NULL);
+@@ -997,16 +999,35 @@ void dss_rdma_rdd_failed(void *arg, void *dummy)
+ //            return;//Qpair is shutting down
+ //        }
+ 
++		//RDMA NVMF Completion
++
+ 	    nvmf_req = (struct spdk_nvmf_request *)req->req_ctx;
+ 	    rdma_req = SPDK_CONTAINEROF(nvmf_req, struct spdk_nvmf_rdma_request, req);
+-	    rtransport = SPDK_CONTAINEROF(rdma_req->req.qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++        rtransport = SPDK_CONTAINEROF(rdma_req->req.qpair->transport, struct spdk_nvmf_rdma_transport, transport);
++
++	    rqpair = SPDK_CONTAINEROF(nvmf_req->qpair, struct spdk_nvmf_rdma_qpair, qpair);
++
+ 	    rsp = &rdma_req->req.rsp->nvme_cpl;
+ 
+ 		DFLY_DEBUGLOG(DSS_RDD, "RDD failed for command %p\n", req);
+-		rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
+-		rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++        rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
+ 
+-		nvmf_rdma_request_process(rtransport, rdma_req);
++		if (rdma_req->state == RDMA_REQUEST_STATE_TRANSFERRING_HOST_TO_CONTROLLER) {
++		    rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++		    nvmf_rdma_request_process(rtransport, rdma_req);
++        } else {
++            first = &rdma_req->rsp.wr;
++
++            assert(rdma_req->num_outstanding_data_wr == 0);
++
++            DFLY_DEBUGLOG(DSS_RDD, "Completing NVMF request %p after data direct transfer is done\n", req);
++            if (spdk_rdma_qp_queue_send_wrs(rqpair->rdma_qp, first)) {
++                STAILQ_INSERT_TAIL(&rqpair->poller->qpairs_pending_send, rqpair, send_link);
++            }
++
++            /* +1 for the rsp wr */
++            rqpair->current_send_depth += 1;
++        }
+ 	}
+ 
+ 	return;
+@@ -1698,8 +1719,9 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
+ 				return 0;//Success skip nvmf data transfer
+ 			}  else {
+ 				//IO failed
+-                *data_posted = -1;
+-                return 0;
++				rsp->status.sc = SPDK_NVME_SC_DATA_TRANSFER_ERROR;
++				//rdma_req->state = RDMA_REQUEST_STATE_READY_TO_COMPLETE;
++                *data_posted = 0;
+ 			}
+ 
+ 		} else {
+-- 
+1.8.3.1
+

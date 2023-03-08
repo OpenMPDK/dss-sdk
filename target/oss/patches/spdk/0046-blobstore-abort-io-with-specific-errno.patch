@@ -1,7 +1,7 @@
-From 924fed4528e5cfc65c76836c29620697283f54dc Mon Sep 17 00:00:00 2001
+From a640b2809beba7a05b233c391e40482492af2201 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Thu, 6 May 2021 14:57:07 -0700
-Subject: [PATCH 46/55] * blobstore abort io with specific errno. * thin
+Subject: [PATCH 46/73] * blobstore abort io with specific errno. * thin
  provision check the enough space on resize
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH 46/55] * blobstore abort io with specific errno. * thin
  3 files changed, 15 insertions(+), 15 deletions(-)
 
 diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
-index c1196ac2d..d220d3c88 100644
+index c1196ac..d220d3c 100644
 --- a/lib/blob/blobstore.c
 +++ b/lib/blob/blobstore.c
 @@ -141,7 +141,6 @@ bs_allocate_cluster(struct spdk_blob *blob, uint32_t cluster_num,
@@ -104,7 +104,7 @@ index c1196ac2d..d220d3c88 100644
  
  	free(channel->req_mem);
 diff --git a/lib/blob/request.c b/lib/blob/request.c
-index 0975bcf24..875b9edc9 100644
+index 0975bcf..875b9ed 100644
 --- a/lib/blob/request.c
 +++ b/lib/blob/request.c
 @@ -166,13 +166,13 @@ bs_sequence_write_dev(spdk_bs_sequence_t *seq, void *payload,
@@ -141,7 +141,7 @@ index 0975bcf24..875b9edc9 100644
  }
  
 diff --git a/lib/blob/request.h b/lib/blob/request.h
-index 81dc161db..f5263b7a7 100644
+index 81dc161..f5263b7 100644
 --- a/lib/blob/request.h
 +++ b/lib/blob/request.h
 @@ -210,7 +210,7 @@ spdk_bs_user_op_t *bs_user_op_alloc(struct spdk_io_channel *channel, struct spdk
@@ -154,5 +154,5 @@ index 81dc161db..f5263b7a7 100644
  void bs_sequence_to_batch_completion(void *cb_arg, int bserrno);
  
 -- 
-2.24.3
+1.8.3.1
 

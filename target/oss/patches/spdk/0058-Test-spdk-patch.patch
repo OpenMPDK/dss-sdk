@@ -1,0 +1,26 @@
+From b96be5be08b4c92db59537ade16a837b438ad554 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Thu, 23 Dec 2021 15:48:27 -0800
+Subject: [PATCH 58/73] Test spdk patch
+
+---
+ lib/nvmf/rdma.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index f92f096..461e51e 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -31,6 +31,9 @@
+  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++//Test
++//
++//
+ #include "spdk/stdinc.h"
+ 
+ #include "spdk/config.h"
+-- 
+1.8.3.1
+
