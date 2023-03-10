@@ -30,6 +30,24 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(unit)
-add_subdirectory(test_rdd_cl)
-add_subdirectory(test_hash_fn)
+
+
+set(SRC_FILES ${CMAKE_SOURCE_DIR}/test/test_hash_fn/hash_test.c
+              ${CMAKE_SOURCE_DIR}/test/test_hash_fn/kv_block_hash.c
+              ${CMAKE_SOURCE_DIR}/test/test_hash_fn/sha256.c
+              ${CMAKE_SOURCE_DIR}/test/test_hash_fn/xxhash.c
+              ${CMAKE_SOURCE_DIR}/test/test_hash_fn/spooky.c
+            )
+
+add_executable(test_hash_fn ${CMAKE_SOURCE_DIR}/utils/keygen.cc
+                            ${CMAKE_SOURCE_DIR}/utils/crc32.cc
+                            ${CMAKE_SOURCE_DIR}/utils/dss_keygen.c
+                            ${CMAKE_SOURCE_DIR}/utils/adv_random.h
+                            ${SRC_FILES}
+                            )
+
+include_directories(${CMAKE_SOURCE_DIR}/utils)
+include_directories(${CMAKE_SOURCE_DIR}/test/test_hash_fn)
+
+target_link_libraries(test_hash_fn ${UNIT_LIBS})
+add_compile_options("$<$<CONFIG:Debug>:-Og>")
