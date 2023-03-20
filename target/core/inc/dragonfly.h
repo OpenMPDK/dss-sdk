@@ -93,6 +93,7 @@ extern "C" {
 #include "uthash.h"
 
 #include "rdd_api.h"
+#include "dss.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,7 +121,6 @@ extern "C" {
 #define MB                  (1048576)
 #define MB_SHIFT			(20)
 
-#define DSS_ASSERT DFLY_ASSERT
 #define DFLY_ASSERT(x) assert((x))
 
 #define OSS_TARGET_ENABLED (1)
@@ -517,6 +517,11 @@ int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
 
 bool dss_check_req_timeout(struct dfly_request *dreq);
 int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
+
+//C Constructor declarations: to enable symbol lookup on linking
+void _dss_block_allocator_register_simbmap_allocator(void);
+//END - C Constructor declarations
+
 #ifdef __cplusplus
 }
 #endif

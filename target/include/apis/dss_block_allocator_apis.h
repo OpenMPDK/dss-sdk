@@ -45,30 +45,6 @@ extern "C" {
 
 typedef struct dss_block_allocator_context_s dss_blk_allocator_context_t;
 typedef struct dss_blk_allocator_opts_s dss_blk_allocator_opts_t;
-typedef struct dss_blk_allocator_disk_config_s dss_blk_allocator_disk_config_t;
-
-typedef struct dss_blk_allocator_super_s dss_blk_allocator_super_t;
-typedef struct dss_blk_allocator_serialized_s dss_blk_allocator_serialized_t;
-
-typedef enum dss_blk_allocator_status_e {
-    BLK_ALLOCATOR_STATUS_ERROR = -1,
-    BLK_ALLOCATOR_STATUS_SUCCESS = 0
-} dss_blk_allocator_status_t;
-
-/**
- * @brief Configurable options for block allocator
- *
- */
-struct dss_blk_allocator_opts_s {
-	uint64_t num_total_blocks; //Number of blocks managed by allocator
-                               // This is number of total allocatable block
-                               // Each block is of size allocator_block_size
-	uint64_t num_block_states; //Number of states each block can take excluding cleared state.
-                         //This will correspond to the number of bit required for each block
-    uint64_t shard_size;//Optimal write size for high throughput
-    uint64_t allocator_block_size;//Size of each block allocated in bytes
-    dss_blk_allocator_disk_config_t d; //On disk configuration for block allocator
-};
 
 struct dss_blk_allocator_disk_config_s {
     uint64_t super_disk_block_index;  //Start LBA for allocator meta on disk
@@ -78,6 +54,36 @@ struct dss_blk_allocator_disk_config_s {
                               //  block size that can be written to the disk.
     uint64_t allocatable_start_disk_block; //Start offset for blocks managed by the allocator
     uint64_t total_allocatable_disk_blocks; //Total number of blocks managed by the allocator
+    uint64_t reserved_data_blocks_start_index; //Start index of reserved data blocks when reserved data block is valid
+    uint64_t reserved_data_blocks; //Total count of reserved data/allocatable blocks
+};
+
+typedef struct dss_blk_allocator_disk_config_s dss_blk_allocator_disk_config_t;
+
+typedef struct dss_blk_allocator_super_s dss_blk_allocator_super_t;
+typedef struct dss_blk_allocator_serialized_s dss_blk_allocator_serialized_t;
+
+typedef enum dss_blk_allocator_status_e {
+    BLK_ALLOCATOR_STATUS_ERROR = -1,
+    BLK_ALLOCATOR_STATUS_SUCCESS = 0,
+    BLK_ALLOCATOR_STATUS_INVALID_BLOCK_INDEX = 1,
+    BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE = 2
+} dss_blk_allocator_status_t;
+
+/**
+ * @brief Configurable options for block allocator
+ *
+ */
+struct dss_blk_allocator_opts_s {
+    char *blk_allocator_type; //one of registered block allocator names
+    uint64_t num_total_blocks; //Number of blocks managed by allocator
+                               // This is number of total allocatable block
+                               // Each block is of size allocator_block_size
+    uint64_t num_block_states; //Number of states each block can take excluding cleared state.
+                         //This will correspond to the number of bit required for each block
+    uint64_t shard_size;//Optimal write size for high throughput
+    uint64_t allocator_block_size;//Size of each block allocated in bytes
+    dss_blk_allocator_disk_config_t d; //On disk configuration for block allocator
 };
 
 /**
@@ -92,9 +98,10 @@ dss_blk_allocator_context_t* dss_blk_allocator_init(dss_device_t *device, dss_bl
 /**
  * @brief Sets default parameters for block allocator options
  *
+ * @param device The device block allocator will be configured for. Default parameters use the entire disk
  * @param[OUT] opts Pointer to the options struct whose parameters will be set
  */
-void dss_blk_allocator_set_default_config(dss_blk_allocator_opts_t *opts);
+void dss_blk_allocator_set_default_config(dss_device_t *device, dss_blk_allocator_opts_t *opts);
 
 /**
  * @brief Destroys and frees any allocated resource for block allocator context
@@ -134,6 +141,18 @@ dss_blk_allocator_status_t dss_blk_allocator_is_block_free(dss_blk_allocator_con
  * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
  */
 dss_blk_allocator_status_t dss_blk_allocator_get_block_state(dss_blk_allocator_context_t* ctx, uint64_t block_index, uint64_t *block_state);
+
+/**
+ * @brief Checks if range of blocks are in the given state
+ * 
+ * @param ctx block allocator context
+ * @param block_index index of start block whose state should be verified
+ * @param num_blocks number of blocks the state needs to be verified starting at block_index
+ * @param block_state state of the block from zero to num_block_states
+ * @param[OUT] scanned_index block_index where `block_state` was seen last. `(block_index - 1)` if the state at block_index does not match.
+ * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
+ */
+dss_blk_allocator_status_t dss_blk_allocator_check_blocks_state(dss_blk_allocator_context_t *ctx, uint64_t block_index, uint64_t num_blocks, uint64_t block_state, uint64_t *scanned_index);
 
 /**
  * @brief Sets the range of given blocks with state if range is free

@@ -44,6 +44,17 @@
 
 #include "version.h"
 
+//Force linking C constructors
+// This file is copied and compiled as part of target spdk application
+// Add any C constructors to force linking here
+typedef void (*dummy_fn) (void);
+static struct {
+	dummy_fn dummy1;
+} __dss_force_constructor_linking = {
+	.dummy1 = (dummy_fn) _dss_block_allocator_register_simbmap_allocator
+};
+
+
 #define DSS_MAX_SIM_IO_TIMEOUT (10)
 
 struct dss_rpc_lat_profile_req_s {

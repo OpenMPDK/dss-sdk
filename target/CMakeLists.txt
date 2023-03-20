@@ -208,6 +208,18 @@ SET(KD_HEADERS
 SET(KV_CMD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/nvme_samsung_kv_cmd.c
 )
+
+# Block allocator
+SET(BLK_ALLOC_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+)
+
+SET(BLK_ALLOC_HEADERS
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_block_allocator_apis.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.h
+)
+
 #
 # QOS library build rules (shared)
 #
@@ -385,8 +397,26 @@ else()
 set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
 endif()
 
+SET(DSS_FILES
+    ${FW_SOURCES}
+    ${FW_HEADERS}
+    ${RDD_SOURCES}
+    ${RDD_HEADERS}
+    ${ITER_SOURCES}
+    ${ITER_HEADERS}
+    ${WAL_SOURCES}
+    ${WAL_HEADERS}
+    ${FUSE_SOURCES}
+    ${FUSE_HEADERS}
+    ${QOS_SOURCES}
+    ${QOS_HEADERS}
+    ${KD_SOURCES}
+    ${KD_HEADERS}
+    ${BLK_ALLOC_SOURCES}
+    ${BLK_ALLOC_HEADERS}
+)
 
-add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${RDD_SOURCES} ${RDD_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
+add_library(oss STATIC ${DSS_FILES})
 target_link_libraries (oss ${OSS_LIBS})
 target_compile_options(oss PRIVATE ${OSS_CFLAGS})
 add_dependencies(oss spdk_tcp_configure)
@@ -397,7 +427,6 @@ add_custom_command(
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
         COMMAND cp liboss.a ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/liboss.a ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/libspdk_oss.a
         COMMAND export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CMAKE_BINARY_DIR}/nkv-target/lib
 )
 
@@ -559,7 +588,6 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   DEPENDS spdk_tcp_configure
 )
 endif()
-
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 
