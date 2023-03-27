@@ -35,6 +35,7 @@
 #define DSS_BLOCK_ALLOCATOR_APIS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "dss_io_task_apis.h"
 
 #ifdef __cplusplus
@@ -67,7 +68,8 @@ typedef enum dss_blk_allocator_status_e {
     BLK_ALLOCATOR_STATUS_ERROR = -1,
     BLK_ALLOCATOR_STATUS_SUCCESS = 0,
     BLK_ALLOCATOR_STATUS_INVALID_BLOCK_INDEX = 1,
-    BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE = 2
+    BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE = 2,
+    BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE = 3
 } dss_blk_allocator_status_t;
 
 /**

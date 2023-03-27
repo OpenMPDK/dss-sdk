@@ -35,7 +35,6 @@
 #define DSS_BLOCK_ALLOCATOR_H
 
 #include <sys/queue.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 #ifdef __cplusplus

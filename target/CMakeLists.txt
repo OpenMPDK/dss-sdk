@@ -590,5 +590,6 @@ ADD_CUSTOM_TARGET(rocksdb_lib
 endif()
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
+add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
 
 enable_testing()

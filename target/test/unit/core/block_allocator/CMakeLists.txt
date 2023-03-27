@@ -30,5 +30,11 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(framework)
-add_subdirectory(block_allocator)
+add_executable(dss_simbmap_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+                                        dss_simbmap_allocator_ut.c)
+
+target_include_directories(dss_simbmap_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                            ${CMAKE_SOURCE_DIR}/include/apis)
+
+target_link_libraries(dss_simbmap_allocator_ut ${UNIT_LIBS} -lm)

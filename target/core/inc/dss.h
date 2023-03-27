@@ -41,6 +41,8 @@
     #define DSS_ASSERT(x) assert((x))
 #endif //DSS_RELEASE_BUILD
 
+#ifndef DSS_BUILD_CUNIT_TEST
+
 #define DSS_LOG(...) DFLY_LOG(...)
 
 #define DSS_ERRLOG(...) \
@@ -51,3 +53,15 @@
 
 #define DSS_WARNLOG(...) \
     dfly_log(DFLY_LOG_WARN, __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+#else
+
+#define DSS_LOG printf
+
+#define DSS_ERRLOG printf
+
+#define DSS_NOTICELOG printf
+
+#define DSS_WARNLOG printf
+
+#endif //DSS_BUILD_CUNIT_TEST

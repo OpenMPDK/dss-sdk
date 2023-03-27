@@ -72,6 +72,20 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
         DSS_RELEASE_ASSERT(0);//Cannot add duplicate module
     }
 
+    //In-Memory functions
+    DSS_ASSERT(m->core.blk_alloc_init);
+    DSS_ASSERT(m->core.blk_alloc_destroy);
+    DSS_ASSERT(m->core.is_block_free);
+    DSS_ASSERT(m->core.get_block_state);
+    //Optiona to implement: m->core.check_blocks_state
+    DSS_ASSERT(m->core.set_blocks_state);
+    DSS_ASSERT(m->core.alloc_blocks_contig);
+    DSS_ASSERT(m->core.clear_blocks);
+
+    //On-Disk functions
+    DSS_ASSERT(m->disk.blk_alloc_get_sync_meta_io_tasks);
+    DSS_ASSERT(m->disk.blk_alloc_complete_meta_sync);
+
     TAILQ_INSERT_TAIL(&g_blk_alloc_mgr.blk_alloc_modules, m, module_list_link);
 
     return;
@@ -85,8 +99,16 @@ static inline bool dss_block_allocator_is_block_index_valid(dss_blk_allocator_co
 static inline bool dss_block_allocator_is_block_range_valid(dss_blk_allocator_context_t*c, uint64_t bindex, uint64_t num_blocks)
 {
     return (((bindex < c->blk_alloc_opts.num_total_blocks) && \
-                ((bindex + num_blocks) < c->blk_alloc_opts.num_total_blocks) && \
+                ((bindex + num_blocks) <= c->blk_alloc_opts.num_total_blocks) && \
                 (bindex  < (bindex + num_blocks)))? true : false);
+}
+
+static inline bool dss_block_allocator_is_block_state_valid(dss_blk_allocator_context_t*c, uint64_t state)
+{
+    if(state > c->blk_alloc_opts.num_block_states) {
+        return false;
+    }
+    return true;
 }
 
 dss_blk_allocator_context_t* dss_blk_allocator_init(dss_device_t *device, dss_blk_allocator_opts_t *config)
@@ -143,7 +165,10 @@ void dss_blk_allocator_set_default_config(dss_device_t *device, dss_blk_allocato
 
 void dss_blk_allocator_destroy(dss_blk_allocator_context_t *ctx)
 {
-    //TODO: Implement destructor
+    DSS_ASSERT(ctx->m->core.blk_alloc_destroy);
+
+    ctx->m->core.blk_alloc_destroy(ctx);
+
     return;
 }
 
@@ -154,7 +179,7 @@ dss_blk_allocator_status_t dss_blk_allocator_load_opts_from_disk_data(uint8_t *s
 
 dss_blk_allocator_status_t dss_blk_allocator_is_block_free(dss_blk_allocator_context_t* ctx, uint64_t block_index, bool *is_free)
 {
-    DSS_ASSERT(!ctx->m->core.is_block_free);
+    DSS_ASSERT(ctx->m->core.is_block_free);
 
     if(!dss_block_allocator_is_block_index_valid(ctx, block_index)) {
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_INDEX;
@@ -165,7 +190,7 @@ dss_blk_allocator_status_t dss_blk_allocator_is_block_free(dss_blk_allocator_con
 
 dss_blk_allocator_status_t dss_blk_allocator_get_block_state(dss_blk_allocator_context_t* ctx, uint64_t block_index, uint64_t *block_state)
 {
-    DSS_ASSERT(!ctx->m->core.get_block_state);
+    DSS_ASSERT(ctx->m->core.get_block_state);
 
     if(!dss_block_allocator_is_block_index_valid(ctx, block_index)) {
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_INDEX;
@@ -187,13 +212,17 @@ dss_blk_allocator_status_t dss_blk_allocator_check_blocks_state(dss_blk_allocato
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE;
     }
 
+    if(!dss_block_allocator_is_block_state_valid(ctx, block_state)) {
+        return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE;
+    }
+
     if(ctx->m->core.check_blocks_state) {
         return ctx->m->core.check_blocks_state(ctx, block_index, num_blocks, block_state, scanned_index);
     } else {
-        DSS_ASSERT(!ctx->m->core.get_block_state);
+        DSS_ASSERT(ctx->m->core.get_block_state);
         *scanned_index = block_index - 1;
         for(i=0; i < num_blocks; i++) {
-            rc = ctx->m->core.get_block_state(ctx, (block_index + num_blocks), &ret_blk_state);
+            rc = ctx->m->core.get_block_state(ctx, (block_index + i), &ret_blk_state);
             if(rc == BLK_ALLOCATOR_STATUS_SUCCESS && (ret_blk_state == block_state)) {
                 *scanned_index = *scanned_index + 1;
                 continue;
@@ -208,10 +237,19 @@ dss_blk_allocator_status_t dss_blk_allocator_check_blocks_state(dss_blk_allocato
 
 dss_blk_allocator_status_t dss_blk_allocator_set_blocks_state(dss_blk_allocator_context_t* ctx, uint64_t block_index, uint64_t num_blocks,  uint64_t state)
 {
-    DSS_ASSERT(!ctx->m->core.set_blocks_state);
+    DSS_ASSERT(ctx->m->core.set_blocks_state);
 
     if(!dss_block_allocator_is_block_range_valid(ctx, block_index, num_blocks)) {
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE;
+    }
+
+    if(state == DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
+        //API cannot clear state using set
+        return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE;
+    }
+
+    if(!dss_block_allocator_is_block_state_valid(ctx, state)) {
+        return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE;
     }
 
     return ctx->m->core.set_blocks_state(ctx, block_index, num_blocks, state);
@@ -219,7 +257,7 @@ dss_blk_allocator_status_t dss_blk_allocator_set_blocks_state(dss_blk_allocator_
 
 dss_blk_allocator_status_t dss_blk_allocator_clear_blocks(dss_blk_allocator_context_t *ctx, uint64_t block_index, uint64_t num_blocks)
 {
-    DSS_ASSERT(!ctx->m->core.clear_blocks);
+    DSS_ASSERT(ctx->m->core.clear_blocks);
 
     if(!dss_block_allocator_is_block_range_valid(ctx, block_index, num_blocks)) {
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_RANGE;
@@ -231,7 +269,7 @@ dss_blk_allocator_status_t dss_blk_allocator_clear_blocks(dss_blk_allocator_cont
 dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocator_context_t *ctx, uint64_t state, uint64_t hint_block_index,
                                              uint64_t num_blocks, uint64_t *allocated_start_block)
 {
-    DSS_ASSERT(!ctx->m->core.alloc_blocks_contig);
+    DSS_ASSERT(ctx->m->core.alloc_blocks_contig);
 
     if(!dss_block_allocator_is_block_index_valid(ctx, hint_block_index)) {
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_INDEX;
@@ -242,7 +280,7 @@ dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocat
 
 dss_blk_allocator_status_t dss_blk_allocator_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
-    DSS_ASSERT(!ctx->m->disk.blk_alloc_get_sync_meta_io_tasks);
+    DSS_ASSERT(ctx->m->disk.blk_alloc_get_sync_meta_io_tasks);
 
     if(!io_task) {
         return BLK_ALLOCATOR_STATUS_ERROR;
@@ -253,7 +291,7 @@ dss_blk_allocator_status_t dss_blk_allocator_get_sync_meta_io_tasks(dss_blk_allo
 
 dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
 {
-    DSS_ASSERT(!ctx->m->disk.blk_alloc_complete_meta_sync);
+    DSS_ASSERT(ctx->m->disk.blk_alloc_complete_meta_sync);
 
     return ctx->m->disk.blk_alloc_complete_meta_sync(ctx, io_task);
 }
