@@ -109,7 +109,7 @@ void QwordVector64Cell::print_range(int begin, int end) const {
 }
 void QwordVector64Cell::print_data() const {
     std::cout<<"Debug only: Printing Qword vector Begin"<<std::endl;
-    for(int i=0;i<data_.size();i++) {
+    for(size_t i=0;i<data_.size();i++) {
         std::cout<<data_[i]<<std::endl;
     }
     std::cout<<"Debug only: Printing Qword vector End"<<std::endl;
