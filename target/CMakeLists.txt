@@ -213,11 +213,15 @@ SET(KV_CMD_SOURCES
 SET(BLK_ALLOC_SOURCES
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
 )
 
 SET(BLK_ALLOC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/apis/dss_block_allocator_apis.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/allocator_type.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.h
 )
 
 #
@@ -231,7 +235,7 @@ SET(QOS_HEADERS
 )
 
 #
-# WAL library build rules 
+# WAL library build rules
 #
 SET(ITER_SOURCES
     ${CMAKE_SOURCE_DIR}/core/iter/src/iter_op.cpp
@@ -345,6 +349,7 @@ include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
 include_directories (${CMAKE_SOURCE_DIR}/include)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
 
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
@@ -591,5 +596,6 @@ endif()
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
+add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
 
 enable_testing()

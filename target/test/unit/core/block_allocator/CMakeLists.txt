@@ -30,11 +30,31 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+
+# Tests for simple bitmap implementation with cunit
 add_executable(dss_simbmap_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
                                         dss_simbmap_allocator_ut.c)
 
+
 target_include_directories(dss_simbmap_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
                                                             ${CMAKE_SOURCE_DIR}/include/apis)
 
+
 target_link_libraries(dss_simbmap_allocator_ut ${UNIT_LIBS} -lm)
+
+# Tests for bitmap implementation with cppunit
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_COMPILER "g++")
+
+add_executable(test_bitmap_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                test_bitmap_impl.cc)
+
+target_include_directories(test_bitmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                                    ${CMAKE_SOURCE_DIR}/include/apis)
+
+target_link_libraries(test_bitmap_impl ${UNIT_LIBS})
+target_compile_options(test_bitmap_impl PRIVATE -Wall -g -std=c++11)

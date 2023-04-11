@@ -33,6 +33,7 @@
 
 #pragma once
 
+#include "block_allocator.h"
 #include "allocator_type.h"
 
 namespace AllocatorType {
@@ -51,7 +52,8 @@ namespace AllocatorType {
  * - Thus, there are (64/(n=size of cell)) cells per 64 bit integer 
  *   in the bitmap
  */
-class QwordVector64Cell : public AllocatorType::BitMap {
+class QwordVector64Cell : public AllocatorType::BitMap,
+                          public BlockAlloc::Allocator {
 public:
     // Constructor of the class
     explicit QwordVector64Cell(int total_cells, uint8_t bits_per_cell)
@@ -108,6 +110,39 @@ public:
     void serialize_range(int qword_begin, int num_words, char* return_buf) const override;
     void deserialize_range(const char* serialized, int len) override;
     bool seek_empty_cell_range(int begin_cell, int len) const override;
+
+    //BlockAlloc::Allocator API (concrete definitions)
+    void destroy(dss_blk_allocator_context_t *ctx) { return; }
+    dss_blk_allocator_status_t is_block_free(
+            dss_blk_allocator_context_t *ctx,
+            uint64_t block_index,
+            bool *is_free) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+    dss_blk_allocator_status_t get_block_state(
+            dss_blk_allocator_context_t* ctx,
+            uint64_t block_index,
+            uint64_t *block_state) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+    dss_blk_allocator_status_t check_blocks_state(
+            dss_blk_allocator_context_t *ctx,
+            uint64_t block_index,
+            uint64_t num_blocks,
+            uint64_t block_state,
+            uint64_t *scanned_index) {return BLK_ALLOCATOR_STATUS_SUCCESS; }
+    dss_blk_allocator_status_t set_blocks_state(
+            dss_blk_allocator_context_t* ctx,
+            uint64_t block_index,
+            uint64_t num_blocks,
+            uint64_t state) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+    dss_blk_allocator_status_t clear_blocks(
+            dss_blk_allocator_context_t *ctx,
+            uint64_t block_index,
+            uint64_t num_blocks) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+    dss_blk_allocator_status_t alloc_blocks_contig(
+            dss_blk_allocator_context_t *ctx,
+            uint64_t state,
+            uint64_t hint_block_index,
+            uint64_t num_blocks,
+            uint64_t *allocated_start_block) {
+        return BLK_ALLOCATOR_STATUS_SUCCESS; }
 
 private:
   int cells_;
