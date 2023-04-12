@@ -1,0 +1,24 @@
+name: dss-sdk
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - stable/*
+  pull_request:
+    branches:
+      - master
+      - stable/*
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+jobs:
+  dss-sdk:
+    uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
+    with:
+      component: dss-sdk
+      project-name: OpenMPDK_dss-sdk
+      compute-type-override: BUILD_GENERAL1_LARGE
+    secrets: inherit
