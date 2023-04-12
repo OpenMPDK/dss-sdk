@@ -3,7 +3,7 @@ version: 0.2
 env:
   secrets-manager:
     SONAR_TOKEN: Codebuild-DSS:SONAR_TOKEN
-    DSSMAINS3URI: Codebuild-DSS:DSSMAINS3URI
+    DSSS3URI: Codebuild-DSS:DSSS3URI
   variables:
     DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz ufm-*.rpm ufmbroker-*.rpm nkvagent-*.rpm"
 
