@@ -15,9 +15,10 @@ on:
       - synchronize
 
 jobs:
-  ansible-lint:
+  dss-sdk:
     uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
     with:
       component: dss-sdk
       project-name: OpenMPDK_dss-sdk
+      compute-type-override: BUILD_GENERAL1_LARGE
     secrets: inherit
