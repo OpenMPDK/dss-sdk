@@ -15,6 +15,7 @@ phases:
           ./scripts/build_all.sh kdd-samsung-remote
       - |
         sonar-scanner \
+          -Dsonar.branch.name="$([[ "$GITHUB_REF_NAME" != *"/merge" ]] && echo "$GITHUB_REF_NAME")" \
           -Dsonar.pullrequest.key=$(echo $GITHUB_REF | grep -oP "^refs/pull/\K[^/]+") \
           -Dsonar.pullrequest.base=${GITHUB_BASE_REF} \
           -Dsonar.pullrequest.branch=${GITHUB_HEAD_REF} \
