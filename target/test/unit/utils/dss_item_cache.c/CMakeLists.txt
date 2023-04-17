@@ -1,7 +1,7 @@
 #
 #   The Clear BSD License
 #
-#   Copyright (c) 2023 Samsung Electronics Co., Ltd.
+#   Copyright (c) 2022 Samsung Electronics Co., Ltd.
 #   All rights reserved.
 #
 #   Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,9 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+
 include_directories (${CMAKE_SOURCE_DIR})
 add_definitions(-DDSS_BUILD_CUNIT_TEST=y)
 
-set(UNIT_LIBS cunit cppunit)
-
-add_subdirectory(core)
-add_subdirectory(utils)
+add_executable(dss_item_cache_ut dss_item_cache_ut.c ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c)
+target_link_libraries(dss_item_cache_ut ${UNIT_LIBS})

@@ -30,10 +30,5 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-include_directories (${CMAKE_SOURCE_DIR})
-add_definitions(-DDSS_BUILD_CUNIT_TEST=y)
-
-set(UNIT_LIBS cunit cppunit)
-
-add_subdirectory(core)
-add_subdirectory(utils)
+add_subdirectory(dss_item_cache.c)
+add_subdirectory(dss_mallocator.c)

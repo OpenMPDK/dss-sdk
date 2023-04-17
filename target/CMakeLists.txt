@@ -335,6 +335,14 @@ SET(FW_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/oss/dssd/lib/libustat/ustat.h
 )
 
+#
+# Util sources
+#
+SET(UTIL_SOURCES
+   ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+   ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+)
+
 include_directories (${CMAKE_SOURCE_DIR}/include)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/include)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/lib/nvmf/)
@@ -419,6 +427,7 @@ SET(DSS_FILES
     ${KD_HEADERS}
     ${BLK_ALLOC_SOURCES}
     ${BLK_ALLOC_HEADERS}
+    ${UTIL_SOURCES}
 )
 
 add_library(oss STATIC ${DSS_FILES})
@@ -597,5 +606,7 @@ endif()
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
 add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
+add_test(NAME dss_item_cache_ut COMMAND dss_item_cache_ut)
+add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
 
 enable_testing()
