@@ -34,16 +34,7 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
-typedef enum df_module_type {
-	DF_MODULE_START_INIT = 0,
-	//Modules in the order of initialization
-	DF_MODULE_LOCK = 1,
-	DF_MODULE_FUSE = 2,
-	DF_MODULE_IO   = 3,
-	DF_MODULE_LIST = 4,
-	DF_MODULE_WAL  = 5,
-	DF_MODULE_END  = 6
-} df_module_type_t;
+#include "apis/dss_module_apis.h"
 
 typedef void (*df_ss_init_next_fn)(void *event, void *arg);
 
@@ -51,7 +42,7 @@ struct df_subsys_process_event_s {
 	struct dfly_subsystem *subsys;
 	uint32_t src_core;
 	bool initialize;
-	df_module_type_t curr_module;
+	dss_module_type_t curr_module;
 	df_subsystem_event_processed_cb cb;
 	void *cb_arg;
 	int cb_status;
@@ -249,7 +240,7 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		}
 		DFLY_INFOLOG(DFLY_LOG_SUBSYS, "Init module without cb index:%d\n", mod_index);
 	}
-	ss_event->curr_module = (df_module_type_t)mod_index;
+	ss_event->curr_module = (dss_module_type_t)mod_index;
 	if (mod_index == DF_MODULE_END) {
 		if(ss_event->initialize) {
 			pthread_mutex_init(&ss_event->subsys->subsys_lock, NULL);

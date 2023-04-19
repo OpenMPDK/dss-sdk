@@ -61,6 +61,8 @@ extern "C" {
 
 #include "spdk_internal/log.h"
 
+#include "dss.h"
+
 #include "df_dev.h"
 #include "df_req.h"
 #include "df_pool.h"
