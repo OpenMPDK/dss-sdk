@@ -53,7 +53,10 @@
 #include <df_io_module.h>
 #include <module_hash.h>
 #include <list_lib.h>
+
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 #include <map>
 #include <vector>
@@ -967,9 +970,12 @@ int list_init_load_by_iter(struct dfly_subsystem *pool)
 	return rc;
 }
 
+
+#ifdef DSS_ENABLE_ROCKSDB_KV
 void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc);
 typedef void (*list_done_cb)(void * ctx, int rc);
 int dss_rocksdb_list_key(void *ctx, void * pool, void * prefix, size_t prefix_size, list_done_cb list_cb);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
 {
     int rc = LIST_INIT_PENDING;
@@ -982,7 +988,12 @@ int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
     } 
     for(int i = 0; i< pool->num_io_devices; i++){
      //printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
+#ifdef DSS_ENABLE_ROCKSDB_KV
      rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, (list_done_cb)list_module_load_done_blk_cb);
+#else
+	DFLY_ASSERT(0);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
+
      //printf("list_init_load_by_blk_iter [%d] rc = %d\n", i, rc);
     }
     

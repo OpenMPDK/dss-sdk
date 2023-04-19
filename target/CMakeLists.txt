@@ -42,6 +42,8 @@ if(WITH_COVERAGE)
     set(SPDK_ENABLE_COVERAGE --enable-coverage)
 endif(WITH_COVERAGE)
 
+option(WITH_ROCKSDB_KV "Support KV translation with rocksdb engine" OFF)
+
 #--Judy--
 
 set(JUDY_INC_DIRS -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyL -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/ -I${CMAKE_CURRENT_SOURCE_DIR}/oss/libjudy/src/JudyCommon)
@@ -366,7 +368,11 @@ include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
+
+if(WITH_ROCKSDB_KV)
 include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
+endif(WITH_ROCKSDB_KV)
+
 include_directories (${CMAKE_SOURCE_DIR}/include)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
 
@@ -449,6 +455,10 @@ target_compile_options(oss PRIVATE ${OSS_CFLAGS})
 add_dependencies(oss spdk_tcp_configure)
 add_dependencies(oss GenConfig)
 
+if(WITH_ROCKSDB_KV)
+target_compile_definitions(oss PRIVATE -DDSS_ENABLE_ROCKSDB_KV)
+endif(WITH_ROCKSDB_KV)
+
 add_custom_command(
         TARGET oss POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
@@ -473,13 +483,17 @@ ADD_CUSTOM_TARGET(spdk_tcp_configure
 )
 endif()
 
+if(WITH_ROCKSDB_KV)
+set(SPDK_CONFIG_ENABLE_ROCKSDB_KV "CONFIG_DSS_ROCKSDB_KV=y")
+endif(WITH_ROCKSDB_KV)
+
 if(WITH_DSS_JUDY_LISTING)
 
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16
-  COMMAND make -C test/blobfs/mkfs
+  COMMAND make V=2 -j16 ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make -C test/blobfs/mkfs ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
   DEPENDS oss
@@ -496,8 +510,8 @@ set(DSS_RDB_OSS_EXTRACXXFLAGS EXTRA_CXXFLAGS=-DDSS_OPEN_SOURCE_RELEASE)
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16 CONFIG_DSS_OSS=y
-  COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y
+  COMMAND make V=2 -j16 CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
   DEPENDS oss
@@ -537,12 +551,14 @@ add_custom_command(
         COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
 )
 
+if(WITH_ROCKSDB_KV)
 ADD_CUSTOM_TARGET(rocksdb
   COMMENT "Building rocksdb async"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
   DEPENDS spdk_tcp
 )
+endif(WITH_ROCKSDB_KV)
 
 if(WITH_DSS_JUDY_LISTING)
 
@@ -567,7 +583,13 @@ add_library(dss_hsl STATIC	utils/dss_list_tree.c
 							utils/crc32.cc
 							utils/dss_keygen.c)
 target_link_libraries(dss_hsl -ljudyL)
+
+if(WITH_ROCKSDB_KV)
 target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/rocksdb/include -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
+else()
+target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/core/inc -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
+endif()
+
 add_dependencies(dss_hsl judyL)
 
 add_custom_command(
@@ -590,6 +612,7 @@ ADD_CUSTOM_TARGET(test_hsl
 
 endif(WITH_DSS_JUDY_LISTING)
 
+if(WITH_ROCKSDB_KV)
 if(BUILD_MODE_DEBUG)
 ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
@@ -615,6 +638,12 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   DEPENDS spdk_tcp_configure
 )
 endif()
+else(WITH_ROCKSDB_KV)
+ADD_CUSTOM_TARGET(rocksdb_lib
+  COMMENT "Not building rocksdb - Disabled"
+  COMMAND echo "option WITH_ROCKSDB_KV not set"
+)
+endif(WITH_ROCKSDB_KV)
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)

@@ -38,6 +38,7 @@
 #define DFLY_MODULE_MSG_MP_SC
 
 typedef enum dfly_module_request_status_s {
+	/// @brief Note: Do not use in new code. This will be deprecated
 	DFLY_MODULE_REQUEST_PROCESSED = 0,
 	DFLY_MODULE_REQUEST_PROCESSED_INLINE,
 	DFLY_MODULE_REQUEST_QUEUED,

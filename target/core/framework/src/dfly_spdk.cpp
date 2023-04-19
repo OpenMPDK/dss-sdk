@@ -34,7 +34,9 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -204,6 +206,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation
+#ifdef DSS_ENABLE_ROCKSDB_KV
 		if(spdk_unlikely(g_dragonfly->rdb_sim_timeout)) {
 				usleep(g_dragonfly->rdb_sim_timeout * 1000000);
 		}
@@ -267,6 +270,9 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				break;
 		}
 		DFLY_ASSERT(0);
+#else
+		DFLY_ASSERT(0);
+#endif//DSS_ENABLE_ROCKSDB_KV
 	}
 	switch (cmd->opc) {
 	case SPDK_NVME_OPC_READ:

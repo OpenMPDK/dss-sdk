@@ -936,6 +936,7 @@ void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req)
 static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
+#ifdef SPDK_CONFIG_ROCKSDB_KV
 	struct dss_rpc_nqn_req_s req = {};
 	struct dfly_subsystem *df_subsys;
 	struct spdk_json_write_ctx *w;
@@ -994,5 +995,9 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 invalid:
 	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
 	free_rpc_nqn_req(&req);
+#else//SPDK_CONFIG_ROCKSDB_KV
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_METHOD_NOT_FOUND, "Method not supported");
+#endif//SPDK_CONFIG_ROCKSDB_KV
+	return;
 }
 SPDK_RPC_REGISTER("dss_rdb_compact", dss_rpc_rdb_compact, SPDK_RPC_RUNTIME)

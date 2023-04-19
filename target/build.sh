@@ -65,22 +65,22 @@ testvercomp () {
     fi
 }
 
-# Load GCC 5.1.0 paths
-if test -f "$GCCSETENV"
-then
-    source $GCCSETENV
-fi
-
-# Check gcc version
-GCCVER=$(gcc --version | grep -oP '^gcc \([^)]+\) \K[^ ]+')
-
-# Validate GCC version is supported
-if testvercomp "$GCCVER" "$GCCMINVER" '<' || testvercomp "$GCCVER" "$GCCMAXVER" '>'
-then
-    die "ERROR - Found GCC version: $GCCVER. Must be between $GCCMINVER and $GCCMAXVER."
-else
-    echo "Supported GCC version found: $GCCVER"
-fi
+load_and_test_gcc() {
+    # Load GCC 5.1.0 paths
+    if test -f "$GCCSETENV"
+    then
+        source $GCCSETENV
+    fi    
+    # Check gcc version
+    GCCVER=$(gcc --version | grep -oP '^gcc \([^)]+\) \K[^ ]+')    
+    # Validate GCC version is supported
+    if testvercomp "$GCCVER" "$GCCMINVER" '<' || testvercomp "$GCCVER" "$GCCMAXVER" '>'
+    then
+        die "ERROR - Found GCC version: $GCCVER. Must be between $GCCMINVER and $GCCMAXVER."
+    else
+        echo "Supported GCC version found: $GCCVER"
+    fi
+}
 
 target_dir=$(readlink -f "$(dirname "$0")")
 build_dir="${target_dir}/../df_out"
@@ -243,8 +243,12 @@ parse_options()
     for i in "$@"
     do
     case $i in
-        --rocksdb)
+        --only-rocksdb)
         BUILD_ROCKSDB=true
+        shift # past argument=value
+        ;;
+        --with-rocksdb-kv)
+        BUILD_WITH_ROCKSDB_KV=true
         shift # past argument=value
         ;;
         -v=*|--version=*)
@@ -275,6 +279,7 @@ parse_options()
 ####################### main #######################################
 
 BUILD_ROCKSDB=false
+BUILD_WITH_ROCKSDB_KV=false
 BUILD_WITH_COVERAGE=false
 RUN_TESTS=false
 TARGET_VER="0.5.0"
@@ -310,6 +315,11 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
 
     if $BUILD_WITH_COVERAGE;then
        DSS_TARGET_CMAKE_OPTIONS="${DSS_TARGET_CMAKE_OPTIONS} -DWITH_COVERAGE=ON"
+    fi
+
+    if [[ "$BUILD_WITH_ROCKSDB_KV" = true || "$BUILD_ROCKSDB" = true ]];then
+       DSS_TARGET_CMAKE_OPTIONS="${DSS_TARGET_CMAKE_OPTIONS} -DWITH_ROCKSDB_KV=ON"
+       load_and_test_gcc
     fi
 
     if [ "$BUILD_TYPE" = "debug" ] ; then

@@ -41,7 +41,10 @@
 #include "list_lib.h"
 
 #include "utils/dss_hsl.h"
+
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 //namespace std;
 
@@ -450,10 +453,14 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 			zone->hsl_keys_ctx = dss_hsl_new_ctx(g_list_conf.list_prefix_head, (char *)key_default_delimlist.c_str(), do_list_item_process);
 			zone->hsl_keys_ctx->dev_ctx = pool;
 			if(g_dragonfly->rdb_direct_listing) {
+#ifdef DSS_ENABLE_ROCKSDB_KV
 				if(g_dragonfly->rdb_direct_listing_enable_tpool) {
 					zone->hsl_keys_ctx->dlist_mod = dss_tpool_start("list_tpool", pool->id, zone->hsl_keys_ctx,
 						g_dragonfly->rdb_direct_listing_nthreads, dss_rocksdb_direct_iter);
 				}
+#else
+DFLY_ASSERT(0);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 			}
 		} else {
 			zone->listing_keys = new std::unordered_map<std::string, std::set<std::string>>();

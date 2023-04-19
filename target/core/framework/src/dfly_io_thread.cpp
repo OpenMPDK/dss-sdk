@@ -35,7 +35,9 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 #include "nvme_internal.h"
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 extern "C" {
 #include "spdk/blob.h"
@@ -251,6 +253,7 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	return thread_instance;
 }
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 static void
 rdb_blobfs_unload_cb(__attribute__((unused)) void *ctx,
             __attribute__((unused)) int fserrno)
@@ -261,6 +264,7 @@ void dfly_rdb_close_blobfs(void *ctx, void *arg2)
 {
        spdk_fs_unload((struct spdk_filesystem *)ctx,rdb_blobfs_unload_cb, NULL);
 }
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 {
@@ -269,6 +273,7 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 	int i;
 
    if(g_dragonfly->blk_map) {
+	#ifdef DSS_ENABLE_ROCKSDB_KV
        for (i = thread_instance->module_inst_index; i < io_mod_ctx->dfly_subsys->num_io_devices; i+=io_mod_ctx->num_threads) {
            struct spdk_event *event;
 
@@ -281,6 +286,9 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
            spdk_event_call(event);
        }
        return NULL;
+	#else
+		DFLY_ASSERT(0);
+	#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
    }
 
 	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
@@ -478,6 +486,7 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 	return 0;
 }
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 void _all_dev_init_complete(void *arg1, void *arg2)
 {
 	struct init_multi_dev_s *dev_cb_event = (struct init_multi_dev_s *)arg1;
@@ -594,6 +603,7 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 
 	_dfly_io_module_subsystem_start(subsystem, io_thrd_ctx->io_ops, _dfly_rdb_init_devices, event_ctx, io_thrd_ctx);
 }
+#endif//DSS_ENABLE_ROCKSDB_KV
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   void *ops, df_module_event_complete_cb cb, void *cb_arg)
@@ -621,7 +631,11 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 	}
 
 	if(g_dragonfly->blk_map) {
+#ifdef DSS_ENABLE_ROCKSDB_KV
 		dfly_rdb_init_devices(subsystem, cb, cb_arg, io_thrd_ctx);
+#else
+	DFLY_ASSERT(0);
+#endif//DSS_ENABLE_ROCKSDB_KV
 	} else {
 		_dfly_io_module_subsystem_start(subsystem, io_ops, cb, cb_arg, io_thrd_ctx);
 	}
