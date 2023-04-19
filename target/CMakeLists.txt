@@ -224,6 +224,17 @@ SET(BLK_ALLOC_HEADERS
     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.h
 )
 
+#Io task Module
+SET(IO_TASK_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev.c
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
+)
+
+SET(IO_TASK_HEADERS
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_io_task_apis.h
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.h
+)
+
 #
 # QOS library build rules (shared)
 #
@@ -427,6 +438,8 @@ SET(DSS_FILES
     ${KD_HEADERS}
     ${BLK_ALLOC_SOURCES}
     ${BLK_ALLOC_HEADERS}
+    ${IO_TASK_SOURCES}
+    ${IO_TASK_HEADERS}
     ${UTIL_SOURCES}
 )
 
@@ -608,5 +621,6 @@ add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
 add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
 add_test(NAME dss_item_cache_ut COMMAND dss_item_cache_ut)
 add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
+add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
 
 enable_testing()

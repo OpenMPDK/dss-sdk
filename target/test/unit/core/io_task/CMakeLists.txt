@@ -30,6 +30,4 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(framework)
-add_subdirectory(block_allocator)
-add_subdirectory(io_task)
+add_subdirectory(dss_io_task.c)

@@ -30,6 +30,14 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(framework)
-add_subdirectory(block_allocator)
-add_subdirectory(io_task)
+add_executable(dss_io_task_ut ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                              ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                              ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
+                              dss_io_task_ut.c)
+
+target_include_directories(dss_io_task_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/io_task
+                                                  ${CMAKE_SOURCE_DIR}/include/apis)
+
+target_link_libraries(dss_io_task_ut ${UNIT_LIBS} -lm)
+
+target_compile_options(dss_io_task_ut PRIVATE -g)

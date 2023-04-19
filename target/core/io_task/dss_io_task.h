@@ -38,7 +38,7 @@
 
 #include "apis/dss_io_task_apis.h"
 
-typedef void dss_mallocator_ctx_t;//TODO: Remove after actual implementation
+#include "utils/dss_mallocator.h"
 
 #ifdef __cplusplus
 extern "C" {
