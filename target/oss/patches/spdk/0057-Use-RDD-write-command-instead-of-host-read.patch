@@ -1,14 +1,14 @@
-From b1b471107bdd5c66cfa4b28365975d575ca6f8a0 Mon Sep 17 00:00:00 2001
+From d47d1863b8ba6e4dd7f91c38dfaed399cdf631c3 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 22 Dec 2021 18:00:45 -0800
-Subject: [PATCH 57/73] Use RDD write command instead of host read
+Subject: [PATCH 57/74] Use RDD write command instead of host read
 
 ---
  lib/nvmf/rdma.c | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 0000505..f92f096 100644
+index 000050565..f92f09682 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -2400,10 +2400,11 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
@@ -26,5 +26,5 @@ index 0000505..f92f096 100644
  		req->dreq->rdd_info.qhandle = req->cmd->nvme_cmd.cdw11_bits.feat_kv.get.rdd_cl_handle;
  		//req->rdd_info.ckey need to be updated for the rdd queue
 -- 
-1.8.3.1
+2.24.3
 

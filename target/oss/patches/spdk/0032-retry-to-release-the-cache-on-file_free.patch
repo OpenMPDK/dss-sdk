@@ -1,14 +1,14 @@
-From a5a6f6bce29628f2ab5ccdbdc5cae387687a3690 Mon Sep 17 00:00:00 2001
+From 6d5f9ba6bc059e7d0a49c438487c8e7fbc44d8da Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 23 Feb 2021 18:06:09 -0800
-Subject: [PATCH 32/73] * retry to release the cache on file_free
+Subject: [PATCH 32/74] * retry to release the cache on file_free
 
 ---
  lib/blobfs/blobfs.c | 16 ++++++++++++++++
  1 file changed, 16 insertions(+)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 9f4274a..a762160 100644
+index 9f4274a56..a762160ad 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -3191,6 +3191,7 @@ _file_free(void *ctx)
@@ -43,5 +43,5 @@ index 9f4274a..a762160 100644
  	spdk_thread_send_msg(g_cache_pool_thread, _file_free, file);
  	pthread_spin_unlock(&file->lock);
 -- 
-1.8.3.1
+2.24.3
 

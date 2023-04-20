@@ -1,7 +1,7 @@
-From 98a051e5f67beaaf8bdbe3f91b3971c256847a2c Mon Sep 17 00:00:00 2001
+From 2aeb5ca8cc22cb6cb0b9f5385469ce631e453025 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 15 Dec 2020 20:25:47 -0800
-Subject: [PATCH 15/73] * bdev blocksize support * increment nr of the
+Subject: [PATCH 15/74] * bdev blocksize support * increment nr of the
  blobstore request to 4k
 
 ---
@@ -12,7 +12,7 @@ Subject: [PATCH 15/73] * bdev blocksize support * increment nr of the
  4 files changed, 20 insertions(+), 6 deletions(-)
 
 diff --git a/include/spdk/blobfs.h b/include/spdk/blobfs.h
-index 9a67d62..c83ced0 100644
+index 9a67d6278..c83ced065 100644
 --- a/include/spdk/blobfs.h
 +++ b/include/spdk/blobfs.h
 @@ -369,6 +369,8 @@ int64_t spdk_file_read_async2(struct spdk_file *file, struct spdk_fs_thread_ctx
@@ -25,7 +25,7 @@ index 9a67d62..c83ced0 100644
  /**
   * Set cache size for the blobstore filesystem.
 diff --git a/lib/blob/blobstore.h b/lib/blob/blobstore.h
-index 5e93bd6..4556467 100644
+index 5e93bd6ad..455646740 100644
 --- a/lib/blob/blobstore.h
 +++ b/lib/blob/blobstore.h
 @@ -49,7 +49,7 @@
@@ -38,7 +38,7 @@ index 5e93bd6..4556467 100644
  
  struct spdk_xattr {
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 0cb219c..536f374 100644
+index 0cb219ced..536f37481 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -1854,8 +1854,9 @@ __read_done(void *ctx, int bserrno)
@@ -66,7 +66,7 @@ index 0cb219c..536f374 100644
  
  /* Try to free some cache buffers from this file.
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index 91279d7..2d1f14c 100644
+index 91279d7bb..2d1f14cd8 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -216,10 +216,10 @@ DpdkRandomAccessFile::AsyncReadCallback(void* ctx, int bserrno){
@@ -112,5 +112,5 @@ index 91279d7..2d1f14c 100644
  	{
  		struct spdk_file_stat stat;
 -- 
-1.8.3.1
+2.24.3
 

@@ -1,14 +1,14 @@
-From b96c8825c6596bdfe7f0325e08aafca9d2ce205c Mon Sep 17 00:00:00 2001
+From 011b8dc4c35011667dccb0c348f594ed717ca7b2 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 30 Aug 2022 11:14:51 -0700
-Subject: [PATCH 66/73] Update numa core alloc to support IP as param
+Subject: [PATCH 66/74] Update numa core alloc to support IP as param
 
 ---
  lib/nvmf/rdma.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 048f940..dfed83a 100644
+index 048f9401a..dfed83a99 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -781,7 +781,7 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
@@ -21,5 +21,5 @@ index 048f940..dfed83a 100644
  
  	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
 -- 
-1.8.3.1
+2.24.3
 

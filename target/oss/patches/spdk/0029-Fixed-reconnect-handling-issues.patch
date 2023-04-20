@@ -1,7 +1,7 @@
-From 480c2d18503039e42bee090ea42d297dc64bdd7b Mon Sep 17 00:00:00 2001
+From e45fa4c3645e57b008468b07f060007e1004cb90 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 9 Feb 2021 10:25:49 -0800
-Subject: [PATCH 29/73] Fixed reconnect handling issues
+Subject: [PATCH 29/74] Fixed reconnect handling issues
 
     * Added trace logging for key transfer states
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 29/73] Fixed reconnect handling issues
  1 file changed, 41 insertions(+), 4 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 562569a..d59b3c8 100644
+index 562569aba..d59b3c8f9 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -160,6 +160,11 @@ enum spdk_nvmf_rdma_request_state {
@@ -152,5 +152,5 @@ index 562569a..d59b3c8 100644
  					}
  				}
 -- 
-1.8.3.1
+2.24.3
 

@@ -1,7 +1,7 @@
-From 3ae785eeb61ac1980a5d2c89de4b0542b1d39aa5 Mon Sep 17 00:00:00 2001
+From c358b74bf0de5623b29387e0f3b27c25a31d1ccb Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 6 Jun 2022 15:23:36 -0700
-Subject: [PATCH 61/73] Support for multi-sgl RDD
+Subject: [PATCH 61/74] Support for multi-sgl RDD
 
 ---
  include/spdk/nvme_spec.h      | 11 +++++++++++
@@ -10,7 +10,7 @@ Subject: [PATCH 61/73] Support for multi-sgl RDD
  3 files changed, 22 insertions(+), 6 deletions(-)
 
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
-index 6f1d889..120cea5 100644
+index 6f1d8894f..120cea543 100644
 --- a/include/spdk/nvme_spec.h
 +++ b/include/spdk/nvme_spec.h
 @@ -1405,6 +1405,17 @@ static inline enum spdk_nvme_data_transfer spdk_nvme_opc_get_data_transfer(uint8
@@ -32,7 +32,7 @@ index 6f1d889..120cea5 100644
  	/* 0x00 - reserved */
  
 diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
-index e2d2f86..ecb07e6 100644
+index e2d2f86df..ecb07e6a5 100644
 --- a/include/spdk/nvmf_transport.h
 +++ b/include/spdk/nvmf_transport.h
 @@ -471,6 +471,11 @@ spdk_nvmf_req_get_xfer(struct spdk_nvmf_request *req) {
@@ -48,7 +48,7 @@ index e2d2f86..ecb07e6 100644
  	 * We want those to show up with xfer SPDK_NVME_DATA_NONE.
  	 */
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index d35a64c..b58939f 100644
+index d35a64c60..b58939f2e 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -992,7 +992,7 @@ int dfly_rdma_setup_post_rdd_out(struct spdk_nvmf_rdma_request *rdma_req)
@@ -90,5 +90,5 @@ index d35a64c..b58939f 100644
  		req->dreq->rdd_info.hkey = sgl->keyed.key;;
  		req->dreq->rdd_info.cmem = req->data;
 -- 
-1.8.3.1
+2.24.3
 

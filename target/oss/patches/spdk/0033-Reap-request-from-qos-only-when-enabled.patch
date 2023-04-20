@@ -1,14 +1,14 @@
-From abb02cbbe6c11302033821b97b3e4d8afe53e323 Mon Sep 17 00:00:00 2001
+From c23ccc900acbd1135cf541bb7543d041ef622d7e Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 4 Mar 2021 12:49:08 -0800
-Subject: [PATCH 33/73] Reap request from qos only when enabled
+Subject: [PATCH 33/74] Reap request from qos only when enabled
 
 ---
  lib/nvmf/rdma.c | 4 ++++
  1 file changed, 4 insertions(+)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 0b1df92..5f4ccb5 100644
+index 0b1df92f8..5f4ccb5ef 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -735,6 +735,10 @@ static inline void dfly_poller_rdma_qos_sched(struct spdk_nvmf_rdma_transport *r
@@ -23,5 +23,5 @@ index 0b1df92..5f4ccb5 100644
  		i = 0;
  
 -- 
-1.8.3.1
+2.24.3
 

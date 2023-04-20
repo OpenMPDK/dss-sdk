@@ -1,7 +1,7 @@
-From 830e7ee9ab9f714e5c31bd13f0ed2205a53da312 Mon Sep 17 00:00:00 2001
+From 5bc0d7c2c2145834b8045b2c1692552faf1a3a77 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 8 Jan 2021 00:27:30 -0800
-Subject: [PATCH 22/73] RDB compaction rpc with get_status support
+Subject: [PATCH 22/74] RDB compaction rpc with get_status support
 
 ---
  scripts/dss_rpc.py             | 6 ++++--
@@ -9,7 +9,7 @@ Subject: [PATCH 22/73] RDB compaction rpc with get_status support
  2 files changed, 9 insertions(+), 5 deletions(-)
 
 diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
-index 46ee951..5e1a58b 100755
+index 46ee95129..5e1a58b97 100755
 --- a/scripts/dss_rpc.py
 +++ b/scripts/dss_rpc.py
 @@ -60,11 +60,13 @@ if __name__ == "__main__":
@@ -29,7 +29,7 @@ index 46ee951..5e1a58b 100755
      args = parser.parse_args()
  
 diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
-index 9f82ee3..c1d91f6 100644
+index 9f82ee3e8..c1d91f649 100644
 --- a/scripts/rpc/latency_profile.py
 +++ b/scripts/rpc/latency_profile.py
 @@ -30,16 +30,18 @@ def reset_ustat_counters(client, nqn):
@@ -55,5 +55,5 @@ index 9f82ee3..c1d91f6 100644
  
  	return client.call('dss_rdb_compact', params)
 -- 
-1.8.3.1
+2.24.3
 

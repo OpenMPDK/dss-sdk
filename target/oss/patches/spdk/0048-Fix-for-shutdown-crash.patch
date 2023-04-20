@@ -1,7 +1,7 @@
-From 900c1409343dba731770f72a4e1a24613dc75a3f Mon Sep 17 00:00:00 2001
+From d62e2489f8e510e86ca5ea70d157e19cd8cf227a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 8 Sep 2021 09:37:41 -0700
-Subject: [PATCH 48/73] Fix for shutdown crash
+Subject: [PATCH 48/74] Fix for shutdown crash
 
     * The first write that is cached after the file is evicted does not
     * trigger a flush. Update the flushed length for pass through IOs
@@ -10,7 +10,7 @@ Subject: [PATCH 48/73] Fix for shutdown crash
  1 file changed, 2 insertions(+)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 7131c16..ec115ab 100644
+index 7131c165e..ec115abb2 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2684,6 +2684,8 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -23,5 +23,5 @@ index 7131c16..ec115ab 100644
          psem = fs_channel_get_sem(channel);
  		//printf("spdk_file_write send_request for __send_rw_from_file on core %d\n", sched_getcpu());
 -- 
-1.8.3.1
+2.24.3
 
