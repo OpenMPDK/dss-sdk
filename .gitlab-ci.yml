@@ -1,0 +1,33 @@
+image:
+  name: 064873909156.dkr.ecr.us-west-1.amazonaws.com/dssbuild:dss-build_master
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_BRANCH =~ /^stable\/.*/ && $CI_PIPELINE_SOURCE == "push"
+
+variables:
+  GIT_SSL_NO_VERIFY: "true"
+  GIT_SUBMODULE_STRATEGY: "recursive"
+  GIT_CLEAN_FLAGS: none
+
+cache:
+  paths:
+    - .sonar
+
+stages:
+  - build
+  - scan
+
+build:
+  stage: build
+  script:
+    - mkdir -p .sonar
+    - build-wrapper-linux-x86-64 --out-dir .sonar/bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+
+sonarqube-check:
+  stage: scan
+  script:
+    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=.sonar/bw-output
+  allow_failure: true
