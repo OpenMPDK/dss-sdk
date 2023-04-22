@@ -216,6 +216,7 @@ SET(BLK_ALLOC_SOURCES
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap_impl.cc
 )
 
 SET(BLK_ALLOC_HEADERS
@@ -224,6 +225,7 @@ SET(BLK_ALLOC_HEADERS
     ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/allocator_type.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap.h
 )
 
 #Io task Module
@@ -645,11 +647,18 @@ ADD_CUSTOM_TARGET(rocksdb_lib
 )
 endif(WITH_ROCKSDB_KV)
 
+add_library(judy_hashmap STATIC core/block_allocator/utils/judy_hashmap_impl.cc)
+target_link_libraries(judy_hashmap -ljudyL)
+target_compile_options(judy_hashmap PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/ -std=gnu++11)
+add_dependencies(judy_hashmap judyL)
+
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
 add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
 add_test(NAME dss_item_cache_ut COMMAND dss_item_cache_ut)
 add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
 add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
+add_test(NAME test_judy_hashmap_impl COMMAND test_judy_hashmap_impl)
 
 enable_testing()
+

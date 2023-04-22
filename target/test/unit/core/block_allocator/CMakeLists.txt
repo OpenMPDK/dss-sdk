@@ -57,4 +57,18 @@ target_include_directories(test_bitmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/blo
                                                     ${CMAKE_SOURCE_DIR}/include/apis)
 
 target_link_libraries(test_bitmap_impl ${UNIT_LIBS})
-target_compile_options(test_bitmap_impl PRIVATE -Wall -g -std=c++11)
+target_compile_options(test_bitmap_impl PRIVATE -Wall -g -std=gnu++11)
+
+# Tests for Judy hashmap implementation with cppunit
+add_executable(test_judy_hashmap_impl test_judy_hashmap_impl.cc)
+
+target_include_directories(test_judy_hashmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
+
+target_link_libraries(test_judy_hashmap_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
+target_compile_options(test_judy_hashmap_impl PRIVATE -g -Wall -std=gnu++11)
+add_dependencies(test_judy_hashmap_impl judy_hashmap)
+
+
+
+
+
