@@ -6,3 +6,7 @@ host_out/
 sc*.xml
 astylelog.xml
 pycodestyle.log
+
+# Sonar files
+.scannerwork/**/*
+.bw-output

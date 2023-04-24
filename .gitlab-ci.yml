@@ -23,11 +23,10 @@ stages:
 build:
   stage: build
   script:
-    - mkdir -p .sonar
-    - build-wrapper-linux-x86-64 --out-dir .sonar/bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+    - build-wrapper-linux-x86-64 --out-dir /bw-output/ ./scripts/build_all.sh kdd-samsung-remote
 
 sonarqube-check:
   stage: scan
   script:
-    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=.sonar/bw-output -X
+    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
   allow_failure: true
