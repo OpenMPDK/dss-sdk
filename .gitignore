@@ -8,5 +8,5 @@ astylelog.xml
 pycodestyle.log
 
 # Sonar files
-.scannerwork/**/*
-.bw-output
+.scannerwork/
+.bw-output/
