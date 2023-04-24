@@ -29,5 +29,5 @@ build:
 sonarqube-check:
   stage: scan
   script:
-    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=.sonar/bw-output
+    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=.sonar/bw-output -X
   allow_failure: true
