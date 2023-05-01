@@ -1,0 +1,80 @@
+variables:
+  BRANCH_NAME: $CI_COMMIT_BRANCH
+  SONAR_BRANCH: -Dsonar.branch.name=$CI_COMMIT_BRANCH
+
+image:
+  name: dss-build_$BRANCH_NAME
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        BRANCH_NAME: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+        SONAR_BRANCH: ''
+    - if: $CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_BRANCH =~ /^(stable|feature)\/.*/ && $CI_PIPELINE_SOURCE == "push"
+
+stages:
+  - build
+  - scan
+  - lint
+
+default:
+  cache: &sonar_cache
+    paths:
+      - bw-output
+      - df_out
+      - host_out
+
+build dss-sdk:
+  stage: build
+  script: build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+  artifacts:
+    name: release artifacts
+    paths:
+      - df_out/nkv-target-*.tgz
+      - host_out/nkv-sdk-bin-*.tgz
+      - ufm/agents/nkv_agent/nkvagent-*.rpm
+      - ufm/fabricmanager/ufm-*.rpm
+      - ufm/ufm_ufm_msg_broker/ufmbroker-*.rpm
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  cache:
+    <<: *sonar_cache
+    policy: push
+
+build target gcov:
+  stage: build
+  script: ./target/build.sh --with-coverage
+  artifacts:
+    name: gcov artifacts
+    paths:
+      - df_out/nkv-target-*.tgz
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  cache: []
+
+sonar-scanner:
+  stage: scan
+  script:
+    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
+  allow_failure: true
+  cache:
+    <<: *sonar_cache
+    policy: pull
+  dependencies: []
+  needs: ["build dss-sdk"]
+
+pycodestyle:
+  stage: lint
+  script: git ls-files '*.py' | xargs -n1 pycodestyle --config=./scripts/pycodestyle --show-source --show-pep8
+  cache: []
+  dependencies: []
+  needs: []
+
+shellcheck:
+  stage: lint
+  script: git ls-files '*.sh' | xargs -n1 shellcheck
+  cache: []
+  dependencies: []
+  needs: []
