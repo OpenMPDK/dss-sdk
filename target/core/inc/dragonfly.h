@@ -96,6 +96,7 @@ extern "C" {
 
 #include "rdd_api.h"
 #include "dss.h"
+#include "apis/dss_module_apis.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,11 +144,14 @@ struct dragonfly_core {
 };
 
 struct dfly_module_list_s {
-	struct dfly_module_s *dfly_io_module;
-	struct dfly_module_s *dfly_wal_module;
-	struct dfly_module_s *dfly_fuse_module;
+	void *dummy;//Init
+	/// @brief Note: This list needs to be in the order of dss_module_type_t
 	struct dfly_module_s *lock_service;
+	struct dfly_module_s *dfly_fuse_module;
+	void *dss_net_module;//dss_net_module_subsys_t
+	struct dfly_module_s *dfly_io_module;
 	struct dfly_module_s *dfly_list_module;
+	struct dfly_module_s *dfly_wal_module;
 };
 
 struct init_multi_dev_s {
@@ -190,6 +194,9 @@ typedef struct df_subsys_conf_s {
 } df_subsys_conf_t;
 
 struct dfly_subsystem {
+	bool dss_enabled;
+	/// @brief  true - kv mode; false - block mode
+	bool dss_kv_mode;
 	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
@@ -370,6 +377,10 @@ struct dfly_qpair_s {
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
 	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
+
+	//DSS Net module
+	dss_module_instance_t *net_module_instance;
+	char *net_module_name;
 };
 
 struct dword_bytes {
@@ -523,6 +534,14 @@ int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
 //C Constructor declarations: to enable symbol lookup on linking
 void _dss_block_allocator_register_simbmap_allocator(void);
 //END - C Constructor declarations
+
+dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
+
+void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair);
 
 #ifdef __cplusplus
 }

@@ -481,8 +481,8 @@ DFLY_ASSERT(0);
 	list_cb_event.src_core = spdk_env_get_current_core();
 	list_cb_event.start_tick = spdk_get_ticks();
 
-	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, &list_module_ops,
-				       list_mctx, nr_cores, (df_module_event_complete_cb)list_module_started_cb, pool);
+	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, DSS_MODULE_LIST, &list_module_ops,
+				       list_mctx, nr_cores, -1, (df_module_event_complete_cb)list_module_started_cb, pool);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);

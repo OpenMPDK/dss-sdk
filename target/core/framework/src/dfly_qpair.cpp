@@ -32,8 +32,32 @@
  */
 
 
-#include <dragonfly.h>
+#include "dragonfly.h"
 #include "nvmf_internal.h"
+#include "apis/dss_module_apis.h"
+#include "apis/dss_net_module.h"
+
+void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair) {
+	dss_module_status_t status;
+	struct dfly_subsystem *df_subsys = NULL;
+
+	dss_module_t *m = NULL;
+	m = dss_net_module_find_module_ctx(nvmf_qpair->dqpair->listen_addr);
+
+	df_subsys = dfly_get_subsystem_no_lock(nvmf_qpair->ctrlr->subsys->id);
+
+	nvmf_qpair->dqpair->net_module_name = ((dss_module_t *)df_subsys->mlist.dss_net_module)->name;
+	status = dss_module_get_instance_for_core(m, spdk_env_get_current_core(), &nvmf_qpair->dqpair->net_module_instance);
+	if (status != DSS_MODULE_STATUS_SUCCESS)
+	{
+		DSS_ERRLOG("Failed to get module instance for subys %p for core %u\n", df_subsys, spdk_env_get_current_core());
+		DSS_ASSERT(0);
+	}
+
+	DSS_NOTICELOG("Set instance %p for net_module at core %u for qpair %p\n", nvmf_qpair->dqpair->net_module_instance, spdk_env_get_current_core(), nvmf_qpair);
+
+	return;
+}
 
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req)
 {
@@ -73,6 +97,7 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 	struct spdk_nvme_transport_id trid;
 
 	if (!dqpair) {
+
 		dqpair = (struct dfly_qpair_s *) calloc(1, sizeof(struct dfly_qpair_s));
 		if (!dqpair) {
 			return -1;
@@ -85,6 +110,8 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 		dqpair->qid = -1;
 		dqpair->dss_enabled = false;
 		dqpair->df_poller = dfly_poller_init(0);
+
+		dqpair->net_module_instance = NULL;
 
         TAILQ_INIT(&dqpair->qp_outstanding_reqs);
 

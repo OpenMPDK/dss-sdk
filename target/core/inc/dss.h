@@ -31,6 +31,10 @@
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stdlib.h>
+#include <pthread.h>
+#include <sys/queue.h>
+
 #include "df_log.h"
 
 #define DSS_RELEASE_ASSERT(x) assert((x))

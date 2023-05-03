@@ -36,6 +36,7 @@
 
 #include <dragonfly.h>
 
+
 //Only one of (DFLY_MODULE_MSG_MP_SC/DFLY_MODULE_MSG_SP_SC)
 //should be defined
 //#define DFLY_MODULE_MSG_MP_SC
@@ -249,10 +250,25 @@ void dfly_module_thread_start(void *inst, void *cb_event)
 
 }
 
+static inline void str_replace_char(char *str, char orig_ch, char replace_ch, size_t max_len)
+{
+	int index = 0;
+	while(*str != '\0') {
+		if(*str == orig_ch) {
+			*str = replace_ch;
+		}
+		str++;
+		index++;
+		if(index >= max_len) {
+			break;
+		}
+	}
+	return;
+}
 //connect to module instance
 
-struct dfly_module_s *dfly_module_start(const char *name, int id,
-					struct dfly_module_ops *mops, void *ctx, int num_cores,
+struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_type_t mtype,
+					struct dfly_module_ops *mops, void *ctx, int num_cores, int numa_node,
 					df_module_event_complete_cb cb, void *cb_arg)
 {
 
@@ -264,7 +280,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id,
 
 	char stat_name[64];
 	memset(stat_name, 0, 64);
-	sprintf(stat_name, "%s_%d", name, id);
+	sprintf(stat_name, "m_%s_%d", name, id);
 	DFLY_ASSERT(strlen(stat_name) < 64);
 
 	module = (dfly_module_t *)calloc(1, sizeof(dfly_module_t));
@@ -273,7 +289,9 @@ struct dfly_module_s *dfly_module_start(const char *name, int id,
 	}
 
 	strncpy(module->name, stat_name, MAX_MODULE_NAME_LEN - 1);
+	str_replace_char(stat_name, '.', '_', MAX_MODULE_NAME_LEN);
 
+	module->mtype = mtype;
 	module->ops = mops;
 	assert(module->ops->module_rpoll);
 
@@ -302,7 +320,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id,
 			launch_core = spdk_env_get_first_core();
 		}
 #else
-		launch_core = dfly_get_next_core(module->name, num_cores, NULL, NULL);
+		launch_core = dss_get_next_numa_core(module->name, num_cores, numa_node);
 		m_inst[i].icore = launch_core;
 		DFLY_ASSERT(launch_core != -1);
 #endif
@@ -406,4 +424,61 @@ void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb 
 
 	pthread_mutex_unlock(&module->module_lock);
 
+}
+
+dss_module_status_t dss_module_post_to_instance(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req)
+{
+	int rc;
+	//TODO: Verify module thread instance pointer
+#if defined DFLY_MODULE_MSG_MP_SC
+	rc = spdk_ring_enqueue(module_thread_instance->pipe.msg_ring, (void **)&req, 1, NULL);
+	if (rc != 1) {
+		DSS_ASSERT(rc == 1);
+		return DSS_MODULE_STATUS_ERROR;
+	}
+	dfly_ustat_update_module_inst_stat(module_thread_instance, 0, 1);
+	return DSS_MODULE_STATUS_SUCCESS;
+#endif
+}
+
+dss_module_status_t dss_module_get_instance_for_core(dss_module_t *module , uint64_t core, dss_module_instance_t **module_instance)
+{
+	dss_module_instance_t *m_inst, *t_minst;
+
+	if(*module_instance != NULL) {
+		//TODO: Warn log for debug build ??
+		return DSS_MODULE_STATUS_MOD_INST_NOT_CLEARED;
+	}
+
+	TAILQ_FOREACH_SAFE(m_inst, &module->active_threads, link, t_minst) {
+		if(m_inst->icore == core) {
+			*module_instance = m_inst;
+			return DSS_MODULE_STATUS_SUCCESS;
+		}
+	}
+
+	return DSS_MODULE_STATUS_ERROR;
+}
+
+dss_module_status_t dss_module_get_instance(dss_module_t *module , dss_request_t *req, dss_module_instance_t **module_instance)
+{
+	dfly_request_t *dreq = (dfly_request_t *)req;//TODO: Deprecate dfly_request name
+
+	if(*module_instance == NULL) {
+		//TODO: Warn log for debug build ??
+		return DSS_MODULE_STATUS_MOD_INST_NOT_CLEARED;
+	}
+
+	if(module->ops->find_instance_context) {
+		*module_instance = (dss_module_instance_t *)module->ops->find_instance_context(dreq);
+	} else {
+		*module_instance = dfly_get_module_instance(module);
+	}
+
+	if(*module_instance == NULL) {
+		DSS_ASSERT(0);//Should not fail
+		return DSS_MODULE_STATUS_ERROR;
+	}
+
+	return DSS_MODULE_STATUS_SUCCESS;
 }

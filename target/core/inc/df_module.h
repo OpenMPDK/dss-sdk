@@ -30,6 +30,14 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef DF_MODULE_H
+#define DF_MODULE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "df_stats.h"
 
 #define MAX_MODULE_NAME_LEN (64)
 #define REQ_PER_POLL (8)
@@ -38,7 +46,7 @@
 #define DFLY_MODULE_MSG_MP_SC
 
 typedef enum dfly_module_request_status_s {
-	/// @brief Note: Do not use in new code. This will be deprecated
+	/// @brief Note: Do not use DFLY_MODULE_REQUEST_PROCESSED in new code. This will be deprecated
 	DFLY_MODULE_REQUEST_PROCESSED = 0,
 	DFLY_MODULE_REQUEST_PROCESSED_INLINE,
 	DFLY_MODULE_REQUEST_QUEUED,
@@ -51,6 +59,7 @@ struct dfly_module_pipe_s {
 
 typedef struct dfly_module_s {
 	char name[MAX_MODULE_NAME_LEN];
+	dss_module_type_t mtype;
 	struct dfly_module_ops *ops;
 
 	pthread_mutex_t module_lock;
@@ -90,9 +99,9 @@ struct df_module_event_complete_s {
 	void *arg2;
 };
 
-struct dfly_module_s *dfly_module_start(const char *name, int id, struct dfly_module_ops *mops,
+struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_type_t mtype, struct dfly_module_ops *mops,
 					void *ctx,
-					int num_cores, df_module_event_complete_cb cb, void *cb_arg);
+					int num_cores, int numa_node, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg, void *cb_private);
 void dfly_module_post_request(struct dfly_module_s *module, struct dfly_request *req);
 void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_request *req);
@@ -110,3 +119,9 @@ struct dfly_module_ops {
 				       *req);//	Find the module instance context based on the request
 	void *(*module_instance_destroy)(void *mctx, void *inst_ctx);
 };
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // DF_MODULE_H

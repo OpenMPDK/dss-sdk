@@ -480,8 +480,8 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg,
 					struct io_thread_ctx_s *io_thrd_ctx)
 {
-	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, &io_module_ops,
-					  io_thrd_ctx, io_thrd_ctx->num_threads, cb, cb_arg);
+	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, DSS_MODULE_IO, &io_module_ops,
+					  io_thrd_ctx, io_thrd_ctx->num_threads, -1, cb, cb_arg);
 
 	return 0;
 }
