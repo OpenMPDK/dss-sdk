@@ -28,7 +28,9 @@ default:
 
 build dss-sdk:
   stage: build
-  script: build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+  script:
+    - build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+    - /stagemergeartifacts.sh
   artifacts:
     name: release artifacts
     paths:
@@ -38,6 +40,7 @@ build dss-sdk:
       - ufm/fabricmanager/ufm-*.rpm
       - ufm/ufm_ufm_msg_broker/ufmbroker-*.rpm
   variables:
+    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz ufm-*.rpm ufmbroker-*.rpm nkvagent-*.rpm"
     GIT_SUBMODULE_STRATEGY: recursive
   cache:
     <<: *sonar_cache
