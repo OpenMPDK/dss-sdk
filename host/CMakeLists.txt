@@ -174,6 +174,8 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/kvssd_emul.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/env_init.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/include/rdd_cl_api.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/rdd_cl/rdd_cl.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
 	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
