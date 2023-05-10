@@ -22,3 +22,14 @@ jobs:
       project-name: OpenMPDK_dss-sdk
       compute-type-override: BUILD_GENERAL1_LARGE
     secrets: inherit
+  lint:
+    strategy:
+      matrix:
+        component:
+          - pycodestyle
+          - shellcheck
+    uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
+    with:
+      component: ${{ matrix.component }}
+      project-name: OpenMPDK_dss-sdk
+    secrets: inherit
