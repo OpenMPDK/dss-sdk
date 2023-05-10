@@ -50,13 +50,18 @@
 class BitmapTest : public CppUnit::TestFixture {
 public:
     BitmapTest() {
+        // jso is created during block allocator init
+        BlockAlloc::JudySeekOptimizerSharedPtr jso =
+            std::make_shared<BlockAlloc::
+            JudySeekOptimizer>(16348, 0, 128);
+
         total_cells = 10;
         perf_total_cells = 65536;
         bits_per_cell = 4;
         bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            total_cells, bits_per_cell); 
+            jso, total_cells, bits_per_cell); 
         perf_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            perf_total_cells, bits_per_cell); 
+            jso, perf_total_cells, bits_per_cell); 
     }
     void setUp();
     void tearDown();
@@ -75,6 +80,7 @@ public:
 private:
     AllocatorType::BitMapSharedPtr bmap;
     AllocatorType::BitMapSharedPtr perf_bmap;
+    BlockAlloc::JudySeekOptimizerSharedPtr jso_;
     int total_cells;
     int perf_total_cells;
     int bits_per_cell;

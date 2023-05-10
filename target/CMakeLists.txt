@@ -216,6 +216,7 @@ SET(BLK_ALLOC_SOURCES
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
     ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap_impl.cc
 )
 
@@ -648,6 +649,7 @@ ADD_CUSTOM_TARGET(rocksdb_lib
 endif(WITH_ROCKSDB_KV)
 
 add_library(judy_hashmap STATIC core/block_allocator/utils/judy_hashmap_impl.cc)
+add_definitions(-DJUDYERROR_NOTEST=y)
 target_link_libraries(judy_hashmap -ljudyL)
 target_compile_options(judy_hashmap PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/ -std=gnu++11)
 add_dependencies(judy_hashmap judyL)
@@ -659,6 +661,7 @@ add_test(NAME dss_item_cache_ut COMMAND dss_item_cache_ut)
 add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
 add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
 add_test(NAME test_judy_hashmap_impl COMMAND test_judy_hashmap_impl)
+add_test(NAME test_seek_optimization_impl COMMAND test_seek_optimization_impl)
 
 enable_testing()
 

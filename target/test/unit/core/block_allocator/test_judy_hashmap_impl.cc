@@ -59,6 +59,7 @@ public:
     void test_set_get_prev();
     void test_set_get_delete();
     void test_set_get_delete_l1_jarr();
+    void test_set_get_delete_multiple_l1_jarr();
     void test_delete_all();
 
     CPPUNIT_TEST_SUITE(JudyHashMapTest);
@@ -68,6 +69,7 @@ public:
     CPPUNIT_TEST(test_set_get_prev);
     CPPUNIT_TEST(test_set_get_delete);
     CPPUNIT_TEST(test_set_get_delete_l1_jarr);
+    CPPUNIT_TEST(test_set_get_delete_multiple_l1_jarr);
     CPPUNIT_TEST(test_delete_all);
     CPPUNIT_TEST_SUITE_END();
 
@@ -77,17 +79,14 @@ private:
 };
 
 void JudyHashMapTest::setUp() {
-    // STUB
-    //hash_map_ = 
-    //    std::make_shared<Utilities::JudyHashMap>();
+    // Create a new hash map for every new test
     hash_map_ = 
         std::make_shared<Utilities::JudyHashMap>();
 }
 
 void JudyHashMapTest::tearDown() {
-
     // Delete hashmap and recreate for next test
-    hash_map_->delete_hashmap();
+    //hash_map_->delete_hashmap();
 }
 
 /**
@@ -113,6 +112,8 @@ void JudyHashMapTest::test_set_get() {
             );
 
     CPPUNIT_ASSERT(val == *(&get_val));
+
+    hash_map_->print_map();
 
     return;
 }
@@ -335,6 +336,72 @@ void JudyHashMapTest::test_delete_all() {
 
     CPPUNIT_ASSERT(hash_map_->is_l0_null());
 
+}
+
+/**
+ * Tests adding, retrieving and deleting vertical elements
+ * on 2D Judy Hashmap
+ */
+void JudyHashMapTest::test_set_get_delete_multiple_l1_jarr() {
+    // Initialize values for test
+    uint64_t horizontal_index = 0;
+    uint64_t vertical_index = 0;
+    uint64_t val = 0;
+    uint64_t get_val = 0;
+    std::set<uint64_t> vertical_indices;
+    std::vector<uint64_t> l1_val;
+
+    // Generate random values for variables in test
+
+    // Generate random seed
+    srand((unsigned) time(NULL));
+
+    // Generate a random horizontal index
+    horizontal_index = rand();
+
+    // Set random 10 unique vertical indices at horizontal index
+    for (size_t i=0; i<10; i++) {
+        vertical_index = rand();
+        auto it = vertical_indices.insert(vertical_index);
+        if (it.second) {
+            // Unique vertical index, insert into map
+            val = vertical_index;
+            CPPUNIT_ASSERT(hash_map_->insert_element(
+                    horizontal_index,
+                    vertical_index,
+                    &val)
+                );
+            l1_val.push_back(val);
+        }
+    }
+
+    // Print map for debug
+    hash_map_->print_map();
+
+    // Delete few elements of the set
+    for (size_t i=0;i<3;i++) {
+        CPPUNIT_ASSERT(hash_map_->delete_element(
+                    horizontal_index,
+                    l1_val[i]
+                    )
+                );
+        hash_map_->print_map();
+    }
+
+    // Get remaining elements from l1 jarr
+    for (int i=3; i<10; i++) {
+        vertical_index = i;
+        CPPUNIT_ASSERT(hash_map_->get_element(
+                horizontal_index,
+                l1_val[i],
+                &get_val)
+            );
+
+         CPPUNIT_ASSERT(l1_val[i] == get_val);
+         get_val = 0;
+    }
+
+    return;
 }
 
 int main() {

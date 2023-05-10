@@ -34,6 +34,7 @@
 #pragma once
 #include "dss.h"
 #include "dss_block_allocator.h"
+#include "judy_hashmap.h"
 #include <iostream>
 #include <cstring>
 #include <memory>
@@ -45,9 +46,282 @@
 namespace BlockAlloc {
 
 /**
+ * Concrete class implementation for counter manager
+ */
+class CounterManager {
+public:
+    // Constructor
+    CounterManager(uint64_t total_blocks)
+        : total_blocks_(total_blocks),
+          total_allocated_blocks_(0),
+          total_free_blocks_(total_blocks)
+    {}
+
+    // Default destructor
+    ~CounterManager() = default;
+
+    // API to get allocated blocks on the allocator
+    uint64_t get_allocated_blocks() const { return total_allocated_blocks_; }
+    // API to get free blocks on the allocator
+    uint64_t get_free_blocks() const { return total_free_blocks_; }
+    // API to get total blocks managed by allocator
+    uint64_t get_total_blocks() const { return total_blocks_; }
+
+    // API only available in the inherited class
+protected:
+    /**
+     * @brief Invoked by inheriting allocator to keep track of allocated
+     *        blocks
+     * @param allocated_len, length to be accounted
+     */
+    virtual void record_allocated_blocks(const uint64_t& allocated_len)=0;
+
+    /**
+     * @brief Invoked by inheriting allocator to keep track of freed blocks
+     *        blocks
+     * @param allocated_len, length to be accounted
+     */
+    virtual void record_freed_blocks(const uint64_t& freed_len)=0;
+
+    uint64_t total_blocks_;
+    uint64_t total_allocated_blocks_;
+    uint64_t total_free_blocks_;
+
+};
+
+/**
+ * Concrete class implementation for Judy Seek Optimization
+ */
+class JudySeekOptimizer : public CounterManager {
+public:
+    // Constructor
+    JudySeekOptimizer(uint64_t total_blocks,
+            uint64_t start_block_offset, uint64_t optimal_ssd_write_kb)
+        : CounterManager(total_blocks),
+          total_blocks_(total_blocks),
+          start_block_offset_(start_block_offset),
+          optimal_ssd_write_kb_(optimal_ssd_write_kb),
+          jarr_free_lb_(NULL),
+          jarr_free_contig_len_(std::make_shared<Utilities::JudyHashMap>())
+    {
+        // Perform setup operation based on the input to constructor
+        if (!init()) {
+            // CXX log failed JudySeekOptimizer creation
+        }
+    }
+
+    // Default destructor
+    ~JudySeekOptimizer() {
+
+        int free_bytes = 0;
+        // Free judy array `jarr_free_lb_` only if it is not null
+        if (jarr_free_lb_ != NULL) {
+            free_bytes = JudyLFreeArray(&jarr_free_lb_, PJE0);
+            //CXX: Log free bytes freed
+            std::cout<<"Seek optimizer free bytes = "
+                <<free_bytes<<std::endl;
+        }
+        // Free judy hash map, `jarr_free_contig_len_`
+        //jarr_free_contig_len_->delete_hashmap();
+    }
+
+    /**
+     * @brief Initializes jarr_free_lb_ and jarr_free_contig_len_
+     *        judy array based structures
+     *        Invoked from the constructor
+     */
+    bool init();
+
+    /**
+     * @brief Tries to allocate total blocks at an hint lba
+     * @param hint_lb, start lb to allocate num_blocks
+     * @param num_blocks, total blocks requested to be allocated
+     *        at hint_lb (including hint_lb)
+     * @param[OUT] allocated_lb, actually lb where the num_blocks 
+     *             are allocated
+     * @return boolean, `allocated_lb` is only meaningful when the
+     *         return is `true`
+     */
+    bool allocate_lb(const uint64_t& hint_lb,
+            const uint64_t& num_blocks, uint64_t& allocated_lb);
+
+    /**
+     * @brief Clears a range of lbas, beginning from lb
+     * @param lb, start lb to de-allocate num_blocks
+     * @param num_blocks, total blocks requested to be deallocated
+     *        from lb
+     */
+    void free_lb(const uint64_t& lb, const uint64_t& num_blocks);
+
+    /**
+     * Debug API to look at jarr_free_lb_ and jarr_free_contig_len_
+     */
+    void print_map() const;
+
+private:
+
+    /**
+     * @brief Checks if a current free chunk is mergable with its
+     *        neighbors
+     * @param request_lb, lb of the free chunk to be merged
+     * @param request_len, length of the free chunk to be merged
+     * @param[OUT] prev_neighbor_lb, is the lb of the previous neighbor; if
+     *             mergable. This is 0 otherwise
+     * @param[OUT] prev_neighbo_len, length of the previous neighbor
+     * @param[OUT] next_neighbor_lb, is the lb of the next neighbor; if
+     *             mergable. This is 0 otherwise
+     * @param[OUT] next_neighbor_len, length of the next neighbor
+     * @return boolean, all [OUT] variables only have meaning when true
+     */
+    bool is_mergable(
+            const uint64_t& request_lb,
+            const uint64_t& request_len,
+            uint64_t& prev_neighbor_lb,
+            uint64_t& prev_neighbor_len,
+            uint64_t& next_neighbor_lb,
+            uint64_t& next_neighbor_len
+            ) const;
+
+    /**
+     * @brief Removes elements from jarr_free_lb_ and jarr_free_contig_len_
+     * @param request_lb, lb number to be removed from jarr_free_lb_
+     * @param request_len, len associated with lb to be removed from
+     *        jarr_free_contig_len_
+     */
+    void remove_element(
+            const uint64_t& request_lb, const uint64_t& request_len);
+
+    /**
+     * @brief Add elements to jarr_free_lb_ and jarr_free_contig_len_
+     * @param request_lb, lb to be added to jarr_free_lb_
+     * @param request_len, len associated with lb to be added to
+     *        jarr_free_contig_len_
+     * @return boolean
+     */
+    bool add_element(
+            const uint64_t& request_lb, const uint64_t& request_len);
+
+    /**
+     * @brief Checks if the previous chunk on jarr_free_lb_ is allocable
+     * @param request_lb, previous lb of this `request_lb` is checked
+     * @param request_len, actual len of request that needs to be allocated
+     * @param[OUT] neighbor_len, if neighbor found; free len in the previous
+     *             chunk
+     * @param[OUT] neighbor_lb, if neighbor found; lb of the previous free
+     *             chunk
+     * @return boolean, neighbor_lb and neighbor_len only have meaning when
+     *         return is `true`
+     */
+    bool is_prev_neighbor_allocable(
+            const uint64_t& request_lb,
+            const uint64_t& request_len,
+            uint64_t& neighbor_lb,
+            uint64_t& neighbor_len
+            ) const;
+
+    /**
+     * @brief Checks if the next chunk on jarr_free_lb_ is allocable
+     * @param request_lb, next lb of this `request_lb` is checked
+     * @param request_len, actual len of request that needs to be allocated
+     * @param[OUT] neighbor_len, if neighbor found; free len in the next
+     *             chunk
+     * @param[OUT] neighbor_lb, if neighbor found; lb of the next free
+     *             chunk
+     * @return boolean, neighbor_lb and neighbor_len only have meaning when
+     *         return is `true`
+     */
+    bool is_next_neighbor_allocable(
+            const uint64_t& request_lb,
+            const uint64_t& request_len,
+            uint64_t& neighbor_lb,
+            uint64_t& neighbot_len
+            ) const;
+
+    /**
+     * @brief Splits a free chunk identified by curr_lb for request_lb, len
+     * @param curr_lb, lb of the current free chunk
+     * @param curr_len, len of the current free chunk
+     * @param request_lb, lb of the requested chunk
+     * @param request_len, len of the requested chunk
+     * @param[OUT] allocated_lb, actual start lb for allocated block
+     * @return boolean, `allocated_lb` only has meaning when true
+     */
+    bool split_curr_chunk(
+            const uint64_t& curr_lb,
+            const uint64_t& curr_len,
+            const uint64_t& request_lb,
+            const uint64_t& request_len,
+            uint64_t& allocated_lb
+            );
+
+    /**
+     * @brief Splits a previous free chunk identified by curr_lb for
+     *        request_lb, request_len
+     * @param prev_lb, lb of the previous free chunk
+     * @param prev_len, len of the previous free chunk
+     * @param request_len, len of the requested chunk
+     * @param[OUT] allocated_lb, actual start lb for allocated block
+     * @return boolean, `allocated_lb` only has meaning when true
+     */
+    bool split_prev_chunk(
+            const uint64_t& prev_lb,
+            const uint64_t& prev_len,
+            const uint64_t& request_len,
+            uint64_t& allocated_lb
+            );
+
+    /**
+     * @brief Splits a next free chunk identified by curr_lb for
+     *        request_lb, request_len
+     * @param next_lb, lb of the next free chunk
+     * @param next_len, len of the next free chunk
+     * @param request_len, len of the requested chunk
+     * @param[OUT] allocated_lb, actual start lb for allocated block
+     * @return boolean, `allocated_lb` only has meaning when true
+     */
+    bool split_next_chunk(
+            const uint64_t& next_lb,
+            const uint64_t& next_len,
+            const uint64_t& request_len,
+            uint64_t& allocated_lb
+            );
+
+    /**
+     * @brief Merges a free chunk identified by request_lb
+     *        with its neighbors
+     * @param request_lb, lb of the free chunk
+     * @param request_len, length of the free chunk
+     * @param next_lb, lb of the next free chunk
+     * @param next_len, len of the next free chunk
+     * @param prev_lb, lb of the previous chunk
+     * @param prev_len, len of the next chunk
+     */
+    void merge(
+            const uint64_t& request_lb,
+            const uint64_t& request_len,
+            const uint64_t& next_lb,
+            const uint64_t& next_len,
+            const uint64_t& prev_lb,
+            const uint64_t& prev_len
+            );
+
+    // CounterManager protected API
+    void record_allocated_blocks(const uint64_t& allocated_len) override;
+    void record_freed_blocks(const uint64_t& freed_len) override;
+
+    uint64_t total_blocks_;
+    uint64_t start_block_offset_;
+    uint64_t optimal_ssd_write_kb_;
+    void *jarr_free_lb_;
+    Utilities::JudyHashMapSharedPtr jarr_free_contig_len_;
+};
+
+using JudySeekOptimizerSharedPtr = std::shared_ptr<JudySeekOptimizer>;
+
+/**
  * Abstract class to interface with API in `dss_block_allocator.h`
  */
-class Allocator{
+class Allocator {
 public:
 
     // Default destructor
@@ -265,7 +539,6 @@ public:
             dss_io_task_t *io_task);
 
     AllocatorSharedPtr allocator;
-
 };
 
 using BlockAllocatorSharedPtr = std::shared_ptr<BlockAllocator>;

@@ -35,6 +35,9 @@
 
 #include "Judy.h"
 #include <memory>
+// uncomment to disable assert()
+// #define NDEBUG
+#include <cassert>
 
 namespace Utilities {
 
@@ -50,6 +53,11 @@ public:
     JudyHashMap()
         : jarr_l0_(NULL)
     {}
+
+    // Destructor
+    /*~JudyHashMap() {
+        delete_hashmap();
+    }*/
 
     /**
      * Insert into 2D (l0, l1) Judy Hashmap
@@ -85,6 +93,18 @@ public:
     bool get_element(
             const uint64_t& horizontal_index,
             const uint64_t& vertical_index,
+            uint64_t* const value
+            ) const;
+
+    /**
+     * Get first l1 element at l0 horizontal index from 2D (l0, l1) 
+     * Judy Hashmap
+     * - @param `horizontal index` index on l0 judy array
+     *   @return `value` is the pointer to the value inside hashmap
+     *   @return boolean, value can only be used when `true` is returned
+     */
+    bool get_first_l1_element(
+            const uint64_t& horizontal_index,
             uint64_t* const value
             ) const;
 
@@ -140,6 +160,11 @@ public:
      * API to check if jarr_l0_ is null
      */
     bool is_l0_null();
+
+    /**
+     * Debug API to print map
+     */
+    void print_map();
 
 private:
     void *jarr_l0_;

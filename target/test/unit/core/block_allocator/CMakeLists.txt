@@ -50,14 +50,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_COMPILER "g++")
 
 add_executable(test_bitmap_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
                                 test_bitmap_impl.cc)
 
 target_include_directories(test_bitmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
                                                     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                                     ${CMAKE_SOURCE_DIR}/include/apis)
 
-target_link_libraries(test_bitmap_impl ${UNIT_LIBS})
+target_link_libraries(test_bitmap_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
 target_compile_options(test_bitmap_impl PRIVATE -Wall -g -std=gnu++11)
+add_dependencies(test_bitmap_impl judy_hashmap)
 
 # Tests for Judy hashmap implementation with cppunit
 add_executable(test_judy_hashmap_impl test_judy_hashmap_impl.cc)
@@ -65,10 +68,17 @@ add_executable(test_judy_hashmap_impl test_judy_hashmap_impl.cc)
 target_include_directories(test_judy_hashmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
 
 target_link_libraries(test_judy_hashmap_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
-target_compile_options(test_judy_hashmap_impl PRIVATE -g -Wall -std=gnu++11)
+target_compile_options(test_judy_hashmap_impl PRIVATE -DJUDYERROR_NOTEST -g -Wall -std=gnu++11)
 add_dependencies(test_judy_hashmap_impl judy_hashmap)
 
+# Tests for bitmap implementation with cppunit
+add_executable(test_seek_optimization_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                                test_seek_optimization_impl.cc)
 
+target_include_directories(test_seek_optimization_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
+                                                    ${CMAKE_SOURCE_DIR}/include/apis)
 
-
-
+target_link_libraries(test_seek_optimization_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
+target_compile_options(test_seek_optimization_impl PRIVATE -Wall -g -std=gnu++11)
+add_dependencies(test_seek_optimization_impl judy_hashmap)

@@ -56,8 +56,11 @@ class QwordVector64Cell : public AllocatorType::BitMap,
                           public BlockAlloc::Allocator {
 public:
     // Constructor of the class
-    explicit QwordVector64Cell(int total_cells, uint8_t bits_per_cell)
-        : cells_(total_cells),
+    explicit QwordVector64Cell(
+            BlockAlloc::JudySeekOptimizerSharedPtr jso,
+            int total_cells, uint8_t bits_per_cell)
+        : jso_(std::move(jso)),
+          cells_(total_cells),
           bits_per_cell_(
             ((bits_per_cell > BITS_PER_QUAD_WORD) || (bits_per_cell == 0))?
             BITS_PER_QUAD_WORD : bits_per_cell),
@@ -145,11 +148,12 @@ public:
         return BLK_ALLOCATOR_STATUS_SUCCESS; }
 
 private:
-  int cells_;
-  uint8_t bits_per_cell_;
-  int cells_per_qword_;
-  std::vector<uint64_t> data_;
-  uint8_t read_cell_flag_;
+    BlockAlloc::JudySeekOptimizerSharedPtr jso_;
+    int cells_;
+    uint8_t bits_per_cell_;
+    int cells_per_qword_;
+    std::vector<uint64_t> data_;
+    uint8_t read_cell_flag_;
 };
 
 } // End AllocatorType namespace
