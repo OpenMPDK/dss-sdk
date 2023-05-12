@@ -70,7 +70,6 @@ if(NKV_WITH_SAMSUNG_API)
   add_definitions(-DKVS_REMOTE)
 endif()
 
-
 if(NKV_WITH_REMOTE)
   set(SAMSUNG_API ON CACHE BOOL "Enable Samsung API functionality" FORCE)
   set(KVS_REMOTE ON CACHE BOOL "Enable KVS Remote API functionality" FORCE)
@@ -124,7 +123,7 @@ set(KVS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/include)
 set(NKV_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/include_private)
 
 add_library(nkvapi SHARED ${SOURCES_NKV_KDD} ${HEADERS_NKV_KDD})
-target_include_directories(nkvapi PRIVATE ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${RDD_CL_INCLUDE_DIR})
+target_include_directories(nkvapi PUBLIC ${KVS_INCLUDE_DIR} ${NKV_INCLUDE_DIR} ${RDD_CL_INCLUDE_DIR})
 target_link_libraries (nkvapi ${NKVAPI_LIBS})
 add_dependencies(nkvapi rdd_cl)
 add_dependencies(nkvapi smglog zmqpp)
@@ -152,6 +151,7 @@ message(STATUS "Command = ${git_cmd} ${git_arg} , result =  ${dss_result} : ${ds
 
 add_custom_command(
 	TARGET nkv_test_cli POST_BUILD
+	COMMAND mkdir -p ${CMAKE_BINARY_DIR}/include
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib
 	COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin
@@ -173,9 +173,10 @@ add_custom_command(
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/scripts/start.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/bin/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/kvssd_emul.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/src/openmpdk/PDK/core/env_init.conf ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/include/rdd_cl_api.h ${CMAKE_BINARY_DIR}/include/
+	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/rdd_cl/rdd_cl.h ${CMAKE_BINARY_DIR}/include/
 	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
-	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/include/rdd_cl_api.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
-	COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/../utils/rdd_cl/rdd_cl.h ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
+	COMMAND cp ${CMAKE_BINARY_DIR}/include/* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/include/
 	COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib/libsmglog/*.so ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
 	#COMMAND cp -av ${CMAKE_CURRENT_BINARY_DIR}/lib/log4cpp/*.so* ${CMAKE_CURRENT_BINARY_DIR}/nkv-sdk/lib/
