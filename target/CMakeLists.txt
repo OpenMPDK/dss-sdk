@@ -240,6 +240,17 @@ SET(IO_TASK_HEADERS
     ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.h
 )
 
+# KV Translator
+SET(KVTRANS_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+)
+
+SET(KVTRANS_HEADERS
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.h
+)
+
 #
 # QOS library build rules (shared)
 #
@@ -378,6 +389,7 @@ endif(WITH_ROCKSDB_KV)
 
 include_directories (${CMAKE_SOURCE_DIR}/include)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
+include_directories (${CMAKE_SOURCE_DIR}/utils)
 
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
@@ -450,6 +462,8 @@ SET(DSS_FILES
     ${IO_TASK_SOURCES}
     ${IO_TASK_HEADERS}
     ${UTIL_SOURCES}
+    ${KVTRANS_SOURCES}
+    ${KVTRANS_HEADERS}
 )
 
 add_library(oss STATIC ${DSS_FILES})
@@ -662,6 +676,7 @@ add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
 add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
 add_test(NAME test_judy_hashmap_impl COMMAND test_judy_hashmap_impl)
 add_test(NAME test_seek_optimization_impl COMMAND test_seek_optimization_impl)
+add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
 
 enable_testing()
 

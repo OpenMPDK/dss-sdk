@@ -30,7 +30,25 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(framework)
-add_subdirectory(block_allocator)
-add_subdirectory(io_task)
-add_subdirectory(kvtrans)
+add_executable(kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
+                          ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+                          ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
+                          ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
+                          ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+                          ${CMAKE_SOURCE_DIR}/utils/keygen.cc
+                          ${CMAKE_SOURCE_DIR}/utils/crc32.cc
+                          ${CMAKE_SOURCE_DIR}/utils/dss_keygen.c
+                          ${CMAKE_SOURCE_DIR}/utils/adv_random.h
+                          kvtrans_ut.c)
+
+include_directories(${CMAKE_SOURCE_DIR}/core/kvtrans)
+include_directories(${CMAKE_SOURCE_DIR}/core/block_allocator)
+include_directories(${CMAKE_SOURCE_DIR}/include/apis)
+include_directories(${CMAKE_SOURCE_DIR}/utils)
+
+# include_directories(${CMAKE_SOURCE_DIR}/oss/spdk_tcp/dpdk/config)
+target_compile_options(kvtrans_ut PRIVATE -g)
+target_link_libraries(kvtrans_ut -L${CMAKE_BINARY_DIR} -ljudyL ${UNIT_LIBS} -lm )
+add_dependencies(kvtrans_ut judyL)
