@@ -56,6 +56,7 @@ dss_kvtrans_status_t dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, uint64_t inde
     if (state==EMPTY) {
        rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
     } else {
+        DSS_ASSERT(blk_num==1);
         rc = dss_blk_allocator_set_blocks_state(ctx->blk_alloc_ctx, index, blk_num, state);
     }
     if (rc) {
@@ -490,6 +491,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     dss_blk_allocator_set_default_config(NULL, &config);
 
     config.blk_allocator_type = "simbmap_allocator";
+    // config.blk_allocator_type = "block_impresario";
     config.num_total_blocks = BLK_NUM;
     // exclude empty state
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
@@ -709,14 +711,13 @@ dss_kvtrans_status_t find_data_blocks(blk_ctx_t *ctx, dss_blk_allocator_context_
     if (num_blocks==0) {
         return KVTRANS_STATUS_SUCCESS;
     } 
-    uint64_t allocated_start_block;
-    value_loc_t v_entry; 
+    uint64_t allocated_start_block = 0;
 
-    if(dss_blk_allocator_alloc_blocks_contig(blk_alloc, EMPTY, 
+    if(dss_blk_allocator_alloc_blocks_contig(blk_alloc, DATA, 
         ctx->index+1, num_blocks, &allocated_start_block)==BLK_ALLOCATOR_STATUS_SUCCESS) {
-        v_entry.value_index = allocated_start_block;
-        v_entry.num_chunks = num_blocks;
-        ctx->blk->place_value[ctx->blk->num_valid_place_value_entry] = v_entry;
+        DSS_ASSERT(allocated_start_block>0 && allocated_start_block<BLK_NUM);
+        ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
+        ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
         if (allocated_start_block!=ctx->index+1) {
             ctx->vctx.remote_val_blocks++;
         }
@@ -776,22 +777,22 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
             kvtrans_ctx->stat.data_scatter++;
             blk->value_location = HYBIRD;
         }   
-        for (i=0; i<blk->num_valid_place_value_entry; i++) {
-            rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
-                                            blk_ctx->blk->place_value[i].num_chunks, DATA);
-            if (rc) {
-                printf("ERROR: blk_allocator set block state failed. index: %zu, blk_num: %d\n", 
-                blk_ctx->blk->place_value[i].value_index, blk_ctx->blk->place_value[i].num_chunks);
-                // roll back
-                int j;
-                for (j=0; j<i; j++) {
-                    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
-                                            blk_ctx->blk->place_value[i].num_chunks, EMPTY);
-                    if (rc) return KVTRANS_ROLL_BACK_ERROR;
-                }
-                return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
-            }      
-        }
+        // for (i=0; i<blk->num_valid_place_value_entry; i++) {
+        //     // rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
+        //     //                                 blk_ctx->blk->place_value[i].num_chunks, DATA);
+        //     if (rc) {
+        //         printf("ERROR: blk_allocator set block state failed. index: %zu, blk_num: %d\n", 
+        //         blk_ctx->blk->place_value[i].value_index, blk_ctx->blk->place_value[i].num_chunks);
+        //         // roll back
+        //         int j;
+        //         for (j=0; j<i; j++) {
+        //             rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
+        //                                     blk_ctx->blk->place_value[i].num_chunks, EMPTY);
+        //             if (rc) return KVTRANS_ROLL_BACK_ERROR;
+        //         }
+        //         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
+        //     }      
+        // }
     }
     return rc;
 }
@@ -843,14 +844,22 @@ dss_kvtrans_status_t _blk_del_value(void *ctx) {
                     // e_idx is a DATA COLLISION blk
                     if (s_idx!=e_idx) {
                         rc = dss_kvtrans_set_blk_state(kvtrans_ctx, s_idx, e_idx-s_idx, EMPTY);
-                        if(rc){
-                            return rc;
-                        }
+                        if(rc) return rc;
                     }
+                    // the ori_state of e_idx is EMPTY
                     rc = dss_kvtrans_dc_table_update(kvtrans_ctx, e_idx, EMPTY);
                     s_idx = e_idx + 1;
+                } else if (e_idx==s_idx && s_idx==index+blk_num) {
+                    // if the last blk is not a data collision
+                    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, s_idx, 1, EMPTY);
+                    if(rc) return rc;
                 }
                 e_idx++;
+            }
+            if (s_idx!=e_idx) {
+                // handle cases if the rest of blks are not data collision blks
+                rc = dss_kvtrans_set_blk_state(kvtrans_ctx, s_idx, e_idx-s_idx, EMPTY);
+                if (rc) return rc;
             }
         }
         memset(&blk->place_value, 0, sizeof(value_loc_t)*blk->num_valid_place_value_entry);
@@ -959,10 +968,10 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
     //     return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
     // }
     
-    if(dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, EMPTY, blk_ctx->index + 1,
+    if(dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, DATA, blk_ctx->index + 1,
         meta_blk->vctx.value_blocks + 1, &meta_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
         // allocate any EMPTY block for META
-        if (dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, EMPTY, blk_ctx->index + 1,
+        if (dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, META, blk_ctx->index + 1,
         1, &meta_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
             printf("Error: out of spaces");
             exit(1);
@@ -1286,6 +1295,7 @@ next_op:
         blk_ctx->kctx.dc_index = 0;
         memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
         rc = _alloc_entry_block(ctx, kreq);
+        if (rc) return rc;
         goto next_op;
     case QUEUE_TO_LOAD_ENTRY:
         if (iscb_valid(kreq)) {
@@ -1306,6 +1316,8 @@ next_op:
         } else {
             rc = blk_ctx->kctx.ops.update_blk((void *)blk_ctx);
         }
+        if (rc) return rc;
+
         if (kreq->state==ENTRY_LOADING_DONE) {
             // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
             // dss_io_task_submit(*kreq->io_tasks);
@@ -1372,7 +1384,8 @@ next_op:
         // col_ext is saved in blk_ctx->next;
         DSS_ASSERT(blk_ctx->blk->num_valid_col_entry==MAX_COL_TBL_SIZE);
         if (blk_ctx->next->blk->num_valid_col_entry==0) {
-            _remove_entry_in_col_tbl(blk_ctx, blk_ctx->blk->num_valid_col_entry-1);
+            rc = _remove_entry_in_col_tbl(blk_ctx, blk_ctx->blk->num_valid_col_entry-1);
+            if (rc) return rc;
             blk_ctx->next->kctx.ops = g_blk_register[META];
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
             if (rc) return rc;
