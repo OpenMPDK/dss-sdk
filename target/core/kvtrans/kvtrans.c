@@ -928,6 +928,9 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx) {
     if (!blk_ctx->nothash) {
         // META blk is located by hashing. We need to alloc value blocks seperately.
         blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+        if (dss_blk_allocator_alloc_blocks_contig(blk_ctx, state, blk_ctx->index, 1, NULL)) {
+            return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
+        }
     }
     
     blk_ctx->blk->isvalid = true;
@@ -938,8 +941,8 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx) {
     rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq);
     if (rc) return rc;
 
-    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->index, 1, state);
-    if (rc) return rc;
+    // rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->index, 1, state);
+    // if (rc) return rc;
  
     if (state==META) kvtrans_ctx->stat.meta++; 
     else kvtrans_ctx->stat.mdc++;
