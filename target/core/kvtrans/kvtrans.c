@@ -761,6 +761,15 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
         memcpy(blk->value_buffer, req->req_value.value, req->req_value.length);
     } else {
         memset(&blk->place_value, 0, sizeof(value_loc_t) * blk->num_valid_place_value_entry);
+        if (blk_ctx->vctx.iscontig) {
+            // data has been allocated with meta
+            blk_ctx->vctx.remote_val_blocks = 0;
+            blk->value_location = CONTIG;
+            blk->num_valid_place_value_entry = 1;
+            blk->place_value[0].num_chunks = blk_ctx->vctx.value_blocks;
+            blk->place_value[0].value_index = blk_ctx->index+1;
+            return KVTRANS_STATUS_SUCCESS;
+        }
         blk->num_valid_place_value_entry = 0;
         blk_ctx->vctx.remote_val_blocks = 0;
         rc = find_data_blocks(blk_ctx, blk_alloc, blk_ctx->vctx.value_blocks);
@@ -776,23 +785,7 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
          } else {
             kvtrans_ctx->stat.data_scatter++;
             blk->value_location = HYBIRD;
-        }   
-        // for (i=0; i<blk->num_valid_place_value_entry; i++) {
-        //     // rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
-        //     //                                 blk_ctx->blk->place_value[i].num_chunks, DATA);
-        //     if (rc) {
-        //         printf("ERROR: blk_allocator set block state failed. index: %zu, blk_num: %d\n", 
-        //         blk_ctx->blk->place_value[i].value_index, blk_ctx->blk->place_value[i].num_chunks);
-        //         // roll back
-        //         int j;
-        //         for (j=0; j<i; j++) {
-        //             rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->blk->place_value[i].value_index, 
-        //                                     blk_ctx->blk->place_value[i].num_chunks, EMPTY);
-        //             if (rc) return KVTRANS_ROLL_BACK_ERROR;
-        //         }
-        //         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
-        //     }      
-        // }
+        }
     }
     return rc;
 }
@@ -906,6 +899,8 @@ uint64_t _get_num_blocks_required_for_value(req_t *req) {
 static dss_kvtrans_status_t init_meta_blk(void *ctx) {
     dss_kvtrans_status_t rc;
     blk_state_t state;
+    int i;
+    uint64_t allocated_start_lba;
     blk_ctx_t *blk_ctx = (blk_ctx_t *) ctx;
     ondisk_meta_t *blk = blk_ctx->blk; 
     kvtrans_req_t *kreq = blk_ctx->kreq;
@@ -928,18 +923,25 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx) {
     if (!blk_ctx->nothash) {
         // META blk is located by hashing. We need to alloc value blocks seperately.
         blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
-        if (dss_blk_allocator_alloc_blocks_contig(blk_ctx, state, blk_ctx->index, 1, NULL)) {
+        // TODO: change allocated_start_lba to NULL
+        if (dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, state, 
+                blk_ctx->index, 1, &allocated_start_lba)) {
             return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
         }
+        DSS_ASSERT(allocated_start_lba==blk_ctx->index);
     }
     
     blk_ctx->blk->isvalid = true;
 
     rc = _blk_init_value(ctx);
-    if (rc) return rc;
+    if (rc) {
+        goto roll_back;
+    }
 
     rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq);
-    if (rc) return rc;
+    if (rc) {
+        goto roll_back;
+    }
 
     // rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->index, 1, state);
     // if (rc) return rc;
@@ -947,6 +949,22 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx) {
     if (state==META) kvtrans_ctx->stat.meta++; 
     else kvtrans_ctx->stat.mdc++;
 
+    return rc;
+
+roll_back:
+    printf("ROLL_BACK: error happens at index %zu, rollback meta and data states\n", blk_ctx->index);
+    // rollback value state
+    if (blk_ctx->blk->num_valid_place_value_entry>0) {
+        for(i=0; i++; i<blk_ctx->blk->num_valid_place_value_entry) {
+            if(dss_kvtrans_set_blk_state(kvtrans_ctx, blk->place_value[i].value_index, 
+                    blk->place_value[i].num_chunks, EMPTY))
+                return KVTRANS_ROLL_BACK_ERROR;
+        }
+    }
+
+    // rollback meta state
+    if(dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->index, 1, EMPTY))
+        return KVTRANS_ROLL_BACK_ERROR;
     return rc;
 }
 
@@ -978,6 +996,15 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
         1, &meta_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
             printf("Error: out of spaces");
             exit(1);
+        }
+    } else {
+        // get 4 blocks as DATA
+        blk_ctx->vctx.iscontig = true;
+        if(dss_kvtrans_set_blk_state(kvtrans_ctx, meta_blk->index, 1, META)) {
+            // falied
+            if(dss_kvtrans_set_blk_state(kvtrans_ctx, meta_blk->index, meta_blk->vctx.value_blocks + 1, EMPTY)) {
+                return KVTRANS_ROLL_BACK_ERROR;
+            }
         }
     }
     
@@ -1295,7 +1322,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
 next_op:
     switch (kreq->state) {
     case REQ_INITIALIZED:
-        blk_ctx->kctx.dc_index = 0;
+        // blk_ctx->kctx.dc_index = 0;
+        // memset(&blk_ctx->vctx, 0, sizeof(blk_val_ctx_t));
+        memset(blk_ctx, 0, sizeof(blk_ctx_t));
         memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
         rc = _alloc_entry_block(ctx, kreq);
         if (rc) return rc;
