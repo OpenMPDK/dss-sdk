@@ -160,7 +160,22 @@ g_subsystem_namespace_text = """
   Namespace  "%(num)sn1" %(nsid)d"""
 #  Namespace  Nvme%(num)sn1 %(nsid)d"""
 
+g_rdd_header_text = """
 
+[RDD]
+  # If `num_cq_cores_per_ip ` or `max_sgl_segs` is not preset default will be used
+  # These two are not necessary in a regular deployment but options to configure this if needed might be useful
+  # For default deployment only configure listen IP/Port
+  # num_cq_cores_per_ip 4
+  # max_sgl_segs 8
+  # Listen IP can be both IPv6 or IPv4
+  # Listen port needs to be different than one in subsystem config
+"""
+
+g_rdd_subsystem_listen_text = """
+  Listen %(ip_addr)s:%(port)d"""
+
+g_gen2 = False
 g_kv_firmware = ["ETA41KBU"]
 # g_block_firmware = ["EDB8000Q"]
 g_block_firmware = [""]
@@ -404,7 +419,7 @@ def get_numa_ip(ip_list):
 
     return s0, s1
 
-
+# TODO: add gen2 support here
 def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_address):
     """
     Create configuration file for NKV NVMf by writing all
@@ -616,6 +631,26 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subtext += subsystem_text
 
+    # Gen2 RDD Support
+    # TODO: replace port with var from ansible
+    if g_gen2:
+        subtext += g_rdd_header_text
+        # add subsystem Listen ips and ports
+        for ip in ip_addrs:
+            subtext += g_rdd_subsystem_listen_text % {
+                "ip_addr": str(ip),
+                "port": 1234
+            }
+        subtext += "\n"
+
+        # parse front end ips
+        for alias in g_tcp_alias_list[0]:
+            subtext += g_rdd_subsystem_listen_text % {
+                "ip_addr": str(alias['tcp_ip']),
+                "port": 1234
+            }
+        subtext += "\n"
+
     # Write the file out again
     with open(config_file, "w") as fe:
         fe.write(g_conf_global_text)
@@ -808,7 +843,15 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description="Configures the system/device(s) and generates necessary config file to run target application"
         )
+        import ast
         # prefixing the argument with -- means it's optional
+        parser.add_argument(
+            "-g2",
+            "--gen2",
+            action='store_true',
+            required=False,
+            help="Specifies if Gen2 version of target should be configured"
+        )
         parser.add_argument(
             "-c",
             "--config_file",
@@ -859,6 +902,9 @@ The most commonly used dss target commands are:
             "-tcp", "--tcp", type=int, required=False, help="enable TCP support"
         )
         parser.add_argument(
+            "-tcp_alias_list", "--tcp_alias_list", type=ast.literal_eval, nargs="+", required=False, help="front end tcp minio endpoints"
+        )
+        parser.add_argument(
             "-rdma", "--rdma", type=int, required=False, help="enable RDMA support"
         )
         parser.add_argument(
@@ -887,8 +933,12 @@ The most commonly used dss target commands are:
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma
+
+        global g_gen2
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_tcp_alias_list, g_rdma
         global g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
+        if args.gen2:
+            g_gen2 = args.gen2
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -899,6 +949,8 @@ The most commonly used dss target commands are:
             g_wal = args.wal
         if args.tcp is not None:
             g_tcp = args.tcp
+        if args.tcp_alias_list is not None:
+            g_tcp_alias_list = args.tcp_alias_list
         if args.rdma is not None:
             g_rdma = args.rdma
         if args.kv_ssc:
@@ -944,6 +996,7 @@ The most commonly used dss target commands are:
         )
         if ret != 0:
             print("*** ERROR: Creating configuration file ***")
+        
         if g_kvblock_vmmode:
             generate_core_mask_vmmode(mp.cpu_count())
         else:
