@@ -84,6 +84,7 @@ void JudySeekOptimizer::remove_element(
     // 1. Delete from judy free lb array
     rc = JudyLDel(
             &jarr_free_lb_, (Word_t)request_lb, PJE0);
+
     // rc can not be anything but 1
     if(rc != 1) {
         std::cout<<"Remove from jarr_free_lb failed"<<std::endl;
@@ -237,12 +238,14 @@ bool JudySeekOptimizer::split_curr_chunk(
     if (request_lb < curr_lb) {
         // API can not be used without the above check
         allocated_lb = 0;
+        assert(("ERROR", false));
         return false;
     }
 
     if (request_len > curr_len) {
         // API can not be used without the above check
         allocated_lb = 0;
+        assert(("ERROR", false));
         return false;
     }
 
@@ -467,6 +470,11 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
     bool is_allocable = false;
     uint64_t last_block_lb = total_blocks_ - start_block_offset_ - 1;
 
+    if (CounterManager::get_allocated_blocks() == 0) {
+        // CXX: Add to notice log
+        std::cout<<"Allocated blocks are 0"<<std::endl;
+    }
+
     // Sanity bounds check
     if (hint_lb > last_block_lb ||
             num_blocks > CounterManager::get_free_blocks()) {
@@ -495,13 +503,15 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
         // Check previous neighbor
         if (is_prev_neighbor_allocable(
                     hint_lb, num_blocks, neighbor_lb, neighbor_len)) {
-            // CXX: Log previous allocable `neighbor_lb` and `neighbor_len`
+            // CXX: Log previous allocable `neighbor_lb` and `
+            // neighbor_len`
 
-            // Check if the hint_lb and num_blocks are available to allocate
-            // exactly in the previous neighbor
+            // Check if the hint_lb and num_blocks are available to
+            // allocate exactly in the previous neighbor
             neighbor_last_lb = (neighbor_lb + neighbor_len) - 1;
             if (neighbor_last_lb > hint_lb) {
-                // Perform split operation treating neighbor as current chunk
+                // Perform split operation treating neighbor as
+                // current chunk
                 if (split_curr_chunk(neighbor_lb, neighbor_len,
                             hint_lb, num_blocks, allocated_lb)) {
                     is_allocable = true;
@@ -515,7 +525,8 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
         if (!is_allocable) {
             // Check next neighbor
             if (is_next_neighbor_allocable(
-                        hint_lb, free_len, neighbor_lb, neighbor_len)) {
+                        hint_lb, free_len,
+                        neighbor_lb, neighbor_len)) {
                 // Perform split next operation
                 if (split_next_chunk(neighbor_lb,
                             neighbor_len, num_blocks, allocated_lb)) {
@@ -533,23 +544,26 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
         // Search jarr_free_contig_len_ with num_blocks to allocate
         if (jarr_free_contig_len_->get_first_l1_element(
                     num_blocks, &free_contig_lb)) {
-            // Found a contiguous block at `free_contig_lb` with num_blocks
+            // Found a contiguous block at `free_contig_lb` with
+            // num_blocks
             // Perform split next operation
             if (split_next_chunk(free_contig_lb,
                         num_blocks, num_blocks, allocated_lb)) {
                 is_allocable = true;
             } else {
-                // No such free contiguous chunk is found, search for the
-                // next bigger chunk if any
-                is_next_free = jarr_free_contig_len_->get_next_l0_element(
+                // No such free contiguous chunk is found,
+                // search for the next bigger chunk if any
+                is_next_free =
+                    jarr_free_contig_len_->get_next_l0_element(
                                 num_blocks,
                                 &free_contig_val,
                                 free_contig_indexl0,
                                 free_contig_indexl1
                                 );
                 if(is_next_free) {
-                    // Found a contiguous block at `free_contig_lb` whose
-                    // indices are indexl0(free len) & indexl1(lb)
+                    // Found a contiguous block at `free_contig_lb`
+                    // whose indices are indexl0(free len) &
+                    // indexl1(lb)
 
                     // Perform split next operation
                     if (split_next_chunk(free_contig_indexl1,
@@ -571,7 +585,6 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
     }
 }
 
-
 bool JudySeekOptimizer::is_mergable(
         const uint64_t& request_lb,
         const uint64_t& request_len,
@@ -585,6 +598,10 @@ bool JudySeekOptimizer::is_mergable(
     bool rc = false;
     bool check_prev_mergable = false;
     bool check_next_mergable = false;
+    next_neighbor_lb = request_lb;
+    prev_neighbor_lb = request_lb;
+    uint64_t next_neighbor_last_lb = 0;
+    uint64_t prev_neighbor_last_lb = 0;
 
     // Find the next neighbor lb, if any
     ptr_j_entry = (Word_t *)JudyLNext(
@@ -595,6 +612,22 @@ bool JudySeekOptimizer::is_mergable(
         next_neighbor_len = 0;
     } else {
         next_neighbor_len = *(uint64_t *)ptr_j_entry;
+        // Sanity check, so that free chunk to merged is
+        // already freed
+        if (request_lb == next_neighbor_lb) {
+            // Logic bug, trying to free which
+            // is already freed
+            assert(("ERROR", false));
+        }
+        next_neighbor_last_lb =
+            (next_neighbor_lb + next_neighbor_len) - 1;
+        if (request_lb > next_neighbor_lb &&
+                request_lb < next_neighbor_last_lb) {
+            // Logic bug, trying to free which
+            // is already freed
+            assert(("ERROR", false));
+        }
+
         check_next_mergable = true;
     }
 
@@ -603,6 +636,10 @@ bool JudySeekOptimizer::is_mergable(
         if (request_lb + request_len == next_neighbor_lb) {
             // Next is mergable
             rc = true;
+        } else {
+            // reset next_neighbor_len so that it is
+            // unusable for merge
+            next_neighbor_len = 0;
         }
     }
 
@@ -618,15 +655,36 @@ bool JudySeekOptimizer::is_mergable(
         prev_neighbor_len = 0;
     } else {
         prev_neighbor_len = *(uint64_t *)ptr_j_entry;
+        // Sanity check, so that free chunk to merged is
+        // already freed
+        if (request_lb == prev_neighbor_lb) {
+            // Logic bug, trying to free which
+            // is already freed
+            assert(("ERROR", false));
+        }
+        prev_neighbor_last_lb =
+            (prev_neighbor_lb + prev_neighbor_len) - 1;
+        if (request_lb > prev_neighbor_lb &&
+                request_lb < prev_neighbor_last_lb) {
+            // Logic bug, trying to free which
+            // is already freed
+            assert(("ERROR", false));
+        }
         check_prev_mergable = true;
     }
 
     if (check_prev_mergable) {
-        if (prev_neighbor_lb + prev_neighbor_len == request_lb) {
+        if (prev_neighbor_lb + prev_neighbor_len
+                == request_lb) {
             // Previous is mergable
             rc = true;
+        } else {
+            // reset next_neighbor_len so that it is
+            // unusable for merge
+            prev_neighbor_len = 0;
         }
     }
+
     return rc;
 }
 
@@ -642,6 +700,7 @@ void JudySeekOptimizer::merge(
 
     uint64_t merge_chunk_lb = 0;
     uint64_t merge_chunk_len = 0;
+    bool merged = false;
 
     if (next_len == 0 && prev_len == 0) {
         // Wrong use of API
@@ -658,10 +717,11 @@ void JudySeekOptimizer::merge(
         // Remove both next and prev
         remove_element(next_lb, next_len);
         remove_element(prev_lb, prev_len);
+        merged = true;
     }
 
     // Check if can be merged with previous
-    if (prev_len != 0) {
+    if (prev_len != 0 && !merged) {
         // Can only be merged with the previous chunk
 
         merge_chunk_lb = prev_lb;
@@ -669,10 +729,11 @@ void JudySeekOptimizer::merge(
 
         // Remove prev
         remove_element(prev_lb, prev_len);
+        merged = true;
     }
 
     // Check if can be merged with next
-    if (next_len != 0) {
+    if (next_len != 0 && !merged) {
         // Can only be merged with next chunk
         
         merge_chunk_lb = request_lb;
@@ -680,7 +741,7 @@ void JudySeekOptimizer::merge(
 
         // Remove next
         remove_element(next_lb, next_len);
-
+        merged = true;
     }
 
     // Add 1 chunk aggregated
@@ -690,7 +751,7 @@ void JudySeekOptimizer::merge(
     return;
 }
 
-void JudySeekOptimizer::free_lb(
+bool JudySeekOptimizer::free_lb(
         const uint64_t& lb, const uint64_t& num_blocks) {
 
     Word_t *ptr_j_entry = NULL;
@@ -708,7 +769,8 @@ void JudySeekOptimizer::free_lb(
             jarr_free_lb_, (Word_t)lb, PJE0);
     if (ptr_j_entry != NULL) {
         // Invalid free_lb request
-        return;
+        std::cout<<"Invalid free lb request on lb: "<<lb<<std::endl;
+        return false;
     }
 
     // Check if the lb and chunk to be freed is mergable
@@ -736,13 +798,14 @@ void JudySeekOptimizer::free_lb(
         if (!add_element(lb, num_blocks)) {
             // Logic error
             assert(("ERROR", false));
+            return false;
         }
     }
 
     // Record freed blocks
     this->record_freed_blocks(num_blocks);
 
-    return;
+    return true;
 }
 
 void JudySeekOptimizer::record_allocated_blocks(
@@ -751,7 +814,7 @@ void JudySeekOptimizer::record_allocated_blocks(
     // Increment total_allocated_blocks_ and decrement total_free_blocks_
     total_allocated_blocks_ = total_allocated_blocks_ + allocated_len;
     // Logic check
-    if (CounterManager::total_allocated_blocks_ > 
+    if (CounterManager::total_allocated_blocks_ >
             CounterManager::total_blocks_ || 
             allocated_len > CounterManager::total_free_blocks_) {
         assert(("ERROR", false));
@@ -769,7 +832,8 @@ void JudySeekOptimizer::record_freed_blocks(
     CounterManager::total_free_blocks_ =
         CounterManager::total_free_blocks_ + freed_len;
     // Logic check
-    if (CounterManager::total_free_blocks_ > CounterManager::total_blocks_ ||
+    if (CounterManager::total_free_blocks_ >
+            CounterManager::total_blocks_ ||
             freed_len > CounterManager::total_allocated_blocks_) {
         assert(("ERROR", false));
     }

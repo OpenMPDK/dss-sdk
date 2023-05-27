@@ -37,6 +37,10 @@ add_executable(kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
                           ${CMAKE_SOURCE_DIR}/utils/keygen.cc
                           ${CMAKE_SOURCE_DIR}/utils/crc32.cc
                           ${CMAKE_SOURCE_DIR}/utils/dss_keygen.c
@@ -48,7 +52,15 @@ include_directories(${CMAKE_SOURCE_DIR}/core/block_allocator)
 include_directories(${CMAKE_SOURCE_DIR}/include/apis)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
 
+target_include_directories(kvtrans_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                              ${CMAKE_SOURCE_DIR}/core/kvtrans
+                                              ${CMAKE_SOURCE_DIR}/utils
+                                              ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                              ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
+                                              ${CMAKE_SOURCE_DIR}/include/apis)
+
 # include_directories(${CMAKE_SOURCE_DIR}/oss/spdk_tcp/dpdk/config)
-target_compile_options(kvtrans_ut PRIVATE -g)
-target_link_libraries(kvtrans_ut -L${CMAKE_BINARY_DIR} -ljudyL ${UNIT_LIBS} -lm )
-add_dependencies(kvtrans_ut judyL)
+#target_compile_options(kvtrans_ut PRIVATE -g)
+target_link_libraries(kvtrans_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS} -lm )
+target_compile_options(kvtrans_ut PRIVATE -Wall -g -std=gnu++11)
+add_dependencies(kvtrans_ut judy_hashmap)

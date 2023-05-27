@@ -61,7 +61,7 @@ public:
      *   bitmap implementation.
      * @ return total cells inside the bitmap
      */
-    virtual int total_cells() const =0;
+    virtual uint64_t total_cells() const =0;
 
     /**
      * @brief
@@ -76,12 +76,12 @@ public:
     /**
      * @brief returns uint8_t value in the cell identified by `index`
      */
-    virtual uint8_t get_cell_value(int index) const =0;
+    virtual uint8_t get_cell_value(uint64_t index) const =0;
 
     /**
      * @brief Sets uint8_t `value` in the cell identified by `index`
      */
-    virtual void set_cell(int index, uint8_t value) =0;
+    virtual void set_cell(uint64_t index, uint8_t value) =0;
 
     /**
      * @brief return total words in the bitmap
@@ -114,7 +114,7 @@ public:
      * - Checks if a given range beginning with a cell index is empty &
      *   returns boolean (true is range is empty else false)
      */
-    virtual bool seek_empty_cell_range(int begin_cell, int len) const =0;
+    virtual bool seek_empty_cell_range(uint64_t begin_cell, uint64_t len) const =0;
 
 };
 

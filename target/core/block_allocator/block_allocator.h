@@ -39,6 +39,10 @@
 #include <cstring>
 #include <memory>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * This namespace includes all block allocator operations
  */
@@ -151,7 +155,7 @@ public:
      * @param num_blocks, total blocks requested to be deallocated
      *        from lb
      */
-    void free_lb(const uint64_t& lb, const uint64_t& num_blocks);
+    bool free_lb(const uint64_t& lb, const uint64_t& num_blocks);
 
     /**
      * Debug API to look at jarr_free_lb_ and jarr_free_contig_len_
@@ -330,15 +334,12 @@ public:
     /**
      * @brief Destroys and frees any allocated resource for block allocator
      *        context
-     *
-     * @param ctx context to deallocate
      */
-    virtual void destroy(dss_blk_allocator_context_t *ctx)=0;
+    virtual void destroy()=0;
 
     /**
      * @brief Checks if the block state at specified index is free
      *
-     * @param ctx block allocator context
      * @param block_index index of the block to be looked up
      * @param[OUT] is_free true if state of block at block_index is zero
      *             false otherwise
@@ -346,14 +347,12 @@ public:
      *         success or error code otherwise
      */
     virtual dss_blk_allocator_status_t is_block_free(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
             bool *is_free)=0;
 
     /**
      * @brief Retrieves the state of the block at block_index
      *
-     * @param ctx block allocator context
      * @param block_index index of block whose state should be retrieved
      * @param[OUT] block_state state of the block from zero to
      *             num_block_states
@@ -361,13 +360,11 @@ public:
      *         success or error code otherwise
      */
     virtual dss_blk_allocator_status_t get_block_state(
-            dss_blk_allocator_context_t* ctx,
             uint64_t block_index,
             uint64_t *block_state)=0;
     /**
      * @brief Checks if range of blocks are in the given state
      * 
-     * @param ctx block allocator context
      * @param block_index index of start block whose state should be verified
      * @param num_blocks number of blocks the state needs to be verified
      *        starting at block_index
@@ -379,7 +376,6 @@ public:
      *         success or error code otherwise
      */
     virtual dss_blk_allocator_status_t check_blocks_state(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
             uint64_t num_blocks,
             uint64_t block_state,
@@ -388,7 +384,6 @@ public:
     /**
      * @brief Sets the range of given blocks with state if range is free
      *
-     * @param ctx block allocator context
      * @param block_index index of start block whose state should be set
      * @param num_blocks number of blocks the state needs to be set 
      *        starting at block_index
@@ -398,7 +393,6 @@ public:
      *         on success or error code otherwise
      */
     virtual dss_blk_allocator_status_t set_blocks_state(
-            dss_blk_allocator_context_t* ctx,
             uint64_t block_index,
             uint64_t num_blocks,
             uint64_t state)=0;
@@ -406,7 +400,6 @@ public:
      * @brief Clears the state of the given range of blocks to 
      *        DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE
      *
-     * @param ctx block allocator context
      * @param block_index index of start block whose state should be cleared
      * @param num_blocks number of blocks the state needs to be cleared
      *        starting at block_index
@@ -414,14 +407,12 @@ public:
      *         success or error code otherwise
      */
     virtual dss_blk_allocator_status_t clear_blocks(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
             uint64_t num_blocks)=0;
     /**
      * @brief Allocate the given number of contiguous blocks if possible
      *        starting from hint block index
      *
-     * @param ctx block allocator context
      * @param state state to set for blocks from 1 to num_block_states.
      *        0 is not a valid state to set.
      * @param hint_block_index hint for sequential allocation or allocate
@@ -435,7 +426,6 @@ public:
      *         on success or error code otherwise
      */
     virtual dss_blk_allocator_status_t alloc_blocks_contig(
-            dss_blk_allocator_context_t *ctx,
             uint64_t state,
             uint64_t hint_block_index,
             uint64_t num_blocks,
@@ -457,7 +447,7 @@ public:
      * @return dss_blk_allocator_context_t* allocated and initialized
      *         context pointer
      */
-    dss_blk_allocator_context_t* init(
+    bool init(
             dss_device_t *device,
             dss_blk_allocator_opts_t *config);
 
@@ -541,6 +531,7 @@ public:
     AllocatorSharedPtr allocator;
 };
 
-using BlockAllocatorSharedPtr = std::shared_ptr<BlockAllocator>;
-
 } // end BlockAlloc Namespace
+#ifdef __cplusplus
+}
+#endif

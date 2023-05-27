@@ -58,22 +58,27 @@ public:
         total_cells = 10;
         perf_total_cells = 65536;
         bits_per_cell = 4;
+        num_block_states = 5;
         bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, total_cells, bits_per_cell); 
+            jso, total_cells, bits_per_cell, num_block_states); 
         perf_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, perf_total_cells, bits_per_cell); 
+            jso, perf_total_cells, bits_per_cell, num_block_states); 
     }
     void setUp();
     void tearDown();
 
     void test_bitmap_integrity();
     void test_set_get();
+    void test_set_get_32bit_offset();
+    void test_set_get_all();
     void test_bitmap_empty_range();
     void test_perf_bitmap();
 
     CPPUNIT_TEST_SUITE(BitmapTest);
     CPPUNIT_TEST(test_bitmap_integrity);
     CPPUNIT_TEST(test_set_get);
+    CPPUNIT_TEST(test_set_get_32bit_offset);
+    CPPUNIT_TEST(test_set_get_all);
     CPPUNIT_TEST(test_bitmap_empty_range);
     CPPUNIT_TEST(test_perf_bitmap);
     CPPUNIT_TEST_SUITE_END();
@@ -81,9 +86,10 @@ private:
     AllocatorType::BitMapSharedPtr bmap;
     AllocatorType::BitMapSharedPtr perf_bmap;
     BlockAlloc::JudySeekOptimizerSharedPtr jso_;
-    int total_cells;
-    int perf_total_cells;
+    uint64_t total_cells;
+    uint64_t perf_total_cells;
     int bits_per_cell;
+    uint64_t num_block_states;
 
 };
 
@@ -124,7 +130,7 @@ void BitmapTest::test_set_get() {
 
     bmap->set_cell(cell_index, cell_value);
     int val = bmap->get_cell_value(cell_index);
-    assert(val == cell_value);
+    CPPUNIT_ASSERT(val == cell_value);
 
     // Debug hooks
     std::dynamic_pointer_cast
@@ -135,6 +141,105 @@ void BitmapTest::test_set_get() {
 
     // Clean bitmap by unsetting value for next experiment
     bmap->set_cell(cell_index, 0);
+}
+
+/**
+ * - Tests set and get operation on bitmap
+ * - Tests visual validation of print_data and print_range API
+ */
+void BitmapTest::test_set_get_32bit_offset() {
+
+    int cell_index = 8;
+    int cell_value = 1;
+    int cell_index_9 = 9;
+    int value = 0;
+
+    bmap->set_cell(cell_index, cell_value);
+    // Print bitmap after setting
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
+    value = bmap->get_cell_value(cell_index);
+    CPPUNIT_ASSERT(value == cell_value);
+
+    // Clean bitmap by unsetting value for next experiment
+    bmap->set_cell(cell_index, 0);
+    // Print bitmap after unsetting
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
+
+    bmap->set_cell(cell_index_9, cell_value);
+    // Print bitmap after setting
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
+    value = bmap->get_cell_value(cell_index_9);
+    CPPUNIT_ASSERT(value == cell_value);
+
+    // Clean bitmap by unsetting value for next experiment
+    bmap->set_cell(cell_index, 0);
+    // Print bitmap after unsetting
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
+}
+
+/**
+ * - Tests set and get all cells operation on bitmap
+ * - Tests visual validation of print_data and print_range API
+ */
+void BitmapTest::test_set_get_all() {
+
+    int value = 0;
+    int set_val = 1;
+    int clean_val = 0;
+
+    for (uint64_t i=0; i<bmap->total_cells(); i++) {
+        bmap->set_cell(i, set_val);
+    }
+
+    // Print bitmap after setting it.
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
+
+    // Get all set values
+    for (uint64_t i=0; i<bmap->total_cells(); i++) {
+        value = bmap->get_cell_value(i);
+        CPPUNIT_ASSERT(value == set_val);
+    }
+
+
+    // Clean bitmap by unsetting value for next experiment
+    for (uint64_t i=0; i<bmap->total_cells(); i++) {
+        bmap->set_cell(i, clean_val);
+        value = bmap->get_cell_value(i);
+        CPPUNIT_ASSERT(value == clean_val);
+    }
+
+    // Print bitmap after unsetting it.
+    // Debug hooks
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_range(0
+                , bmap->total_cells()-1);
 }
 
 /**

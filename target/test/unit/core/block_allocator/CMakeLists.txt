@@ -71,7 +71,7 @@ target_link_libraries(test_judy_hashmap_impl -L${CMAKE_BINARY_DIR} -ljudy_hashma
 target_compile_options(test_judy_hashmap_impl PRIVATE -DJUDYERROR_NOTEST -g -Wall -std=gnu++11)
 add_dependencies(test_judy_hashmap_impl judy_hashmap)
 
-# Tests for bitmap implementation with cppunit
+# Tests for seek optimization implementation with cppunit
 add_executable(test_seek_optimization_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
                                 test_seek_optimization_impl.cc)
 
@@ -82,3 +82,18 @@ target_include_directories(test_seek_optimization_impl PRIVATE ${CMAKE_SOURCE_DI
 target_link_libraries(test_seek_optimization_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
 target_compile_options(test_seek_optimization_impl PRIVATE -Wall -g -std=gnu++11)
 add_dependencies(test_seek_optimization_impl judy_hashmap)
+
+# Tests for block allocator (block impresario) implementation with cunit
+add_executable(test_block_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                                   ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                   ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                                   ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+                                   ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
+                                   test_block_allocator_ut.c)
+target_include_directories(test_block_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                           ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                                           ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
+                                                           ${CMAKE_SOURCE_DIR}/include/apis)
+target_link_libraries(test_block_allocator_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
+target_compile_options(test_block_allocator_ut PRIVATE -Wall -g -std=gnu++11)
+add_dependencies(test_block_allocator_ut judy_hashmap)

@@ -58,17 +58,20 @@ public:
     // Constructor of the class
     explicit QwordVector64Cell(
             BlockAlloc::JudySeekOptimizerSharedPtr jso,
-            int total_cells, uint8_t bits_per_cell)
+            uint64_t total_cells, uint8_t bits_per_cell,
+            uint64_t num_block_states)
         : jso_(std::move(jso)),
           cells_(total_cells),
           bits_per_cell_(
             ((bits_per_cell > BITS_PER_QUAD_WORD) || (bits_per_cell == 0))?
             BITS_PER_QUAD_WORD : bits_per_cell),
+          num_block_states_(num_block_states),
           cells_per_qword_(BITS_PER_QUAD_WORD/bits_per_cell_),
           data_(
             ((total_cells / cells_per_qword_) +
             ((total_cells % cells_per_qword_) ? 1 : 0)), 0),
-          read_cell_flag_(0xff >> (BITS_PER_WORD - bits_per_cell_))
+          read_cell_flag_(
+                  0xff >> (BITS_PER_WORD - bits_per_cell_))
           {}
     
     // Class specific functions
@@ -81,7 +84,7 @@ public:
      * - Debug functions to look at the bitmap
      * - Prints bitmap per nbit cell values
      */
-    void print_range(int begin, int end) const;
+    void print_range(uint64_t begin, uint64_t end) const;
     /**
      * - Debug functions to look at the bitmap
      * - Prints uint64_t value per quad word of bitmap
@@ -101,59 +104,51 @@ public:
 
 
     // AllocatorType::BitMap API (concrete definitions)
-    int total_cells() const override { return cells_; }
+    uint64_t total_cells() const override { return cells_; }
     int word_size() const override { return 64; }
-    uint8_t get_cell_value(int index) const override{
-        return operator[](index);
-    }
-    void set_cell(int index, uint8_t value) override;
+    uint8_t get_cell_value(uint64_t index) const override;
+    void set_cell(uint64_t index, uint8_t value) override;
     int total_words() const override { return total_qwords(); }
     void serialize_all(char* return_buf) const override;
     void deserialize_all(const char* serialized) override;
     void serialize_range(int qword_begin, int num_words, char* return_buf) const override;
     void deserialize_range(const char* serialized, int len) override;
-    bool seek_empty_cell_range(int begin_cell, int len) const override;
+    bool seek_empty_cell_range(
+            uint64_t begin_cell, uint64_t len) const override;
 
     //BlockAlloc::Allocator API (concrete definitions)
-    void destroy(dss_blk_allocator_context_t *ctx) { return; }
+    void destroy() { return; }
     dss_blk_allocator_status_t is_block_free(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
-            bool *is_free) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+            bool *is_free) override;
     dss_blk_allocator_status_t get_block_state(
-            dss_blk_allocator_context_t* ctx,
             uint64_t block_index,
-            uint64_t *block_state) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+            uint64_t *block_state) override;
     dss_blk_allocator_status_t check_blocks_state(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
             uint64_t num_blocks,
             uint64_t block_state,
-            uint64_t *scanned_index) {return BLK_ALLOCATOR_STATUS_SUCCESS; }
+            uint64_t *scanned_index) override;
     dss_blk_allocator_status_t set_blocks_state(
-            dss_blk_allocator_context_t* ctx,
             uint64_t block_index,
             uint64_t num_blocks,
-            uint64_t state) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+            uint64_t state) override;
     dss_blk_allocator_status_t clear_blocks(
-            dss_blk_allocator_context_t *ctx,
             uint64_t block_index,
-            uint64_t num_blocks) { return BLK_ALLOCATOR_STATUS_SUCCESS; }
+            uint64_t num_blocks) override;
     dss_blk_allocator_status_t alloc_blocks_contig(
-            dss_blk_allocator_context_t *ctx,
             uint64_t state,
             uint64_t hint_block_index,
             uint64_t num_blocks,
-            uint64_t *allocated_start_block) {
-        return BLK_ALLOCATOR_STATUS_SUCCESS; }
-
+            uint64_t *allocated_start_block) override;
 private:
     BlockAlloc::JudySeekOptimizerSharedPtr jso_;
-    int cells_;
+    uint64_t cells_;
     uint8_t bits_per_cell_;
+    uint64_t num_block_states_;
     int cells_per_qword_;
     std::vector<uint64_t> data_;
-    uint8_t read_cell_flag_;
+    uint64_t read_cell_flag_;
 };
 
 } // End AllocatorType namespace

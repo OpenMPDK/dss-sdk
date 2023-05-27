@@ -39,7 +39,7 @@
 
 #include "dss_block_allocator_ut.c"
 
-#define DSS_SIM_BA_UT_DEFAULT_NUM_BLOCKS (1024)
+#define BLOCK_IMPRESARIO_DEFAULT_NUM_BLOCKS (1024)
 
 struct tc_list_arr_s g_ba_test_cases[] = {
     {"testInitFailure", testInitFailure},
@@ -47,7 +47,7 @@ struct tc_list_arr_s g_ba_test_cases[] = {
     {"testSetAllBlockState", testSetAllBlockState},
     {"testCheckAllBlockState", testCheckAllBlockState},
     {"testClearAllBlocks", testClearAllBlocks},
-    //{"testRangeSetAllBlockState", testRangeSetAllBlockState},
+    //<NB: Illegal>{"testRangeSetAllBlockState", testRangeSetAllBlockState},
     {"testRangeCheckAllBlockState", testRangeCheckAllBlockState},
     {"testRangeClearAllBlocks", testRangeClearAllBlocks},
     {"testAllBlocksFree", testAllBlocksFree},
@@ -60,10 +60,10 @@ struct tc_list_arr_s g_ba_test_cases[] = {
 
 int main(int argc, char **argv)
 {
-    const char *ba_type = "simbmap_allocator";
+    const char *ba_type = "block_impresario";
 
     dss_ba_ut_set_default_params();
-    g_ba_ut.opts.num_total_blocks = DSS_SIM_BA_UT_DEFAULT_NUM_BLOCKS;
+    g_ba_ut.opts.num_total_blocks = BLOCK_IMPRESARIO_DEFAULT_NUM_BLOCKS;
 
     if(argc == 2) {
         g_ba_ut.opts.num_block_states = atol(argv[1]);
@@ -75,13 +75,21 @@ int main(int argc, char **argv)
         return CU_get_error();
     }
 
-    pSuite = CU_add_suite("DSS Simple Bitmap Allocator", dss_ba_ut_init, dss_ba_ut_cleanup);
+    pSuite = CU_add_suite(
+            "DSS Block Impresario",
+            dss_ba_ut_init,
+            dss_ba_ut_cleanup
+            );
     if (NULL == pSuite) {
         CU_cleanup_registry();
         return CU_get_error();
     }
 
-    if(dss_ba_ut_add_to_suite(pSuite, ba_type, g_ba_test_cases, sizeof(g_ba_test_cases)/sizeof(g_ba_test_cases[0]))) {
+    if(dss_ba_ut_add_to_suite(
+                pSuite, ba_type,
+                g_ba_test_cases,
+                sizeof(g_ba_test_cases)/sizeof(g_ba_test_cases[0]))
+            ) {
         CU_cleanup_registry();
         return CU_get_error();
     }

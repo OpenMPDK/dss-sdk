@@ -32,14 +32,27 @@
  */
 
 #include "bitmap_impl.h"
+#include <stdint.h>
 
 namespace AllocatorType {
 
-void QwordVector64Cell::set_cell(int index, uint8_t value) {
-    int byte_index = index / cells_per_qword_;
-    int shift = (index % cells_per_qword_) * bits_per_cell_;
-    data_[byte_index] &= ~(read_cell_flag_ << shift);
-    data_[byte_index] |= (value & read_cell_flag_) << shift;
+uint8_t QwordVector64Cell::get_cell_value(uint64_t index) const {
+
+    return operator[](index);
+
+}
+
+void QwordVector64Cell::set_cell(uint64_t index, uint8_t value) {
+    // Cast the value to a 64 bit integer for shift operation
+    uint64_t cell_value = value & read_cell_flag_;
+    uint64_t qword_index = index / cells_per_qword_;
+    uint64_t shift = (index % cells_per_qword_) * bits_per_cell_;
+    // Clear cell to set
+    data_[qword_index] &= ~(read_cell_flag_ << shift);
+    // Set cell with actual value
+    data_[qword_index] |= cell_value << shift;
+
+    return;
 }
 
 void QwordVector64Cell::serialize_all(char* serialized) const {
@@ -62,7 +75,8 @@ void QwordVector64Cell::deserialize_range(const char* serialized, int len) {
     return;
 }
 
-bool QwordVector64Cell::seek_empty_cell_range(int begin_cell, int len) const {
+bool QwordVector64Cell::seek_empty_cell_range(
+        uint64_t begin_cell, uint64_t len) const {
 
     if (begin_cell < 0 || begin_cell + len > cells_) {
         return false;  // Out of bounds
@@ -75,7 +89,7 @@ bool QwordVector64Cell::seek_empty_cell_range(int begin_cell, int len) const {
     uint64_t mask_shift = 0;
     
     // Check each n-bit value in the range
-    for (int k = 0; k < len; k += bits_per_cell_) { 
+    for (uint64_t k = 0; k < len; k += bits_per_cell_) { 
         mask_shift = j * bits_per_cell_;
         // Get the n-bits (cell-value) at the current position
         uint64_t bits = data_[i] & (mask << mask_shift);
@@ -96,21 +110,245 @@ bool QwordVector64Cell::seek_empty_cell_range(int begin_cell, int len) const {
     return true;
 }
 
-void QwordVector64Cell::print_range(int begin, int end) const {
+dss_blk_allocator_status_t QwordVector64Cell::is_block_free(
+        uint64_t block_index,
+        bool *is_free) {
+
+    int block_value = 0;
+
+    if (block_index > cells_) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    block_value = get_cell_value(block_index);
+
+    if (block_value == DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
+        *is_free = true;
+    } else {
+        *is_free = false;
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::get_block_state(
+        uint64_t block_index,
+        uint64_t *block_state) {
+
+    if (block_index > cells_) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    *block_state = get_cell_value(block_index);
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::check_blocks_state(
+        uint64_t block_index,
+        uint64_t num_blocks,
+        uint64_t block_state,
+        uint64_t *scanned_index) {
+
+    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    if (block_index == 0) {
+        *scanned_index = 0;
+    } else {
+        *scanned_index = block_index - 1;
+    }
+
+    for (uint64_t i=block_index; i<num_blocks; i++) {
+        if (data_[i] == block_state) {
+            *scanned_index = *scanned_index + 1;
+        } else {
+            break;
+        }
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::set_blocks_state(
+        uint64_t block_index,
+        uint64_t num_blocks,
+        uint64_t state) {
+
+    bool is_jso_allocable = false;
+    uint64_t actual_allocated_lb = 0;
+    int cell_value = 0;
+
+    if (num_blocks != 1) {
+        // Incorrect use of API
+        assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    if (state == DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
+        assert(("ERROR", false));
+    }
+
+    if (state == 0) {
+        assert(("ERROR", false));
+    }
+
+    // Make sure to set only valid states
+    if (state >= num_block_states_) {
+        assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE;
+    }
+
+    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+        assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    cell_value = QwordVector64Cell::get_cell_value(block_index);
+
+    // Check to see if the block is previously allocated
+    if(cell_value != DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
+        // OK to change state here
+        QwordVector64Cell::set_cell(block_index, state);
+        return BLK_ALLOCATOR_STATUS_SUCCESS;
+    }
+
+    // If the block to change state is free, alloc and then change-state
+
+    // Check if seek optimization is enabled
+    if (jso_ != NULL) {
+        // try allocating on jso
+        is_jso_allocable = jso_->allocate_lb(
+                block_index, num_blocks, actual_allocated_lb);
+        if (!is_jso_allocable) {
+            return BLK_ALLOCATOR_STATUS_ERROR;
+        }
+    }
+
+    // Make sure block_index is the same as actual_allocated_lb
+    if (actual_allocated_lb != block_index) {
+        assert(("ERROR", false));
+    }
+
+    // Now proceed to represent state on bitmap
+    QwordVector64Cell::set_cell(block_index, state);
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::clear_blocks(
+        uint64_t block_index,
+        uint64_t num_blocks) {
+
+    uint64_t iter_blk_id = 0;
+
+    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    // Check if seek optimization is enabled
+    if (jso_ != NULL) {
+        // try clearing/freeing on jso
+        if (!jso_->free_lb(block_index, num_blocks)) {
+            // JSO returns false on clearing blocks when nothing is
+            // allocated.
+            // Check if nothing is allocated to support clear blocks
+            if (jso_->get_allocated_blocks() == 0) {
+                return BLK_ALLOCATOR_STATUS_SUCCESS;
+            } else {
+                assert(("ERROR", false));
+                return BLK_ALLOCATOR_STATUS_ERROR;
+            }
+        }
+    }
+
+    // Store block index
+    iter_blk_id = block_index;
+
+    // Now proceed to represent state on bitmap
+    for (uint64_t i=0; i<num_blocks; i++ ) {
+        QwordVector64Cell::set_cell(
+                iter_blk_id, DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
+        iter_blk_id = iter_blk_id + 1;
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+
+dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
+        uint64_t state,
+        uint64_t hint_block_index,
+        uint64_t num_blocks,
+        uint64_t *allocated_start_block) {
+
+    uint64_t actual_allocated_lb = 0;
+    uint64_t iter_blk_id = 0;
+    bool is_jso_allocable = false;
+
+    if ((hint_block_index > cells_) ||
+            (hint_block_index + num_blocks > cells_)) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    // Check if seek optimization is enabled
+    if (jso_ != NULL) {
+        // try allocating on jso
+        is_jso_allocable = jso_->allocate_lb(
+                hint_block_index, num_blocks, actual_allocated_lb);
+        if (!is_jso_allocable) {
+            return BLK_ALLOCATOR_STATUS_ERROR;
+        }
+    }
+
+    if (allocated_start_block == NULL) {
+        // This means that actual_allocated_lb
+        // should be equal to hint_block_index
+        if (hint_block_index != actual_allocated_lb) {
+            // Free the allocated block at a different index
+            if (!jso_->free_lb(actual_allocated_lb, num_blocks)) {
+                // This can not fail
+                assert(("ERROR", false));
+            }
+
+            return BLK_ALLOCATOR_STATUS_ERROR;
+        }
+    } else {
+        // Assign the allocated lb to the request lb
+        *allocated_start_block = actual_allocated_lb;
+    }
+
+    iter_blk_id = actual_allocated_lb;
+
+    // Now proceed to represent state on bitmap
+    for (uint64_t i=0; i<num_blocks; i++ ) {
+        QwordVector64Cell::set_cell(iter_blk_id, state);
+        iter_blk_id = iter_blk_id + 1;
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+void QwordVector64Cell::print_range(uint64_t begin, uint64_t end) const {
     std::cout<<"Debug only: Printing Bitmap Begin"<<std::endl;
+    std::cout<<"Total cells in bitmap = "<<total_cells()<<std::endl;
     if ((end >= total_cells()) || (begin < 0)) {
         std::cout<<"Incorrect range"<<std::endl;
     }
-    for (int i = begin; i <= end; ++i) {
-        std::cout << static_cast<int>(operator[](i));
+    for (uint64_t i = begin; i <= end; i++) {
+        int val = get_cell_value(i);
+        std::cout<<val;
     }
     std::cout<<std::endl;
     std::cout<<"Debug only: Printing Bitmap End"<<std::endl;
 }
+
 void QwordVector64Cell::print_data() const {
     std::cout<<"Debug only: Printing Qword vector Begin"<<std::endl;
-    for(size_t i=0;i<data_.size();i++) {
-        std::cout<<data_[i]<<std::endl;
+    for(uint64_t i=0;i<data_.size();i++) {
+        uint64_t out = data_[i];
+        std::cout<<out<<std::endl;
     }
     std::cout<<"Debug only: Printing Qword vector End"<<std::endl;
 }

@@ -389,8 +389,8 @@ endif(WITH_ROCKSDB_KV)
 
 include_directories (${CMAKE_SOURCE_DIR}/include)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
 include_directories (${CMAKE_SOURCE_DIR}/utils)
-
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
 option(WITH_KV_LOG   "Enable KV Logging" OFF)
@@ -676,6 +676,7 @@ add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
 add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
 add_test(NAME test_judy_hashmap_impl COMMAND test_judy_hashmap_impl)
 add_test(NAME test_seek_optimization_impl COMMAND test_seek_optimization_impl)
+add_test(NAME test_block_allocator_ut COMMAND test_block_allocator_ut)
 add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
 
 enable_testing()

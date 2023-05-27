@@ -56,6 +56,7 @@ public:
 
     void test_integrity();
     void test_alloc_free();
+    void test_alloc_single();
     void test_alloc_out_of_bounds();
     void test_alloc_duplicate_lb();
     void test_multiple_alloc_free();
@@ -63,6 +64,7 @@ public:
     CPPUNIT_TEST_SUITE(SeekOptimizationTest);
     CPPUNIT_TEST(test_integrity);
     CPPUNIT_TEST(test_alloc_free);
+    CPPUNIT_TEST(test_alloc_single);
     CPPUNIT_TEST(test_alloc_out_of_bounds);
     CPPUNIT_TEST(test_alloc_duplicate_lb);
     CPPUNIT_TEST(test_multiple_alloc_free);
@@ -131,6 +133,33 @@ void SeekOptimizationTest::test_alloc_free() {
     CPPUNIT_ASSERT(jso_->get_allocated_blocks() == 0);
     // Total free blocks should equal all the blocks
     CPPUNIT_ASSERT(jso_->get_free_blocks() == jso_->get_total_blocks());
+
+}
+
+void SeekOptimizationTest::test_alloc_single() {
+
+    // Allocate 400 blocks at index 5000
+    uint64_t hint_lb = 5000;
+    uint64_t num_blocks = 1;
+    uint64_t allocated_lb = 0;
+    CPPUNIT_ASSERT(jso_->allocate_lb(hint_lb, num_blocks, allocated_lb));
+
+    // Debug only
+    std::cout<<"Debug only: test_alloc_single"<<std::endl;
+    jso_->print_map();
+
+    // Since nothing is allocated this should be true
+    CPPUNIT_ASSERT(allocated_lb == hint_lb);
+
+    // Get total allocated, this should be same as num_blocks
+    CPPUNIT_ASSERT(jso_->get_allocated_blocks() == num_blocks);
+
+    // Free allocated blocks
+    jso_->free_lb(hint_lb, num_blocks);
+    CPPUNIT_ASSERT(jso_->get_allocated_blocks() == 0);
+    // Total free blocks should equal all the blocks
+    CPPUNIT_ASSERT(jso_->get_free_blocks() == jso_->get_total_blocks());
+    jso_->print_map();
 
 }
 
@@ -210,6 +239,8 @@ void SeekOptimizationTest::test_multiple_alloc_free() {
         //CXX: DEBUG- Use jso_->print_map(); to see whats in the map
     }
 
+    jso_->print_map();
+
     // After 100 allocations allocated chunk size should be validated
     CPPUNIT_ASSERT(jso_->get_allocated_blocks() == (100*block_size));
 
@@ -218,7 +249,9 @@ void SeekOptimizationTest::test_multiple_alloc_free() {
     for (size_t i=0; i<allocated_blocks.size(); i++) {
         log_file<<"lb: "<<allocated_blocks[i].first
             <<"  len: "<<allocated_blocks[i].second<<"\n";
-        jso_->free_lb(allocated_blocks[i].first, allocated_blocks[i].second);
+        if(!jso_->free_lb(allocated_blocks[i].first, allocated_blocks[i].second)) {
+            assert(("ERROR", false));
+        }
     }
 
     // Since all allocated blocks are freed, total blocks should be equal to total
@@ -228,6 +261,7 @@ void SeekOptimizationTest::test_multiple_alloc_free() {
 
     log_file<<"Allocation and Free successful\n";
     log_file.close();
+    jso_->print_map();
 }
 
 
