@@ -490,8 +490,8 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
 
     dss_blk_allocator_set_default_config(NULL, &config);
 
-    config.blk_allocator_type = "simbmap_allocator";
-    // config.blk_allocator_type = "block_impresario";
+    // config.blk_allocator_type = "simbmap_allocator";
+    config.blk_allocator_type = "block_impresario";
     config.num_total_blocks = BLK_NUM;
     // exclude empty state
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
@@ -500,6 +500,11 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     if (!ctx->blk_alloc_ctx) {
         printf("ERROR: blk_allocator init failed\n");
          goto failure_handle;
+    }
+    if(dss_kvtrans_set_blk_state(ctx, 0, 1, META)) {
+        // index 0 is regared as invalid index
+        printf("ERROR: set index 0 to meta failed\n");
+        goto failure_handle;
     }
     
     if (ctx->kvtrans_params.hash_size==0) {
@@ -591,8 +596,10 @@ void free_kvtrans_req(kvtrans_req_t *kreq) {
     if (!kreq) {
         return;
     }
-    free(kreq->cb_ctx);
-    free(kreq);
+    if (kreq->cb_ctx)
+        free(kreq->cb_ctx);
+    if (kreq)
+        free(kreq);
 }
 
 int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req) {
@@ -999,7 +1006,7 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
         }
     } else {
         // get 4 blocks as DATA
-        blk_ctx->vctx.iscontig = true;
+        meta_blk->vctx.iscontig = true;
         if(dss_kvtrans_set_blk_state(kvtrans_ctx, meta_blk->index, 1, META)) {
             // falied
             if(dss_kvtrans_set_blk_state(kvtrans_ctx, meta_blk->index, meta_blk->vctx.value_blocks + 1, EMPTY)) {
@@ -1322,9 +1329,8 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
 next_op:
     switch (kreq->state) {
     case REQ_INITIALIZED:
-        // blk_ctx->kctx.dc_index = 0;
-        // memset(&blk_ctx->vctx, 0, sizeof(blk_val_ctx_t));
-        memset(blk_ctx, 0, sizeof(blk_ctx_t));
+        blk_ctx->kctx.dc_index = 0;
+        memset(&blk_ctx->vctx, 0, sizeof(blk_val_ctx_t));
         memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
         rc = _alloc_entry_block(ctx, kreq);
         if (rc) return rc;
