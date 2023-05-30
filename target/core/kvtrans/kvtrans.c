@@ -1231,6 +1231,7 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
                             if (blk_ctx->state == META_DATA_COLLISION) {
                                 rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk->data_collision_index, blk_ctx->index);
                                 if (rc==KVTRANS_STATUS_NOT_FOUND) {
+                                    // The dc_tbl entry has been deleted while deleting the parent blk.
                                     DSS_ASSERT(blk_ctx->kctx.pindex>0);
                                 } else if (rc) {
                                     return rc;
@@ -1381,6 +1382,7 @@ next_op:
         // col is saved in blk_ctx->next;
         DSS_ASSERT(iskeysame(blk_ctx->next->blk->key, blk_ctx->next->blk->key_len, req->req_key.key, req->req_key.length));
         blk_ctx->next->kreq = kreq;
+        blk_ctx->next->kctx.pindex = blk_ctx->index;
         blk_ctx->next->kctx.flag = blk_ctx->kctx.flag;
         blk_ctx->next->kctx.dc_index = blk_ctx->kctx.dc_index;
 
@@ -1402,8 +1404,13 @@ next_op:
             && blk_ctx->next->kctx.flag==to_delete) {
             blk_ctx->blk->num_valid_dc_col_entry--;
             if (blk_ctx->blk->num_valid_dc_col_entry==0) {
-                rc = dss_kvtrans_dc_table_delete(ctx, blk_ctx->next->blk->data_collision_index, blk_ctx->index);
-                if (rc) return rc;
+                rc = dss_kvtrans_dc_table_delete(ctx, blk_ctx->next->blk->data_collision_index, blk_ctx->next->index);
+                if (rc==KVTRANS_STATUS_NOT_FOUND) {
+                // The dc_tbl entry has been deleted while deleting the parent blk.
+                    DSS_ASSERT(blk_ctx->next->kctx.pindex>0);
+                } else if (rc) {
+                    return rc;
+                }
             }
         }
 
