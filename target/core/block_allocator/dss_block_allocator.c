@@ -80,9 +80,10 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
     DSS_ASSERT(m->core.blk_alloc_destroy);
     DSS_ASSERT(m->core.is_block_free);
     DSS_ASSERT(m->core.get_block_state);
-    //Optiona to implement: m->core.check_blocks_state
+    //Optional to implement: m->core.check_blocks_state
     DSS_ASSERT(m->core.set_blocks_state);
     DSS_ASSERT(m->core.alloc_blocks_contig);
+    //Optional to implement: m->core.print_stats
     DSS_ASSERT(m->core.clear_blocks);
 
     //On-Disk functions
@@ -279,6 +280,16 @@ dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocat
     }
 
     return ctx->m->core.alloc_blocks_contig(ctx, state, hint_block_index, num_blocks, allocated_start_block);
+}
+
+dss_blk_allocator_status_t dss_blk_allocator_print_stats(dss_blk_allocator_context_t *ctx)
+{
+    // This could be optional
+    if (ctx->m->core.print_stats != NULL) {
+        return ctx->m->core.print_stats(ctx);
+    } else {
+        return BLK_ALLOCATOR_STATUS_ERROR; 
+    }
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)

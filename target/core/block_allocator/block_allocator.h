@@ -430,6 +430,11 @@ public:
             uint64_t hint_block_index,
             uint64_t num_blocks,
             uint64_t *allocated_start_block)=0;
+
+    /**
+     * @brief print block allocator stats to standard out
+     */
+    virtual dss_blk_allocator_status_t print_stats()=0;
 };
 
 using AllocatorSharedPtr = std::shared_ptr<Allocator>;

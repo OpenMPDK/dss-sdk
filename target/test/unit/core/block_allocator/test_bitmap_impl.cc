@@ -141,6 +141,8 @@ void BitmapTest::test_set_get() {
 
     // Clean bitmap by unsetting value for next experiment
     bmap->set_cell(cell_index, 0);
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(bmap)->print_stats();
 }
 
 /**

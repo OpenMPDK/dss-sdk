@@ -333,7 +333,8 @@ static struct dss_blk_alloc_module_s dss_simbmap_allocator = {
         .check_blocks_state = NULL,
         .set_blocks_state = dss_blk_allocator_simbmap_set_blocks_state,
         .clear_blocks = dss_blk_allocator_simbmap_clear_blocks,
-        .alloc_blocks_contig = dss_blk_allocator_simbmap_alloc_blocks_contig
+        .alloc_blocks_contig = dss_blk_allocator_simbmap_alloc_blocks_contig,
+        .print_stats = NULL
     },
     .disk = {
         .blk_alloc_get_sync_meta_io_tasks = dss_blk_allocator_simbmap_get_sync_meta_io_tasks,

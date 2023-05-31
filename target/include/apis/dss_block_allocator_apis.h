@@ -190,6 +190,12 @@ dss_blk_allocator_status_t dss_blk_allocator_clear_blocks(dss_blk_allocator_cont
 dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocator_context_t *ctx, uint64_t state, uint64_t hint_block_index,
                                              uint64_t num_blocks, uint64_t *allocated_start_block);
 
+/**
+ * @brief Print block allocator statistics to standard out
+ *
+ * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
+ */
+dss_blk_allocator_status_t dss_blk_allocator_print_stats();
 
 //On-Disk APIs
 

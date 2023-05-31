@@ -330,6 +330,29 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
 
+dss_blk_allocator_status_t QwordVector64Cell::print_stats() {
+
+    if (jso_ != NULL) {
+        // Read stats from jso
+        uint64_t total_blocks = jso_->get_total_blocks();
+        uint64_t free_blocks = jso_->get_free_blocks();
+        uint64_t allocated_blocks = jso_->get_allocated_blocks();
+
+        // Print to standard out
+        std::cout<<std::endl;
+        std::cout<<"Total blocks = "<<total_blocks<<std::endl;
+        std::cout<<"Free blocks = "<<free_blocks<<std::endl;
+        std::cout<<"Allocated blocks = "<<allocated_blocks<<std::endl;
+        
+        return BLK_ALLOCATOR_STATUS_SUCCESS;
+    } else {
+        // Currently allocation without jso is not fully supported
+        std::cout<<"Judy seek optimizer turned off!"
+            <<" No stats to report"<<std::endl;
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+}
+
 void QwordVector64Cell::print_range(uint64_t begin, uint64_t end) const {
     std::cout<<"Debug only: Printing Bitmap Begin"<<std::endl;
     std::cout<<"Total cells in bitmap = "<<total_cells()<<std::endl;

@@ -141,6 +141,8 @@ public:
             uint64_t hint_block_index,
             uint64_t num_blocks,
             uint64_t *allocated_start_block) override;
+    dss_blk_allocator_status_t print_stats() override;
+
 private:
     BlockAlloc::JudySeekOptimizerSharedPtr jso_;
     uint64_t cells_;
