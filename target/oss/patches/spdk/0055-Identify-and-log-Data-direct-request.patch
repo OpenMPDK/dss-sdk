@@ -1,15 +1,15 @@
-From a1ddef658764e0fed6bd914bb8adbcd32dd4530f Mon Sep 17 00:00:00 2001
+From d922cf5bb504672424fa18455436dab6e9a6c4f7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 11 Nov 2021 14:24:14 -0800
-Subject: [PATCH 55/74] Identify and log Data direct request
+Subject: [PATCH 55/75] Identify and log Data direct request
 
 ---
- include/spdk/nvme_spec.h | 23 ++++++++++++++
- lib/nvmf/rdma.c          | 65 ++++++++++++++++++++++++++++++++++++----
+ include/spdk/nvme_spec.h | 23 +++++++++++++++++
+ lib/nvmf/rdma.c          | 65 ++++++++++++++++++++++++++++++++++++++++++++----
  2 files changed, 83 insertions(+), 5 deletions(-)
 
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
-index 74b668899..6f1d8894f 100644
+index 74b6688..6f1d889 100644
 --- a/include/spdk/nvme_spec.h
 +++ b/include/spdk/nvme_spec.h
 @@ -856,6 +856,28 @@ union spdk_nvme_feat_reservation_persistence {
@@ -50,7 +50,7 @@ index 74b668899..6f1d8894f 100644
  	struct {
  		/* Attribute – Integral Dataset for Read */
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 032aa9194..74a0a7586 100644
+index 032aa91..74a0a75 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -1482,6 +1482,16 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
@@ -142,5 +142,5 @@ index 032aa9194..74a0a7586 100644
  
  	SPDK_ERRLOG("Invalid NVMf I/O Command SGL:  Type 0x%x, Subtype 0x%x\n",
 -- 
-2.24.3
+1.8.3.1
 

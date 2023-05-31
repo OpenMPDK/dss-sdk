@@ -1,7 +1,7 @@
-From 9d3d7aa31ea2f44cb29dde8c8818c9037796033a Mon Sep 17 00:00:00 2001
+From c7f73f8afd2a53cbed78fbe346e308494c7f8fb8 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 15 Nov 2022 12:44:12 -0800
-Subject: [PATCH 71/74] SPDK patch update
+Subject: [PATCH 71/75] SPDK patch update
 
     * Add api to get RDMA req state `dss_get_rdma_req_state`
     * Check outstanding IOs if pending for more than 10s
@@ -12,7 +12,7 @@ Subject: [PATCH 71/74] SPDK patch update
  1 file changed, 22 insertions(+), 3 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 9250498cb..71b6dd821 100644
+index 9250498..71b6dd8 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -977,6 +977,14 @@ void dss_rdma_rdd_in_data_ready(void *arg, void *dummy)
@@ -79,5 +79,5 @@ index 9250498cb..71b6dd821 100644
  		rqpair->poller->stat.pending_free_request++;
  	}
 -- 
-2.24.3
+1.8.3.1
 

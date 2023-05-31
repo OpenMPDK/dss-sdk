@@ -1,7 +1,7 @@
-From a56657f76bc39293e7970abf6ca2b3c3ff791e30 Mon Sep 17 00:00:00 2001
+From 76b9e88cdf3739a8408bccdcdfc5cdd6cbe11df1 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 14 Jun 2022 20:25:26 -0700
-Subject: [PATCH 63/74] blobfs: Fix when cache write fails
+Subject: [PATCH 63/75] blobfs: Fix when cache write fails
 
     * Sync data before updating file flushed counter
     * Avoid part of cached data from being not synced
@@ -10,7 +10,7 @@ Subject: [PATCH 63/74] blobfs: Fix when cache write fails
  1 file changed, 17 insertions(+), 4 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index afc56d435..f02990669 100644
+index afc56d4..f029906 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2692,13 +2692,18 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -62,5 +62,5 @@ index afc56d435..f02990669 100644
  				rw_cb_args.psem = fs_channel_get_sem(channel);
  
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,14 +1,14 @@
-From 13d962cc4296bfc5c04a370386ee97ca00c12b4a Mon Sep 17 00:00:00 2001
+From 07d3507a5162fb27b94291155f6620372a2adbed Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 31 Mar 2021 13:23:06 -0700
-Subject: [PATCH 42/74] Modify INI deprecated log to warning
+Subject: [PATCH 42/75] Modify INI deprecated log to warning
 
 ---
  lib/conf/conf.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/conf/conf.c b/lib/conf/conf.c
-index 287e157a5..744e02411 100644
+index 287e157..744e024 100644
 --- a/lib/conf/conf.c
 +++ b/lib/conf/conf.c
 @@ -623,7 +623,7 @@ spdk_conf_read(struct spdk_conf *cp, const char *file)
@@ -21,5 +21,5 @@ index 287e157a5..744e02411 100644
  	fp = fopen(file, "r");
  	if (fp == NULL) {
 -- 
-2.24.3
+1.8.3.1
 

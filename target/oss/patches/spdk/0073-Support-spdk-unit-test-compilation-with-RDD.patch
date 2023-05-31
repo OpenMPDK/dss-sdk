@@ -1,7 +1,7 @@
-From bad1c74db7afadf78fced2e8771cf02fbd9590ef Mon Sep 17 00:00:00 2001
+From a5b26c53a766706c4cc4b6a01a6dce2a5cfc0055 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 2 Mar 2023 11:28:24 -0800
-Subject: [PATCH 73/74] Support spdk unit test compilation with RDD
+Subject: [PATCH 73/75] Support spdk unit test compilation with RDD
 
 ---
  lib/nvmf/rdma.c                     |  2 ++
@@ -9,7 +9,7 @@ Subject: [PATCH 73/74] Support spdk unit test compilation with RDD
  2 files changed, 26 insertions(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 71b6dd821..d8a92074e 100644
+index 71b6dd8..d8a9207 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -50,6 +50,8 @@
@@ -22,7 +22,7 @@ index 71b6dd821..d8a92074e 100644
  const struct spdk_nvmf_transport_ops spdk_nvmf_transport_rdma;
  
 diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
-index e19e7c575..ecb1d75ae 100644
+index e19e7c5..ecb1d75 100644
 --- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 +++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 @@ -31,6 +31,10 @@
@@ -72,5 +72,5 @@ index e19e7c575..ecb1d75ae 100644
  DEFINE_STUB(spdk_mem_map_set_translation, int, (struct spdk_mem_map *map, uint64_t vaddr,
  		uint64_t size, uint64_t translation), 0);
 -- 
-2.24.3
+1.8.3.1
 

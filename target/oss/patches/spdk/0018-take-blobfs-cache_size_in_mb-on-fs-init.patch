@@ -1,7 +1,7 @@
-From 7956d44fd1d067f474b0c66ad249e709f16735c3 Mon Sep 17 00:00:00 2001
+From 5694d27557aa47da8a9963a41c0fcc9ef690ea22 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Mon, 4 Jan 2021 12:41:01 -0800
-Subject: [PATCH 18/74] * take blobfs cache_size_in_mb on fs init.
+Subject: [PATCH 18/75] * take blobfs cache_size_in_mb on fs init.
 
 ---
  lib/blobfs/blobfs.c    | 5 +++--
@@ -9,7 +9,7 @@ Subject: [PATCH 18/74] * take blobfs cache_size_in_mb on fs init.
  2 files changed, 5 insertions(+), 2 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index e427784c9..de8352af9 100644
+index e427784..de8352a 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2109,9 +2109,10 @@ spdk_fs_set_cache_size(uint64_t size_in_mb)
@@ -26,7 +26,7 @@ index e427784c9..de8352af9 100644
  
  	g_fs_cache_size = size_in_mb * 1024 * 1024;
 diff --git a/lib/rocksdb/env_dss.cc b/lib/rocksdb/env_dss.cc
-index bc0c1b93f..e27d3923b 100644
+index bc0c1b9..e27d392 100644
 --- a/lib/rocksdb/env_dss.cc
 +++ b/lib/rocksdb/env_dss.cc
 @@ -650,6 +650,8 @@ DssEnv::DssEnv(Env *base_env, const std::string &dir,
@@ -39,5 +39,5 @@ index bc0c1b93f..e27d3923b 100644
  
  DssEnv::~DssEnv()
 -- 
-2.24.3
+1.8.3.1
 

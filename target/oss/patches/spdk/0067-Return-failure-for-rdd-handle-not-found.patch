@@ -1,14 +1,14 @@
-From 73c2c2c08184655b2a20bd9952d06d83c2c94322 Mon Sep 17 00:00:00 2001
+From d2fc01436ef9ffcb98cf8a506d1e893617857384 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 30 Aug 2022 11:53:09 -0700
-Subject: [PATCH 67/74] Return failure for rdd handle not found
+Subject: [PATCH 67/75] Return failure for rdd handle not found
 
 ---
  lib/nvmf/rdma.c | 18 +++++++++++++++---
  1 file changed, 15 insertions(+), 3 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index dfed83a99..d84532523 100644
+index dfed83a..d845325 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -1589,6 +1589,12 @@ request_transfer_in(struct spdk_nvmf_request *req)
@@ -52,5 +52,5 @@ index dfed83a99..d84532523 100644
  			break;
  		case RDMA_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST:
 -- 
-2.24.3
+1.8.3.1
 

@@ -1,7 +1,7 @@
-From dc6a7f6175495aba6e9fcd38baac7453bbd3279c Mon Sep 17 00:00:00 2001
+From 1995cacc4243a402f79ad5896e339e3ac67f86b7 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 29 Sep 2020 02:00:26 -0700
-Subject: [PATCH 06/74] Compilation update for DSS
+Subject: [PATCH 06/75] Compilation update for DSS
 
 ---
  app/iscsi_tgt/Makefile                  | 2 ++
@@ -20,7 +20,7 @@ Subject: [PATCH 06/74] Compilation update for DSS
  13 files changed, 27 insertions(+), 3 deletions(-)
 
 diff --git a/app/iscsi_tgt/Makefile b/app/iscsi_tgt/Makefile
-index 6b695d91a..2cdf31558 100644
+index 6b695d9..2cdf315 100644
 --- a/app/iscsi_tgt/Makefile
 +++ b/app/iscsi_tgt/Makefile
 @@ -56,4 +56,6 @@ ifeq ($(OS),Linux)
@@ -31,7 +31,7 @@ index 6b695d91a..2cdf31558 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/app/nvmf_tgt/Makefile b/app/nvmf_tgt/Makefile
-index 0a7796d41..f4ac12c7f 100644
+index 0a7796d..f4ac12c 100644
 --- a/app/nvmf_tgt/Makefile
 +++ b/app/nvmf_tgt/Makefile
 @@ -59,4 +59,6 @@ endif
@@ -42,7 +42,7 @@ index 0a7796d41..f4ac12c7f 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/app/spdk_dd/Makefile b/app/spdk_dd/Makefile
-index 3bd99f639..81f413937 100644
+index 3bd99f6..81f4139 100644
 --- a/app/spdk_dd/Makefile
 +++ b/app/spdk_dd/Makefile
 @@ -44,4 +44,6 @@ SPDK_LIB_LIST += event_sock event_bdev event_accel event_vmd
@@ -53,7 +53,7 @@ index 3bd99f639..81f413937 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/app/vhost/Makefile b/app/vhost/Makefile
-index 4bb28b20e..0172d4e92 100644
+index 4bb28b2..0172d4e 100644
 --- a/app/vhost/Makefile
 +++ b/app/vhost/Makefile
 @@ -55,4 +55,6 @@ ifeq ($(SPDK_ROOT_DIR)/lib/env_dpdk,$(CONFIG_ENV))
@@ -64,7 +64,7 @@ index 4bb28b20e..0172d4e92 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/examples/Makefile b/examples/Makefile
-index 616878c6e..516cf83fc 100644
+index 616878c..516cf83 100644
 --- a/examples/Makefile
 +++ b/examples/Makefile
 @@ -34,8 +34,7 @@
@@ -78,7 +78,7 @@ index 616878c6e..516cf83fc 100644
  .PHONY: all clean $(DIRS-y)
  
 diff --git a/examples/accel/perf/Makefile b/examples/accel/perf/Makefile
-index b28f7c412..d533c2e15 100644
+index b28f7c4..d533c2e 100644
 --- a/examples/accel/perf/Makefile
 +++ b/examples/accel/perf/Makefile
 @@ -44,4 +44,5 @@ SPDK_LIB_LIST += $(EVENT_BDEV_SUBSYSTEM)
@@ -88,7 +88,7 @@ index b28f7c412..d533c2e15 100644
 +SPDK_LIB_LIST += event_nvmf nvmf
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/examples/bdev/hello_world/Makefile b/examples/bdev/hello_world/Makefile
-index f4a5a5b69..ad6f8d50b 100644
+index f4a5a5b..ad6f8d5 100644
 --- a/examples/bdev/hello_world/Makefile
 +++ b/examples/bdev/hello_world/Makefile
 @@ -41,4 +41,6 @@ SPDK_LIB_LIST = $(ALL_MODULES_LIST)
@@ -99,7 +99,7 @@ index f4a5a5b69..ad6f8d50b 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/examples/blob/cli/Makefile b/examples/blob/cli/Makefile
-index 3c3ff1f26..6e79c908d 100644
+index 3c3ff1f..6e79c90 100644
 --- a/examples/blob/cli/Makefile
 +++ b/examples/blob/cli/Makefile
 @@ -43,4 +43,6 @@ SPDK_LIB_LIST += $(EVENT_BDEV_SUBSYSTEM)
@@ -110,7 +110,7 @@ index 3c3ff1f26..6e79c908d 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/examples/blob/hello_world/Makefile b/examples/blob/hello_world/Makefile
-index 0b5e89396..08f41bbd9 100644
+index 0b5e893..08f41bb 100644
 --- a/examples/blob/hello_world/Makefile
 +++ b/examples/blob/hello_world/Makefile
 @@ -42,4 +42,6 @@ SPDK_LIB_LIST += $(EVENT_BDEV_SUBSYSTEM)
@@ -121,7 +121,7 @@ index 0b5e89396..08f41bbd9 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/examples/nvmf/nvmf/Makefile b/examples/nvmf/nvmf/Makefile
-index ccf5273be..8f370cfa1 100644
+index ccf5273..8f370cf 100644
 --- a/examples/nvmf/nvmf/Makefile
 +++ b/examples/nvmf/nvmf/Makefile
 @@ -49,4 +49,6 @@ endif
@@ -132,7 +132,7 @@ index ccf5273be..8f370cfa1 100644
 +
  include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
 diff --git a/lib/rocksdb/spdk.rocksdb.mk b/lib/rocksdb/spdk.rocksdb.mk
-index fe498cc39..8f4f8fca8 100644
+index fe498cc..8f4f8fc 100644
 --- a/lib/rocksdb/spdk.rocksdb.mk
 +++ b/lib/rocksdb/spdk.rocksdb.mk
 @@ -57,6 +57,7 @@ SPDK_LIB_LIST = $(ALL_MODULES_LIST)
@@ -144,7 +144,7 @@ index fe498cc39..8f4f8fca8 100644
  AM_LINK += $(SPDK_LIB_LINKER_ARGS) $(ENV_LINKER_ARGS)
  AM_LINK += $(SYS_LIBS)
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index c2aa82e65..b7011bb4b 100644
+index c2aa82e..b7011bb 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,7 +48,7 @@ endif
@@ -157,7 +157,7 @@ index c2aa82e65..b7011bb4b 100644
  CLEAN_FILES = $(APP)
  
 diff --git a/module/event/subsystems/nvmf/nvmf_tgt.c b/module/event/subsystems/nvmf/nvmf_tgt.c
-index cd252a487..236fe1408 100644
+index cd252a4..236fe14 100644
 --- a/module/event/subsystems/nvmf/nvmf_tgt.c
 +++ b/module/event/subsystems/nvmf/nvmf_tgt.c
 @@ -80,6 +80,13 @@ static struct spdk_poller *g_acceptor_poller = NULL;
@@ -175,5 +175,5 @@ index cd252a487..236fe1408 100644
  nvmf_shutdown_cb(void *arg1)
  {
 -- 
-2.24.3
+1.8.3.1
 

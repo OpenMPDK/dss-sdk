@@ -1,14 +1,14 @@
-From fd8f5cab4615a3bc458fdc01d90c63e944ae44a7 Mon Sep 17 00:00:00 2001
+From 61bea478c51d5de7f75fa0ca4b3bd62ad47dd051 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:40:44 -0700
-Subject: [PATCH 52/74] Return correct error code for sync read/write
+Subject: [PATCH 52/75] Return correct error code for sync read/write
 
 ---
- lib/blobfs/blobfs.c | 63 +++++++++++++++++++++++++++++++--------------
+ lib/blobfs/blobfs.c | 63 +++++++++++++++++++++++++++++++++++++----------------
  1 file changed, 44 insertions(+), 19 deletions(-)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index 9854c1320..91abd44f8 100644
+index 9854c132..91abd44 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -192,6 +192,7 @@ struct spdk_fs_cb_args {
@@ -174,5 +174,5 @@ index 9854c1320..91abd44f8 100644
  	}
  	if (rc == 0) {
 -- 
-2.24.3
+1.8.3.1
 

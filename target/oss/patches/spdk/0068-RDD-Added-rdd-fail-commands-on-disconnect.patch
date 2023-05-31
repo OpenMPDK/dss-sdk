@@ -1,7 +1,7 @@
-From 4ea8334ff24f3cb0cc1f45b6c5c628d667c946b7 Mon Sep 17 00:00:00 2001
+From 975aee6046a87efb010b3236bfc7b571f06d0c82 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 23 Sep 2022 16:45:03 -0700
-Subject: [PATCH 68/74] Added rdd fail commands on disconnect
+Subject: [PATCH 68/75] Added rdd fail commands on disconnect
 
     * Update the error return code on rdd data transfer failure
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 68/74] Added rdd fail commands on disconnect
  1 file changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index d84532523..5c23776cd 100644
+index d845325..5c23776 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -977,6 +977,40 @@ void dss_rdma_rdd_in_data_ready(void *arg, void *dummy)
@@ -72,5 +72,5 @@ index d84532523..5c23776cd 100644
                  } else {
  				    rdma_req->state = data_posted ? RDMA_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST :
 -- 
-2.24.3
+1.8.3.1
 
