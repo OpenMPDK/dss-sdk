@@ -487,12 +487,13 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
 
         if gen2_flag:
             # map backend ips to front end ips
-            back_front_subnet__prefix_map = {}
+            back_front_ip_mapping = {}
             for mapping in vlan_ip_map[0]:
-                if 'tcp_alias' and 'rocev2_ip' in mapping.keys():
-                    back_subnet_prefix = mapping['rocev2_ip'].split('.')[0]
-                    front_subnet_prefix = socket.gethostbyname(mapping['tcp_alias']).split('.')[0]
-                    back_front_subnet__prefix_map[back_subnet_prefix] = front_subnet_prefix
+                if set(['tcp', 'rocev2']).issubset(mapping.keys()):
+                    if len(mapping['tcp']) != len(mapping['rocev2']):
+                        raise ValueError("Unequal number of front end vs back end ips, verify combined_vlan_ip_map")
+                    for i in range(len(mapping['rocev2'])):
+                        back_front_ip_mapping[mapping['rocev2'][i]] = socket.gethostbyname(mapping['tcp'][i])
 
             for drive in drives_list:
 
@@ -504,7 +505,7 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
 
                 # TODO: add flag is frontend or backend ip is desired for nkv configs
                 # for now we will assume frontend ips are always desired
-                traddr = back_front_subnet__prefix_map[traddr.split('.')[0]] + '.' + traddr.partition('.')[2]  # + '.'.join(traddr.split('.')[1:])
+                traddr = back_front_ip_mapping[traddr]
 
                 # TODO: update port with rdd port arg from ansible
                 y = {
