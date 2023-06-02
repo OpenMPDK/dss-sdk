@@ -419,7 +419,7 @@ def get_numa_ip(ip_list):
 
     return s0, s1
 
-# TODO: add gen2 support here
+
 def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_address):
     """
     Create configuration file for NKV NVMf by writing all
@@ -996,7 +996,7 @@ The most commonly used dss target commands are:
         )
         if ret != 0:
             print("*** ERROR: Creating configuration file ***")
-        
+
         if g_kvblock_vmmode:
             generate_core_mask_vmmode(mp.cpu_count())
         else:

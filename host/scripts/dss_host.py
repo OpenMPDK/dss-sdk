@@ -739,6 +739,7 @@ def config_minio(dist, sa, ec):
     elif(dist):
         config_minio_dist(dist, ec)
 
+
 # load correct gen2 drives from /root/som/nkv-sdk/openmpdk_driver/kernel_v5.1_nvmf
 class dss_host_args(object):
 
