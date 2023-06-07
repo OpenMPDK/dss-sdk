@@ -632,7 +632,6 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
     subtext += subsystem_text
 
     # Gen2 RDD Support
-    # TODO: replace port with var from ansible
     if g_gen2:
         subtext += g_rdd_header_text
         # add subsystem Listen ips and ports

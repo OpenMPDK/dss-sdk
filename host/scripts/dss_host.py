@@ -507,7 +507,6 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
                 # for now we will assume frontend ips are always desired
                 traddr = back_front_ip_mapping[traddr]
 
-                # TODO: update port with rdd port arg from ansible
                 y = {
                     "mount_point": drive,
                     "nqn_transport_address": traddr,
@@ -740,7 +739,6 @@ def config_minio(dist, sa, ec):
         config_minio_dist(dist, ec)
 
 
-# load correct gen2 drives from /root/som/nkv-sdk/openmpdk_driver/kernel_v5.1_nvmf
 class dss_host_args(object):
 
     def __init__(self):
