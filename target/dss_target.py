@@ -855,7 +855,7 @@ The most commonly used dss target commands are:
         parser.add_argument(
             "-rdd_port",
             "--rdd_port",
-            type=str,
+            type=int,
             default="1234",
             help="Port to be used for all RDD configurations"
         )
