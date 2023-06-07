@@ -639,7 +639,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         for ip in ip_addrs:
             subtext += g_rdd_subsystem_listen_text % {
                 "ip_addr": str(ip),
-                "port": 1234
+                "port": g_rdd_port
             }
         subtext += "\n"
 
@@ -647,7 +647,7 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
         for alias in g_tcp_alias_list[0]:
             subtext += g_rdd_subsystem_listen_text % {
                 "ip_addr": str(alias['tcp_ip']),
-                "port": 1234
+                "port": g_rdd_port
             }
         subtext += "\n"
 
@@ -853,6 +853,13 @@ The most commonly used dss target commands are:
             help="Specifies if Gen2 version of target should be configured"
         )
         parser.add_argument(
+            "-rdd_port",
+            "--rdd_port",
+            type=str,
+            default="1234",
+            help="Port to be used for all RDD configurations"
+        )
+        parser.add_argument(
             "-c",
             "--config_file",
             type=str,
@@ -935,10 +942,13 @@ The most commonly used dss target commands are:
         args = parser.parse_args(sys.argv[2:])
 
         global g_gen2
+        global g_rdd_port
         global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_tcp_alias_list, g_rdma
         global g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
         if args.gen2:
             g_gen2 = args.gen2
+        if args.rdd_port:
+            g_rdd_port = args.rdd_port
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:

@@ -503,7 +503,7 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
                 traddr = drive_addr_mapping[drive]
                 trtype, trsvcid, subnqn, traddr = addr_nqn_map[traddr]
 
-                # TODO: add flag is frontend or backend ip is desired for nkv configs
+                # TODO: add flag if frontend or backend ip is desired
                 # for now we will assume frontend ips are always desired
                 traddr = back_front_ip_mapping[traddr]
 
@@ -511,7 +511,7 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
                 y = {
                     "mount_point": drive,
                     "nqn_transport_address": traddr,
-                    "nqn_transport_port": "1234",
+                    "nqn_transport_port": rdd_port,
                     "nqn_name": subnqn
                 }
 
@@ -785,6 +785,13 @@ The most commonly used dss target commands are:
             help="Specifies if Gen2 version of target should be configured"
         )
         parser.add_argument(
+            "-rdd_port",
+            "--rdd_port",
+            type=str,
+            default="1234",
+            help="Port to be used for all RDD configurations"
+        )
+        parser.add_argument(
             "-vlan_ip_map",
             "--vlan_ip_map",
             type=ast.literal_eval,
@@ -816,12 +823,14 @@ The most commonly used dss target commands are:
             print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
             sys.exit(-1)
 
-        global gen2_flag, vlan_ip_map
+        global gen2_flag, vlan_ip_map, rdd_port
         if args.gen2:
             gen2_flag = args.gen2
             print("Configuring NKV Config to gen2..")
             if args.vlan_ip_map:
                 vlan_ip_map = args.vlan_ip_map
+            if args.rdd_port:
+                rdd_port = args.rdd_port
         disc_proto = args.proto
         self.disc_proto = disc_proto
         driver_memalign = args.memalign
