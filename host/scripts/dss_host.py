@@ -382,7 +382,70 @@ def get_drives_list(nvme_list_cmd):
     return drives_list
 
 
-def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_config.json"):
+def drive_to_addr_map():
+    '''
+    Returns mapping of drives to ip address
+    '''
+    ret, out, err = exec_cmd("nvme list-subsys -o json")
+    subsystems = json.loads(out)
+    try:
+        subsystems = subsystems["Subsystems"]
+    except KeyError:
+        print("Error in finding Subsystems in nvme list-subsys output")
+        sys.exit(1)
+
+    drives_to_addrs_map = {}
+    for subsys in subsystems:
+        if "Paths" not in subsys:
+            continue
+        for dev in subsys["Paths"]:
+            name = '/dev/' + dev["Name"] + 'n1'
+            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
+            drives_to_addrs_map[name] = addr
+    return drives_to_addrs_map
+
+
+def subnet_drive_map():
+    '''
+    Get given subnet to device/numa map
+    '''
+    ret, out, err = exec_cmd("nvme list-subsys -o json")
+    subsystems = json.loads(out)
+    try:
+        subsystems = subsystems["Subsystems"]
+    except KeyError:
+        print("Error in finding Subsystems in nvme list-subsys output")
+        sys.exit(1)
+    subnet_device_map = {}
+    addrs = []
+    for subsys in subsystems:
+        if "Paths" not in subsys:
+            continue
+        for dev in subsys["Paths"]:
+            name = '/dev/' + dev["Name"] + 'n1'
+            transport = dev["Transport"]
+            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
+            subnet = getSubnet(addr)
+
+            if subnet not in subnet_device_map:
+                subnet_device_map[subnet] = []
+            subnet_device_map[subnet].append(name)
+            addrs.append(addr)
+
+    # We have IP octets now. Get interface and numa information for that octet.
+    for octet in subnet_device_map.keys():
+        # Find ip to interface mapping. Interface name is needed for finding numa.
+        cmd = "ip -4 addr | grep " + octet + " | awk \'{ print $2 }\'"
+        ret, iname, err = exec_cmd(cmd)
+        # Get IP address part
+        iname = iname.split('/')[0]
+        # Replace old key name (e.g., 205.0.0) with new keyname (ip_addr) in dict.
+        subnet_device_map[iname] = subnet_device_map.pop(octet)
+
+    return subnet_device_map
+
+
+def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_config.json"):
     '''
     Update nkv_config.json file in conf directory
     '''
@@ -404,10 +467,58 @@ def create_config_file(nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_conf
                 else:
                     print('Invalid key "%s" not added to config file' % key)
 
-        for drive in drives_list:
-            # print("{ mount_point: %s },")
-            y = {"mount_point": drive}
-            data['nkv_local_mounts'].append(y)
+        nqn_infos = []
+        addr_nqn_map = {}
+        for addr in disc_addrs:
+            if addr.count(":") != 1:
+                raise ValueError("Error: malformed address " + addr + " expected ip:port.")
+            disc_ip, disc_port = addr.split(":")
+            try:
+                nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
+            except Exception:
+                continue
+
+        # unpack nqn info to addr to nqn mapping
+        for nqn in nqn_infos:
+            trtype, trsvcid, subnqn, traddr = nqn
+            addr_nqn_map[traddr] = trtype, trsvcid, subnqn, traddr
+
+        drive_addr_mapping = drive_to_addr_map()
+
+        if gen2_flag:
+            # map backend ips to front end ips
+            back_front_ip_mapping = {}
+            for mapping in vlan_ip_map[0]:
+                if set(['tcp', 'rocev2']).issubset(mapping.keys()):
+                    if len(mapping['tcp']) != len(mapping['rocev2']):
+                        raise ValueError("Unequal number of front end vs back end ips, verify combined_vlan_ip_map")
+                    for i in range(len(mapping['rocev2'])):
+                        back_front_ip_mapping[mapping['rocev2'][i]] = socket.gethostbyname(mapping['tcp'][i])
+
+            for drive in drives_list:
+
+                if drive not in drive_addr_mapping:
+                    continue
+
+                traddr = drive_addr_mapping[drive]
+                trtype, trsvcid, subnqn, traddr = addr_nqn_map[traddr]
+
+                # TODO: add flag if frontend or backend ip is desired
+                # for now we will assume frontend ips are always desired
+                traddr = back_front_ip_mapping[traddr]
+
+                y = {
+                    "mount_point": drive,
+                    "nqn_transport_address": traddr,
+                    "nqn_transport_port": rdd_port,
+                    "nqn_name": subnqn
+                }
+
+                data['nkv_local_mounts'].append(y)
+        else:
+            for drive in drives_list:
+                y = {"mount_point": drive}
+                data['nkv_local_mounts'].append(y)
 
     write_json(data, nkv_conf_file)
 
@@ -463,48 +574,6 @@ def nkv_test_result(result_file):
     print("------------------------------")
 
 
-def subnet_drive_map():
-    '''
-    Get given subnet to device/numa map
-    '''
-    print("Gathering information from nvme list-subsys")
-
-    ret, out, err = exec_cmd("nvme list-subsys -o json")
-    subsystems = json.loads(out)
-    try:
-        subsystems = subsystems["Subsystems"]
-    except KeyError:
-        print("Error in finding Subsystems in nvme list-subsys output")
-        sys.exit(1)
-    subnet_device_map = {}
-    addrs = []
-    for subsys in subsystems:
-        if "Paths" not in subsys:
-            continue
-        for dev in subsys["Paths"]:
-            name = '/dev/' + dev["Name"] + 'n1'
-            transport = dev["Transport"]
-            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
-            subnet = getSubnet(addr)
-            if subnet not in subnet_device_map:
-                subnet_device_map[subnet] = []
-            subnet_device_map[subnet].append(name)
-            addrs.append(addr)
-
-    # We have IP octets now. Get interface and numa information for that octet.
-    for octet in subnet_device_map.keys():
-        # Find ip to interface mapping. Interface name is needed for finding numa.
-        cmd = "ip -4 addr | grep " + octet + " | awk \'{ print $2 }\'"
-        ret, iname, err = exec_cmd(cmd)
-        # Get IP address part
-        iname = iname.split('/')[0]
-        # Replace old key name (e.g., 205.0.0) with new keyname (ip_addr) in dict.
-        subnet_device_map[iname] = subnet_device_map.pop(octet)
-
-    print(subnet_device_map)
-    return subnet_device_map
-
-
 def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair):
     # Build and install kernel driver based on kernel version
     install_kernel_driver(driver_memalign)
@@ -528,7 +597,7 @@ def config_host(disc_addrs, disc_proto, disc_qpair, driver_memalign, nkv_kv_pair
     # Create nkv_config.json file
     for ifname in ifname_drives:
         file_name = "nkv_config_" + ifname + ".json"
-        create_config_file(nkv_kv_pair, ifname_drives[ifname], file_name)
+        create_config_file(disc_proto, disc_addrs, nkv_kv_pair, ifname_drives[ifname], file_name)
 
 
 def config_minio_sa(node, ec):
@@ -558,7 +627,6 @@ def discover_dist(port, frontend_vlan_ids, backend_vlan_ids, root_pws):
     '''
     Run nvme list-subsys on all targets to infe
     '''
-    print("Gathering information from nvme list-subsys")
     # Build a mapping from frontend vlan ids to backend vlan ids
     vlan_mapping = {}
     for front, back in zip(frontend_vlan_ids, backend_vlan_ids):
@@ -704,8 +772,31 @@ The most commonly used dss target commands are:
         getattr(self, args.command)()
 
     def config_host(self):
+        import ast
         parser = argparse.ArgumentParser(
             description='Discovers/connects device(s), and creates config file for DSS API layer')
+        parser.add_argument(
+            "-g2",
+            "--gen2",
+            action='store_true',
+            required=False,
+            help="Specifies if Gen2 version of target should be configured"
+        )
+        parser.add_argument(
+            "-rdd_port",
+            "--rdd_port",
+            type=str,
+            default="1234",
+            help="Port to be used for all RDD configurations"
+        )
+        parser.add_argument(
+            "-vlan_ip_map",
+            "--vlan_ip_map",
+            type=ast.literal_eval,
+            nargs="+",
+            required=False,
+            help="Mapping between front and back end ips"
+        )
         parser.add_argument("-vids", "--vlan-ids", nargs='+', help="Space delimited list of vlan IDs")
         parser.add_argument("-p", "--ports", type=int, nargs='+', required=False, help="Port numbers to be used for nvme discover.")
         parser.add_argument("--hosts", nargs='+', help="Space delimited list of target hostnames")
@@ -717,7 +808,6 @@ The most commonly used dss target commands are:
                             help="List of root passwords for all machines in cluster to be tried in order")
         parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
                             file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
-
         args = parser.parse_args(sys.argv[2:])
 
         if args.addrs is not None and args.ports is not None:
@@ -726,11 +816,21 @@ The most commonly used dss target commands are:
                 disc_addrs = ["{}:{}".format(addr, port) for addr in args.addrs]
         elif args.vlan_ids is not None and args.hosts is not None and args.ports is not None:
             disc_addrs = get_addrs(args.vlan_ids, args.hosts, args.ports, args.root_pws)
+            self.disc_addrs = disc_addrs
         else:
             print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
             sys.exit(-1)
 
+        global gen2_flag, vlan_ip_map, rdd_port
+        if args.gen2:
+            gen2_flag = args.gen2
+            print("Configuring NKV Config to gen2..")
+            if args.vlan_ip_map:
+                vlan_ip_map = args.vlan_ip_map
+            if args.rdd_port:
+                rdd_port = args.rdd_port
         disc_proto = args.proto
+        self.disc_proto = disc_proto
         driver_memalign = args.memalign
         disc_qpair = args.qpair
         nkv_kv_pair = args.kvpair
@@ -835,7 +935,7 @@ The most commonly used dss target commands are:
 
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
-        create_config_file(nkv_kv_pair, drive_list, nkv_conf_file)
+        create_config_file(self.disc_proto, self.disc_addrs, nkv_kv_pair, drive_list, nkv_conf_file)
 
         meta_str = socket.gethostname() + "/numa" + numa
 
@@ -873,7 +973,7 @@ The most commonly used dss target commands are:
 
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
-        create_config_file(nkv_kv_pair, drive_list, nkv_conf_file)
+        create_config_file(self.disc_proto, self.disc_addrs, nkv_kv_pair, drive_list, nkv_conf_file)
 
     def remove(self):
         parser = argparse.ArgumentParser(description='Resets the system to stock nvme')
