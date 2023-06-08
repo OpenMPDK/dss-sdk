@@ -38,7 +38,7 @@ build dss-sdk:
       - host_out/nkv-sdk-bin-*.tgz
       - ufm/agents/nkv_agent/nkvagent-*.rpm
       - ufm/fabricmanager/ufm-*.rpm
-      - ufm/ufm_ufm_msg_broker/ufmbroker-*.rpm
+      - ufm/ufm_msg_broker/ufmbroker-*.rpm
   variables:
     DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz ufm-*.rpm ufmbroker-*.rpm nkvagent-*.rpm"
     GIT_SUBMODULE_STRATEGY: recursive
