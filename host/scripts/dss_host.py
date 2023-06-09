@@ -829,6 +829,8 @@ The most commonly used dss target commands are:
                 vlan_ip_map = args.vlan_ip_map
             if args.rdd_port:
                 rdd_port = args.rdd_port
+        else:
+            gen2_flag = None
         disc_proto = args.proto
         self.disc_proto = disc_proto
         driver_memalign = args.memalign
