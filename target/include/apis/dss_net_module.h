@@ -66,6 +66,8 @@ void dss_net_teardown_request(dss_request_t *req);
 
 void dss_nvmf_process_as_no_op(dss_request_t *req);
 
+dss_request_opc_t dss_nvmf_get_dss_opc(void *req);
+
 #ifdef __cplusplus
 }
 #endif

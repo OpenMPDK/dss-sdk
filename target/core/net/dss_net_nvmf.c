@@ -53,6 +53,24 @@ uint8_t dss_nvmf_get_req_opc(struct spdk_nvmf_request *nvmf_req)
     return nvmf_req->cmd->nvme_cmd.opc;
 }
 
+dss_request_opc_t dss_nvmf_get_dss_opc(void *req)
+{
+    struct spdk_nvmf_request *nvmf_req = req;
+
+    switch(nvmf_req->cmd->nvme_cmd.opc) {
+        case SPDK_NVME_OPC_SAMSUNG_KV_STORE:
+            return DSS_NVMF_KV_IO_OPC_STORE;
+        case SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE:
+            return DSS_NVMF_KV_IO_OPC_RETRIEVE;
+        case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:
+            return DSS_NVMF_KV_IO_OPC_DELETE;
+        case SPDK_NVME_OPC_READ:
+            return DSS_NVMF_BLK_IO_OPC_READ;
+        default:
+            DSS_ASSERT(0);
+    }
+}
+
 void dss_nvmf_set_sc_success(struct spdk_nvmf_request *nvmf_req)
 {
     struct spdk_nvme_cpl *rsp;
@@ -61,6 +79,18 @@ void dss_nvmf_set_sc_success(struct spdk_nvmf_request *nvmf_req)
 
     rsp->status.sct = SPDK_NVME_SCT_GENERIC;
     rsp->status.sc = SPDK_NVME_SC_SUCCESS;
+
+    return;
+}
+
+void dss_nvmf_set_sct_sc(struct spdk_nvmf_request *nvmf_req, uint16_t sct, uint16_t sc)
+{
+    struct spdk_nvme_cpl *rsp;
+
+	rsp = &nvmf_req->rsp->nvme_cpl;
+
+    rsp->status.sct = sct;
+    rsp->status.sc = sc;
 
     return;
 }
@@ -82,6 +112,9 @@ void dss_nvmf_process_as_no_op(dss_request_t *req)
             val_len = dss_req_get_val_len(req);
             dss_nvmf_set_resp_cdw0(nvmf_req, val_len);
             break;
+        case SPDK_NVME_OPC_SAMSUNG_KV_DELETE:
+            //Nothing to set just complete as success
+            break;
         case SPDK_NVME_OPC_READ:
         case SPDK_NVME_OPC_WRITE:
             //Nothing to set just complete as success
@@ -91,6 +124,28 @@ void dss_nvmf_process_as_no_op(dss_request_t *req)
             DSS_ASSERT(0);
     }
     dss_nvmf_set_sc_success(nvmf_req);
+
+    return;
+}
+
+void dss_net_setup_nvmf_resp(dss_request_t *req, dss_request_rc_t status, uint32_t cdw0)
+{
+    struct spdk_nvmf_request *nvmf_req;
+    nvmf_req = (struct spdk_nvmf_request *)req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.nvmf_req;
+
+    switch(status) {
+        case DSS_REQ_STATUS_SUCCESS:
+            dss_nvmf_set_sc_success(nvmf_req);
+            if(req->opc == DSS_NVMF_KV_IO_OPC_RETRIEVE) {
+                dss_nvmf_set_resp_cdw0(nvmf_req, cdw0);
+            }
+            break;
+        case DSS_REQ_STATUS_KEY_NOT_FOUND:
+            dss_nvmf_set_sct_sc(nvmf_req, SPDK_NVME_SCT_KV_CMD, SPDK_NVME_SC_KV_KEY_NOT_EXIST);
+            break;
+        case DSS_REQ_STATUS_ERROR:
+            DSS_ASSERT(0);
+    }
 
     return;
 }

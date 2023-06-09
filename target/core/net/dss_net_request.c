@@ -39,12 +39,15 @@
 
 void dss_net_setup_request(dss_request_t *req, dss_module_instance_t *m_inst, void *nvmf_req)
 {
+    dfly_req_init_nvmf_value(req);
     req->status = DSS_REQ_STATUS_SUCCESS;
     req->module_ctx[DSS_MODULE_NET].module_instance = m_inst;
     req->module_ctx[DSS_MODULE_NET].module = m_inst->module;
     DSS_ASSERT(req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state == DSS_NET_REQUEST_FREE);
     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_INIT;
     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.nvmf_req = nvmf_req;
+    req->ss = dss_req_get_subsystem(req);
+    req->opc = dss_nvmf_get_dss_opc(nvmf_req);
 
     return;
 }
@@ -66,7 +69,7 @@ static inline void dss_net_request_complete(dss_subsystem_t *ss, dss_request_t *
     return;
 }
 
-void dss_net_request_process(dss_subsystem_t *ss, dss_request_t *req)
+void dss_net_request_process(dss_request_t *req)
 {
     dss_net_request_state_t prev_state;
 
@@ -78,10 +81,16 @@ void dss_net_request_process(dss_subsystem_t *ss, dss_request_t *req)
             if (g_dragonfly->test_nic_bw) {
                 dss_nvmf_process_as_no_op(req);
                 req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
-            } else if (dss_subsystem_kv_mode_enabled(ss)) {
-                //TODO: KV Mode
-                req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
-                return;
+            } else if (dss_subsystem_kv_mode_enabled(req->ss)) {
+                if(req->opc == DSS_NVMF_BLK_IO_OPC_READ) {
+                    dss_nvmf_process_as_no_op(req);
+                    req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
+                } else {
+                    dss_setup_kvtrans_req(req, dss_req_get_key(req), dss_req_get_value(req));
+                    req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
+                    dfly_module_post_request(dss_module_get_subsys_ctx(DSS_MODULE_KVTRANS, req->ss), req);
+                    return;
+                }
             } else {
                 //TODO: Block mode
                 req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
@@ -92,7 +101,7 @@ void dss_net_request_process(dss_subsystem_t *ss, dss_request_t *req)
             req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
             break;
         case DSS_NET_REQUEST_COMPLETE:
-            dss_net_request_complete(ss, req);
+            dss_net_request_complete(req->ss, req);
             dss_net_teardown_request(req);
             break;
         case DSS_NET_REQUEST_FREE:

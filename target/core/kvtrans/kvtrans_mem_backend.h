@@ -186,22 +186,29 @@ void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t dat
     g_data.inited = true;
 }
 
+void *get_data_addr(void *base, uint64_t offset) {
+    return (void *)((char *)base + offset);
+}
+
 bool insert_data(idx_t index, uint64_t num_blk, void *buff) {
     if (!buff) {
         printf("ERROR: data buffer is null.\n");
         return false;
     }
-    memcpy(g_data.data_buff_start_addr+index, buff, num_blk * BLOCK_SIZE);
+    memcpy(get_data_addr(g_data.data_buff_start_addr, index * BLOCK_SIZE),
+             buff, num_blk * BLOCK_SIZE);
     return true;
 }
 
 bool retrieve_data(idx_t index, uint64_t num_blk, void *buff) {
-    memcpy(buff, g_data.data_buff_start_addr+index, num_blk * BLOCK_SIZE);
+    memcpy(buff, get_data_addr(g_data.data_buff_start_addr, index * BLOCK_SIZE), 
+            num_blk * BLOCK_SIZE);
     return true;
 }
 
 bool delete_data(idx_t index, uint64_t num_blk) {
-    memset(g_data.data_buff_start_addr+index, 0, num_blk * BLOCK_SIZE);
+    memset(get_data_addr(g_data.data_buff_start_addr, index * BLOCK_SIZE),
+             0, num_blk * BLOCK_SIZE);
     return true;
 }
 

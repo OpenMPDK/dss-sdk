@@ -410,3 +410,24 @@ uint32_t dss_req_get_val_len(dss_request_t *req)
 	struct dfly_request *dreq = (struct dfly_request *) req;
 	return dreq->req_value.length;
 }
+
+dss_key_t *dss_req_get_key(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	return &dreq->req_key;
+}
+
+dss_value_t *dss_req_get_value(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	return &dreq->req_value;
+}
+
+dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	DSS_ASSERT(dreq->req_dfly_ss);
+	return (dss_subsystem_t *)dreq->req_dfly_ss;
+}
+
+

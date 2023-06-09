@@ -244,11 +244,16 @@ SET(IO_TASK_HEADERS
 SET(KVTRANS_SOURCES
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
 )
 
 SET(KVTRANS_HEADERS
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.h
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.h
 )
 
 #Network Module
@@ -389,6 +394,7 @@ include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/lib/nvme/)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/app/nvmf_tgt)
 include_directories (${CMAKE_SOURCE_DIR}/stats)
 include_directories (${CMAKE_SOURCE_DIR}/core/inc)
+include_directories (${CMAKE_SOURCE_DIR}/core/kvtrans)
 include_directories (${CMAKE_SOURCE_DIR}/core/wal/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
@@ -698,6 +704,8 @@ set_property(TEST test_seek_optimization_impl
              PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 
 add_test(NAME test_block_allocator_ut COMMAND test_block_allocator_ut)
+set_property(TEST test_block_allocator_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 # TODO: Test causing segfault fix and then enable
 #add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
 #set_property(TEST dss_kvtrans_ut

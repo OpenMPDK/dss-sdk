@@ -34,7 +34,6 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
-#include "apis/dss_module_apis.h"
 #include "apis/dss_net_module.h"
 
 typedef void (*df_ss_init_next_fn)(void *event, void *arg);
@@ -185,6 +184,8 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 	df_subsys->iomem_dev_numa_aligned = spdk_conf_section_get_boolval(subsys_sp, "iomem_dev_numa_aligned", true);
 	df_subsys->dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "dss_enabled", true);
 	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
+	//TODO: One thread per drive as default?
+	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", 1);
 
 	df_subsys_update_dss_enable(ssid, ss_dss_enabled);
 
@@ -214,6 +215,7 @@ static struct df_ss_mod_init_s module_initializers[DSS_MODULE_END + 1] = {
 	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_FUSE
 	{(dss_mod_init_fn)dss_net_module_subsys_start, (dss_mod_deinit_fn)dss_net_module_subsys_stop,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_FUSE
 	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_IO
+	{dss_kvtrans_module_subsystem_start, dss_kvtrans_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_KVTRANS
 	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_LIST
 	{(dss_mod_init_fn)wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_WAL
 	{NULL, NULL, NULL, NULL, false}
@@ -390,6 +392,12 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 
 	TAILQ_INIT(&dfly_subsystem->df_ctrlrs);
 	pthread_mutex_init(&dfly_subsystem->ctrl_lock, NULL);
+
+	if(!dss_subsystem_kv_mode_enabled((dss_subsystem_t *)dfly_subsystem)) {
+		DSS_NOTICELOG("KV translation disabled by config for %s\n", spdk_nvmf_ss->subnqn);
+		dfly_subsystem->dss_kv_mode = false;
+		module_initializers[DSS_MODULE_KVTRANS].mod_enabled = false;
+	}
 
 	if (g_fuse_conf.fuse_enabled) {
 		module_initializers[DSS_MODULE_FUSE].arg = &g_fuse_conf;

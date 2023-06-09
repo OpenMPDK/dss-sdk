@@ -76,7 +76,7 @@ void *dfly_net_module_thread_instance_destroy(void *mctx, void *inst_ctx)
 }
 int dss_net_module_req_process(void *ctx, dss_request_t *req)
 {
-    dss_net_request_process(NULL, req);
+    dss_net_request_process(req);
     return DFLY_MODULE_REQUEST_QUEUED;
 }
 

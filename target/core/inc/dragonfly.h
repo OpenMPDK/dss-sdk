@@ -62,6 +62,7 @@ extern "C" {
 #include "spdk_internal/log.h"
 
 #include "dss.h"
+#include "apis/dss_module_apis.h"
 
 #include "df_dev.h"
 #include "df_req.h"
@@ -95,8 +96,6 @@ extern "C" {
 #include "uthash.h"
 
 #include "rdd_api.h"
-#include "dss.h"
-#include "apis/dss_module_apis.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,6 +149,7 @@ struct dfly_module_list_s {
 	struct dfly_module_s *dfly_fuse_module;
 	void *dss_net_module;//dss_net_module_subsys_t
 	struct dfly_module_s *dfly_io_module;
+	void *dss_kv_trans_module;
 	struct dfly_module_s *dfly_list_module;
 	struct dfly_module_s *dfly_wal_module;
 };
@@ -197,6 +197,7 @@ struct dfly_subsystem {
 	bool dss_enabled;
 	/// @brief  true - kv mode; false - block mode
 	bool dss_kv_mode;
+	int num_kvt_threads;
 	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
@@ -411,6 +412,10 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/*Not Used*/,
 					df_module_event_complete_cb cb, void *cb_arg);
 
+int dss_kvtrans_module_subsystem_start(struct dfly_subsystem *subsystem, void *arg/*Not Used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_kvtrans_module_subsystem_stop(struct dfly_subsystem *subsystem, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
+
 int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not used*/,
 				   df_module_event_complete_cb cb, void *cb_arg);
 void dfly_lock_service_subsystem_stop(struct dfly_subsystem *subsys, void *arg/*Not used*/,
@@ -542,6 +547,11 @@ void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_
 bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
 
 void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair);
+
+int dfly_spdk_conf_section_get_intval_default(struct spdk_conf_section *sp, const char *key, int default_val);
+
+void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
+
 
 #ifdef __cplusplus
 }

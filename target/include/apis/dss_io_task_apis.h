@@ -35,6 +35,7 @@
 #define DSS_IO_TASK_API_H
 
 #include <stdint.h>
+#include "apis/dss_module_apis.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,11 +70,8 @@ typedef struct dss_io_task_module_opts_s {
     uint32_t max_io_ops;
 } dss_io_task_module_opts_t;
 
-typedef void dss_module_instance_t;//TODO: typedef the actual module instance struct
-
 typedef struct dss_device_s dss_device_t;
 typedef struct dss_io_task_module_s dss_io_task_module_t;
-typedef struct dss_io_task_s dss_io_task_t;
 typedef struct dss_iov_s dss_iov_t;
 
 /**

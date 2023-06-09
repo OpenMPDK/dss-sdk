@@ -52,11 +52,11 @@ extern "C" {
 #endif
 #define MEM_BACKEND
 
+#include "apis/dss_module_apis.h"
 #include "apis/dss_block_allocator_apis.h"
 #include "apis/dss_io_task_apis.h"
 #include "dss.h"
 
-#define KEY_LEN 1024
 #define MAX_DC_NUM 262144
 
 #define MAX_COL_TBL_SIZE 32
@@ -65,18 +65,18 @@ extern "C" {
 #define MAX_INLINE_VALUE 1024
 #define MIN_HASH_SIZE 8
 #define DEFAULT_BLOCK_STATE_NUM 7
+#define DEFAULT_BLK_ALLOC_NAME "simbmap_allocator"
+// #define DEFAULT_BLK_ALLOC_NAME "block_impresario"
+#define DEFAULT_META_NUM 100000
 
 #define CEILING(x,y) (((x) + (y) - 1) / (y))
 
-typedef uint32_t key_size_t;
 typedef uint64_t counter_t;
 typedef double tick_t;
 typedef struct hash_fn_ctx_s hash_fn_ctx_t;
-typedef struct kvtrans_ctx_s kvtrans_ctx_t;
 typedef struct kvtrans_params_s kvtrans_params_t;
 typedef struct ondisk_meta_s ondisk_meta_t;
 typedef struct blk_ctx_s blk_ctx_t;
-typedef struct kvtrans_req kvtrans_req_t;
 
 // typedef dfly_module_t kvtrans_t;
 
@@ -104,36 +104,9 @@ typedef enum dss_kvtrans_status_e {
 /* tmp use for test */
 #define REHASH_MAX 32
 // #define BLK_NUM (3758096384 >> 8)
-#define BLK_NUM 4000000
+#define BLK_NUM 4000000 / 8
 #define BLOCK_SIZE 4096
 
-typedef struct req_key_s {
-    char key[KEY_LEN];
-    key_size_t length;
-} req_key_t;
-
-typedef struct req_value_s {
-    void *value;
-    uint64_t length;
-    uint64_t offset;
-} req_value_t;
-
-typedef enum kv_op_e {
-    KVTRANS_OPC_STORE = 0,
-    KVTRANS_OPC_RETRIEVE,
-    KVTRANS_OPC_DELETE,
-    KVTRANS_OPC_EXIST
-} kv_op_t;
-
-// typedef clock_t tick_t;
-typedef double tick_t;
-
-typedef struct req_s {
-    req_key_t req_key;
-    req_value_t req_value; 
-    struct timespec req_ts;
-    kv_op_t opc;
-} req_t;
 /* tmp use for test end */
 
 typedef enum blk_state_e {
@@ -276,6 +249,7 @@ typedef struct kvtrans_params_s {
     int id;
     int thread_num;
     char *name;
+    char *blk_alloc_name;
     enum hash_type_e hash_type;
     uint16_t hash_size;
     uint64_t mb_blk_num;
@@ -306,6 +280,7 @@ typedef struct hash_fn_ctx_s {
     void (*clean)(struct hash_fn_ctx_s *hash_fn_ctx);
 } hash_fn_ctx_t;
 
+#if 0
 enum kvtrans_req_e {
     REQ_INITIALIZED = 0,
     QUEUE_TO_LOAD_ENTRY,
@@ -343,6 +318,7 @@ struct kvtrans_req{
     STAILQ_ENTRY(kvtrans_req) req_link;
 
 };
+#endif
 
 typedef struct dstat_s {
     counter_t meta;
@@ -379,6 +355,7 @@ typedef struct kvtrans_ctx_s {
     STAILQ_HEAD(, kvtrans_req) req_head;
     uint64_t task_num;
     uint64_t task_done;
+    uint64_t task_failed;
 
     // the digit number of hex number of allocable blocks
     uint16_t hash_bit_in_use;   
@@ -407,7 +384,7 @@ void free_dc_table(kvtrans_ctx_t  *ctx);
 kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params);
 void free_kvtrans_ctx(kvtrans_ctx_t *ctx);
 
-kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req);
+kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_req_t *preallocated_req);
 void free_kvtrans_req(kvtrans_req_t *kreq);
 
 kvtrans_params_t set_default_params();
@@ -435,6 +412,7 @@ dss_kvtrans_status_t kv_process(kvtrans_ctx_t *ctx);
 
 int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req);
 
+// void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
 
 
 #ifdef __cplusplus

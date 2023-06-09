@@ -38,6 +38,8 @@
 extern "C" {
 #endif
 
+#include <sys/time.h>
+
 typedef struct dss_request_s dss_request_t;//TODO: Move to another applicable header file
 typedef enum dss_module_type_e {
 	DSS_MODULE_START_INIT = 0,
@@ -46,9 +48,10 @@ typedef enum dss_module_type_e {
 	DSS_MODULE_FUSE,//2,
 	DSS_MODULE_NET ,//3
 	DSS_MODULE_IO  ,//4,
-	DSS_MODULE_LIST,//5,
-	DSS_MODULE_WAL ,//6,
-	DSS_MODULE_END  //7
+	DSS_MODULE_KVTRANS, //5,
+	DSS_MODULE_LIST,//6,
+	DSS_MODULE_WAL ,//7,
+	DSS_MODULE_END  //8
 } dss_module_type_t;
 
 typedef enum dss_module_status_e {
@@ -80,9 +83,10 @@ typedef enum dss_request_opc_e {
 } dss_request_opc_t;
 
 typedef enum dss_request_rc_e {
-	DSS_REQ_STATUS_SUCCESS = 0,
-	/* Add new error codes here */
-	DSS_REQ_STATUS_ERROR = -1
+    DSS_REQ_STATUS_SUCCESS = 0,
+    DSS_REQ_STATUS_KEY_NOT_FOUND,
+    /* Add new error codes here */
+    DSS_REQ_STATUS_ERROR = -1
 } dss_request_rc_t;
 
 //Network structs
@@ -97,6 +101,92 @@ typedef struct dss_net_req_ctx_s {
     dss_net_request_state_t state;
 	void *nvmf_req;//struct spdk_nvmf_request
 } dss_net_req_ctx_t;
+//End - Network structs
+
+//IO Task Common
+typedef struct dss_io_task_s dss_io_task_t;
+//End - IO task Common
+
+//KV Trans Module
+
+typedef uint32_t key_size_t;
+typedef struct kvtrans_ctx_s kvtrans_ctx_t;
+typedef struct kvtrans_req kvtrans_req_t;
+
+typedef double tick_t;
+#define KEY_LEN 1024
+
+typedef struct req_key_s {
+    char key[KEY_LEN];
+    key_size_t length;
+} req_key_t;
+
+typedef struct req_value_s {
+    void *value;
+    uint64_t length;
+    uint64_t offset;
+} req_value_t;
+
+typedef enum kv_op_e {
+    KVTRANS_OPC_STORE = 0,
+    KVTRANS_OPC_RETRIEVE,
+    KVTRANS_OPC_DELETE,
+    KVTRANS_OPC_EXIST
+} kv_op_t;
+
+// typedef clock_t tick_t;
+// typedef double tick_t;
+
+typedef struct req_s {
+    req_key_t req_key;
+    req_value_t req_value; 
+    struct timespec req_ts;
+    kv_op_t opc;
+} req_t;
+
+enum kvtrans_req_e {
+    REQ_INITIALIZED = 0,
+    QUEUE_TO_LOAD_ENTRY,
+    ENTRY_LOADING_DONE,
+    QUEUE_TO_LOAD_COL,
+    COL_LOADING_DONE,
+    QUEUE_TO_LOAD_COL_EXT,
+    COL_EXT_LOADING_DONE,
+    QUEUE_TO_START_IO,
+    IO_CMPL,
+    REQ_CMPL
+};
+
+struct req_time_tick {
+    tick_t bg;
+    tick_t hash;
+    tick_t keyset;
+    tick_t valset;
+    tick_t cmpl;
+};
+
+
+/**
+ *  @brief kvtrans request context
+ */
+struct kvtrans_req{
+    void *req;
+	bool req_allocated;
+    uint64_t id;
+    enum kvtrans_req_e state;
+    // a blk_ctx to maintain meta info 
+    kvtrans_ctx_t *kvtrans_ctx;
+    dss_io_task_t **io_tasks;
+    void *cb_ctx;
+    struct req_time_tick time_tick;
+	req_t r;//temp
+    STAILQ_ENTRY(kvtrans_req) req_link;
+
+};
+
+//End - DSS KV Trans module
+
+
 typedef struct dss_module_req_ctx_s {
 	/// @brief Module pointer.
 	dss_module_t *module;
@@ -104,6 +194,7 @@ typedef struct dss_module_req_ctx_s {
 	dss_module_instance_t *module_instance;
 	union {
 		dss_net_req_ctx_t net;
+		kvtrans_req_t kvt;
 	} mreq_ctx;//Module request context
 } dss_module_req_ctx_t;
 
@@ -140,6 +231,8 @@ dss_module_status_t dss_module_get_instance_for_core(dss_module_t *module , uint
 void *dss_module_get_subsys_ctx( dss_module_type_t type, void *ss);
 
 void dss_module_set_subsys_ctx( dss_module_type_t type, void *ss, void *ctx);
+
+void dss_net_setup_nvmf_resp(dss_request_t *req, dss_request_rc_t status, uint32_t cdw0);
 
 #ifdef __cplusplus
 }
