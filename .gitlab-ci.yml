@@ -46,9 +46,9 @@ build dss-sdk:
     <<: *sonar_cache
     policy: push
 
-build target gcov:
+build target gcov and unit tests:
   stage: build
-  script: ./target/build.sh --with-coverage
+  script: ./target/build.sh --run-tests --with-coverage
   artifacts:
     name: gcov artifacts
     paths:
@@ -60,7 +60,7 @@ build target gcov:
 sonar-scanner:
   stage: scan
   script:
-    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
+    - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.coverageReportPaths=./df_out/reports/sonar_qube_ut_coverage_report.xml
   allow_failure: true
   cache:
     <<: *sonar_cache
