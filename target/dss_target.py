@@ -946,6 +946,8 @@ The most commonly used dss target commands are:
         global g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
         if args.gen2:
             g_gen2 = args.gen2
+        else:
+            g_gen2 = None
         if args.rdd_port:
             g_rdd_port = args.rdd_port
         if args.config_file:
