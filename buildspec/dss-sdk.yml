@@ -5,7 +5,7 @@ env:
     SONAR_TOKEN: Codebuild-DSS:SONAR_TOKEN
     DSSS3URI: Codebuild-DSS:DSSS3URI
   variables:
-    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz ufm-*.rpm ufmbroker-*.rpm nkvagent-*.rpm"
+    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
 
 phases:
   build:
@@ -31,8 +31,5 @@ artifacts:
   files:
     - df_out/nkv-target-*.tgz
     - host_out/nkv-sdk-bin-*.tgz
-    - ufm/agents/nkv_agent/nkvagent-*.rpm
-    - ufm/fabricmanager/ufm-*.rpm
-    - ufm/ufm_ufm_msg_broker/ufmbroker-*.rpm
   discard-paths: yes
   name: builds/dss-sdk/$CODEBUILD_BUILD_NUMBER
