@@ -34,7 +34,10 @@
 #include "dss.h"
 #include "dss_block_allocator.h"
 
-#define BLK_ALLOCATOR_DEFAULT_TYPE "block_impresario"
+extern dss_blk_alloc_module_t dss_block_impresario;
+DSS_BLOCK_ALLOCATOR_REGISTER(block_impresario, &dss_block_impresario);
+
+#define BLK_ALLOCATOR_DEFAULT_TYPE "simbmap_allocator"
 #define BLK_ALLOCATOR_DEFAULT_NUM_BLOCK_STATES (4)
 #define BLK_ALLOCATOR_DEFAULT_ALLOCATOR_BLOCK_SIZE (4096)
 #define BLK_ALLOCATOR_DEFAULT_SHARD_SIZE (131072)

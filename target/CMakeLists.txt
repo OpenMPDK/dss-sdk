@@ -35,6 +35,11 @@ project(nkv-target)
 enable_language(C)
 enable_language(CXX)
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_COMPILER "g++")
+
 option(WITH_COVERAGE "Generate binaries with coverage enabled." OFF)
 if(WITH_COVERAGE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
@@ -218,6 +223,8 @@ SET(BLK_ALLOC_SOURCES
     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
     ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
     ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
 )
 
 SET(BLK_ALLOC_HEADERS
@@ -407,6 +414,7 @@ endif(WITH_ROCKSDB_KV)
 
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator)
 include_directories (${CMAKE_SOURCE_DIR}/utils)
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)

@@ -50,8 +50,10 @@
 typedef void (*dummy_fn) (void);
 static struct {
 	dummy_fn dummy1;
+	dummy_fn dummy2;
 } __dss_force_constructor_linking = {
-	.dummy1 = (dummy_fn) _dss_block_allocator_register_simbmap_allocator
+	.dummy1 = (dummy_fn) _dss_block_allocator_register_simbmap_allocator,
+	.dummy2 = (dummy_fn) _dss_block_allocator_register_block_impresario
 };
 
 

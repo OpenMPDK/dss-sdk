@@ -34,14 +34,22 @@
 # Tests for simple bitmap implementation with cunit
 add_executable(dss_simbmap_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
                                         dss_simbmap_allocator_ut.c)
 
 
 target_include_directories(dss_simbmap_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                                             ${CMAKE_SOURCE_DIR}/include/apis)
 
 
-target_link_libraries(dss_simbmap_allocator_ut ${UNIT_LIBS} -lm)
+target_link_libraries(dss_simbmap_allocator_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS} -lm)
+target_compile_options(dss_simbmap_allocator_ut PRIVATE -std=gnu++11)
+add_dependencies(dss_simbmap_allocator_ut judy_hashmap)
 
 # Tests for bitmap implementation with cppunit
 set(CMAKE_CXX_STANDARD 11)

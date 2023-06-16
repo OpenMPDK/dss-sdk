@@ -538,6 +538,7 @@ int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
 
 //C Constructor declarations: to enable symbol lookup on linking
 void _dss_block_allocator_register_simbmap_allocator(void);
+void _dss_block_allocator_register_block_impresario(void);
 //END - C Constructor declarations
 
 dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, df_module_event_complete_cb cb, void *cb_arg);

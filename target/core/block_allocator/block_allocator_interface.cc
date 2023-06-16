@@ -239,7 +239,7 @@ dss_blk_allocator_status_t complete_meta_sync(
 /**
  * @brief Block allocator registration with target
  */
-static struct dss_blk_alloc_module_s dss_block_impresario = {
+struct dss_blk_alloc_module_s dss_block_impresario = {
     .name = BlockInterface::block_allocator_name,
     .core = {
         .blk_alloc_init = BlockInterface::block_allocator_init,
@@ -258,5 +258,3 @@ static struct dss_blk_alloc_module_s dss_block_impresario = {
             BlockInterface::complete_meta_sync
     }
 };
-
-DSS_BLOCK_ALLOCATOR_REGISTER(block_impresario, &dss_block_impresario);

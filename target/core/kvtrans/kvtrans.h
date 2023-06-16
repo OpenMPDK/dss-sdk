@@ -65,8 +65,7 @@ extern "C" {
 #define MAX_INLINE_VALUE 1024
 #define MIN_HASH_SIZE 8
 #define DEFAULT_BLOCK_STATE_NUM 7
-#define DEFAULT_BLK_ALLOC_NAME "simbmap_allocator"
-// #define DEFAULT_BLK_ALLOC_NAME "block_impresario"
+#define DEFAULT_BLK_ALLOC_NAME "block_impresario"
 #define DEFAULT_META_NUM 100000
 
 #define CEILING(x,y) (((x) + (y) - 1) / (y))

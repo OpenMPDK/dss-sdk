@@ -213,7 +213,7 @@ static struct df_ss_mod_init_s module_initializers[DSS_MODULE_END + 1] = {
 	{NULL,NULL, NULL, NULL, false},
 	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_LOCK
 	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_FUSE
-	{(dss_mod_init_fn)dss_net_module_subsys_start, (dss_mod_deinit_fn)dss_net_module_subsys_stop,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_FUSE
+	{(dss_mod_init_fn)dss_net_module_subsys_start, (dss_mod_deinit_fn)dss_net_module_subsys_stop,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_NET
 	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_IO
 	{dss_kvtrans_module_subsystem_start, dss_kvtrans_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_KVTRANS
 	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_LIST
