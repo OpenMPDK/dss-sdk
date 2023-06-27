@@ -39,6 +39,7 @@ from __future__ import print_function
 
 # Standard libraries
 import argparse
+import ast
 import json
 import os
 import re
@@ -772,7 +773,6 @@ The most commonly used dss target commands are:
         getattr(self, args.command)()
 
     def config_host(self):
-        import ast
         parser = argparse.ArgumentParser(
             description='Discovers/connects device(s), and creates config file for DSS API layer')
         parser.add_argument(
@@ -906,6 +906,31 @@ The most commonly used dss target commands are:
         parser.add_argument("-n", "--numobj", type=str, help="Number of objects for each thread (default=1000)", default="1000")
         parser.add_argument("-x", "--kvpair", type=str, default=None, nargs="+", help="one or more key=value pairs for nkv_config.json \
                             file update. For e.g., nkv_need_path_stat=1 nkv_max_key_length=1024 and so on.")
+        parser.add_argument("-p", "--ports", type=int, nargs='+', required=False, help="Port numbers to be used for nvme discover.")
+        parser.add_argument("-addrs", "--addrs", type=str, nargs='+', help="Space-delimited list of ip for nvme discovery (required)")
+        parser.add_argument("-proto", "--proto", type=str, help="Protocol for nvme discovery (default: rdma)", default="rdma")
+        parser.add_argument(
+            "-g2",
+            "--gen2",
+            action='store_true',
+            required=False,
+            help="Specifies if Gen2 version of target should be configured"
+        )
+        parser.add_argument(
+            "-rdd_port",
+            "--rdd_port",
+            type=str,
+            default="1234",
+            help="Port to be used for all RDD configurations"
+        )
+        parser.add_argument(
+            "-vlan_ip_map",
+            "--vlan_ip_map",
+            type=ast.literal_eval,
+            nargs="+",
+            required=False,
+            help="Mapping between front and back end ips"
+        )
 
         args = parser.parse_args(sys.argv[2:])
 
@@ -933,11 +958,35 @@ The most commonly used dss target commands are:
             print("provide workload type")
             return
 
+        global gen2_flag, vlan_ip_map, rdd_port
+        if args.gen2:
+            gen2_flag = args.gen2
+            print("Configuring NKV Config to gen2..")
+            if args.vlan_ip_map:
+                vlan_ip_map = args.vlan_ip_map
+            if args.rdd_port:
+                rdd_port = args.rdd_port
+        else:
+            gen2_flag = None
+
+        if args.addrs is not None and args.ports is not None:
+            disc_addrs = []
+            for port in args.ports:
+                disc_addrs = (
+                    ["{}:{}".format(addr, port) for addr in args.addrs]
+                )
+        else:
+            print("Must specify --addrs AND --ports or --hosts AND --vlan-ids AND --ports")
+            sys.exit(-1)
+
+        if args.proto:
+            disc_proto = args.proto
+
         nkv_kv_pair = args.kvpair
 
         cmd = 'nvme list-subsys | grep ' + addr_octet + ' | awk \'{ print "/dev/" $2 "n1" }\' | paste -sd,'
         drive_list = get_drives_list(cmd)
-        create_config_file(self.disc_proto, self.disc_addrs, nkv_kv_pair, drive_list, nkv_conf_file)
+        create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drive_list, nkv_conf_file)
 
         meta_str = socket.gethostname() + "/numa" + numa
 
