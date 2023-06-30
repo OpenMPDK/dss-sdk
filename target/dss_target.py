@@ -984,18 +984,19 @@ The most commonly used dss target commands are:
             print("Must specify either --vlan-ids or --ip-addresses")
             sys.exit(-1)
 
-        print "dss_tgt config, config_file=" + g_conf_path + "ip_addrs=" + str(
+        print ("dss_tgt config, config_file=" + g_conf_path + "ip_addrs=" + str(
             g_ip_addrs
-        )[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1] + "block_fw=" + str(
-            g_block_firmware
-        )[
-            1:-1
-        ] + " wal_devs=" + str(
-            g_wal
-        ) + " rdma=" + str(
-            g_rdma
-        ) + " tcp=" + str(
-            g_tcp
+            )[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1] + "block_fw=" + str(
+                g_block_firmware
+            )[
+                1:-1
+            ] + " wal_devs=" + str(
+                g_wal
+            ) + " rdma=" + str(
+                g_rdma
+            ) + " tcp=" + str(
+                g_tcp
+            )
         )
         global g_config
         g_config = 1
@@ -1048,7 +1049,7 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description="Assign back all NVME devices to system"
         )
-        print "Running dss_tgt reset"
+        print("Running dss_tgt reset")
         global g_reset_drives
         g_reset_drives = 1
         ret = reset_drive()
@@ -1056,7 +1057,7 @@ The most commonly used dss target commands are:
 
     def set(self):
         parser = argparse.ArgumentParser(description="Assign NVME devices to UIO")
-        print "Running dss_tgt set"
+        print("Running dss_tgt set")
         global g_set_drives
         g_set_drives = 1
         setup_hugepage()
@@ -1065,12 +1066,12 @@ The most commonly used dss target commands are:
 
     def huge_pages(self):
         parser = argparse.ArgumentParser(description="Setup system huge pages")
-        print "Running dss_target huge_pages"
+        print("Running dss_target huge_pages")
         setup_hugepage()
 
     def build(self):
         parser = argparse.ArgumentParser(description="Build target software")
-        print "Running dss_tgt build"
+        print("Running dss_tgt build")
         global g_tgt_build
         g_tgt_build = 1
 
@@ -1091,7 +1092,7 @@ The most commonly used dss target commands are:
             help="Target Binary needed to execute the tgt. Default path will be tried if it doesn't exist",
         )
         args = parser.parse_args(sys.argv[2:])
-        print "Running dss_tgt launch"
+        print("Running dss_tgt launch")
         global g_conf_path, g_tgt_launch, g_tgt_bin
         if args.config_file:
             g_conf_path = args.config_file
@@ -1100,7 +1101,7 @@ The most commonly used dss target commands are:
 
     def checkout(self):
         parser = argparse.ArgumentParser(description="Checkout target software")
-        print 'Running dss_tgt checkout\n do "git clone git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-target.git"'
+        print('Running dss_tgt checkout\n do "git clone git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-target.git"')
         global g_tgt_checkout
         g_tgt_checkout = 1
 
@@ -1111,6 +1112,6 @@ if __name__ == "__main__":
 
     g_path = os.getcwd()
     g_lib_path = os.path.normpath(g_path + "/../lib")
-    print "Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "..."
+    print("Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "...")
 
     dss_tgt_args()
