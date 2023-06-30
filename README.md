@@ -52,10 +52,10 @@ pytest-gitcov
 Also refer to requirements.txt file if you would like to install these packages with pip
 
 ## Run Pytest
-You must be in the dss_datamover directory
+You must be in the dss-sdk directory
 
 Structure:
-`python3 -m pytest <path to test folder or file> -v -rA --cov=<path to root folder of data mover> --cov-report term --color=yes --disable-warnings`
+`python3 -m pytest <path to test folder or file> -v -rA --cov=<path to root folder of dss-sdk> --cov-report term --color=yes --disable-warnings`
 
 Here are some examples run from the dss-ecosystem directory
 
@@ -67,7 +67,7 @@ Run on a specific test file
 `python3 -m pytest tests/test_dss_host.py -v -rA --cov=. --cov-report term --color=yes --disable-warnings`
 
 Run on a specific test class
-`python3 -m pytest tests/test_utils.py::TestDSSHost -v -rA --cov=. --cov-report term --color=yes --disable-warnings`
+`python3 -m pytest tests/test_dss_host.py::TestDSSHost -v -rA --cov=. --cov-report term --color=yes --disable-warnings`
 
 Run on a specific unittest
-`python3 -m pytest tests/test_utils.py::TestDSSHost::test_is_ipv4 -v -rA --cov=. --cov-report term --color=yes --disable-warnings`
+`python3 -m pytest tests/test_dss_host.py::TestDSSHost::test_is_ipv4 -v -rA --cov=. --cov-report term --color=yes --disable-warnings`
