@@ -984,20 +984,11 @@ The most commonly used dss target commands are:
             print("Must specify either --vlan-ids or --ip-addresses")
             sys.exit(-1)
 
-        print ("dss_tgt config, config_file=" + g_conf_path + "ip_addrs=" + str(
-            g_ip_addrs
-            )[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1] + "block_fw=" + str(
-                g_block_firmware
-            )[
-                1:-1
-            ] + " wal_devs=" + str(
-                g_wal
-            ) + " rdma=" + str(
-                g_rdma
-            ) + " tcp=" + str(
-                g_tcp
-            )
-        )
+        print("dss_tgt config, config_file=" + g_conf_path + "ip_addrs="
+              + str(g_ip_addrs)[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1]
+              + "block_fw=" + str(g_block_firmware)[1:-1] + " wal_devs="
+              + str(g_wal) + " rdma=" + str(g_rdma) + " tcp=" + str(g_tcp)
+              )
         global g_config
         g_config = 1
         reset_drive()

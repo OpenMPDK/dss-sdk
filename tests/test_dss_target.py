@@ -52,6 +52,3 @@ class TestDSSTarget():
     def test_generate_core_mask_vmmode(self):
         core_count = 12
         return 0 == generate_core_mask_vmmode(core_count)
-    
-
-    

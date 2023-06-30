@@ -70,20 +70,20 @@ def get_sample_nvme_subsystems():
     sample_nvme_subsystems = """\
     nvme-subsys0 - NQN=nqn.2023-06.io:msl-ssg-sm1-kv_data1
     \
-    +- nvme0 rdma traddr=201.0.0.221 trsvcid=1024 live
-    +- nvme4 rdma traddr=203.0.0.221 trsvcid=1024 live
+    +- nvme0 rdma traddr=201.x.x.xxx trsvcid=1024 live
+    +- nvme4 rdma traddr=203.x.x.xxx trsvcid=1024 live
     nvme-subsys1 - NQN=nqn.2023-06.io:msl-ssg-sm1-kv_data2
     \
-    +- nvme1 rdma traddr=201.0.0.221 trsvcid=1024 live
-    +- nvme5 rdma traddr=203.0.0.221 trsvcid=1024 live
+    +- nvme1 rdma traddr=201.x.x.xxx trsvcid=1024 live
+    +- nvme5 rdma traddr=203.x.x.xxx trsvcid=1024 live
     nvme-subsys2 - NQN=nqn.2023-06.io:msl-ssg-sm1-kv_data3
     \
-    +- nvme2 rdma traddr=201.0.0.221 trsvcid=1024 live
-    +- nvme6 rdma traddr=203.0.0.221 trsvcid=1024 live
+    +- nvme2 rdma traddr=201.x.x.xxx trsvcid=1024 live
+    +- nvme6 rdma traddr=203.x.x.xxx trsvcid=1024 live
     nvme-subsys3 - NQN=nqn.2023-06.io:msl-ssg-sm1-kv_data4
     \
-    +- nvme3 rdma traddr=201.0.0.221 trsvcid=1024 live
-    +- nvme7 rdma traddr=203.0.0.221 trsvcid=1024 live
+    +- nvme3 rdma traddr=201.x.x.xxx trsvcid=1024 live
+    +- nvme7 rdma traddr=203.x.x.xxx trsvcid=1024 live
     """
     return sample_nvme_subsystems
 
@@ -194,4 +194,3 @@ def get_global_var():
     global rdd
     rdd = "yes"
     return rdd
-
