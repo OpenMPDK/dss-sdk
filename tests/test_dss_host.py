@@ -36,7 +36,7 @@ from host.scripts.dss_host import (
     is_ipv4, getSubnet, get_ip_port_nqn_info, decode
 )
 import pytest
-import random
+import secrets
 
 
 @pytest.mark.usefixtures(
@@ -63,5 +63,5 @@ class TestDSSHost():
         assert data == [[proto, port, subsystem, ip]]
 
     def test_decode(self):
-        bytes = bytearray(random.getrandbits(8) for _ in range(200))
+        bytes = bytearray(secrets.randbits(8) for _ in range(200))
         assert isinstance(decode(bytes), str)

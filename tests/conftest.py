@@ -34,7 +34,7 @@
 
 from faker import Faker
 import pytest
-import random
+import secrets
 
 
 @pytest.fixture(scope="session")
@@ -156,7 +156,7 @@ def get_sample_nvme_discover_output():
 
 @pytest.fixture(scope="session")
 def get_sample_dict_data():
-    sample_dict = {"key " + str(i): random.randint(100) for i in range(10)}
+    sample_dict = {"key " + str(i): secrets.randbelow(100) for i in range(10)}
     return sample_dict
 
 
