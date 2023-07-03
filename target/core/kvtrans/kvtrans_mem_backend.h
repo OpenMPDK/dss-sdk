@@ -8,7 +8,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <time.h>
-#include<Judy.h>
+#include <Judy.h>
 #include "kvtrans.h"
 
 #define INIT_FREE_INDEX_SIZE 1024
@@ -94,7 +94,6 @@ int found_meta(idx_t index) {
 int delete_meta(idx_t index) {
     assert(g_metas.inited);
     int rc;
-    uint64_t pool_idx;
     // val_t val;
     // val = load_meta(index);
     // assert(val);
@@ -153,7 +152,7 @@ void log_metas(char *file_path) {
     {
         val = (val_t) *new_entry;
         meta = (ondisk_meta_t *)val;
-        fprintf(fptr, "%zu, %zu, %zu, %zu\n", index, meta->num_valid_col_entry, meta->num_valid_place_value_entry, meta->value_location);
+        fprintf(fptr, "%zu, %2x, %2x, %d\n", index, meta->num_valid_col_entry, meta->num_valid_place_value_entry, meta->value_location);
        new_entry = (Word_t *) JudyLNext(g_metas.Parray, &index, PJE0);
     }
 
@@ -195,8 +194,9 @@ bool insert_data(idx_t index, uint64_t num_blk, void *buff) {
         printf("ERROR: data buffer is null.\n");
         return false;
     }
-    memcpy(get_data_addr(g_data.data_buff_start_addr, index * BLOCK_SIZE),
-             buff, num_blk * BLOCK_SIZE);
+    void *addr = get_data_addr(g_data.data_buff_start_addr, index * BLOCK_SIZE);
+    memcpy(addr, buff, num_blk * BLOCK_SIZE);
+    // printf("save data at [%zu], at [%p] with blk_num [%zu]\n", index, addr, num_blk);
     return true;
 }
 

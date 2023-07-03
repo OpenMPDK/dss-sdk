@@ -130,6 +130,7 @@ void init_params(kvtrans_params_t *params) {
     params->hash_size = 0;
     params->mb_blk_num = KEY_NUM;
     params->mb_data_num = BLK_NUM;
+    params->blk_alloc_name = "block_impresario";
 }
 
 void init_test_ctx() {

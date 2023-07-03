@@ -136,7 +136,7 @@ void dss_kvtrans_net_request_complete(dss_request_t *req, dss_kvtrans_status_t r
             DSS_ASSERT(0);
         }
 
-        dss_net_setup_nvmf_resp(req, req->status, kreq->r.req_value.length);
+        dss_net_setup_nvmf_resp(req, req->status, kreq->req.req_value.length);
         //Send back to net module
         dss_module_post_to_instance(DSS_MODULE_NET, req->module_ctx[DSS_MODULE_NET].module_instance, req);
 }
@@ -147,10 +147,10 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req) {
     // kvtrans_req_t *kreq = init_kvtrans_req(thread_ctx->ctx, dss_request, NULL);
     kvtrans_req_t *kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
     DSS_ASSERT(kreq);
-    init_kvtrans_req(thread_ctx->ctx, kreq->req, kreq);
+    init_kvtrans_req(thread_ctx->ctx, &kreq->req, kreq);
     thread_ctx->ctx->entry_blk->kreq = kreq;
 
-    switch(kreq->r.opc) {
+    switch(kreq->req.opc) {
     case KVTRANS_OPC_STORE:
         rc = kvtrans_store(thread_ctx->ctx, kreq);
         break;
@@ -171,7 +171,13 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req) {
     }
 
     if(kreq->state == REQ_CMPL) {
+        // if (kreq->id%999==0) {
+            printf("[KVTRANS]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n", 
+                     thread_ctx->ctx->stat.meta, thread_ctx->ctx->stat.mc,
+                     thread_ctx->ctx->stat.dc, thread_ctx->ctx->stat.mdc);
+        // }
         dss_kvtrans_net_request_complete(req, rc);
+
     } else {
         //TODO: Handling for async completion
         DSS_ASSERT(0);
@@ -187,30 +193,27 @@ void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v)
 
     switch(req->opc) {
         case DSS_NVMF_KV_IO_OPC_STORE:
-            kreq->r.opc = KVTRANS_OPC_STORE;
+            kreq->req.opc = KVTRANS_OPC_STORE;
             DSS_ASSERT(v->value);
             break;
         case DSS_NVMF_KV_IO_OPC_RETRIEVE:
-            kreq->r.opc = KVTRANS_OPC_RETRIEVE;
+            kreq->req.opc = KVTRANS_OPC_RETRIEVE;
             DSS_ASSERT(v->value);
             break;
         case DSS_NVMF_KV_IO_OPC_DELETE:
-            kreq->r.opc = KVTRANS_OPC_DELETE;
+            kreq->req.opc = KVTRANS_OPC_DELETE;
             break;
         default:
             DSS_ASSERT(0);
     }
 
-    strncpy(kreq->r.req_key.key, k->key, k->length);//TODO: Copy pointer
-    kreq->r.req_key.key[k->length] = '\0';
-    kreq->r.req_key.length = k->length;
+    strncpy(kreq->req.req_key.key, k->key, k->length);//TODO: Copy pointer
+    kreq->req.req_key.key[k->length] = '\0';
+    kreq->req.req_key.length = k->length;
 
-    kreq->r.req_value.value = v->value;
-    kreq->r.req_value.length = v->length;
-    kreq->r.req_value.offset = v->offset;
-
-    kreq->req = &kreq->r;
-
+    kreq->req.req_value.value = v->value;
+    kreq->req.req_value.length = v->length;
+    kreq->req.req_value.offset = v->offset;
     return;
 }
 

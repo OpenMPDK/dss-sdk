@@ -170,7 +170,7 @@ struct req_time_tick {
  *  @brief kvtrans request context
  */
 struct kvtrans_req{
-    void *req;
+    req_t req;
 	bool req_allocated;
     uint64_t id;
     enum kvtrans_req_e state;
@@ -179,7 +179,6 @@ struct kvtrans_req{
     dss_io_task_t **io_tasks;
     void *cb_ctx;
     struct req_time_tick time_tick;
-	req_t r;//temp
     STAILQ_ENTRY(kvtrans_req) req_link;
 
 };
