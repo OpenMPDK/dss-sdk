@@ -41,6 +41,7 @@ DSS_BLOCK_ALLOCATOR_REGISTER(block_impresario, &dss_block_impresario);
 #define BLK_ALLOCATOR_DEFAULT_NUM_BLOCK_STATES (4)
 #define BLK_ALLOCATOR_DEFAULT_ALLOCATOR_BLOCK_SIZE (4096)
 #define BLK_ALLOCATOR_DEFAULT_SHARD_SIZE (131072)
+#define BLK_ALLOCATOR_DEFAULT_LOGICAL_START_BLOCK_OFFSET (0)
 #define BLK_ALLOCATOR_DEFAULT_SB_INDEX (0)
 #define BLK_ALLOCATOR_DEFAULT_NUM_SUPER_BLOCKS (8192)
 #define BLK_ALLOCATOR_DEFAULT_DISK_BLOCK_SIZE (4096)
@@ -87,6 +88,7 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
     DSS_ASSERT(m->core.clear_blocks);
 
     //On-Disk functions
+    DSS_ASSERT(m->disk.blk_alloc_get_physical_size);
     DSS_ASSERT(m->disk.blk_alloc_get_sync_meta_io_tasks);
     DSS_ASSERT(m->disk.blk_alloc_complete_meta_sync);
 
@@ -97,13 +99,18 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
 
 static inline bool dss_block_allocator_is_block_index_valid(dss_blk_allocator_context_t*c, uint64_t bindex)
 {
-    return ((bindex < c->blk_alloc_opts.num_total_blocks)? true : false);
+    return (((bindex >= c->blk_alloc_opts.logical_start_block_offset) && \
+            (bindex < c->blk_alloc_opts.num_total_blocks + c->blk_alloc_opts.logical_start_block_offset))? true : false);
 }
 
 static inline bool dss_block_allocator_is_block_range_valid(dss_blk_allocator_context_t*c, uint64_t bindex, uint64_t num_blocks)
 {
-    return (((bindex < c->blk_alloc_opts.num_total_blocks) && \
-                ((bindex + num_blocks) <= c->blk_alloc_opts.num_total_blocks) && \
+    uint64_t req_last_lb = bindex + num_blocks - 1;
+    uint64_t blk_allocator_last_lb = c->blk_alloc_opts.num_total_blocks + c->blk_alloc_opts.logical_start_block_offset - 1;
+
+    return (((bindex >= c->blk_alloc_opts.logical_start_block_offset) && \
+                (bindex <= blk_allocator_last_lb) && \
+                (req_last_lb <= blk_allocator_last_lb) && \
                 (bindex  < (bindex + num_blocks)))? true : false);
 }
 
@@ -152,6 +159,7 @@ void dss_blk_allocator_set_default_config(dss_device_t *device, dss_blk_allocato
     opts->num_block_states     = BLK_ALLOCATOR_DEFAULT_NUM_BLOCK_STATES;
     opts->allocator_block_size = BLK_ALLOCATOR_DEFAULT_ALLOCATOR_BLOCK_SIZE;
     opts->shard_size           = BLK_ALLOCATOR_DEFAULT_SHARD_SIZE;
+    opts->logical_start_block_offset = BLK_ALLOCATOR_DEFAULT_LOGICAL_START_BLOCK_OFFSET;
     //TODO: Set default total blocks querying disk
     // opts->num_total_blocks =
     opts->d.disk_block_size   = BLK_ALLOCATOR_DEFAULT_DISK_BLOCK_SIZE;//TODO: Query from disk
@@ -290,6 +298,15 @@ dss_blk_allocator_status_t dss_blk_allocator_print_stats(dss_blk_allocator_conte
     } else {
         return BLK_ALLOCATOR_STATUS_ERROR; 
     }
+}
+
+uint64_t
+dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
+
+    DSS_ASSERT(ctx->m->disk.blk_alloc_get_physical_size);
+
+    return ctx->m->disk.blk_alloc_get_physical_size(ctx);
+
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)

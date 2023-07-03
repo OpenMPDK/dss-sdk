@@ -77,22 +77,27 @@ typedef enum dss_blk_allocator_status_e {
  *
  */
 struct dss_blk_allocator_opts_s {
-    char *blk_allocator_type; //one of registered block allocator names
-    uint64_t num_total_blocks; //Number of blocks managed by allocator
-                               // This is number of total allocatable block
-                               // Each block is of size allocator_block_size
-    uint64_t num_block_states; //Number of states each block can take excluding cleared state.
-                         //This will correspond to the number of bit required for each block
-    uint64_t shard_size;//Optimal write size for high throughput
-    uint64_t allocator_block_size;//Size of each block allocated in bytes
-    dss_blk_allocator_disk_config_t d; //On disk configuration for block allocator
+    char *blk_allocator_type; // one of registered block allocator names
+    uint64_t num_total_blocks; // - Number of blocks managed by allocator
+                               // - This is number of total allocatable block
+                               // - Each block is of size allocator_block_size
+    uint64_t num_block_states; // - Number of states each block can take excluding cleared state.
+                               // - This will correspond to the number of bit required for each block
+    uint64_t shard_size; // Optimal write size for high throughput
+    uint64_t allocator_block_size;// Size of each block allocated in bytes
+    uint64_t logical_start_block_offset; // - Logical block number from which the block_allocator
+                                         //   needs to manage `num_total_blocks`
+                                         // - This offset will include the size for superblock
+                                         //   and size for persistent block allocator data in blocks
+                                         //   at the minimum
+    dss_blk_allocator_disk_config_t d; // On disk configuration for block allocator
 };
 
 /**
  * @brief Initializes and returns a new block allocator context
  *
  * @param device Device handle on which the block allocator needs to be initialized
- * @param config Options struct with input coniguration options set
+ * @param config Options struct with input configuration options set
  * @return dss_blk_allocator_context_t* allocated and initialized context pointer
  */
 dss_blk_allocator_context_t* dss_blk_allocator_init(dss_device_t *device, dss_blk_allocator_opts_t *config);
@@ -198,6 +203,17 @@ dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocat
 dss_blk_allocator_status_t dss_blk_allocator_print_stats();
 
 //On-Disk APIs
+
+/**
+ * @brief Query block allocator to obtain the size of persistent memory required for managing operations.
+ *        This is the on-disk size of all persistent data-structures used by block allocator.
+ *        Ideally invoked after setting up block allocator (init) and required for persistence.
+ * 
+ * @param ctx Block allocator context
+ * @return physical size in bytes, required to be persisted
+ */
+uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx);
+
 
 /**
  * @brief Generate a list of meta io tasks corresponding to the dirty segments and update the given io_task

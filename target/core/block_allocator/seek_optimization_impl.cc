@@ -46,9 +46,10 @@ bool JudySeekOptimizer::init() {
      * - Start `lb` and total size
      */
 
-    // Insert `total_blocks_` at `start_block_offset_` on jarr free lb
+    // Insert `total_blocks_` at `logical_start_block_offset_`
+    // on jarr free lb
     ptr_j_entry = (Word_t *)JudyLIns(
-            &jarr_free_lb_, (Word_t)start_block_offset_, PJE0);
+            &jarr_free_lb_, (Word_t)logical_start_block_offset_, PJE0);
     if (*(Word_t *)ptr_j_entry != 0) {
         //CXX: Add debug `Failed to insert at jarr_free_lb_`
         return false;
@@ -63,9 +64,10 @@ bool JudySeekOptimizer::init() {
      * - Total free contiguous size and the starting lb
      */
 
-    // Insert `start_block_offset_` at `total_blocks_` on jarr contig len 
+    // Insert `logical_start_block_offset_` at `total_blocks_`
+    // on jarr contig len 
     if (!jarr_free_contig_len_->insert_element(total_blocks_,
-            start_block_offset_, &start_block_offset_)) {
+            logical_start_block_offset_, &logical_start_block_offset_)) {
         //CXX: Add debug `Failed to insert at jarr_free_contig_len_`
         return false;
     }
@@ -468,7 +470,7 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
     uint64_t free_contig_indexl1 = 0;
     uint64_t free_contig_val = 0;
     bool is_allocable = false;
-    uint64_t last_block_lb = total_blocks_ - start_block_offset_ - 1;
+    uint64_t last_block_lb = total_blocks_ + logical_start_block_offset_ - 1;
 
     if (CounterManager::get_allocated_blocks() == 0) {
         // CXX: Add to notice log
@@ -759,6 +761,14 @@ bool JudySeekOptimizer::free_lb(
     uint64_t next_neighbor_len = 0;
     uint64_t prev_neighbor_lb = 0;
     uint64_t prev_neighbor_len = 0;
+
+    // Sanity check!
+    // Make sure `free` request is offset adjusted and valid
+    if (lb < logical_start_block_offset_) {
+        // Invalid free_lb request
+        std::cout<<"Invalid free lb request on lb: "<<lb<<std::endl;
+        return false;
+    }
 
     // Make sure to check if the `free` request is valid
 

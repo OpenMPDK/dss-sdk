@@ -40,6 +40,7 @@
 #include "dss_block_allocator_ut.c"
 
 #define BLOCK_IMPRESARIO_DEFAULT_NUM_BLOCKS (1024)
+#define BLOCK_IMPRESARIO_DEFAULT_LOGICAL_START_BLK_OFFSET (32)
 
 struct tc_list_arr_s g_ba_test_cases[] = {
     {"testInitFailure", testInitFailure},
@@ -64,6 +65,8 @@ int main(int argc, char **argv)
 
     dss_ba_ut_set_default_params();
     g_ba_ut.opts.num_total_blocks = BLOCK_IMPRESARIO_DEFAULT_NUM_BLOCKS;
+    g_ba_ut.opts.logical_start_block_offset =
+        BLOCK_IMPRESARIO_DEFAULT_LOGICAL_START_BLK_OFFSET;
 
     if(argc == 2) {
         g_ba_ut.opts.num_block_states = atol(argv[1]);

@@ -96,6 +96,9 @@ void testAllStates(void)
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     bool is_free;
 
+    // Make sure test_blk_index is offset adjusted
+    test_blk_index = test_blk_index + g_ba_ut.opts.logical_start_block_offset;
+
     rc = dss_blk_allocator_clear_blocks(c, test_blk_index, 1);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
@@ -130,10 +133,13 @@ void testSetAllBlockState(void)
     uint64_t state_to_set = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
     uint64_t state_to_check = (DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
 
-    for(block_index = DSS_BA_UT_FIRST_BLOCK; block_index < g_ba_ut.opts.num_total_blocks; block_index++) {
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+    uint64_t logical_last_blk_index = g_ba_ut.opts.num_total_blocks + g_ba_ut.opts.logical_start_block_offset - 1;
+
+    for(block_index = logical_first_blk_index; block_index <= logical_last_blk_index; block_index++) {
         rc = dss_blk_allocator_set_blocks_state(c, block_index, 1, state_to_set);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
-
     }
 
     return;
@@ -146,7 +152,11 @@ void testCheckAllBlockState(void)
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     uint64_t state_to_check = DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE;
 
-    for(block_index = DSS_BA_UT_FIRST_BLOCK; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+    uint64_t logical_last_blk_index = g_ba_ut.opts.num_total_blocks + g_ba_ut.opts.logical_start_block_offset - 1;
+
+    for(block_index = logical_first_blk_index; block_index <= logical_last_blk_index; block_index++)
     {
         rc = dss_blk_allocator_get_block_state(c, block_index, &state_to_check);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
@@ -162,7 +172,11 @@ void testClearAllBlocks(void)
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
 
-    for(block_index = DSS_BA_UT_FIRST_BLOCK; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+    uint64_t logical_last_blk_index = g_ba_ut.opts.num_total_blocks + g_ba_ut.opts.logical_start_block_offset - 1;
+
+    for(block_index = logical_first_blk_index; block_index <= logical_last_blk_index; block_index++)
     {
         rc = dss_blk_allocator_clear_blocks(c, block_index, 1);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
@@ -171,18 +185,24 @@ void testClearAllBlocks(void)
     return;
 }
 
-/*void testRangeSetAllBlockState(void)
+void testRangeSetAllBlockState(void)
 {
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     uint64_t state_to_set = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
-    uint64_t scanned_index;
+    uint64_t block_index;
 
-    rc =dss_blk_allocator_set_blocks_state(c, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks, state_to_set);
-    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+    for(block_index = logical_first_blk_index; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
+    {
+        rc =dss_blk_allocator_set_blocks_state(c, block_index, 1, state_to_set);
+        CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+    }
 
     return;
-}*/
+}
 
 void testRangeCheckAllBlockState(void)
 {
@@ -191,7 +211,10 @@ void testRangeCheckAllBlockState(void)
     uint64_t state_to_check = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
     uint64_t scanned_index;
 
-    rc = dss_blk_allocator_check_blocks_state(c, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks, state_to_check, &scanned_index);
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+    rc = dss_blk_allocator_check_blocks_state(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, state_to_check, &scanned_index);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     return;
@@ -202,7 +225,10 @@ void testRangeClearAllBlocks(void)
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
 
-    rc = dss_blk_allocator_clear_blocks(c, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks);
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+    rc = dss_blk_allocator_clear_blocks(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     return;
@@ -215,7 +241,10 @@ void testAllBlocksFree(void)
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     bool is_free;
 
-    for(block_index = DSS_BA_UT_FIRST_BLOCK; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+    for(block_index = logical_first_blk_index; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
     {
         rc = dss_blk_allocator_is_block_free(c, block_index, &is_free);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
@@ -232,17 +261,20 @@ void testMultiStride(void)
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     uint64_t scanned_index;
 
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
     for(state_to_set = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE); state_to_set < g_ba_ut.opts.num_block_states; state_to_set++) {
-        rc = dss_blk_allocator_clear_blocks(c, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks);
+        rc = dss_blk_allocator_clear_blocks(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
-        rc = dss_blk_allocator_alloc_blocks_contig(c, state_to_set, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks, NULL);
+        rc = dss_blk_allocator_alloc_blocks_contig(c, state_to_set, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, NULL);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
-        rc = dss_blk_allocator_check_blocks_state(c, DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks, state_to_set, &scanned_index);
+        rc = dss_blk_allocator_check_blocks_state(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, state_to_set, &scanned_index);
         CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
-        rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(state_to_set), DSS_BA_UT_FIRST_BLOCK, g_ba_ut.opts.num_total_blocks, NULL);
+        rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(state_to_set), logical_first_blk_index, g_ba_ut.opts.num_total_blocks, NULL);
         CU_ASSERT(rc != BLK_ALLOCATOR_STATUS_SUCCESS);
     }
 
@@ -259,17 +291,20 @@ void testRanges(void)
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
 
-    bindex = DSS_BA_UT_START_BINDEX;
+    // Make sure bindex is offset adjusted
+    uint64_t logical_offset = g_ba_ut.opts.logical_start_block_offset;
+    bindex = DSS_BA_UT_START_BINDEX + logical_offset;
+    rc = dss_blk_allocator_alloc_blocks_contig(
+            c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), bindex, DSS_BA_ALLOC_NUM_BLOCKS, &allocated_block);
+    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+    CU_ASSERT(allocated_block == bindex);
+
+    bindex = g_ba_ut.opts.num_total_blocks + logical_offset - DSS_BA_ALLOC_NUM_BLOCKS - 1;
     rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), bindex, DSS_BA_ALLOC_NUM_BLOCKS, &allocated_block);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
     CU_ASSERT(allocated_block == bindex);
 
-    bindex = g_ba_ut.opts.num_total_blocks - DSS_BA_ALLOC_NUM_BLOCKS - 1;
-    rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), bindex, DSS_BA_ALLOC_NUM_BLOCKS, &allocated_block);
-    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
-    CU_ASSERT(allocated_block == bindex);
-
-    bindex = g_ba_ut.opts.num_total_blocks - DSS_BA_ALLOC_NUM_BLOCKS;
+    bindex = g_ba_ut.opts.num_total_blocks + logical_offset - DSS_BA_ALLOC_NUM_BLOCKS;
     rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), bindex, DSS_BA_ALLOC_NUM_BLOCKS, &allocated_block);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
@@ -278,7 +313,7 @@ void testRanges(void)
 
 void testInvalidBlockIndex(void)
 {
-    uint64_t invalid_block = g_ba_ut.opts.num_total_blocks;
+    uint64_t invalid_block = g_ba_ut.opts.num_total_blocks + g_ba_ut.opts.logical_start_block_offset;
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
 
@@ -296,7 +331,7 @@ void testInvalidBlockIndex(void)
 
 void testInvalidBlockRange(void)
 {
-    uint64_t invalid_block = g_ba_ut.opts.num_total_blocks - 1;
+    uint64_t invalid_block = g_ba_ut.opts.num_total_blocks + g_ba_ut.opts.logical_start_block_offset - 1;
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     uint64_t scanned_index;
@@ -369,7 +404,7 @@ int dss_ba_ut_cleanup(void)
 
     dss_blk_allocator_destroy(g_ba_ut.ctx);
 
-    while(tc = TAILQ_FIRST(&g_ba_ut.tc_entries)) {
+    while((tc = TAILQ_FIRST(&g_ba_ut.tc_entries)) != NULL) {
         TAILQ_REMOVE(&g_ba_ut.tc_entries, tc, entry_link);
         free(tc->tc_name);
     }

@@ -74,6 +74,25 @@ dss_blk_allocator_context_t* block_allocator_init(
     return &c->ctx_blk_alloc;
 }
 
+uint64_t get_physical_size(dss_blk_allocator_context_t *ctx) {
+
+    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
+
+    dss_blk_alloc_impresario_ctx_t *c =
+        (dss_blk_alloc_impresario_ctx_t *)ctx;
+
+    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    if (ba_i == NULL) {
+        DSS_ERRLOG("Incorrect usage before block allocator init");
+        return 0;
+    }
+
+    // Invoke respective allocator to return its specific persistence
+    // size requirements
+
+    return ba_i->allocator->get_physical_size();
+}
+
 void block_allocator_destroy(dss_blk_allocator_context_t *ctx)
 {
     DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
@@ -268,6 +287,8 @@ struct dss_blk_alloc_module_s dss_block_impresario = {
         .print_stats = BlockInterface::print_stats
     },
     .disk = {
+        .blk_alloc_get_physical_size =
+            BlockInterface::get_physical_size,
         .blk_alloc_get_sync_meta_io_tasks =
             BlockInterface::get_sync_meta_io_tasks,
         .blk_alloc_complete_meta_sync =

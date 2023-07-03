@@ -59,13 +59,14 @@ public:
     explicit QwordVector64Cell(
             BlockAlloc::JudySeekOptimizerSharedPtr jso,
             uint64_t total_cells, uint8_t bits_per_cell,
-            uint64_t num_block_states)
+            uint64_t num_block_states, uint64_t logical_start_block_offset)
         : jso_(std::move(jso)),
           cells_(total_cells),
           bits_per_cell_(
             ((bits_per_cell > BITS_PER_QUAD_WORD) || (bits_per_cell == 0))?
             BITS_PER_QUAD_WORD : bits_per_cell),
           num_block_states_(num_block_states),
+          logical_start_block_offset_(logical_start_block_offset),
           cells_per_qword_(BITS_PER_QUAD_WORD/bits_per_cell_),
           data_(
             ((total_cells / cells_per_qword_) +
@@ -118,6 +119,7 @@ public:
 
     //BlockAlloc::Allocator API (concrete definitions)
     void destroy() { return; }
+    uint64_t get_physical_size() override;
     dss_blk_allocator_status_t is_block_free(
             uint64_t block_index,
             bool *is_free) override;
@@ -148,6 +150,7 @@ private:
     uint64_t cells_;
     uint8_t bits_per_cell_;
     uint64_t num_block_states_;
+    uint64_t logical_start_block_offset_;
     int cells_per_qword_;
     std::vector<uint64_t> data_;
     uint64_t read_cell_flag_;

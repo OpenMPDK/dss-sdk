@@ -100,10 +100,11 @@ class JudySeekOptimizer : public CounterManager {
 public:
     // Constructor
     JudySeekOptimizer(uint64_t total_blocks,
-            uint64_t start_block_offset, uint64_t optimal_ssd_write_kb)
+            uint64_t logical_start_block_offset,
+            uint64_t optimal_ssd_write_kb)
         : CounterManager(total_blocks),
           total_blocks_(total_blocks),
-          start_block_offset_(start_block_offset),
+          logical_start_block_offset_(logical_start_block_offset),
           optimal_ssd_write_kb_(optimal_ssd_write_kb),
           jarr_free_lb_(NULL),
           jarr_free_contig_len_(std::make_shared<Utilities::JudyHashMap>())
@@ -314,7 +315,7 @@ private:
     void record_freed_blocks(const uint64_t& freed_len) override;
 
     uint64_t total_blocks_;
-    uint64_t start_block_offset_;
+    uint64_t logical_start_block_offset_;
     uint64_t optimal_ssd_write_kb_;
     void *jarr_free_lb_;
     Utilities::JudyHashMapSharedPtr jarr_free_contig_len_;
@@ -336,6 +337,20 @@ public:
      *        context
      */
     virtual void destroy()=0;
+
+    /**
+     * @brief - Query block allocator to obtain the size of persistent
+     *          memory required for managing operations.
+     *        - This is the on-disk size of all persistent data-structures
+     *          used by block allocator.
+     *        - Ideally invoked after setting up block allocator (init)
+     *          and required for persistence.
+     *        - Since this size changes with the type of allocator, this is
+     *          also virtual and needs to be supported by any allocator
+     * 
+     * @return physical size in bytes, required to be persisted
+     */
+    virtual uint64_t get_physical_size()=0;
 
     /**
      * @brief Checks if the block state at specified index is free
@@ -448,13 +463,14 @@ public:
      *
      * @param device Device handle on which the block allocator needs to be
      *        initialized
-     * @param config Options struct with input coniguration options set
+     * @param config Options struct with input configuration options set
      * @return dss_blk_allocator_context_t* allocated and initialized
      *         context pointer
      */
     bool init(
             dss_device_t *device,
             dss_blk_allocator_opts_t *config);
+
 
     /**
      * @brief Sets default parameters for block allocator options
@@ -470,14 +486,29 @@ public:
 
 
     /**
-     * @brief
+     * @brief load data from disk
      *
      */
     dss_blk_allocator_status_t load_opts_from_disk_data(
             uint8_t *serialized_data,
             uint64_t serialized_data_len,
             dss_blk_allocator_opts_t *opts);
+
     //On-Disk APIs
+
+    /**
+     * @brief - Query block allocator to obtain the size of persistent
+     *          memory required for managing operations.
+     *        - This is the on-disk size of all persistent data-structures
+     *          used by block allocator.
+     *        - Ideally invoked after setting up block allocator (init)
+     *          and required for persistence.
+     * 
+     * @param ctx block allocator context
+     * @return physical size in bytes, required to be persisted
+     */
+    uint64_t dss_blk_allocator_get_physical_size(
+            dss_blk_allocator_context_t *ctx);
 
     /**
      * @brief Generate a list of meta io tasks corresponding to the dirty

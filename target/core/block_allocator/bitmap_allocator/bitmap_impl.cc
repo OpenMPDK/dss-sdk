@@ -38,11 +38,26 @@ namespace AllocatorType {
 
 uint8_t QwordVector64Cell::get_cell_value(uint64_t index) const {
 
+    // Account for offset if provided
+    if (index < logical_start_block_offset_) {
+        assert(("ERROR", false));
+    }
+
+    index = index - logical_start_block_offset_;
+
     return operator[](index);
 
 }
 
 void QwordVector64Cell::set_cell(uint64_t index, uint8_t value) {
+
+    // Account for offset if provided
+    if (index < logical_start_block_offset_) {
+        assert(("ERROR", false));
+    }
+
+    index = index - logical_start_block_offset_;
+
     // Cast the value to a 64 bit integer for shift operation
     uint64_t cell_value = value & read_cell_flag_;
     uint64_t qword_index = index / cells_per_qword_;
@@ -110,13 +125,22 @@ bool QwordVector64Cell::seek_empty_cell_range(
     return true;
 }
 
+uint64_t QwordVector64Cell::get_physical_size() {
+
+    // Since data_ is a vector of uint64_t the physical
+    // size in bytes will be 8 * data_.size()
+    // 8 being the size of uint64_t in bytes
+    return (8*data_.size());
+}
+
 dss_blk_allocator_status_t QwordVector64Cell::is_block_free(
         uint64_t block_index,
         bool *is_free) {
 
     int block_value = 0;
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
 
-    if (block_index > cells_) {
+    if (block_index > bmap_last_cell_id) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
@@ -135,7 +159,9 @@ dss_blk_allocator_status_t QwordVector64Cell::get_block_state(
         uint64_t block_index,
         uint64_t *block_state) {
 
-    if (block_index > cells_) {
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
+
+    if (block_index > bmap_last_cell_id) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
@@ -150,7 +176,11 @@ dss_blk_allocator_status_t QwordVector64Cell::check_blocks_state(
         uint64_t block_state,
         uint64_t *scanned_index) {
 
-    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
+    uint64_t req_last_block_lb = block_index + num_blocks - 1;
+
+    if ((block_index > bmap_last_cell_id)
+            || (req_last_block_lb > bmap_last_cell_id)) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
@@ -161,7 +191,7 @@ dss_blk_allocator_status_t QwordVector64Cell::check_blocks_state(
     }
 
     for (uint64_t i=block_index; i<num_blocks; i++) {
-        if (data_[i] == block_state) {
+        if (get_cell_value(i) == block_state) {
             *scanned_index = *scanned_index + 1;
         } else {
             break;
@@ -179,6 +209,9 @@ dss_blk_allocator_status_t QwordVector64Cell::set_blocks_state(
     bool is_jso_allocable = false;
     uint64_t actual_allocated_lb = 0;
     int cell_value = 0;
+
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
+    uint64_t req_last_block_lb = block_index + num_blocks - 1;
 
     if (num_blocks != 1) {
         // Incorrect use of API
@@ -200,7 +233,8 @@ dss_blk_allocator_status_t QwordVector64Cell::set_blocks_state(
         return BLK_ALLOCATOR_STATUS_INVALID_BLOCK_STATE;
     }
 
-    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+    if ((block_index > bmap_last_cell_id)
+            || (req_last_block_lb > bmap_last_cell_id)) {
         assert(("ERROR", false));
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
@@ -242,8 +276,11 @@ dss_blk_allocator_status_t QwordVector64Cell::clear_blocks(
         uint64_t num_blocks) {
 
     uint64_t iter_blk_id = 0;
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
+    uint64_t req_last_block_lb = block_index + num_blocks - 1;
 
-    if ((block_index > cells_) || (block_index + num_blocks > cells_)) {
+    if ((block_index > bmap_last_cell_id)
+            || (req_last_block_lb > bmap_last_cell_id)) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
@@ -287,8 +324,10 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
     uint64_t iter_blk_id = 0;
     bool is_jso_allocable = false;
 
-    if ((hint_block_index > cells_) ||
-            (hint_block_index + num_blocks > cells_)) {
+    uint64_t bmap_last_cell_id = cells_ + logical_start_block_offset_;
+
+    if ((hint_block_index > bmap_last_cell_id)
+            || (num_blocks > cells_)) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
@@ -354,9 +393,15 @@ dss_blk_allocator_status_t QwordVector64Cell::print_stats() {
 }
 
 void QwordVector64Cell::print_range(uint64_t begin, uint64_t end) const {
+    // Begin and end must account for logical_start_block_offset if present
+    // As they are accounted again inside `get_cell_value` API
+    begin = begin + logical_start_block_offset_;
+    end = end + logical_start_block_offset_;
+    uint64_t last_cell_index =
+        (total_cells() - 1) + logical_start_block_offset_;
     std::cout<<"Debug only: Printing Bitmap Begin"<<std::endl;
     std::cout<<"Total cells in bitmap = "<<total_cells()<<std::endl;
-    if ((end >= total_cells()) || (begin < 0)) {
+    if ((end > last_cell_index) || (begin < 0)) {
         std::cout<<"Incorrect range"<<std::endl;
     }
     for (uint64_t i = begin; i <= end; i++) {

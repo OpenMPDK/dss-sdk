@@ -302,6 +302,14 @@ found_range:
 
 //On-disk implementations return Success always. No need to sync anything for in-memory implementation
 
+uint64_t dss_blk_allocator_simbmap_get_physical_size(dss_blk_allocator_context_t *ctx)
+{
+    dss_blk_alloc_simbmap_ctx_t *c = (dss_blk_alloc_simbmap_ctx_t *) ctx;
+
+    return c->bmap_sz;
+
+}
+
 dss_blk_allocator_status_t dss_blk_allocator_simbmap_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
     if(io_task) {
@@ -337,6 +345,7 @@ static struct dss_blk_alloc_module_s dss_simbmap_allocator = {
         .print_stats = NULL
     },
     .disk = {
+        .blk_alloc_get_physical_size = dss_blk_allocator_simbmap_get_physical_size,
         .blk_alloc_get_sync_meta_io_tasks = dss_blk_allocator_simbmap_get_sync_meta_io_tasks,
         .blk_alloc_complete_meta_sync = dss_blk_allocator_simbamp_complete_meta_sync
     }

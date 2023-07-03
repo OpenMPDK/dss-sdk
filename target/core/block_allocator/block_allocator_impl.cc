@@ -41,7 +41,7 @@ bool BlockAllocator::init(
         dss_blk_allocator_opts_t *config) {
 
     uint64_t total_blocks = 0;
-    uint64_t start_block_offset = 0;
+    uint64_t logical_start_block_offset = 0;
     uint64_t optimum_write_size = 0;
     uint64_t num_block_states = 0;
     uint64_t num_bits_per_block = 0;
@@ -54,6 +54,7 @@ bool BlockAllocator::init(
     total_blocks = config->num_total_blocks;
     optimum_write_size = config->shard_size;
     num_block_states = config->num_block_states;
+    logical_start_block_offset = config->logical_start_block_offset;
 
     DSS_ASSERT(!device);//Persistence not supported by allocator
     if(device) {
@@ -68,7 +69,7 @@ bool BlockAllocator::init(
     // Check if the config indicates any other type of allocator
     BlockAlloc::JudySeekOptimizerSharedPtr jso =
         std::make_shared<BlockAlloc::JudySeekOptimizer>
-        (total_blocks, start_block_offset, optimum_write_size);
+        (total_blocks, logical_start_block_offset, optimum_write_size);
     if (jso == NULL) {
         return false;
     }
@@ -82,7 +83,8 @@ bool BlockAllocator::init(
     // num_block_states represents number of states excluding cleared state
 
     allocator = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, total_blocks, num_bits_per_block, num_block_states+1);
+            jso, total_blocks, num_bits_per_block,
+            num_block_states + 1, logical_start_block_offset);
     if (allocator == NULL) {
         return false;
     }

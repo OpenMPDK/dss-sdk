@@ -46,23 +46,48 @@
 #include <cppunit/ui/text/TestRunner.h>
 #include <cppunit/extensions/HelperMacros.h>
 
+const uint64_t TEST_LOGICAL_BLOCK_OFFSET = 10;
+
 
 class BitmapTest : public CppUnit::TestFixture {
 public:
     BitmapTest() {
-        // jso is created during block allocator init
-        BlockAlloc::JudySeekOptimizerSharedPtr jso =
-            std::make_shared<BlockAlloc::
-            JudySeekOptimizer>(16348, 0, 128);
 
         total_cells = 10;
         perf_total_cells = 65536;
         bits_per_cell = 4;
         num_block_states = 5;
+        logical_start_block_offset = 0;
+
+        // jso is created during block allocator init
+        BlockAlloc::JudySeekOptimizerSharedPtr jso =
+            std::make_shared<BlockAlloc::
+            JudySeekOptimizer>(total_cells, logical_start_block_offset, 128);
+
         bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, total_cells, bits_per_cell, num_block_states); 
+            jso, total_cells, bits_per_cell,
+            num_block_states, logical_start_block_offset); 
+
+        BlockAlloc::JudySeekOptimizerSharedPtr perf_jso =
+            std::make_shared<BlockAlloc::
+            JudySeekOptimizer>(
+                    perf_total_cells, logical_start_block_offset, 128);
         perf_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, perf_total_cells, bits_per_cell, num_block_states); 
+            perf_jso, perf_total_cells, bits_per_cell,
+            num_block_states, logical_start_block_offset);
+
+        // Test bitmap handling with logical start block offset
+        logical_start_block_offset = TEST_LOGICAL_BLOCK_OFFSET;
+        uint64_t total_offset_cells = 2 * logical_start_block_offset;
+        BlockAlloc::JudySeekOptimizerSharedPtr offset_jso =
+            std::make_shared<BlockAlloc::
+            JudySeekOptimizer>(
+                    total_offset_cells, logical_start_block_offset, 128);
+
+        offset_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
+            offset_jso, total_offset_cells, bits_per_cell,
+            num_block_states, logical_start_block_offset); 
+
     }
     void setUp();
     void tearDown();
@@ -72,6 +97,7 @@ public:
     void test_set_get_32bit_offset();
     void test_set_get_all();
     void test_bitmap_empty_range();
+    void test_logical_start_block_offset();
     void test_perf_bitmap();
 
     CPPUNIT_TEST_SUITE(BitmapTest);
@@ -80,16 +106,18 @@ public:
     CPPUNIT_TEST(test_set_get_32bit_offset);
     CPPUNIT_TEST(test_set_get_all);
     CPPUNIT_TEST(test_bitmap_empty_range);
+    CPPUNIT_TEST(test_logical_start_block_offset);
     CPPUNIT_TEST(test_perf_bitmap);
     CPPUNIT_TEST_SUITE_END();
 private:
     AllocatorType::BitMapSharedPtr bmap;
     AllocatorType::BitMapSharedPtr perf_bmap;
-    BlockAlloc::JudySeekOptimizerSharedPtr jso_;
+    AllocatorType::BitMapSharedPtr offset_bmap;
     uint64_t total_cells;
     uint64_t perf_total_cells;
     int bits_per_cell;
     uint64_t num_block_states;
+    uint64_t logical_start_block_offset;
 
 };
 
@@ -269,6 +297,49 @@ void BitmapTest::test_bitmap_empty_range() {
 
     // Clean bitmap by unsetting value for next experiment
     bmap->set_cell(cell_index, 0);
+
+}
+
+/**
+ * - Tests if logical start block handling in bitmap is correct
+ */
+void BitmapTest::test_logical_start_block_offset() {
+
+    // Since there is an offset in this test
+    // set and get API on bitmap should account for this behavior
+    int get_val = 0;
+
+    // Set some value at index 0 on bitmap
+    int first_cell_index = TEST_LOGICAL_BLOCK_OFFSET + 0;
+    int first_cell_value = 1;
+
+    offset_bmap->set_cell(first_cell_index, first_cell_value);
+    get_val = offset_bmap->get_cell_value(first_cell_index);
+    CPPUNIT_ASSERT(get_val == first_cell_value);
+
+    // Set another value at the last index on the bitmap
+    int last_cell_index =
+        TEST_LOGICAL_BLOCK_OFFSET + offset_bmap->total_cells() - 1;
+    int last_cell_value = 2;
+
+    offset_bmap->set_cell(last_cell_index, last_cell_value);
+    get_val = offset_bmap->get_cell_value(last_cell_index);
+    CPPUNIT_ASSERT(get_val == last_cell_value);
+
+    // Debug hooks
+    std::cout<<"**Offset state validation begin**"<<std::endl;
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(offset_bmap)->print_data();
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(offset_bmap)->print_range(0
+                , offset_bmap->total_cells()-1);
+    std::cout<<"**Offset state validation end**"<<std::endl;
+
+    // Clean bitmap by unsetting value for next experiment
+    offset_bmap->set_cell(first_cell_index, 0);
+    offset_bmap->set_cell(last_cell_index, 0);
+    std::dynamic_pointer_cast
+        <AllocatorType::QwordVector64Cell>(offset_bmap)->print_stats();
 
 }
 
