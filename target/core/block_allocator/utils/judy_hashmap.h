@@ -109,6 +109,20 @@ public:
             ) const;
 
     /**
+     * Get l1 element closest to vertical index at l0 horizontal index 
+     * from 2D (l0, l1) Judy Hashmap
+     * - @param `horizontal index` index on l0 judy array
+     *   @param `vertical index` index on l1 judy array
+     *   @return `value` is the pointer to the value inside hashmap
+     *   @return boolean, value can only be used when `true` is returned
+     */
+    bool get_closest_l1_element(
+            const uint64_t& horizontal_index,
+            const uint64_t& vertical_index,
+            uint64_t* const value
+            ) const;
+
+    /**
      * Get the next element from 2D (l0, l1) Judy Hashmap
      * - @param `horizontal index` index on l0 judy array
      *           The element returned is from the next greater index on
@@ -120,6 +134,25 @@ public:
      */
     bool get_next_l0_element(
             const uint64_t& horizontal_index,
+            uint64_t* const value,
+            uint64_t& next_horizontal_index,
+            uint64_t& next_vertical_index
+            ) const;
+
+    /**
+     * Get the closest element from 2D (l0, l1) Judy Hashmap
+     * - @param `horizontal index` index on l0 judy array
+     *   @param `vertical index` index on l1 judy array
+     *           The element returned is from the next greater index on
+     *           l0 and the closest element to `vertical index` on l1 at l0
+     *   @return `value` is the pointer to the value inside hashmap
+     *   @return `next_horizontal_index` next l0 index
+     *   @return `next_vertical_index` next l1 index
+     *   @return boolean, value can only be used when `true` is returned
+     */
+    bool get_closest_l0_element(
+            const uint64_t& horizontal_index,
+            const uint64_t& vertical_index,
             uint64_t* const value,
             uint64_t& next_horizontal_index,
             uint64_t& next_vertical_index

@@ -60,6 +60,8 @@ public:
     void test_set_get_delete();
     void test_set_get_delete_l1_jarr();
     void test_set_get_delete_multiple_l1_jarr();
+    void test_set_get_closest();
+    void test_set_get_next_l0_closest();
     void test_delete_all();
 
     CPPUNIT_TEST_SUITE(JudyHashMapTest);
@@ -70,6 +72,8 @@ public:
     CPPUNIT_TEST(test_set_get_delete);
     CPPUNIT_TEST(test_set_get_delete_l1_jarr);
     CPPUNIT_TEST(test_set_get_delete_multiple_l1_jarr);
+    CPPUNIT_TEST(test_set_get_closest);
+    CPPUNIT_TEST(test_set_get_next_l0_closest);
     CPPUNIT_TEST(test_delete_all);
     CPPUNIT_TEST_SUITE_END();
 
@@ -400,6 +404,123 @@ void JudyHashMapTest::test_set_get_delete_multiple_l1_jarr() {
          CPPUNIT_ASSERT(l1_val[i] == get_val);
          get_val = 0;
     }
+
+    return;
+}
+
+/**
+ * Tests getting the closest l1 element
+ */
+void JudyHashMapTest::test_set_get_closest() {
+
+    uint64_t horizontal_index = 10;
+    uint64_t vertical_index1 = 10;
+    uint64_t vertical_index2 = 20;
+    uint64_t val1 = 10;
+    uint64_t val2 = 20;
+    uint64_t get_val = 0;
+    uint64_t test_index = 0;
+
+    // Insert 2 elements into hash map
+
+    // Insert an element into hash map
+    CPPUNIT_ASSERT(hash_map_->insert_element(
+                horizontal_index,
+                vertical_index1,
+                &val1)
+            );
+    // Insert an element into hash map
+    CPPUNIT_ASSERT(hash_map_->insert_element(
+                horizontal_index,
+                vertical_index2,
+                &val2)
+            );
+
+    // Get closest for vertical index 16 should return
+    // 20
+    test_index = 16;
+    CPPUNIT_ASSERT(hash_map_->get_closest_l1_element(
+                horizontal_index,
+                test_index,
+                &get_val)
+            );
+
+    CPPUNIT_ASSERT(val2 == get_val);
+
+    // Get closest for vertical index 14 should return
+    // 10
+    test_index = 14;
+    CPPUNIT_ASSERT(hash_map_->get_closest_l1_element(
+                horizontal_index,
+                test_index,
+                &get_val)
+            );
+
+    CPPUNIT_ASSERT(val1 == get_val);
+}
+
+/**
+ * Tests getting the closest l1 element on next l0 index
+ */
+void JudyHashMapTest::test_set_get_next_l0_closest() {
+
+    uint64_t horizontal_index = 10;
+    uint64_t vertical_index1 = 10;
+    uint64_t vertical_index2 = 20;
+    uint64_t val1 = 10;
+    uint64_t val2 = 20;
+    uint64_t get_val = 0;
+    uint64_t test_horizontal_index = 0;
+    uint64_t test_vertical_index = 0;
+    uint64_t ret_l0_id = 0;
+    uint64_t ret_l1_id = 0;
+
+    // Insert 2 elements into hash map
+
+    // Insert an element into hash map
+    CPPUNIT_ASSERT(hash_map_->insert_element(
+                horizontal_index,
+                vertical_index1,
+                &val1)
+            );
+    // Insert an element into hash map
+    CPPUNIT_ASSERT(hash_map_->insert_element(
+                horizontal_index,
+                vertical_index2,
+                &val2)
+            );
+
+    // Get closest for vertical index 17 should return
+    // 20
+    test_vertical_index = 17;
+    test_horizontal_index = 5;
+    hash_map_->get_closest_l0_element(
+                test_horizontal_index,
+                test_vertical_index,
+                &get_val,
+                ret_l0_id,
+                ret_l1_id
+                );
+
+    CPPUNIT_ASSERT(val2 == get_val);
+    CPPUNIT_ASSERT(ret_l0_id == horizontal_index);
+    CPPUNIT_ASSERT(ret_l1_id == vertical_index2);
+
+    // Get closest for vertical index 13 should return
+    // 10
+    test_vertical_index = 13;
+    test_horizontal_index = 5;
+    hash_map_->get_closest_l0_element(
+                test_horizontal_index,
+                test_vertical_index,
+                &get_val,
+                ret_l0_id,
+                ret_l1_id
+                );
+
+    CPPUNIT_ASSERT(val1 == get_val);
+    CPPUNIT_ASSERT(ret_l0_id == horizontal_index);
+    CPPUNIT_ASSERT(ret_l1_id == vertical_index1);
 
     return;
 }

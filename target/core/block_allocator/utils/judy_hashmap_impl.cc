@@ -179,6 +179,82 @@ bool JudyHashMap::get_first_l1_element(
     return true;
 }
 
+bool JudyHashMap::get_closest_l1_element(
+        const uint64_t& horizontal_index,
+        const uint64_t& vertical_index,
+       	uint64_t* const value
+        ) const {
+
+    void *jarr_l1 = NULL;
+    Word_t *ptr_j_entry = NULL;
+    Word_t *ptr_j_entry_prev = NULL;
+    Word_t *ptr_j_entry_next = NULL;
+    Word_t index_l1_prev = 0;
+    Word_t index_l1_next = 0;
+    bool is_prev = false;
+    bool is_next = false;
+
+    // Get vertical jarr entry at horizontal index
+    ptr_j_entry = (Word_t *)JudyLGet(
+        jarr_l0_, (Word_t)horizontal_index, PJE0);
+    if (ptr_j_entry == NULL) {
+        //CXX: Add debug `value not found incorrect horizontal id`
+        *value = 0;
+        return false;
+    } else {
+        //CXX: Add debug `Level0 Get found %p\n, ptr_j_entry`
+        
+        // Dereference to obtain vertical judy array
+        jarr_l1 = (void *)*ptr_j_entry;
+
+        // 1. Get next element
+        index_l1_next = vertical_index;
+        ptr_j_entry_next = (Word_t *)JudyLNext(
+            jarr_l1, &index_l1_next, PJE0);
+        if (ptr_j_entry_next != NULL) {
+            is_next = true;
+        }
+
+        // 2. Get previous element
+        index_l1_prev = vertical_index;
+        ptr_j_entry_prev = (Word_t *)JudyLPrev(
+            jarr_l1, &index_l1_prev, PJE0);
+        if (ptr_j_entry_prev != NULL) {
+            is_prev = true;
+        }
+
+        if (is_prev && is_next) {
+            // Return the closest element
+            if (vertical_index - index_l1_prev
+                    < index_l1_next - vertical_index) {
+                ptr_j_entry = ptr_j_entry_prev;
+            } else {
+                ptr_j_entry = ptr_j_entry_next;
+            }
+        } else if (is_prev && !is_next) {
+            ptr_j_entry = ptr_j_entry_prev;
+        } else if (!is_prev && is_next) {
+            ptr_j_entry = ptr_j_entry_next;
+        } else {
+            ptr_j_entry = NULL;
+        }
+    }
+
+    if (ptr_j_entry == NULL) {
+        //CXX: Add debug `value not found incorrect vertical id`
+        *value = 0;
+        return false;
+    }
+
+    //CXX : Add debug `Retrieved L1 closest item [%d] at %p\n",
+    //      *ptr_j_entry, ptr_j_entry`
+
+    // Assign and return true
+    *value = *(uint64_t *)ptr_j_entry;
+
+    return true;
+}
+
 bool JudyHashMap::get_next_l0_element(
         const uint64_t& horizontal_index,
         uint64_t* const value,
@@ -207,6 +283,94 @@ bool JudyHashMap::get_next_l0_element(
         // Get first entry at vertical index
         ptr_j_entry = (Word_t *)JudyLFirst(
             jarr_l1, &index_l1, PJE0);
+    }
+
+    if (ptr_j_entry == NULL) {
+        //CXX: Add debug `value not found incorrect vertical id`
+        *value = 0;
+        return false;
+    }
+
+    //CXX : Add debug `Retrieved L1 item [%d] at %p\n",
+    //      *ptr_j_entry, ptr_j_entry`
+
+    // Assign and return true
+    next_horizontal_index = index_l0;
+    next_vertical_index = index_l1;
+    *value = *(uint64_t *)ptr_j_entry;
+
+    return true;
+}
+
+bool JudyHashMap::get_closest_l0_element(
+        const uint64_t& horizontal_index,
+        const uint64_t& vertical_index,
+        uint64_t* const value,
+        uint64_t& next_horizontal_index,
+        uint64_t& next_vertical_index
+        ) const {
+
+    void *jarr_l1 = NULL;
+    Word_t *ptr_j_entry = NULL;
+    Word_t index_l0 = (Word_t)horizontal_index;
+    Word_t index_l1 = 0;
+    Word_t *ptr_j_entry_prev = NULL;
+    Word_t *ptr_j_entry_next = NULL;
+    Word_t index_l1_prev = 0;
+    Word_t index_l1_next = 0;
+    bool is_prev = false;
+    bool is_next = false;
+
+    // Get vertical jarr entry at horizontal index
+    ptr_j_entry = (Word_t *)JudyLNext(
+        jarr_l0_, &index_l0, PJE0);
+    if (ptr_j_entry == NULL) {
+        //CXX: Add debug `value not found incorrect horizontal id`
+        *value = 0;
+        return false;
+    } else {
+        //CXX: Add debug `Found the next horizontal jarr`
+        
+        // Dereference to obtain vertical judy array
+        jarr_l1 = (void *)*ptr_j_entry;
+
+        // 1. Get next element
+        index_l1_next = vertical_index;
+        ptr_j_entry_next = (Word_t *)JudyLNext(
+            jarr_l1, &index_l1_next, PJE0);
+        if (ptr_j_entry_next != NULL) {
+            is_next = true;
+        }
+
+        // 2. Get previous element
+        index_l1_prev = vertical_index;
+        ptr_j_entry_prev = (Word_t *)JudyLPrev(
+            jarr_l1, &index_l1_prev, PJE0);
+        if (ptr_j_entry_prev != NULL) {
+            is_prev = true;
+        }
+
+        if (is_prev && is_next) {
+            // Return the closest element
+            if (vertical_index - index_l1_prev
+                    < index_l1_next - vertical_index) {
+                ptr_j_entry = ptr_j_entry_prev;
+                index_l1 = index_l1_prev;
+            } else {
+                ptr_j_entry = ptr_j_entry_next;
+                index_l1 = index_l1_next;
+            }
+        } else if (is_prev && !is_next) {
+            ptr_j_entry = ptr_j_entry_prev;
+            index_l1 = index_l1_prev;
+        } else if (!is_prev && is_next) {
+            ptr_j_entry = ptr_j_entry_next;
+            index_l1 = index_l1_next;
+        } else {
+            ptr_j_entry = NULL;
+            index_l1 = 0;
+        }
+        
     }
 
     if (ptr_j_entry == NULL) {

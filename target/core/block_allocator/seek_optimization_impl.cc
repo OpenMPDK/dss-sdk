@@ -544,8 +544,8 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
 
     if (!is_allocable) {
         // Search jarr_free_contig_len_ with num_blocks to allocate
-        if (jarr_free_contig_len_->get_first_l1_element(
-                    num_blocks, &free_contig_lb)) {
+        if (jarr_free_contig_len_->get_closest_l1_element(
+                    num_blocks, hint_lb, &free_contig_lb)) {
             // Found a contiguous block at `free_contig_lb` with
             // num_blocks
             // Perform split next operation
@@ -556,8 +556,9 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
                 // No such free contiguous chunk is found,
                 // search for the next bigger chunk if any
                 is_next_free =
-                    jarr_free_contig_len_->get_next_l0_element(
+                    jarr_free_contig_len_->get_closest_l0_element(
                                 num_blocks,
+                                hint_lb,
                                 &free_contig_val,
                                 free_contig_indexl0,
                                 free_contig_indexl1
