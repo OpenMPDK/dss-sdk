@@ -61,7 +61,6 @@ struct dss_blk_allocator_disk_config_s {
 
 typedef struct dss_blk_allocator_disk_config_s dss_blk_allocator_disk_config_t;
 
-typedef struct dss_blk_allocator_super_s dss_blk_allocator_super_t;
 typedef struct dss_blk_allocator_serialized_s dss_blk_allocator_serialized_t;
 
 typedef enum dss_blk_allocator_status_e {

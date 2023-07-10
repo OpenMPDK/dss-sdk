@@ -170,7 +170,6 @@ typedef struct ondisk_meta_s {
     uint8_t    value_buffer[MAX_INLINE_VALUE];  //Small values we can club together with Meta
 } ondisk_meta_t;
 
-
 /* blkment context */
 
 typedef dss_kvtrans_status_t (*blk_cb_t)(void *ctx);

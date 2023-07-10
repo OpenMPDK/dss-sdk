@@ -30,7 +30,14 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-add_subdirectory(unit)
-add_subdirectory(test_rdd_cl)
-add_subdirectory(test_hash_fn)
-add_subdirectory(test_kvtrans_utils)
+
+
+set(SRC_FILES ${CMAKE_SOURCE_DIR}/test/test_kvtrans_utils/test_kvtrans_util.c
+            )
+
+add_executable(test_kvtrans_utils ${SRC_FILES})
+
+include_directories(${CMAKE_SOURCE_DIR}/target/core/kvtrans)
+
+target_link_libraries(test_kvtrans_utils ${UNIT_LIBS} -lcunit -lJudy)
+target_compile_options(test_kvtrans_utils PRIVATE -Wall -g)
