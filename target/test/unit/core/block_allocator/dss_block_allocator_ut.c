@@ -185,6 +185,29 @@ void testClearAllBlocks(void)
     return;
 }
 
+void testAllocAllBlocks(void)
+{
+    uint64_t state_to_set = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
+    dss_blk_allocator_status_t rc;
+    dss_blk_allocator_context_t *c = g_ba_ut.ctx;
+    uint64_t scanned_index;
+
+    // Make sure block_index is offset adjusted
+    uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+        rc = dss_blk_allocator_clear_blocks(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks);
+        CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+        rc = dss_blk_allocator_alloc_blocks_contig(c, state_to_set, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, NULL);
+        CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+        rc = dss_blk_allocator_check_blocks_state(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, state_to_set, &scanned_index);
+        CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+
+    return;
+}
+
 void testRangeSetAllBlockState(void)
 {
     dss_blk_allocator_status_t rc;
@@ -194,6 +217,10 @@ void testRangeSetAllBlockState(void)
 
     // Make sure block_index is offset adjusted
     uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+
+    CU_ASSERT(g_ba_ut.opts.num_block_states >= 2);
+    state_to_set = DSS_BA_UT_NEXT_STATE(state_to_set);//Set second state allocation sets first
 
     for(block_index = logical_first_blk_index; block_index < g_ba_ut.opts.num_total_blocks; block_index++)
     {
@@ -213,6 +240,9 @@ void testRangeCheckAllBlockState(void)
 
     // Make sure block_index is offset adjusted
     uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
+
+    CU_ASSERT(g_ba_ut.opts.num_block_states >= 2);
+    state_to_check = DSS_BA_UT_NEXT_STATE(state_to_check);//check second state allocation sets first
 
     rc = dss_blk_allocator_check_blocks_state(c, logical_first_blk_index, g_ba_ut.opts.num_total_blocks, state_to_check, &scanned_index);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
