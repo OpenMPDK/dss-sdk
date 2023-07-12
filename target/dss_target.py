@@ -160,7 +160,22 @@ g_subsystem_namespace_text = """
   Namespace  "%(num)sn1" %(nsid)d"""
 #  Namespace  Nvme%(num)sn1 %(nsid)d"""
 
+g_rdd_header_text = """
 
+[RDD]
+  # If `num_cq_cores_per_ip ` or `max_sgl_segs` is not preset default will be used
+  # These two are not necessary in a regular deployment but options to configure this if needed might be useful
+  # For default deployment only configure listen IP/Port
+  # num_cq_cores_per_ip 4
+  # max_sgl_segs 8
+  # Listen IP can be both IPv6 or IPv4
+  # Listen port needs to be different than one in subsystem config
+"""
+
+g_rdd_subsystem_listen_text = """
+  Listen %(ip_addr)s:%(port)d"""
+
+g_gen2 = False
 g_kv_firmware = ["ETA41KBU"]
 # g_block_firmware = ["EDB8000Q"]
 g_block_firmware = [""]
@@ -616,6 +631,25 @@ def create_nvmf_config_file(config_file, ip_addrs, kv_pcie_address, block_pcie_a
 
     subtext += subsystem_text
 
+    # Gen2 RDD Support
+    if g_gen2:
+        subtext += g_rdd_header_text
+        # add subsystem Listen ips and ports
+        for ip in ip_addrs:
+            subtext += g_rdd_subsystem_listen_text % {
+                "ip_addr": str(ip),
+                "port": g_rdd_port
+            }
+        subtext += "\n"
+
+        # parse front end ips
+        for alias in g_tcp_alias_list[0]:
+            subtext += g_rdd_subsystem_listen_text % {
+                "ip_addr": str(alias['tcp_ip']),
+                "port": g_rdd_port
+            }
+        subtext += "\n"
+
     # Write the file out again
     with open(config_file, "w") as fe:
         fe.write(g_conf_global_text)
@@ -808,7 +842,22 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description="Configures the system/device(s) and generates necessary config file to run target application"
         )
+        import ast
         # prefixing the argument with -- means it's optional
+        parser.add_argument(
+            "-g2",
+            "--gen2",
+            action='store_true',
+            required=False,
+            help="Specifies if Gen2 version of target should be configured"
+        )
+        parser.add_argument(
+            "-rdd_port",
+            "--rdd_port",
+            type=int,
+            default="1234",
+            help="Port to be used for all RDD configurations"
+        )
         parser.add_argument(
             "-c",
             "--config_file",
@@ -859,6 +908,9 @@ The most commonly used dss target commands are:
             "-tcp", "--tcp", type=int, required=False, help="enable TCP support"
         )
         parser.add_argument(
+            "-tcp_alias_list", "--tcp_alias_list", type=ast.literal_eval, nargs="+", required=False, help="front end tcp minio endpoints"
+        )
+        parser.add_argument(
             "-rdma", "--rdma", type=int, required=False, help="enable RDMA support"
         )
         parser.add_argument(
@@ -887,8 +939,17 @@ The most commonly used dss target commands are:
         # now that we're inside a subcommand, ignore the first
         # TWO argvs, ie the command (dss_tgt) and the subcommand (config)
         args = parser.parse_args(sys.argv[2:])
-        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_rdma
+
+        global g_gen2
+        global g_rdd_port
+        global g_conf_path, g_kv_firmware, g_block_firmware, g_ip_addrs, g_wal, g_tcp, g_tcp_alias_list, g_rdma
         global g_kv_ssc, g_2mb_hugepages, g_1gb_hugepages, g_kvblock_vmmode, g_config_mode
+        if args.gen2:
+            g_gen2 = args.gen2
+        else:
+            g_gen2 = None
+        if args.rdd_port:
+            g_rdd_port = args.rdd_port
         if args.config_file:
             g_conf_path = args.config_file
         if args.kv_firmware:
@@ -899,6 +960,8 @@ The most commonly used dss target commands are:
             g_wal = args.wal
         if args.tcp is not None:
             g_tcp = args.tcp
+        if args.tcp_alias_list is not None:
+            g_tcp_alias_list = args.tcp_alias_list
         if args.rdma is not None:
             g_rdma = args.rdma
         if args.kv_ssc:
@@ -921,19 +984,11 @@ The most commonly used dss target commands are:
             print("Must specify either --vlan-ids or --ip-addresses")
             sys.exit(-1)
 
-        print "dss_tgt config, config_file=" + g_conf_path + "ip_addrs=" + str(
-            g_ip_addrs
-        )[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1] + "block_fw=" + str(
-            g_block_firmware
-        )[
-            1:-1
-        ] + " wal_devs=" + str(
-            g_wal
-        ) + " rdma=" + str(
-            g_rdma
-        ) + " tcp=" + str(
-            g_tcp
-        )
+        print("dss_tgt config, config_file=" + g_conf_path + "ip_addrs="
+              + str(g_ip_addrs)[1:-1] + "kv_fw=" + str(g_kv_firmware)[1:-1]
+              + "block_fw=" + str(g_block_firmware)[1:-1] + " wal_devs="
+              + str(g_wal) + " rdma=" + str(g_rdma) + " tcp=" + str(g_tcp)
+              )
         global g_config
         g_config = 1
         reset_drive()
@@ -944,6 +999,7 @@ The most commonly used dss target commands are:
         )
         if ret != 0:
             print("*** ERROR: Creating configuration file ***")
+
         if g_kvblock_vmmode:
             generate_core_mask_vmmode(mp.cpu_count())
         else:
@@ -984,7 +1040,7 @@ The most commonly used dss target commands are:
         parser = argparse.ArgumentParser(
             description="Assign back all NVME devices to system"
         )
-        print "Running dss_tgt reset"
+        print("Running dss_tgt reset")
         global g_reset_drives
         g_reset_drives = 1
         ret = reset_drive()
@@ -992,7 +1048,7 @@ The most commonly used dss target commands are:
 
     def set(self):
         parser = argparse.ArgumentParser(description="Assign NVME devices to UIO")
-        print "Running dss_tgt set"
+        print("Running dss_tgt set")
         global g_set_drives
         g_set_drives = 1
         setup_hugepage()
@@ -1001,12 +1057,12 @@ The most commonly used dss target commands are:
 
     def huge_pages(self):
         parser = argparse.ArgumentParser(description="Setup system huge pages")
-        print "Running dss_target huge_pages"
+        print("Running dss_target huge_pages")
         setup_hugepage()
 
     def build(self):
         parser = argparse.ArgumentParser(description="Build target software")
-        print "Running dss_tgt build"
+        print("Running dss_tgt build")
         global g_tgt_build
         g_tgt_build = 1
 
@@ -1027,7 +1083,7 @@ The most commonly used dss target commands are:
             help="Target Binary needed to execute the tgt. Default path will be tried if it doesn't exist",
         )
         args = parser.parse_args(sys.argv[2:])
-        print "Running dss_tgt launch"
+        print("Running dss_tgt launch")
         global g_conf_path, g_tgt_launch, g_tgt_bin
         if args.config_file:
             g_conf_path = args.config_file
@@ -1036,7 +1092,7 @@ The most commonly used dss target commands are:
 
     def checkout(self):
         parser = argparse.ArgumentParser(description="Checkout target software")
-        print 'Running dss_tgt checkout\n do "git clone git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-target.git"'
+        print('Running dss_tgt checkout\n do "git clone git@msl-dc-gitlab.ssi.samsung.com:ssd/nkv-target.git"')
         global g_tgt_checkout
         g_tgt_checkout = 1
 
@@ -1047,6 +1103,6 @@ if __name__ == "__main__":
 
     g_path = os.getcwd()
     g_lib_path = os.path.normpath(g_path + "/../lib")
-    print "Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "..."
+    print("Make sure this script is executed from DragonFly/bin diretory, running command under path" + g_path + "...")
 
     dss_tgt_args()

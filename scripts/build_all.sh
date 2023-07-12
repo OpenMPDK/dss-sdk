@@ -84,11 +84,11 @@ pushd "${script_dir}"
     exit
   fi
  
-  echo "###############################"
-  echo "### Building UFM ###"
-  echo "###############################"
-  sleep 4
-  ./build_nkv_agent.sh
-  ./build_ufm.sh
+  # echo "###############################"
+  # echo "### Building UFM ###"
+  # echo "###############################"
+  # sleep 4
+  # ./build_nkv_agent.sh
+  # ./build_ufm.sh
 
 popd
