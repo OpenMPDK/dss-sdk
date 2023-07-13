@@ -109,6 +109,22 @@ public:
             ) const;
 
     /**
+     * Get closest l1 element for an index on a given vertical jarr
+     * - @param `vertical_index` index on l1 judy array
+     *   @param `vetical_jarr` pointer to the l1 judy array
+     *   @return `closest_vertical_index` when true, index closest to
+     *           `vertical_index` on l1 judy array
+     *   @return `closest_vertical_ptr` when true, reference to pointer
+     *           to closest element on l1 judy array
+     */
+    bool get_closest_on_vjarr(
+            const uint64_t& vertical_index,
+            const void *vertical_jarr,
+            Word_t& closest_vertical_index,
+            Word_t*& closest_vertical_ptr
+            ) const;
+
+    /**
      * Get l1 element closest to vertical index at l0 horizontal index 
      * from 2D (l0, l1) Judy Hashmap
      * - @param `horizontal index` index on l0 judy array

@@ -179,6 +179,68 @@ bool JudyHashMap::get_first_l1_element(
     return true;
 }
 
+bool JudyHashMap::get_closest_on_vjarr(
+        const uint64_t& vertical_index,
+        const void *vertical_jarr,
+        Word_t& closest_vertical_index,
+        Word_t*& closest_vertical_ptr
+        ) const {
+
+    Word_t *ptr_j_entry_prev = NULL;
+    Word_t *ptr_j_entry_next = NULL;
+    Word_t index_l1_prev = 0;
+    Word_t index_l1_next = 0;
+    bool is_prev = false;
+    bool is_next = false;
+
+    if (vertical_jarr == NULL) {
+        closest_vertical_index = 0;
+        closest_vertical_ptr = NULL;
+        return false;
+    }
+
+    // 1. Get next element
+    index_l1_next = vertical_index;
+    ptr_j_entry_next = (Word_t *)JudyLNext(
+        vertical_jarr, &index_l1_next, PJE0);
+    if (ptr_j_entry_next != NULL) {
+        is_next = true;
+    }
+
+    // 2. Get previous element
+    index_l1_prev = vertical_index;
+    ptr_j_entry_prev = (Word_t *)JudyLPrev(
+        vertical_jarr, &index_l1_prev, PJE0);
+    if (ptr_j_entry_prev != NULL) {
+        is_prev = true;
+    }
+
+    if (is_prev && is_next) {
+        // Return the closest element
+        if (vertical_index - index_l1_prev
+                < index_l1_next - vertical_index) {
+            closest_vertical_ptr = ptr_j_entry_prev;
+            closest_vertical_index = index_l1_prev;
+        } else {
+            closest_vertical_ptr = ptr_j_entry_next;
+            closest_vertical_index = index_l1_next;
+        }
+    } else if (is_prev && !is_next) {
+        closest_vertical_ptr = ptr_j_entry_prev;
+        closest_vertical_index = index_l1_prev;
+    } else if (!is_prev && is_next) {
+        closest_vertical_ptr = ptr_j_entry_next;
+        closest_vertical_index = index_l1_next;
+    } else {
+        closest_vertical_ptr = NULL;
+        closest_vertical_index = 0;
+
+        return false;
+    }
+
+    return true;
+}
+
 bool JudyHashMap::get_closest_l1_element(
         const uint64_t& horizontal_index,
         const uint64_t& vertical_index,
@@ -187,12 +249,8 @@ bool JudyHashMap::get_closest_l1_element(
 
     void *jarr_l1 = NULL;
     Word_t *ptr_j_entry = NULL;
-    Word_t *ptr_j_entry_prev = NULL;
-    Word_t *ptr_j_entry_next = NULL;
-    Word_t index_l1_prev = 0;
-    Word_t index_l1_next = 0;
-    bool is_prev = false;
-    bool is_next = false;
+    Word_t *closest_vertical_ptr = NULL;
+    Word_t closest_vertical_index = 0;
 
     // Get vertical jarr entry at horizontal index
     ptr_j_entry = (Word_t *)JudyLGet(
@@ -207,34 +265,9 @@ bool JudyHashMap::get_closest_l1_element(
         // Dereference to obtain vertical judy array
         jarr_l1 = (void *)*ptr_j_entry;
 
-        // 1. Get next element
-        index_l1_next = vertical_index;
-        ptr_j_entry_next = (Word_t *)JudyLNext(
-            jarr_l1, &index_l1_next, PJE0);
-        if (ptr_j_entry_next != NULL) {
-            is_next = true;
-        }
-
-        // 2. Get previous element
-        index_l1_prev = vertical_index;
-        ptr_j_entry_prev = (Word_t *)JudyLPrev(
-            jarr_l1, &index_l1_prev, PJE0);
-        if (ptr_j_entry_prev != NULL) {
-            is_prev = true;
-        }
-
-        if (is_prev && is_next) {
-            // Return the closest element
-            if (vertical_index - index_l1_prev
-                    < index_l1_next - vertical_index) {
-                ptr_j_entry = ptr_j_entry_prev;
-            } else {
-                ptr_j_entry = ptr_j_entry_next;
-            }
-        } else if (is_prev && !is_next) {
-            ptr_j_entry = ptr_j_entry_prev;
-        } else if (!is_prev && is_next) {
-            ptr_j_entry = ptr_j_entry_next;
+        if (this->get_closest_on_vjarr(vertical_index, jarr_l1,
+                    closest_vertical_index, closest_vertical_ptr)) {
+            ptr_j_entry = closest_vertical_ptr;
         } else {
             ptr_j_entry = NULL;
         }
@@ -314,12 +347,8 @@ bool JudyHashMap::get_closest_l0_element(
     Word_t *ptr_j_entry = NULL;
     Word_t index_l0 = (Word_t)horizontal_index;
     Word_t index_l1 = 0;
-    Word_t *ptr_j_entry_prev = NULL;
-    Word_t *ptr_j_entry_next = NULL;
-    Word_t index_l1_prev = 0;
-    Word_t index_l1_next = 0;
-    bool is_prev = false;
-    bool is_next = false;
+    Word_t *closest_vertical_ptr = NULL;
+    Word_t closest_vertical_index = 0;
 
     // Get vertical jarr entry at horizontal index
     ptr_j_entry = (Word_t *)JudyLNext(
@@ -334,43 +363,14 @@ bool JudyHashMap::get_closest_l0_element(
         // Dereference to obtain vertical judy array
         jarr_l1 = (void *)*ptr_j_entry;
 
-        // 1. Get next element
-        index_l1_next = vertical_index;
-        ptr_j_entry_next = (Word_t *)JudyLNext(
-            jarr_l1, &index_l1_next, PJE0);
-        if (ptr_j_entry_next != NULL) {
-            is_next = true;
-        }
+        if (this->get_closest_on_vjarr(vertical_index, jarr_l1,
+                    closest_vertical_index, closest_vertical_ptr)) {
 
-        // 2. Get previous element
-        index_l1_prev = vertical_index;
-        ptr_j_entry_prev = (Word_t *)JudyLPrev(
-            jarr_l1, &index_l1_prev, PJE0);
-        if (ptr_j_entry_prev != NULL) {
-            is_prev = true;
-        }
-
-        if (is_prev && is_next) {
-            // Return the closest element
-            if (vertical_index - index_l1_prev
-                    < index_l1_next - vertical_index) {
-                ptr_j_entry = ptr_j_entry_prev;
-                index_l1 = index_l1_prev;
-            } else {
-                ptr_j_entry = ptr_j_entry_next;
-                index_l1 = index_l1_next;
-            }
-        } else if (is_prev && !is_next) {
-            ptr_j_entry = ptr_j_entry_prev;
-            index_l1 = index_l1_prev;
-        } else if (!is_prev && is_next) {
-            ptr_j_entry = ptr_j_entry_next;
-            index_l1 = index_l1_next;
+            ptr_j_entry = closest_vertical_ptr;
+            index_l1 = closest_vertical_index;
         } else {
             ptr_j_entry = NULL;
-            index_l1 = 0;
         }
-        
     }
 
     if (ptr_j_entry == NULL) {
