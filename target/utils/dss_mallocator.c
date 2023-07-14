@@ -64,6 +64,11 @@ dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, 
     struct dss_mallocator_ctx_s *c;
     int rc;
 
+    if((opts.num_caches == 0) ||
+        (opts.item_sz == 0)) {
+        return NULL;
+    }
+
     DSS_ASSERT(allocator_type == DSS_MEM_ALLOC_MALLOC);
     c = calloc(1, sizeof(struct dss_mallocator_ctx_s));
     if(!c) {
@@ -71,32 +76,23 @@ dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, 
     }
 
     c->opts = opts;
+    c->n_c_ctx = c->opts.num_caches;
+    c->allocation_size = c->opts.item_sz;
     
     rc = pthread_mutex_init(&c->allocator_lock, NULL);
     if(rc == -1) {
-        goto alloc_err;
-    }
-
-    c->n_c_ctx = c->opts.num_caches;
-    if(!c->n_c_ctx) {
-        goto alloc_err;
+        free(c);
+        return NULL;
     }
 
     c->c_ctx = calloc(c->n_c_ctx, sizeof(dss_item_cache_context_t *));
     if(!c->c_ctx) {
-        goto alloc_err;
+        free(c->c_ctx);
+        free(c);
+        return NULL;
     }
-
-    if(c->opts.item_sz == 0) {
-        goto alloc_err;
-    }
-    c->allocation_size = c->opts.item_sz;
 
     return c;
-
-alloc_err:
-    dss_mallocator_destroy(c);
-    return NULL;
 }
 
 dss_mallocator_status_t dss_mallocator_destroy(dss_mallocator_ctx_t *c)
@@ -141,18 +137,17 @@ dss_mallocator_status_t dss_mallocator_get(dss_mallocator_ctx_t *c, uint32_t cac
     if(!c->c_ctx[cache_index]) {//Unlikely
         pthread_mutex_lock(&c->allocator_lock);
         if(!c->c_ctx[cache_index]) {//Check again after locking
-            cache_ctx = dss_item_cache_init(c->opts.max_per_cache_items);
-            if(!cache_ctx) {
+            c->c_ctx[cache_index] = dss_item_cache_init(c->opts.max_per_cache_items);
+            if(!c->c_ctx[cache_index]) {
                 pthread_mutex_unlock((&c->allocator_lock));
-                DSS_ASSERT(cache_ctx);
+                DSS_ASSERT(c->c_ctx[cache_index]);
                 return DSS_MALLOC_ERROR;//Fail on cache initialization failure
             }
-            c->c_ctx[cache_index] = cache_ctx;
         }
         pthread_mutex_unlock((&c->allocator_lock));
-    } else {
-        cache_ctx = c->c_ctx[cache_index];
     }
+
+    cache_ctx = c->c_ctx[cache_index];
 
     item = dss_item_cache_get_item(cache_ctx);
     if(!item) {

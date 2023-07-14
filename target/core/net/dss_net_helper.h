@@ -39,7 +39,7 @@
 extern "C" {
 #endif
 
-int dss_file_get_int_value(char *path);
+int dss_get_ifaddr_numa_node(char *if_addr);
 
 #ifdef __cplusplus
 }

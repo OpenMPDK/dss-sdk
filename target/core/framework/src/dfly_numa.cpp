@@ -110,12 +110,12 @@ struct dfly_numa_context {
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
-int _dfly_spdk_get_ifaddr_numa_node(char *if_addr);
+#include "dss_net_helper.h"
 
 static int
 dfly_spdk_get_ifaddr_numa_node(char *if_addr)
 {
-	_dfly_spdk_get_ifaddr_numa_node(if_addr);
+	return dss_get_ifaddr_numa_node(if_addr);
 }
 //Helper end
 

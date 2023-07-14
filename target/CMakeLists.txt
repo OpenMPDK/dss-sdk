@@ -412,6 +412,7 @@ if(WITH_ROCKSDB_KV)
 include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
 endif(WITH_ROCKSDB_KV)
 
+include_directories (${CMAKE_SOURCE_DIR}/core/net/)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
 include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator)

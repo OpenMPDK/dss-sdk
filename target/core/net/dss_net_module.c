@@ -155,7 +155,7 @@ dss_module_status_t dss_net_module_init(char *net_dev_name, char *ip, dss_net_mo
         if(rc != 0) {
             free(nm);
             nm = NULL;
-            status = DSS_MODULE_STATUS_ERROR;
+            return DSS_MODULE_STATUS_ERROR;
         }
 
         TAILQ_INSERT_TAIL(&g_net_mod_mgr.net_mod_list, nm, mgr_mlist);
@@ -163,10 +163,8 @@ dss_module_status_t dss_net_module_init(char *net_dev_name, char *ip, dss_net_mo
         status = DSS_MODULE_STATUS_MOD_CREATED;
     }
 
-    if(nm) {
-        _dss_net_module_get(nm);
-    }
-
+    DSS_ASSERT(nm != NULL);
+    _dss_net_module_get(nm);
     *net_module = nm;
 
     pthread_mutex_unlock(&g_net_mod_mgr.net_module_mgr_lock);
@@ -242,6 +240,10 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
 
     net_ss_node = calloc(1, sizeof(struct dss_net_module_ss_node_s));
     if(!net_ss_node) {
+        //TODO: do callback with error code
+        dss_net_module_free_config(e->cfg);
+        free(e->cfg);
+        free(e);
         return DSS_MODULE_STATUS_ERROR;
     }
 
@@ -251,6 +253,15 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
     rc = dss_net_module_init(e->cfg->dev_list[current_index].dev_name,
                              e->cfg->dev_list[current_index].ip,
                              &net_module);
+
+    if(rc == DSS_MODULE_STATUS_ERROR) {
+        //TODO: do callback with error code
+        free(net_ss_node);
+        dss_net_module_free_config(e->cfg);
+        free(e->cfg);
+        free(e);
+        return rc;
+    }
 
     if(rc == DSS_MODULE_STATUS_MOD_CREATED) {
         /*TODO: Change ip to device name e->cfg->dev_list[current_index].dev_name*/
@@ -305,10 +316,11 @@ dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, 
         } else {
             goto err_out;
         }
+    } else {
+        if(e) free(e);
     }
 err_out:
-    free(cfg);
-    if(e) free(e);
+    //TODO: Destroy initialized NICs before destory
     if(nm_ss) free(nm_ss);
 
     return DSS_MODULE_STATUS_ERROR;

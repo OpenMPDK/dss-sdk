@@ -244,6 +244,7 @@ static inline bool __dss_simbmap_check_range_free(dss_blk_alloc_simbmap_ctx_t *c
             return false;
         }
     }
+    return true;//All blocks in range are free
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_simbmap_alloc_blocks_contig(dss_blk_allocator_context_t *ctx, uint64_t state, uint64_t hint_block_index,

@@ -267,6 +267,7 @@ static inline void str_replace_char(char *str, char orig_ch, char replace_ch, si
 }
 //connect to module instance
 
+#define STAT_NAME_MAX_LEN (64)
 struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_type_t mtype,
 					struct dfly_module_ops *mops, void *ctx, int num_cores, int numa_node,
 					df_module_event_complete_cb cb, void *cb_arg)
@@ -278,10 +279,10 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 
 	int launch_core = -1;
 
-	char stat_name[64];
-	memset(stat_name, 0, 64);
-	sprintf(stat_name, "m_%s_%d", name, id);
-	DFLY_ASSERT(strlen(stat_name) < 64);
+	char stat_name[STAT_NAME_MAX_LEN];
+	memset(stat_name, 0, STAT_NAME_MAX_LEN);
+	snprintf(stat_name, STAT_NAME_MAX_LEN, "m_%s_%d", name, id);
+	DFLY_ASSERT(strlen(stat_name) < STAT_NAME_MAX_LEN);
 
 	module = (dfly_module_t *)calloc(1, sizeof(dfly_module_t));
 	if (!module) {

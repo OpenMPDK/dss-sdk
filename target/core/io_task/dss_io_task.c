@@ -173,7 +173,7 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
         memset(io_op, 0, sizeof(dss_io_op_t));
         status = dss_mallocator_put(io_task->io_module->ops_allocator, io_task->tci, io_op);
         if(status != DSS_MALLOC_SUCCESS) {
-            rc = DSS_IO_TASK_MODULE_STATUS_ERROR;
+            rc = DSS_IO_TASK_STATUS_ERROR;
         }
         freed_ops++;
         io_op = TAILQ_FIRST(&io_task->op_done);

@@ -92,7 +92,6 @@ int dss_get_ifaddr_numa_node(char *if_addr)
 
 		snprintf(path, MAX_STRING_LEN, "/sys/class/net/%s/device/numa_node", ifa->ifa_name);
 		numa_node = dss_file_get_int_value(path);
-		numa_node = dss_file_get_int_value(path);
 		break;
 	}
 	freeifaddrs(ifaddrs);
