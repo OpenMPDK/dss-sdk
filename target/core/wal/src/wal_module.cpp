@@ -263,9 +263,9 @@ int dfly_wal_module_init(int ssid, int nr_cores, void *cb, void *cb_arg)
 
 	struct dfly_subsystem *ss = dfly_get_subsystem(ssid);
 
-	ss->mlist.dfly_wal_module = dfly_module_start("WAL", ssid, &wal_module_ops,
+	ss->mlist.dfly_wal_module = dfly_module_start("WAL", ssid, DSS_MODULE_WAL, &wal_module_ops,
 				    &g_wal_ctx.pool_array[ssid],
-				    nr_cores, (df_module_event_complete_cb)cb, cb_arg);
+				    nr_cores, -1, (df_module_event_complete_cb)cb, cb_arg);
 
 	return 0;
 }

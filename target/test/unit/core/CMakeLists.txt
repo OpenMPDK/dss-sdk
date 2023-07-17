@@ -31,3 +31,6 @@
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 add_subdirectory(framework)
+add_subdirectory(block_allocator)
+add_subdirectory(io_task)
+add_subdirectory(kvtrans)

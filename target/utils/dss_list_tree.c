@@ -36,7 +36,9 @@
 #include <malloc.h>
 
 #include "dragonfly.h"
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 #define DSS_LIST_MAX_KLEN (1024)
 
@@ -618,6 +620,7 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 		}
 
 		if(tnode->list_direct) {
+#ifdef DSS_ENABLE_ROCKSDB_KV
 			struct dss_list_read_process_ctx_s *lctx = (struct dss_list_read_process_ctx_s *)listing_ctx;
 			//TODO: Make call async to tpool
 			//dss_rocksdb_direct_iter(hctx, prefix, start_key, listing_ctx);
@@ -626,7 +629,6 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 				dss_tpool_post_request(hctx->dlist_mod, lctx->parent_req);
 				rc = DFLY_LIST_READ_PENDING;
 			} else {
-
 				dss_rocksdb_direct_iter(hctx, lctx->parent_req);
 				//TODO: Repopulation path for async
 				if(lctx->repopulate) {
@@ -649,6 +651,9 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 				rc = DFLY_LIST_READ_DONE;
 			}
 			return rc;
+#else
+	DFLY_ASSERT(0);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 		}
 
 		tok = strtok_r(NULL, hctx->delim_str, &saveptr);

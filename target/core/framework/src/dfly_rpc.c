@@ -44,6 +44,19 @@
 
 #include "version.h"
 
+//Force linking C constructors
+// This file is copied and compiled as part of target spdk application
+// Add any C constructors to force linking here
+typedef void (*dummy_fn) (void);
+static struct {
+	dummy_fn dummy1;
+	dummy_fn dummy2;
+} __dss_force_constructor_linking = {
+	.dummy1 = (dummy_fn) _dss_block_allocator_register_simbmap_allocator,
+	.dummy2 = (dummy_fn) _dss_block_allocator_register_block_impresario
+};
+
+
 #define DSS_MAX_SIM_IO_TIMEOUT (10)
 
 struct dss_rpc_lat_profile_req_s {
@@ -925,6 +938,7 @@ void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req)
 static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
+#ifdef SPDK_CONFIG_ROCKSDB_KV
 	struct dss_rpc_nqn_req_s req = {};
 	struct dfly_subsystem *df_subsys;
 	struct spdk_json_write_ctx *w;
@@ -983,5 +997,9 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 invalid:
 	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
 	free_rpc_nqn_req(&req);
+#else//SPDK_CONFIG_ROCKSDB_KV
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_METHOD_NOT_FOUND, "Method not supported");
+#endif//SPDK_CONFIG_ROCKSDB_KV
+	return;
 }
 SPDK_RPC_REGISTER("dss_rdb_compact", dss_rpc_rdb_compact, SPDK_RPC_RUNTIME)

@@ -295,8 +295,8 @@ int dfly_fuse_module_init(int ssid, int nr_cores, df_module_event_complete_cb cb
 {
 	//assume one pool per system, ssid is not used so far. multiple (pool -> maps) TBD
 	struct dfly_subsystem *ss = dfly_get_subsystem(ssid);
-	ss->mlist.dfly_fuse_module = dfly_module_start("FUSE", ssid, &fuse_module_ops,
-				     &fuse_module_ctx, nr_cores, cb, cb_arg);
+	ss->mlist.dfly_fuse_module = dfly_module_start("FUSE", ssid, DSS_MODULE_FUSE, &fuse_module_ops,
+				     &fuse_module_ctx, nr_cores, -1, cb, cb_arg);
 
 	return 0;
 }

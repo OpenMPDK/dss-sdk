@@ -1,7 +1,7 @@
-From fae5c041b617ba1f76c36d477b77b796cb569ee6 Mon Sep 17 00:00:00 2001
+From ec28490c4d0b3e8e6704e2a7fc74100c65e42df0 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 20 Jun 2022 14:44:49 -0700
-Subject: [PATCH 64/73] Use exact value length for RDD
+Subject: [PATCH 64/75] Use exact value length for RDD
 
     * makes sure the rdma does not access extra memory
 ---

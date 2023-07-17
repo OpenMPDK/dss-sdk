@@ -1,7 +1,7 @@
-From 949b2857778ed4d67848803031b73c72d86b151b Mon Sep 17 00:00:00 2001
+From 61bea478c51d5de7f75fa0ca4b3bd62ad47dd051 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:40:44 -0700
-Subject: [PATCH 52/73] Return correct error code for sync read/write
+Subject: [PATCH 52/75] Return correct error code for sync read/write
 
 ---
  lib/blobfs/blobfs.c | 63 +++++++++++++++++++++++++++++++++++++----------------

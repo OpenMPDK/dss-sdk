@@ -34,16 +34,7 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
-typedef enum df_module_type {
-	DF_MODULE_START_INIT = 0,
-	//Modules in the order of initialization
-	DF_MODULE_LOCK = 1,
-	DF_MODULE_FUSE = 2,
-	DF_MODULE_IO   = 3,
-	DF_MODULE_LIST = 4,
-	DF_MODULE_WAL  = 5,
-	DF_MODULE_END  = 6
-} df_module_type_t;
+#include "apis/dss_net_module.h"
 
 typedef void (*df_ss_init_next_fn)(void *event, void *arg);
 
@@ -51,7 +42,7 @@ struct df_subsys_process_event_s {
 	struct dfly_subsystem *subsys;
 	uint32_t src_core;
 	bool initialize;
-	df_module_type_t curr_module;
+	dss_module_type_t curr_module;
 	df_subsystem_event_processed_cb cb;
 	void *cb_arg;
 	int cb_status;
@@ -191,6 +182,10 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 
 	ss_dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "KV_PoolEnabled", g_dragonfly->target_pool_enabled);
 	df_subsys->iomem_dev_numa_aligned = spdk_conf_section_get_boolval(subsys_sp, "iomem_dev_numa_aligned", true);
+	df_subsys->dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "dss_enabled", true);
+	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
+	//TODO: One thread per drive as default?
+	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", 1);
 
 	df_subsys_update_dss_enable(ssid, ss_dss_enabled);
 
@@ -214,24 +209,89 @@ uint32_t df_subsystem_enabled(uint32_t ssid)
 void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/);
 
 //Array indices should match enum for module
-static struct df_ss_mod_init_s module_initializers[DF_MODULE_END + 1] = {
+static struct df_ss_mod_init_s module_initializers[DSS_MODULE_END + 1] = {
 	{NULL,NULL, NULL, NULL, false},
-	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_LOCK
-	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DF_MODULE_FUSE
-	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DF_MODULE_IO
-	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_LIST
-	{(dss_mod_init_fn)wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DF_MODULE_WAL
+	{dfly_lock_service_subsys_start, dfly_lock_service_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_LOCK
+	{(dss_mod_init_fn)fuse_init_by_conf, NULL,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_FUSE
+	{(dss_mod_init_fn)dss_net_module_subsys_start, (dss_mod_deinit_fn)dss_net_module_subsys_stop,  NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_NET
+	{dfly_io_module_subsystem_start, dfly_io_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_IO
+	{dss_kvtrans_module_subsystem_start, dss_kvtrans_module_subsystem_stop, NULL, _dfly_subsystem_process_next, true},//DSS_MODULE_KVTRANS
+	{(dss_mod_init_fn)dfly_list_module_init, (dss_mod_deinit_fn)dfly_list_module_destroy, NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_LIST
+	{(dss_mod_init_fn)wal_init_by_conf, NULL, NULL, _dfly_subsystem_process_next, false},//DSS_MODULE_WAL
 	{NULL, NULL, NULL, NULL, false}
 };
+
+int_least64_t dss_get_subsys_listener_count(void *spdk_subsys)
+{
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)spdk_subsys;
+	uint32_t lcount = 0;
+	struct spdk_nvmf_subsystem_listener *listener = TAILQ_FIRST(&spdk_nvmf_ss->listeners);
+	while(listener) {
+		lcount++;
+		listener = TAILQ_NEXT(listener, link);
+	}
+	return lcount;
+}
+
+int dss_fill_dss_net_dev_info(void *spdk_subsys, dss_net_mod_dev_info_t *net_dev_info)
+{
+	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)spdk_subsys;
+	struct spdk_nvmf_subsystem_listener *listener;
+	int fill_count = 0;
+
+	TAILQ_FOREACH(listener, &spdk_nvmf_ss->listeners, link) {
+		net_dev_info[fill_count].num_nw_threads = g_dragonfly->num_nw_threads;
+		net_dev_info[fill_count].ip = strdup(listener->trid->traddr);
+		net_dev_info[fill_count].dev_name = strdup(listener->trid->traddr);
+		// TAILQ_FOREACH(listener, spdk_nvmf_ss->listeners, link) {
+		// 	//net_dev_info[fill_count].dev_name = strdup();
+		// }
+		fill_count++;
+	}
+	return fill_count;
+}
 
 void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 {
 	struct df_subsys_process_event_s *ss_event = (struct df_subsys_process_event_s *)vctx;
+	dss_module_t **ss_module_p;
 	int mod_index = 0;
 
 	DFLY_ASSERT(ss_event->src_core == spdk_env_get_current_core());
 
-	for (mod_index = ss_event->curr_module + 1; mod_index < DF_MODULE_END; mod_index++) {
+	if(ss_event->initialize) {
+			if(ss_event->subsys->dss_enabled) {
+				module_initializers[DSS_MODULE_NET].mod_enabled = true;
+				//Prepare config for net module
+				int listener_count, fill_count;
+
+				dss_net_module_config_t *c;
+				listener_count = dss_get_subsys_listener_count(ss_event->subsys->parent_ctx);
+				DSS_ASSERT(listener_count != 0);
+				c = calloc(1, sizeof(dss_net_module_config_t) + (listener_count * sizeof(dss_net_mod_dev_info_t)));
+				DSS_ASSERT(c != NULL);
+				//TODO: Handle allocation failure
+				c->count = listener_count;
+				fill_count = dss_fill_dss_net_dev_info(ss_event->subsys->parent_ctx, c->dev_list);
+				DSS_ASSERT(fill_count == listener_count);
+				module_initializers[DSS_MODULE_NET].arg = (void *)c;
+
+				module_initializers[DSS_MODULE_IO].mod_enabled = true;
+				//Disable other modules
+				module_initializers[DSS_MODULE_WAL].mod_enabled = false;
+				module_initializers[DSS_MODULE_FUSE].mod_enabled = false;
+				module_initializers[DSS_MODULE_LOCK].mod_enabled = false;
+				//TODO: Listing from memory support
+				module_initializers[DSS_MODULE_LIST].mod_enabled = false;
+			} else {
+				module_initializers[DSS_MODULE_NET].mod_enabled = false;
+				//Other modules are configured already
+			}
+	} else {
+		//TODO: Deinit Config
+	}
+
+	for (mod_index = ss_event->curr_module + 1; mod_index < DSS_MODULE_END; mod_index++) {
 		if (module_initializers[mod_index].mod_enabled == false) {
 			DFLY_INFOLOG(DFLY_LOG_SUBSYS, "Skipping module with index %d\n", mod_index);
 			continue;
@@ -249,9 +309,14 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 		}
 		DFLY_INFOLOG(DFLY_LOG_SUBSYS, "Init module without cb index:%d\n", mod_index);
 	}
-	ss_event->curr_module = (df_module_type_t)mod_index;
-	if (mod_index == DF_MODULE_END) {
+	ss_event->curr_module = (dss_module_type_t)mod_index;
+	if (mod_index == DSS_MODULE_END) {
 		if(ss_event->initialize) {
+			int i;
+			for(i=DSS_MODULE_START_INIT; i < DSS_MODULE_END; i++) {
+				//Reset arg after subsystem init to prepare for next subsys
+				module_initializers[i].arg = NULL;
+			}
 			pthread_mutex_init(&ss_event->subsys->subsys_lock, NULL);
 			ss_event->subsys->initialized = true;
 		} else {
@@ -310,9 +375,9 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 	ss_mod_init_next->cb = cb;
 	ss_mod_init_next->cb_arg = cb_arg;
 	ss_mod_init_next->cb_status = cb_status;
-	ss_mod_init_next->curr_module = DF_MODULE_START_INIT;
+	ss_mod_init_next->curr_module = DSS_MODULE_START_INIT;
 
-	module_initializers[DF_MODULE_IO].arg = io_ops;
+	module_initializers[DSS_MODULE_IO].arg = io_ops;
 
 	DFLY_ASSERT(dfly_subsystem);
 	DFLY_ASSERT(dfly_subsystem->initialized == false);
@@ -328,21 +393,27 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 	TAILQ_INIT(&dfly_subsystem->df_ctrlrs);
 	pthread_mutex_init(&dfly_subsystem->ctrl_lock, NULL);
 
+	if(!dss_subsystem_kv_mode_enabled((dss_subsystem_t *)dfly_subsystem)) {
+		DSS_NOTICELOG("KV translation disabled by config for %s\n", spdk_nvmf_ss->subnqn);
+		dfly_subsystem->dss_kv_mode = false;
+		module_initializers[DSS_MODULE_KVTRANS].mod_enabled = false;
+	}
+
 	if (g_fuse_conf.fuse_enabled) {
-		module_initializers[DF_MODULE_FUSE].arg = &g_fuse_conf;
-		module_initializers[DF_MODULE_FUSE].mod_enabled = true;
+		module_initializers[DSS_MODULE_FUSE].arg = &g_fuse_conf;
+		module_initializers[DSS_MODULE_FUSE].mod_enabled = true;
 		DFLY_ASSERT(spdk_nvmf_ss->subnqn);
 		snprintf(g_fuse_conf.fuse_nqn_name, strlen(spdk_nvmf_ss->subnqn) + 1, "%s", spdk_nvmf_ss->subnqn);
 	}
 
 	if (g_list_conf.list_enabled) {
-		module_initializers[DF_MODULE_LIST].mod_enabled = true;
-		module_initializers[DF_MODULE_LIST].arg = &g_list_conf;
+		module_initializers[DSS_MODULE_LIST].mod_enabled = true;
+		module_initializers[DSS_MODULE_LIST].arg = &g_list_conf;
 	}
 
 	if (g_wal_conf.wal_cache_enabled) {
-		module_initializers[DF_MODULE_WAL].mod_enabled = true;
-		module_initializers[DF_MODULE_WAL].arg = &g_wal_conf;
+		module_initializers[DSS_MODULE_WAL].mod_enabled = true;
+		module_initializers[DSS_MODULE_WAL].arg = &g_wal_conf;
 	}
 
 	_dfly_subsystem_process_next(ss_mod_init_next, NULL);
@@ -389,7 +460,7 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 	ss_mod_deinit_next->cb = cb;
 	ss_mod_deinit_next->cb_arg = cb_arg;
 	ss_mod_deinit_next->cb_status = cb_status;
-	ss_mod_deinit_next->curr_module = DF_MODULE_START_INIT;
+	ss_mod_deinit_next->curr_module = DSS_MODULE_START_INIT;
 
 	//TODO: Deinit FUSE
 	//TODO: Deinit WAL
@@ -410,3 +481,33 @@ void *dfly_subsystem_list_device(struct dfly_subsystem *ss, void **dev_list, uin
 
 }
 
+void *dss_module_get_subsys_ctx(dss_module_type_t type, void *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+
+	DSS_ASSERT(type > DSS_MODULE_START_INIT);
+	DSS_ASSERT(type < DSS_MODULE_END);
+	void **mlist = (void **)&df_ss->mlist;
+
+	return mlist[type];
+}
+
+void dss_module_set_subsys_ctx(dss_module_type_t type, void *ss, void *ctx)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+
+	DSS_ASSERT(type > DSS_MODULE_START_INIT);
+	DSS_ASSERT(type < DSS_MODULE_END);
+
+	void **mlist = (void **)&df_ss->mlist;
+
+	mlist[type] = ctx;
+	return;
+}
+
+bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	return df_ss->dss_kv_mode;
+
+}

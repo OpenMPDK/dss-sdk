@@ -1,7 +1,7 @@
-From 25c5c73920f5bd5d86875856984cffaf32cb0139 Mon Sep 17 00:00:00 2001
+From 0c3560d97da85baadcaecb1329be196b34cda996 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 7 Oct 2021 09:53:06 -0700
-Subject: [PATCH 49/73] Normalize capacity reproting to least blocklen
+Subject: [PATCH 49/75] Normalize capacity reproting to least blocklen
 
 ---
  lib/nvmf/ctrlr.c      |  7 ++++-

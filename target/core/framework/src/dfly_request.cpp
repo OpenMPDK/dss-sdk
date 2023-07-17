@@ -354,6 +354,11 @@ void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 	if (req->qpair->ctrlr &&
 	    req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
 
+		if(!req->qpair->dqpair->net_module_instance) {
+			/// @note Ideally this should be done after qpair initialization. Adding here since SPDK qpair init does not populate required fields until much later
+			dss_qpair_set_net_module_instance(req->qpair);
+		}
+
 		if ((req->cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC) &&
 		    (nvmf_qpair_is_admin_queue(req->qpair) == false)) {
 
@@ -399,3 +404,30 @@ void dss_set_rdd_transfer(struct dfly_request *req)
 {
 	req->data_direct = true;
 }
+
+uint32_t dss_req_get_val_len(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	return dreq->req_value.length;
+}
+
+dss_key_t *dss_req_get_key(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	return &dreq->req_key;
+}
+
+dss_value_t *dss_req_get_value(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	return &dreq->req_value;
+}
+
+dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+	DSS_ASSERT(dreq->req_dfly_ss);
+	return (dss_subsystem_t *)dreq->req_dfly_ss;
+}
+
+

@@ -591,8 +591,8 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 		return -1;
 	}
 
-	subsys->mlist.lock_service = dfly_module_start("Lock_service", subsys->id, &lock_svc_module_ops,
-				     ls_ss_ctx, 1, cb, cb_arg);
+	subsys->mlist.lock_service = dfly_module_start("Lock_service", subsys->id, DSS_MODULE_LOCK, &lock_svc_module_ops,
+				     ls_ss_ctx, 1, -1, cb, cb_arg);
 
 	DFLY_ASSERT(subsys->mlist.lock_service);
 

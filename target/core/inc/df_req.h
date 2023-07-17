@@ -54,6 +54,10 @@ extern "C" {
 #include "df_def.h"
 #include "df_poller.h"
 
+#include "apis/dss_module_apis.h"
+
+typedef struct dfly_key dss_key_t;
+typedef struct dfly_value dss_value_t;
 struct dfly_key {
 	void     *key;
 	uint16_t length;
@@ -155,7 +159,16 @@ struct dfly_request_ops {
 
 };
 
+struct dss_request_s {
+	dss_request_opc_t opc;
+	dss_request_rc_t status;
+	dss_subsystem_t *ss;
+	//Common request context struct for all modules
+	dss_module_req_ctx_t module_ctx[DSS_MODULE_END];
+};
+
 typedef struct dfly_request {
+	dss_request_t common_req;
 	uint32_t    flags; /**< request type */
 
 	uint16_t
@@ -321,6 +334,13 @@ bool dfly_cmd_sequential(struct dfly_request *req1, struct dfly_request *req2);
 void dfly_set_status_code(struct dfly_request *req, int sct, int sc);
 
 void dss_set_rdd_transfer(struct dfly_request *req);
+
+uint32_t dss_req_get_val_len(dss_request_t *req);
+dss_key_t *dss_req_get_key(dss_request_t *req);
+dss_value_t *dss_req_get_value(dss_request_t *req);
+
+dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req);
+
 #ifdef __cplusplus
 }
 #endif

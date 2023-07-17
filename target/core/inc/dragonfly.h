@@ -61,6 +61,9 @@ extern "C" {
 
 #include "spdk_internal/log.h"
 
+#include "dss.h"
+#include "apis/dss_module_apis.h"
+
 #include "df_dev.h"
 #include "df_req.h"
 #include "df_pool.h"
@@ -120,7 +123,6 @@ extern "C" {
 #define MB                  (1048576)
 #define MB_SHIFT			(20)
 
-#define DSS_ASSERT DFLY_ASSERT
 #define DFLY_ASSERT(x) assert((x))
 
 #define OSS_TARGET_ENABLED (1)
@@ -141,11 +143,15 @@ struct dragonfly_core {
 };
 
 struct dfly_module_list_s {
-	struct dfly_module_s *dfly_io_module;
-	struct dfly_module_s *dfly_wal_module;
-	struct dfly_module_s *dfly_fuse_module;
+	void *dummy;//Init
+	/// @brief Note: This list needs to be in the order of dss_module_type_t
 	struct dfly_module_s *lock_service;
+	struct dfly_module_s *dfly_fuse_module;
+	void *dss_net_module;//dss_net_module_subsys_t
+	struct dfly_module_s *dfly_io_module;
+	void *dss_kv_trans_module;
 	struct dfly_module_s *dfly_list_module;
+	struct dfly_module_s *dfly_wal_module;
 };
 
 struct init_multi_dev_s {
@@ -188,6 +194,10 @@ typedef struct df_subsys_conf_s {
 } df_subsys_conf_t;
 
 struct dfly_subsystem {
+	bool dss_enabled;
+	/// @brief  true - kv mode; false - block mode
+	bool dss_kv_mode;
+	int num_kvt_threads;
 	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
@@ -368,6 +378,10 @@ struct dfly_qpair_s {
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
 	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
+
+	//DSS Net module
+	dss_module_instance_t *net_module_instance;
+	char *net_module_name;
 };
 
 struct dword_bytes {
@@ -397,6 +411,10 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   void *ops, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/*Not Used*/,
 					df_module_event_complete_cb cb, void *cb_arg);
+
+int dss_kvtrans_module_subsystem_start(struct dfly_subsystem *subsystem, void *arg/*Not Used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_kvtrans_module_subsystem_stop(struct dfly_subsystem *subsystem, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
 
 int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not used*/,
 				   df_module_event_complete_cb cb, void *cb_arg);
@@ -517,6 +535,25 @@ int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
 
 bool dss_check_req_timeout(struct dfly_request *dreq);
 int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
+
+//C Constructor declarations: to enable symbol lookup on linking
+void _dss_block_allocator_register_simbmap_allocator(void);
+void _dss_block_allocator_register_block_impresario(void);
+//END - C Constructor declarations
+
+dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
+
+void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair);
+
+int dfly_spdk_conf_section_get_intval_default(struct spdk_conf_section *sp, const char *key, int default_val);
+
+void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
+
+
 #ifdef __cplusplus
 }
 #endif
