@@ -189,6 +189,7 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req) {
 
 void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v)
 {
+    DSS_ASSERT(k!=NULL && k->length<=KEY_LEN);
     kvtrans_req_t *kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
 
     switch(req->opc) {
@@ -208,7 +209,9 @@ void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v)
     }
 
     strncpy(kreq->req.req_key.key, k->key, k->length);//TODO: Copy pointer
-    kreq->req.req_key.key[k->length] = '\0';
+    if (k->length<KEY_LEN) {
+        kreq->req.req_key.key[k->length] = '\0';
+    }
     kreq->req.req_key.length = k->length;
 
     kreq->req.req_value.value = v->value;

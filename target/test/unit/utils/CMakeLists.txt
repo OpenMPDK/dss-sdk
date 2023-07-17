@@ -32,3 +32,4 @@
 #
 add_subdirectory(dss_item_cache.c)
 add_subdirectory(dss_mallocator.c)
+add_subdirectory(dss_kvtrans_utils.c)

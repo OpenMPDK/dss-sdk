@@ -33,4 +33,3 @@
 add_subdirectory(unit)
 add_subdirectory(test_rdd_cl)
 add_subdirectory(test_hash_fn)
-add_subdirectory(test_kvtrans_utils)

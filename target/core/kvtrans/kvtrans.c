@@ -422,6 +422,8 @@ blk_ctx_t *init_blk_ctx() {
     blk = (ondisk_meta_t *) calloc (1, sizeof(ondisk_meta_t));
     if (!blk_ctx || !blk) {
         printf("ERROR: blk_ctx or blk malloc failed.\n");
+        if (blk_ctx) free(blk_ctx);
+        if (blk) free(blk);
         return NULL;
     }
 
@@ -455,6 +457,7 @@ void init_dc_table(kvtrans_ctx_t *ctx) {
     ctx->dc_pool = (dc_item_t*) malloc (sizeof(dc_item_t) * MAX_DC_NUM);
     if (!ctx->dc_pool) {
         printf("ERROR: malloc dc_pool failed.\n");
+        return;
     }
     memset(ctx->dc_pool, 0, sizeof(dc_item_t) * MAX_DC_NUM);
 }
@@ -562,6 +565,7 @@ failure_handle:
 
 void free_kvtrans_ctx(kvtrans_ctx_t *ctx) 
 {
+    if (!ctx) return;
     if (ctx->blk_alloc_ctx) dss_blk_allocator_destroy(ctx->blk_alloc_ctx);
     if (ctx->hash_fn_ctx) free_hash_fn_ctx(ctx->hash_fn_ctx);
     if (ctx->entry_blk) free_blk_ctx(ctx->entry_blk);
@@ -661,7 +665,7 @@ bool iskeysame(char *k1, key_size_t k1_len, char *k2, key_size_t k2_len) {
 bool is_entry_match(col_entry_t *col_entry, char *key, key_size_t key_len) {
     char *entry_key = col_entry->key;
     // TODO: get entry_key length in an efficient way
-    return iskeysame(entry_key, strnlen(entry_key, KEY_LEN), key, strlen(key));
+    return iskeysame(entry_key, strnlen(entry_key, KEY_LEN), key, strnlen(key, KEY_LEN));
 }
 
 dss_kvtrans_status_t _alloc_entry_block(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
@@ -672,10 +676,6 @@ dss_kvtrans_status_t _alloc_entry_block(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     req_t *req = &kreq->req;
 
-    char *tmp = {"data/test_5_38"};
-    if (iskeysame(req->req_key.key, req->req_key.length, tmp, strlen(tmp))) {
-        printf("here");
-    }
     // TODO: it's possbile key is all zero.
     DSS_ASSERT(!iskeynull(req->req_key.key));
     hash_fn_ctx->clean(hash_fn_ctx);
@@ -922,7 +922,6 @@ dss_kvtrans_status_t _blk_update_value(void *ctx) {
     blk_ctx->vctx.remote_val_blocks = 0;
 
     rc = _blk_init_value(ctx);
-    if (rc) return rc;
     
     return rc;
 }
@@ -1357,7 +1356,7 @@ static blk_key_ops_t g_blk_register[DEFAULT_BLOCK_STATE_NUM] = {
 };
 
 dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
-    dss_kvtrans_status_t rc;
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
 
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     blk_ctx_t *meta_blk = blk_ctx->next;
@@ -1536,7 +1535,7 @@ dss_kvtrans_status_t  kvtrans_delete(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
 }
 
 dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, blk_cb_t cb) {
-    dss_kvtrans_status_t rc;
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     req_t *req = &kreq->req;
@@ -1637,8 +1636,6 @@ next_op:
         break;
     }
     STAILQ_INSERT_TAIL(&kreq->kvtrans_ctx->req_head, kreq, req_link);
-
-
     return rc;
 }
 
@@ -1753,6 +1750,7 @@ dss_kvtrans_status_t kv_process(kvtrans_ctx_t *kvtrans_ctx) {
 void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     if(!blk_ctx) {
         printf("Seg_ctx is null.\n");
+        return;
     }
 
     printf("===============\n");
@@ -1766,16 +1764,21 @@ void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     printf("    remote_val_blocks: %zu\n", blk_ctx->vctx.remote_val_blocks);
     printf("    value_blocks: %zu\n", blk_ctx->vctx.value_blocks);
     if (!blk_ctx->kreq) printf("kreq is null.\n");
-    printf("kreq: \n");
-    printf("    id: %zu\n", blk_ctx->kreq->id);
-    printf("    state: %d\n", blk_ctx->kreq->state);
-    printf("    key: %s\n", blk_ctx->kreq->req.req_key.key);
+    else {
+        printf("kreq: \n");
+        printf("    id: %zu\n", blk_ctx->kreq->id);
+        printf("    state: %d\n", blk_ctx->kreq->state);
+        printf("    key: %s\n", blk_ctx->kreq->req.req_key.key);
+    }
+
     if (!blk_ctx->blk) printf("blk is null.\n");
-    printf("blk: \n");
-    if (!iskeynull(blk_ctx->blk->key)) printf("    key: %s\n", blk_ctx->blk->key);
-    else printf("    key: 0\n");
-    printf("    num_valid_col_entry: %2x\n", blk_ctx->blk->num_valid_col_entry);
-    printf("    value_location: %2x\n", blk_ctx->blk->value_location);
-    printf("    value_size: %zu\n", blk_ctx->blk->value_size);
-    printf("    data_collision_index: %zu\n", blk_ctx->blk->data_collision_index);
+    else {
+        printf("blk: \n");
+        if (!iskeynull(blk_ctx->blk->key)) printf("    key: %s\n", blk_ctx->blk->key);
+        else printf("    key: 0\n");
+        printf("    num_valid_col_entry: %2x\n", blk_ctx->blk->num_valid_col_entry);
+        printf("    value_location: %2x\n", blk_ctx->blk->value_location);
+        printf("    value_size: %zu\n", blk_ctx->blk->value_size);
+        printf("    data_collision_index: %zu\n", blk_ctx->blk->data_collision_index);   
+    }
 }

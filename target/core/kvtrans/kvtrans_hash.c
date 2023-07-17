@@ -44,7 +44,7 @@ static uint32_t take_bit(BYTE* buf, uint32_t mask_bit)
     for(idx=0;idx<SHA256_BLOCK_SIZE;idx++)
     {
         mb = buf[idx] & mask_bit;
-        bits |= ( mb << idx)|(mb >> (SHA256_BLOCK_SIZE - idx));
+        bits |= ( mb << idx)|(mb >> ((SHA256_BLOCK_SIZE - 1) - idx));
     }
     return bits;
 }

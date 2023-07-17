@@ -130,7 +130,7 @@ typedef struct dc_item_s {
 // } col_entry_state_t;
 
 typedef struct col_entry_s {
-    char key[1024];
+    char key[KEY_LEN];
     uint64_t  meta_collision_index;
     // col_entry_state_t state;
     bool isvalid;

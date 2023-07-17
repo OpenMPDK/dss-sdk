@@ -40,16 +40,11 @@
 #include <string.h>
 #include <time.h>
 
-#include "keygen.h"
-#include "sha256.h"
-#include "xxhash.h"
-#include "spooky.h"
-// #include "umash.h"
+#include "kvtrans_hash.h"
 
 #define KEY_LEN 1024
 #define SEG_SIZE 4096
 #define SEG_NUM (3758096384 >> 4)
-#define RNG_SEED SEG_NUM
 #define BATCH_SIZE 100000
 
 typedef uint64_t counter;
@@ -82,14 +77,6 @@ typedef struct ssd_s {
     counter segment_occupy_cnt;
     segment_t *segs;
 } ssd_t;
-
-enum hash_type_e {
-    sha256_take_bit = 0,
-    sha256_take_byte = 1,
-    xxhash = 2,
-    spooky = 3,
-    umash = 4
-};
 
 typedef struct hash_ctx_s {
     uint32_t seed;

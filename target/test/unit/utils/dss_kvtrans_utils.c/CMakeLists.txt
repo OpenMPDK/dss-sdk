@@ -32,12 +32,12 @@
 #
 
 
-set(SRC_FILES ${CMAKE_SOURCE_DIR}/test/test_kvtrans_utils/test_kvtrans_util.c
+set(SRC_FILES ${CMAKE_SOURCE_DIR}/test/unit/utils/dss_kvtrans_utils.c/dss_kvtrans_utils_ut.c
             )
 
-add_executable(test_kvtrans_utils ${SRC_FILES})
+add_executable(dss_kvtrans_utils_ut ${SRC_FILES})
 
 include_directories(${CMAKE_SOURCE_DIR}/target/core/kvtrans)
 
-target_link_libraries(test_kvtrans_utils ${UNIT_LIBS} -lcunit -lJudy)
-target_compile_options(test_kvtrans_utils PRIVATE -Wall -g)
+target_link_libraries(dss_kvtrans_utils_ut ${UNIT_LIBS} -lcunit -lJudy)
+target_compile_options(dss_kvtrans_utils_ut PRIVATE -Wall -g)
