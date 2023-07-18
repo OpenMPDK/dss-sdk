@@ -10,3 +10,6 @@ pycodestyle.log
 # Sonar files
 .scannerwork/
 .bw-output/
+
+# Misc
+.vscode/
