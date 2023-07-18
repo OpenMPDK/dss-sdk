@@ -1,20 +1,20 @@
-From 7141ab6be03a21802701f23a1d6b1eef4fc7b5c8 Mon Sep 17 00:00:00 2001
+From d89462f3e53978eb53f185c6eee6a77c26fa3dc2 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 5 Jan 2023 14:14:14 -0800
-Subject: [PATCH 72/75] Add stubs to support SPDK unit test build
+Subject: [PATCH 72/76] Add stubs to support SPDK unit test build
 
 ---
- .../lib/blobfs/blobfs_async_ut/blobfs_async_ut.c   |  9 +++
- .../lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c     |  8 +++
- test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c              | 12 ++++
- .../nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c    |  7 +++
- test/unit/lib/nvmf/rdma.c/rdma_ut.c                | 54 +++++++++++++++++
- test/unit/lib/nvmf/subsystem.c/subsystem_ut.c      |  7 +++
- test/unit/lib/nvmf/tcp.c/tcp_ut.c                  | 69 ++++++++++++++++++++++
+ .../blobfs/blobfs_async_ut/blobfs_async_ut.c  |  9 +++
+ .../blobfs/blobfs_sync_ut/blobfs_sync_ut.c    |  8 +++
+ test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c         | 12 ++++
+ .../ctrlr_discovery.c/ctrlr_discovery_ut.c    |  7 ++
+ test/unit/lib/nvmf/rdma.c/rdma_ut.c           | 54 +++++++++++++++
+ test/unit/lib/nvmf/subsystem.c/subsystem_ut.c |  7 ++
+ test/unit/lib/nvmf/tcp.c/tcp_ut.c             | 69 +++++++++++++++++++
  7 files changed, 166 insertions(+)
 
 diff --git a/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c b/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
-index 134b8bf..800bac3 100644
+index 134b8bfe9..800bac3c8 100644
 --- a/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
 +++ b/test/unit/lib/blobfs/blobfs_async_ut/blobfs_async_ut.c
 @@ -58,6 +58,15 @@ DEFINE_STUB_V(spdk_trace_register_description, (const char *name,
@@ -34,7 +34,7 @@ index 134b8bf..800bac3 100644
  struct spdk_conf_section *
  spdk_conf_find_section(struct spdk_conf *cp, const char *name)
 diff --git a/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c b/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
-index f9d0022..60c73c0 100644
+index f9d00226c..60c73c0e1 100644
 --- a/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
 +++ b/test/unit/lib/blobfs/blobfs_sync_ut/blobfs_sync_ut.c
 @@ -51,6 +51,14 @@ struct spdk_file *g_file;
@@ -53,7 +53,7 @@ index f9d0022..60c73c0 100644
  DEFINE_STUB_V(spdk_trace_register_description, (const char *name,
  		uint16_t tpoint_id, uint8_t owner_type,
 diff --git a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
-index 1da8f9d..f7d1776 100644
+index 1da8f9d54..f7d177614 100644
 --- a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
 +++ b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
 @@ -50,6 +50,18 @@ struct spdk_bdev {
@@ -76,7 +76,7 @@ index 1da8f9d..f7d1776 100644
  	    struct spdk_nvmf_subsystem *,
  	    (struct spdk_nvmf_tgt *tgt, const char *subnqn),
 diff --git a/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c b/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
-index 29e923d..f4af56d 100644
+index 29e923de8..f4af56dbf 100644
 --- a/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
 +++ b/test/unit/lib/nvmf/ctrlr_discovery.c/ctrlr_discovery_ut.c
 @@ -42,6 +42,13 @@
@@ -94,7 +94,7 @@ index 29e923d..f4af56d 100644
  	      (struct spdk_bdev *bdev));
  
 diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
-index b0af58d..e19e7c5 100644
+index b0af58d18..e19e7c575 100644
 --- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 +++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 @@ -54,6 +54,60 @@ struct spdk_nvmf_transport_opts g_rdma_ut_transport_opts = {
@@ -159,7 +159,7 @@ index b0af58d..e19e7c5 100644
  DEFINE_STUB(spdk_mem_map_set_translation, int, (struct spdk_mem_map *map, uint64_t vaddr,
  		uint64_t size, uint64_t translation), 0);
 diff --git a/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c b/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
-index 149c22d..8b49f9e 100644
+index 149c22da1..8b49f9e27 100644
 --- a/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
 +++ b/test/unit/lib/nvmf/subsystem.c/subsystem_ut.c
 @@ -42,6 +42,13 @@
@@ -177,7 +177,7 @@ index 149c22d..8b49f9e 100644
  	    int,
  	    (struct spdk_bdev *bdev, struct spdk_bdev_desc *desc,
 diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
-index a6d6d9d..ee75d72 100644
+index a6d6d9da3..ee75d7285 100644
 --- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c
 +++ b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
 @@ -58,6 +58,75 @@
@@ -257,5 +257,5 @@ index a6d6d9d..ee75d72 100644
  	    int,
  	    (struct spdk_nvmf_qpair *qpair, struct spdk_nvme_transport_id *trid),
 -- 
-1.8.3.1
+2.24.3
 

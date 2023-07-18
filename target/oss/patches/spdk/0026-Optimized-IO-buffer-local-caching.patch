@@ -1,7 +1,7 @@
-From 8231e3e481ea56c1e4bde206fc5747d94530135f Mon Sep 17 00:00:00 2001
+From fbe4c8740ab1dcdba443bb10a9ecdb0dd3b46f85 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 26 Jan 2021 09:43:42 -0800
-Subject: [PATCH 26/75] Optimized IO buffer local caching
+Subject: [PATCH 26/76] Optimized IO buffer local caching
 
     * Cache IO buffer during IO completion
     * Avoids buffers being cached in unused cores
@@ -10,7 +10,7 @@ Subject: [PATCH 26/75] Optimized IO buffer local caching
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
-index ae5f090..fb0e890 100644
+index ae5f0908f..fb0e8901b 100644
 --- a/lib/nvmf/transport.c
 +++ b/lib/nvmf/transport.c
 @@ -503,7 +503,8 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport)
@@ -24,5 +24,5 @@ index ae5f090..fb0e890 100644
  			//END - SPDK_CONFIG_OSS_TARGET
  			buf = (struct spdk_nvmf_transport_pg_cache_buf *)spdk_mempool_get(transport->data_buf_pool);
 -- 
-1.8.3.1
+2.24.3
 
