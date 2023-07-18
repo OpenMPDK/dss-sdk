@@ -132,6 +132,12 @@ void *dfly_kd_get_device(struct dfly_request *req)
 			req->req_key.key, req->req_key.length);
 }
 
+int dfly_kd_get_device_index(struct dfly_request *req)
+{
+	return req->req_dfly_ss->kd_ctx->kd_fn_table->find_device_index(req->req_dfly_ss->kd_ctx,
+			req->req_key.key, req->req_key.length);
+}
+
 void *dfly_kd_key_to_device(uint32_t ssid, void *key, uint32_t keylen)
 {
 	struct dfly_subsystem *ss = NULL;

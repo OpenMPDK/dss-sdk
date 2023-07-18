@@ -147,7 +147,7 @@ struct df_ss_mod_init_s {
 	bool mod_enabled;
 };
 
-void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled)
+void df_subsys_update_dss_enable(uint32_t ssid, bool ss_dss_enabled)
 {
 	struct dfly_subsystem *df_subsys = NULL;
 
@@ -155,15 +155,16 @@ void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled)
 
 	DFLY_ASSERT(df_subsys);
 
-	df_subsys->conf.oss_target_enabled = ss_dss_enabled;
+	df_subsys->dss_enabled = ss_dss_enabled;
 
 	//Verify input and update
-	if(df_subsys->conf.oss_target_enabled != g_dragonfly->target_pool_enabled) {
+	if((df_subsys->dss_enabled && (g_dragonfly->target_pool_enabled == OSS_TARGET_DISABLED)) || \
+	   (!df_subsys->dss_enabled && (g_dragonfly->target_pool_enabled == OSS_TARGET_ENABLED))) {
 		if(!g_dragonfly->target_pool_enabled) {
-			DFLY_WARNLOG("Disabling OSS target on subsystem %d based on global config\n", ssid);
-			df_subsys->conf.oss_target_enabled = OSS_TARGET_DISABLED;
+			DFLY_WARNLOG("Disabling DSS target on subsystem %d based on global config\n", ssid);
+			df_subsys->dss_enabled = false;
 		} else {
-			DFLY_NOTICELOG("Overriding global flag for enable KV Pool for Subsystem %d\n", ssid);
+			DFLY_NOTICELOG("Overriding global flag to enable DSS for Subsystem %d\n", ssid);
 		}
 	}
 
@@ -174,20 +175,19 @@ void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled)
 void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp)
 {
 
-	uint32_t ss_dss_enabled;
 	uint32_t ssid = subsys->id;
 	struct dfly_subsystem *df_subsys = NULL;
 
 	df_subsys = dfly_get_subsystem_no_lock(ssid);//Preallocated structure
 
-	ss_dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "KV_PoolEnabled", g_dragonfly->target_pool_enabled);
 	df_subsys->iomem_dev_numa_aligned = spdk_conf_section_get_boolval(subsys_sp, "iomem_dev_numa_aligned", true);
 	df_subsys->dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "dss_enabled", true);
 	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
+	df_subsys->dss_iops_perf_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_iops_perf_mode", false);
 	//TODO: One thread per drive as default?
 	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", 1);
 
-	df_subsys_update_dss_enable(ssid, ss_dss_enabled);
+	df_subsys_update_dss_enable(ssid, df_subsys->dss_enabled);
 
 	return;
 }
@@ -200,9 +200,7 @@ uint32_t df_subsystem_enabled(uint32_t ssid)
 
 	DFLY_ASSERT(df_subsys);
 
-	DFLY_ASSERT((df_subsys->conf.oss_target_enabled == OSS_TARGET_ENABLED) || (df_subsys->conf.oss_target_enabled == OSS_TARGET_DISABLED));
-
-	return df_subsys->conf.oss_target_enabled;
+	return df_subsys->dss_enabled;
 
 }
 
@@ -259,36 +257,55 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 
 	DFLY_ASSERT(ss_event->src_core == spdk_env_get_current_core());
 
-	if(ss_event->initialize) {
-			if(ss_event->subsys->dss_enabled) {
-				module_initializers[DSS_MODULE_NET].mod_enabled = true;
-				//Prepare config for net module
-				int listener_count, fill_count;
+	if(ss_event->curr_module == DSS_MODULE_START_INIT) {
+		if (ss_event->initialize)
+		{
+			if (ss_event->subsys->dss_enabled)
+			{
+				if (dss_enable_net_module(ss_event->subsys))
+				{
+					module_initializers[DSS_MODULE_NET].mod_enabled = true;
+					// Prepare config for net module
+					int listener_count, fill_count;
 
-				dss_net_module_config_t *c;
-				listener_count = dss_get_subsys_listener_count(ss_event->subsys->parent_ctx);
-				DSS_ASSERT(listener_count != 0);
-				c = calloc(1, sizeof(dss_net_module_config_t) + (listener_count * sizeof(dss_net_mod_dev_info_t)));
-				DSS_ASSERT(c != NULL);
-				//TODO: Handle allocation failure
-				c->count = listener_count;
-				fill_count = dss_fill_dss_net_dev_info(ss_event->subsys->parent_ctx, c->dev_list);
-				DSS_ASSERT(fill_count == listener_count);
-				module_initializers[DSS_MODULE_NET].arg = (void *)c;
-
-				module_initializers[DSS_MODULE_IO].mod_enabled = true;
-				//Disable other modules
+					dss_net_module_config_t *c;
+					listener_count = dss_get_subsys_listener_count(ss_event->subsys->parent_ctx);
+					DSS_ASSERT(listener_count != 0);
+					c = calloc(1, sizeof(dss_net_module_config_t) + (listener_count * sizeof(dss_net_mod_dev_info_t)));
+					DSS_ASSERT(c != NULL);
+					// TODO: Handle allocation failure
+					c->count = listener_count;
+					fill_count = dss_fill_dss_net_dev_info(ss_event->subsys->parent_ctx, c->dev_list);
+					DSS_ASSERT(fill_count == listener_count);
+					module_initializers[DSS_MODULE_NET].arg = (void *)c;
+				}
+				if (!ss_event->subsys->dss_iops_perf_mode)
+				{
+					module_initializers[DSS_MODULE_IO].mod_enabled = true;
+				}
+				else
+				{
+					module_initializers[DSS_MODULE_IO].mod_enabled = false;
+				}
+				dss_subsystem_initialize_io_devices((dss_subsystem_t *)ss_event->subsys);
+				// Disable other modules
 				module_initializers[DSS_MODULE_WAL].mod_enabled = false;
 				module_initializers[DSS_MODULE_FUSE].mod_enabled = false;
 				module_initializers[DSS_MODULE_LOCK].mod_enabled = false;
-				//TODO: Listing from memory support
+				// TODO: Listing from memory support
 				module_initializers[DSS_MODULE_LIST].mod_enabled = false;
-			} else {
-				module_initializers[DSS_MODULE_NET].mod_enabled = false;
-				//Other modules are configured already
 			}
-	} else {
-		//TODO: Deinit Config
+			else
+			{
+				module_initializers[DSS_MODULE_NET].mod_enabled = false;
+				// Other modules are configured already
+			}
+		}
+		else
+		{
+			dss_subsystem_deinit_io_devices((dss_subsystem_t *)ss_event->subsys);
+			// TODO: Deinit Config
+		}
 	}
 
 	for (mod_index = ss_event->curr_module + 1; mod_index < DSS_MODULE_END; mod_index++) {
@@ -510,4 +527,46 @@ bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss)
 	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
 	return df_ss->dss_kv_mode;
 
+}
+
+dss_io_dev_status_t dss_subsystem_initialize_io_devices(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	struct spdk_nvmf_subsystem *nvmf_subsys = (struct spdk_nvmf_subsystem *)df_ss->parent_ctx;
+	int i;
+	dss_io_dev_status_t rc;
+
+	df_ss->num_io_devices = nvmf_subsys->max_nsid;
+	df_ss->dev_arr = (dss_device_t **)calloc(nvmf_subsys->max_nsid, sizeof(dss_device_t *));
+	DSS_ASSERT(df_ss->dev_arr);
+
+	for (i = 0; i < nvmf_subsys->max_nsid; i++) {
+		const char *bdev_name = spdk_bdev_get_name(nvmf_subsys->ns[i]->bdev);
+		DSS_ASSERT(bdev_name);
+		rc = dss_io_device_open(bdev_name, DSS_BLOCK_DEVICE, &df_ss->dev_arr[i]);
+		if(rc != DSS_IO_DEV_STATUS_SUCCESS) {
+			dss_subsystem_deinit_io_devices(ss);
+			return rc;
+		}
+		DSS_ASSERT(df_ss->dev_arr[i]);
+	}
+	return DSS_IO_DEV_STATUS_SUCCESS;
+}
+
+void dss_subsystem_deinit_io_devices(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	struct spdk_nvmf_subsystem *nvmf_subsys = (struct spdk_nvmf_subsystem *)df_ss->parent_ctx;
+	int i;
+
+	for (i = 0; i < nvmf_subsys->max_nsid; i++) {
+		if(df_ss->dev_arr[i]) {
+			dss_io_device_close(df_ss->dev_arr[i]);
+		}
+	}
+	free(df_ss->dev_arr);
+	df_ss->dev_arr = NULL;
+	df_ss->num_io_devices = 0;
+
+	return;
 }

@@ -41,7 +41,7 @@ extern "C" {
 
 #define MAX_MODULE_NAME_LEN (64)
 #define REQ_PER_POLL (8)
-#define MAX_CPU (128)
+#define MAX_CPU (256)
 
 #define DFLY_MODULE_MSG_MP_SC
 

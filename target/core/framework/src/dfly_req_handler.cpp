@@ -61,9 +61,7 @@ hop_2_next:
 		break;
 	case DFLY_REQ_INITIALIZED:
 		cmd_opc = dfly_req_get_command(dfly_req);
-		if(spdk_unlikely(g_dragonfly->test_nic_bw &&
-			(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE ||
-			 cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE))) {
+		if(spdk_unlikely(g_dragonfly->test_nic_bw)) {
 			if(cmd_opc == SPDK_NVME_OPC_SAMSUNG_KV_RETRIEVE) {
 				  dfly_resp_set_cdw0(dfly_req, dfly_req->req_value.length);
 			}
@@ -104,7 +102,11 @@ hop_2_next:
 		} else {//Forward to IO Threads
 			//State Transition
 			dfly_req->state = DFLY_REQ_IO_SUBMITTED_TO_DEVICE;
-			dfly_module_post_request(ss->mlist.dfly_io_module, dfly_req);
+			if(ss->mlist.dfly_io_module) {
+				dfly_module_post_request(ss->mlist.dfly_io_module, dfly_req);
+			} else {
+				dss_io_submit_direct(&dfly_req->common_req);
+			}
 		}
 		break;
 	case DFLY_REQ_IO_SUBMITTED_TO_FUSE:

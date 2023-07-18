@@ -80,6 +80,31 @@ uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spd
 	return df_subsystem_enabled(nvmf_qpair->ctrlr->subsys->id);
 }
 
+uint32_t df_qpair_susbsys_kv_enabled(struct spdk_nvmf_qpair *nvmf_qpair)
+{
+	struct dfly_subsystem *df_subsys = NULL;
+
+	if(nvmf_qpair_is_admin_queue(nvmf_qpair)) {
+		return 0;//Not enabled
+	}
+
+	if(!nvmf_qpair->ctrlr) {
+			return 0;//Not Enabled
+	}
+
+	if(nvmf_qpair->state != SPDK_NVMF_QPAIR_ACTIVE) {
+		return 0;//qpair not active
+	}
+
+	if(!df_subsystem_enabled(nvmf_qpair->ctrlr->subsys->id)) {
+        return 0;
+    }
+
+	df_subsys = dfly_get_subsystem_no_lock(nvmf_qpair->ctrlr->subsys->id);
+
+    return df_subsys->dss_kv_mode;
+}
+
 /*
  * Assumptions:
  *     - req_arr is a contiguous array of size transport_request struct
@@ -145,6 +170,26 @@ int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair)
 	}
 
 	return 0;
+}
+
+/**
+ * @brief Pending initialization that requires controller
+ * 
+ * @param nvmf_qpair 
+ * @return int 
+ */
+int dss_qpair_finish_init(struct spdk_nvmf_qpair *nvmf_qpair)
+{
+
+	struct dfly_qpair_s *dqpair = nvmf_qpair->dqpair;
+	struct dfly_subsystem *df_subsys = NULL;
+
+	df_subsys = dfly_get_subsystem_no_lock(nvmf_qpair->ctrlr->subsys->id);
+
+	dqpair->dss_net_mod_enabled = dss_enable_net_module(df_subsys);
+
+	return 0;
+
 }
 
 //10 Seconds

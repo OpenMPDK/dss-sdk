@@ -169,25 +169,52 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	struct spdk_nvme_cmd *cmd = &((*nvmf_req->cmd).nvme_cmd);
 	struct kv_cdw11 *cdw11;
 
-	cdw11 =(struct kv_cdw11*)&cmd->cdw11;
-	req->req_value.length = (cmd->cdw10 << 2);//Value length
-	req->req_value.length -= cdw11->inval_bytes;
-
-	req->req_value.value = nvmf_req->data;//Value
-	req->req_value.offset = cmd->mptr >> 2;//Value offset
+	int io_dev_arr_index;
 
 	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(req->req_ssid);
-	dfly_qp_counters_inc_io_count(nvmf_req->qpair->dqpair->stat_qpair, cmd->opc);
-	dfly_counters_increment_io_count(ss->stat_kvio, cmd->opc);
-	if(ss->initialized == true) {
-		dfly_ustat_atomic_inc_u64(ss->stat_kvio, &ss->stat_kvio->i_pending_reqs);
+
+	req->req_value.value = nvmf_req->data;//Value
+
+	//TODO: Deprecate dfly_request io_device
+	if(ss->dss_kv_mode) {
+		cdw11 =(struct kv_cdw11*)&cmd->cdw11;
+		req->req_value.length = (cmd->cdw10 << 2);//Value length
+		req->req_value.length -= cdw11->inval_bytes;
+
+		req->req_value.offset = cmd->mptr >> 2;//Value offset
+
+		dfly_qp_counters_inc_io_count(nvmf_req->qpair->dqpair->stat_qpair, cmd->opc);
+		dfly_counters_increment_io_count(ss->stat_kvio, cmd->opc);
+		if (ss->initialized == true)
+		{
+			dfly_ustat_atomic_inc_u64(ss->stat_kvio, &ss->stat_kvio->i_pending_reqs);
+		}
+		if (cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE)
+		{
+			dfly_counters_size_count(ss->stat_kvio, nvmf_req, cmd->opc);
+			dfly_counters_bandwidth_cal(ss->stat_kvio, nvmf_req, cmd->opc);
+		}
+
+		req->io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
+		DFLY_ASSERT(req->io_device);
 	}
-	if (cmd->opc == SPDK_NVME_OPC_SAMSUNG_KV_STORE) {
-		dfly_counters_size_count(ss->stat_kvio, nvmf_req, cmd->opc);
-		dfly_counters_bandwidth_cal(ss->stat_kvio, nvmf_req, cmd->opc);
+
+	if(ss->dev_arr && (ss->num_io_devices > 0)) {
+		if(ss->dss_kv_mode) {
+			io_dev_arr_index = dfly_kd_get_device_index(req);
+			DSS_ASSERT(io_dev_arr_index > 0);
+			DSS_ASSERT(io_dev_arr_index  < ss->num_io_devices);
+			req->common_req.io_device = ss->dev_arr[io_dev_arr_index];
+			req->common_req.io_device_index = io_dev_arr_index;
+		} else {//Block mode passthrough nsid
+			uint32_t nsid;
+			nsid = cmd->nsid;
+			DSS_ASSERT(nsid != 0);
+			DSS_ASSERT(nsid <= ss->num_io_devices);
+			req->common_req.io_device = ss->dev_arr[nsid - 1];
+			req->common_req.io_device_index = nsid-1;
+		}
 	}
-	req->io_device = (struct dfly_io_device_s *)dfly_kd_get_device(req);
-	DFLY_ASSERT(req->io_device);
 
 	return;
 }
@@ -351,10 +378,14 @@ int dfly_req_ini(struct dfly_request *req, int flags, void *ctx)
 
 void dfly_nvmf_req_init(struct spdk_nvmf_request *req)
 {
+    struct dfly_subsystem *df_ss;
+
 	if (req->qpair->ctrlr &&
 	    req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
 
-		if(!req->qpair->dqpair->net_module_instance) {
+        df_ss = dfly_get_subsystem(req->qpair->ctrlr->subsys->id);
+
+		if(df_ss->mlist.dss_net_module && !req->qpair->dqpair->net_module_instance) {
 			/// @note Ideally this should be done after qpair initialization. Adding here since SPDK qpair init does not populate required fields until much later
 			dss_qpair_set_net_module_instance(req->qpair);
 		}
