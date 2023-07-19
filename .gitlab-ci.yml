@@ -1,7 +1,8 @@
 variables:
   BRANCH_NAME: $CI_COMMIT_BRANCH
   SONAR_BRANCH: -Dsonar.branch.name=$CI_COMMIT_BRANCH
-  UNIT_TEST_REPORT: df_out/reports/sonar_qube_ut_coverage_report.xml
+  SONAR_UNIT_TEST_REPORT: df_out/reports/sonar_qube_ut_coverage_report.xml
+  COBERTURA_UNIT_TEST_REPORT: df_out/reports/cobertura.xml
 
 image:
   name: dss-build_$BRANCH_NAME
@@ -17,63 +18,81 @@ workflow:
 
 stages:
   - build
-  - scan
   - lint
+  - test
+  - scan
+  - archive
 
 build dss-sdk:
   stage: build
-  script:
-    - build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
-    - /stagemergeartifacts.sh
-  artifacts:
-    name: release artifacts
-    paths:
-      - df_out/nkv-target-*.tgz
-      - host_out/nkv-sdk-bin-*.tgz
+  script: build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
   variables:
-    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
     GIT_SUBMODULE_STRATEGY: recursive
-  cache:
-    key: release-$CI_PIPELINE_ID
+  artifacts:
+    name: release build
+    expire_in: 300 seconds
     paths:
      - bw-output
      - df_out
      - host_out
-    policy: push
 
-build target gcov and unit tests:
+build target gcov and execute unit tests:
   stage: build
-  script:
-    - ./target/build.sh --run-tests --with-coverage
-    - sed -i -r 's/path="/path="target\//g' $UNIT_TEST_REPORT
+  script: ./target/build.sh --run-tests --with-coverage
   artifacts:
-    name: gcov coverage report
+    name: gcov build
+    expire_in: 300 seconds
     paths:
-      - $UNIT_TEST_REPORT
+     - df_out
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
+
+target unit test coverage report:
+  stage: test
+  script:
+    - gcovr --xml $COBERTURA_UNIT_TEST_REPORT -r target/ df_out/
+    - sed -i -r 's/filename="/filename="target\//g' $COBERTURA_UNIT_TEST_REPORT
+    - sed -i -r 's/path="/path="target\//g' $SONAR_UNIT_TEST_REPORT
+  artifacts:
+    name: target unit test coverage report
+    expire_in: 300 seconds
+    paths:
+      - $SONAR_UNIT_TEST_REPORT
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: $COBERTURA_UNIT_TEST_REPORT
+  needs:
+    - build target gcov and execute unit tests
 
 sonar-scanner:
   stage: scan
   script:
-    - sonar-scanner -Dsonar.qualitygate.wait=true -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.coverageReportPaths=$UNIT_TEST_REPORT
+    - sonar-scanner -Dsonar.qualitygate.wait=true -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.coverageReportPaths=$SONAR_UNIT_TEST_REPORT
   allow_failure: true
-  cache:
-    - key: release-$CI_PIPELINE_ID
-      paths:
-        - bw-output
-        - df_out
-        - host_out
-      policy: pull
+  dependencies:
+    - build dss-sdk
+    - target unit test coverage report
 
 pycodestyle:
   stage: lint
   script: git ls-files '*.py' | xargs -n1 pycodestyle --config=./scripts/pycodestyle --show-source --show-pep8
-  cache: []
   needs: []
 
 shellcheck:
   stage: lint
   script: git ls-files '*.sh' | xargs -n1 shellcheck
-  cache: []
   needs: []
+
+archive dss-sdk:
+  stage: archive
+  script: /stagemergeartifacts.sh
+  variables:
+    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
+  needs:
+    - build dss-sdk
+  artifacts:
+    name: release artifacts
+    paths:
+      - df_out/nkv-target-*.tgz
+      - host_out/nkv-sdk-bin-*.tgz
