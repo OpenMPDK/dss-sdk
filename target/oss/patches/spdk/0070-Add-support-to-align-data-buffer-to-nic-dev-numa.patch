@@ -1,14 +1,14 @@
-From 543a49d58136f617ed1ec11fc3360d6138c4489a Mon Sep 17 00:00:00 2001
+From add474dc3d0cd7ba43d2c3d9c02281c8b417e7a4 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 29 Sep 2022 20:59:10 -0700
-Subject: [PATCH 70/75] Add support to align data buffer to nic/dev numa
+Subject: [PATCH 70/76] Add support to align data buffer to nic/dev numa
 
 ---
  lib/nvmf/transport.c | 17 +++++++++++++++--
  1 file changed, 15 insertions(+), 2 deletions(-)
 
 diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
-index 24ba92c..c12b5c6 100644
+index 24ba92c8f..c12b5c664 100644
 --- a/lib/nvmf/transport.c
 +++ b/lib/nvmf/transport.c
 @@ -683,7 +683,14 @@ spdk_nvmf_request_free_buffers(struct spdk_nvmf_request *req,
@@ -50,5 +50,5 @@ index 24ba92c..c12b5c6 100644
  					assert(iod);
  					if(iod->numa_node != -1) {
 -- 
-1.8.3.1
+2.24.3
 

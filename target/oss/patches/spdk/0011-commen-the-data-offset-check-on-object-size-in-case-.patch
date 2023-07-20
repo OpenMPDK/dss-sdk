@@ -1,7 +1,7 @@
-From e3eff8fd25ae8dbb7f0922f320509bb77dd49384 Mon Sep 17 00:00:00 2001
+From e622439f662f914d83d77d671218d28cf6935d7d Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Fri, 13 Nov 2020 15:04:05 -0800
-Subject: [PATCH 11/75] - commen the data offset check on object size in case
+Subject: [PATCH 11/76] - commen the data offset check on object size in case
  of small object.
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 11/75] - commen the data offset check on object size in case
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index f77b2bd..b910245 100644
+index f77b2bd4d..b9102452f 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -879,7 +879,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
@@ -22,5 +22,5 @@ index f77b2bd..b910245 100644
  				sge_len = rdma_req->data.wr.sg_list[sge_index].length;
  				if(data_offset > 0) {
 -- 
-1.8.3.1
+2.24.3
 

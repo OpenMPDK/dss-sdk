@@ -1,7 +1,7 @@
-From 74956eedfecc90528fe6934e44e563f1b656d916 Mon Sep 17 00:00:00 2001
+From 2ead0ea593a19f6f2b744932024189da62886120 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 2 Apr 2021 14:03:38 -0700
-Subject: [PATCH 43/75] Added rpc python script to call stall io rpc
+Subject: [PATCH 43/76] Added rpc python script to call stall io rpc
 
 ---
  scripts/dss_rpc.py             |  7 +++++++
@@ -9,7 +9,7 @@ Subject: [PATCH 43/75] Added rpc python script to call stall io rpc
  2 files changed, 21 insertions(+)
 
 diff --git a/scripts/dss_rpc.py b/scripts/dss_rpc.py
-index f1d5956..fa2bfb1 100755
+index f1d5956be..fa2bfb183 100755
 --- a/scripts/dss_rpc.py
 +++ b/scripts/dss_rpc.py
 @@ -91,6 +91,13 @@ if __name__ == "__main__":
@@ -27,7 +27,7 @@ index f1d5956..fa2bfb1 100755
          print_dict(rpc.latency_profile.dss_rdb_compact(args.client,
                                                        nqn=args.nqn,
 diff --git a/scripts/rpc/latency_profile.py b/scripts/rpc/latency_profile.py
-index 905345f..a11cb81 100644
+index 905345fe3..a11cb81b1 100644
 --- a/scripts/rpc/latency_profile.py
 +++ b/scripts/rpc/latency_profile.py
 @@ -63,6 +63,20 @@ def reset_ustat_counters(client, nqn):
@@ -52,5 +52,5 @@ index 905345f..a11cb81 100644
  	"""Initialte or get status of compaction for rdb block devices in an NVMEoF subsystem
  
 -- 
-1.8.3.1
+2.24.3
 

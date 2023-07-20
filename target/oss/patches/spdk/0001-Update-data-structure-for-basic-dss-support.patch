@@ -1,14 +1,14 @@
-From 6878f184b8533c653c9b6c553b13343f9c63f22c Mon Sep 17 00:00:00 2001
+From 7b4e68d71c2f71bf58c9d2d8f725895300247d65 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 30 Jul 2020 11:35:25 -0700
-Subject: [PATCH 01/75] Update data structure for basic dss support
+Subject: [PATCH 01/76] Update data structure for basic dss support
 
     * Base spk version v20.07-rc1
     * Add dss pointers and add kv spec
 ---
- include/spdk/dss_spdk.h          |  51 ++++++++++
- include/spdk/nvme_samsung_apis.h | 199 +++++++++++++++++++++++++++++++++++++++
- include/spdk/nvme_samsung_spec.h |  84 +++++++++++++++++
+ include/spdk/dss_spdk.h          |  51 ++++++++
+ include/spdk/nvme_samsung_apis.h | 199 +++++++++++++++++++++++++++++++
+ include/spdk/nvme_samsung_spec.h |  84 +++++++++++++
  include/spdk/nvme_spec.h         |   1 +
  include/spdk/nvmf.h              |   1 +
  include/spdk/nvmf_transport.h    |   8 ++
@@ -20,7 +20,7 @@ Subject: [PATCH 01/75] Update data structure for basic dss support
 
 diff --git a/include/spdk/dss_spdk.h b/include/spdk/dss_spdk.h
 new file mode 100644
-index 0000000..a617aaa
+index 000000000..a617aaa92
 --- /dev/null
 +++ b/include/spdk/dss_spdk.h
 @@ -0,0 +1,51 @@
@@ -77,7 +77,7 @@ index 0000000..a617aaa
 +#endif // DSS_SPDK_H
 diff --git a/include/spdk/nvme_samsung_apis.h b/include/spdk/nvme_samsung_apis.h
 new file mode 100644
-index 0000000..32293ac
+index 000000000..32293ac49
 --- /dev/null
 +++ b/include/spdk/nvme_samsung_apis.h
 @@ -0,0 +1,199 @@
@@ -282,7 +282,7 @@ index 0000000..32293ac
 +#endif
 diff --git a/include/spdk/nvme_samsung_spec.h b/include/spdk/nvme_samsung_spec.h
 new file mode 100644
-index 0000000..3db4690
+index 000000000..3db46906e
 --- /dev/null
 +++ b/include/spdk/nvme_samsung_spec.h
 @@ -0,0 +1,84 @@
@@ -371,7 +371,7 @@ index 0000000..3db4690
 +
 +#endif
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
-index 281ac50..7fd2ee2 100644
+index 281ac500b..7fd2ee273 100644
 --- a/include/spdk/nvme_spec.h
 +++ b/include/spdk/nvme_spec.h
 @@ -40,6 +40,7 @@
@@ -383,7 +383,7 @@ index 281ac50..7fd2ee2 100644
  #ifdef __cplusplus
  extern "C" {
 diff --git a/include/spdk/nvmf.h b/include/spdk/nvmf.h
-index 86ca574..110e3df 100644
+index 86ca574f6..110e3df59 100644
 --- a/include/spdk/nvmf.h
 +++ b/include/spdk/nvmf.h
 @@ -45,6 +45,7 @@
@@ -395,7 +395,7 @@ index 86ca574..110e3df 100644
  #ifdef __cplusplus
  extern "C" {
 diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
-index ceb3318..1305d47 100644
+index ceb331856..1305d4788 100644
 --- a/include/spdk/nvmf_transport.h
 +++ b/include/spdk/nvmf_transport.h
 @@ -98,6 +98,10 @@ struct spdk_nvmf_request {
@@ -421,7 +421,7 @@ index ceb3318..1305d47 100644
  
  	TAILQ_HEAD(, spdk_nvmf_request)		outstanding;
 diff --git a/lib/nvmf/nvmf_internal.h b/lib/nvmf/nvmf_internal.h
-index f1f3837..ce85dbc 100644
+index f1f3837d5..ce85dbc66 100644
 --- a/lib/nvmf/nvmf_internal.h
 +++ b/lib/nvmf/nvmf_internal.h
 @@ -258,6 +258,10 @@ struct spdk_nvmf_subsystem {
@@ -436,5 +436,5 @@ index f1f3837..ce85dbc 100644
  	TAILQ_HEAD(, spdk_nvmf_host)			hosts;
  	TAILQ_HEAD(, spdk_nvmf_subsystem_listener)	listeners;
 -- 
-1.8.3.1
+2.24.3
 

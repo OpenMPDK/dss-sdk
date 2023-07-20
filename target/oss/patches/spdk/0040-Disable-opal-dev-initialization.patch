@@ -1,14 +1,14 @@
-From d6c61e06121b39c648e0ac7cd8b46859d9583dbb Mon Sep 17 00:00:00 2001
+From 2517aceb7ca2453ee31a66795f8302bdb886b4ad Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 25 Mar 2021 00:06:24 -0700
-Subject: [PATCH 40/75] Disable opal dev initialization
+Subject: [PATCH 40/76] Disable opal dev initialization
 
 ---
  module/bdev/nvme/bdev_nvme.c | 4 ++++
  1 file changed, 4 insertions(+)
 
 diff --git a/module/bdev/nvme/bdev_nvme.c b/module/bdev/nvme/bdev_nvme.c
-index 08649b2..c4f373a 100644
+index 08649b298..c4f373a09 100644
 --- a/module/bdev/nvme/bdev_nvme.c
 +++ b/module/bdev/nvme/bdev_nvme.c
 @@ -1457,6 +1457,8 @@ create_ctrlr(struct spdk_nvme_ctrlr *ctrlr,
@@ -30,5 +30,5 @@ index 08649b2..c4f373a 100644
  }
  
 -- 
-1.8.3.1
+2.24.3
 

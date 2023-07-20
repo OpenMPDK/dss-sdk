@@ -50,6 +50,7 @@ struct dfly_kd_fn_table {
 	/** Remove Devices from instance **/
 	/** Find device for a  Key **/
 	void *(*find_device)(void *kd_ctx, void *key, uint32_t len);
+	int (*find_device_index)(void *kd_ctx, void *key, uint32_t len);
 	void *(*list_device)(void *kd_ctx, void **dev_list, uint32_t *nr_dev);
 
 };
@@ -69,6 +70,7 @@ struct dfly_kd_context_s *dfly_init_kd_sh_context(void);
 
 bool dfly_kd_add_device(uint32_t ssid, const char *device_name, uint32_t len, void *disk);
 void *dfly_kd_get_device(struct dfly_request *req);
+int dfly_kd_get_device_index(struct dfly_request *req);
 void *dfly_kd_key_to_device(uint32_t ssid, void *key, uint32_t keylen);
 void *dfly_list_device(uint32_t ssid, void **dev_list, uint32_t *nr_dev);
 

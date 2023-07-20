@@ -82,7 +82,7 @@ typedef struct dss_iov_s dss_iov_t;
  * @param[OUT] dev device handle pointer corresponding to the opened device
  * @return dss_io_dev_status_t DSS_IO_DEV_STATUS_SUCCESS on success, otherwise DSS_IO_DEV_STATUS_ERROR
  */
-dss_io_dev_status_t  dss_io_device_open(char *dev_name, dss_device_type_t type, dss_device_t **dev);
+dss_io_dev_status_t  dss_io_device_open(const char *dev_name, dss_device_type_t type, dss_device_t **dev);
 
 /**
  * @brief Close the device opened by a previous call to dss_io_device_open
@@ -235,6 +235,15 @@ dss_io_task_status_t dss_io_task_add_blk_write(dss_io_task_t *task, dss_device_t
  * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
  */
 dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task);
+
+/**
+ * @brief Submit the dss request to underlying block device without io_module
+ * 
+ */
+void dss_io_submit_direct(dss_request_t *req);
+
+struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device);
+
 
 #ifdef __cplusplus
 }

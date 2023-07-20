@@ -1,0 +1,420 @@
+From 8cc05763d08561fc12a409f4516261529a7c28b4 Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Mon, 17 Jul 2023 17:44:40 -0700
+Subject: [PATCH 76/76] Added support for DSS block IO path
+
+---
+ lib/nvmf/ctrlr.c                      |  6 +++--
+ lib/nvmf/ctrlr_bdev.c                 | 18 ++++++++++---
+ lib/nvmf/rdma.c                       | 37 +++++++++++++++++----------
+ lib/nvmf/subsystem.c                  | 25 +++++++++---------
+ lib/nvmf/tcp.c                        |  4 +--
+ mk/spdk.app.mk                        |  4 +--
+ module/event/subsystems/nvmf/conf.c   |  8 +++---
+ test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c | 15 +++++++++++
+ test/unit/lib/nvmf/rdma.c/rdma_ut.c   |  3 +++
+ test/unit/lib/nvmf/tcp.c/tcp_ut.c     | 20 +++++++++++++++
+ 10 files changed, 101 insertions(+), 39 deletions(-)
+
+diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
+index 8f4db8cfe..238905d1c 100644
+--- a/lib/nvmf/ctrlr.c
++++ b/lib/nvmf/ctrlr.c
+@@ -484,6 +484,7 @@ nvmf_ctrlr_add_io_qpair(void *ctx)
+ 	if(ctrlr->subsys->oss_target_enabled) {
+ 		qpair->dqpair->dss_enabled = true;
+ 		dfly_ustat_init_qpair_stat(qpair->dqpair);
++		dss_qpair_finish_init(qpair);
+ 	}
+ 	//END - SPDK_CONFIG_OSS_TARGET
+ end:
+@@ -1866,6 +1867,7 @@ spdk_nvmf_ctrlr_identify_ctrlr(struct spdk_nvmf_ctrlr *ctrlr, struct spdk_nvme_c
+ {
+ 	struct spdk_nvmf_subsystem *subsystem = ctrlr->subsys;
+ 	struct spdk_nvmf_transport *transport = ctrlr->admin_qpair->transport;
++	bool kv_pool_enabled = dss_subsystem_kv_mode_enabled(dfly_get_subsystem_no_lock(subsystem->id));
+ 
+ 	/*
+ 	 * Common fields for discovery and NVM subsystems
+@@ -1914,7 +1916,7 @@ spdk_nvmf_ctrlr_identify_ctrlr(struct spdk_nvmf_ctrlr *ctrlr, struct spdk_nvme_c
+ 		cdata->cqes.max = 4;
+ 		cdata->nn = subsystem->max_nsid;
+         //SPDK_CONFIG_OSS_TARGET
+-        if(subsystem->oss_target_enabled == OSS_TARGET_ENABLED) {
++        if(kv_pool_enabled) {
+             cdata->nn = 1;
+         }
+         //END - SPDK_CONFIG_OSS_TARGET
+@@ -3031,7 +3033,7 @@ _nvmf_request_exec(struct spdk_nvmf_request *req,
+ 	} else {
+         //SPDK_CONFIG_OSS_TARGET
+         if(req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
+-			if(req->qpair->dqpair->dss_enabled) {
++			if(req->qpair->dqpair->dss_net_mod_enabled) {
+ 				//Post to network module
+ 				dss_net_setup_request(&req->dreq->common_req, req->qpair->dqpair->net_module_instance, (void *)req);
+ 				dss_module_post_to_instance(DSS_MODULE_NET, req->dreq->common_req.module_ctx[DSS_MODULE_NET].module_instance, &req->dreq->common_req);
+diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
+index bf9741da6..97eb7ecff 100644
+--- a/lib/nvmf/ctrlr_bdev.c
++++ b/lib/nvmf/ctrlr_bdev.c
+@@ -206,9 +206,14 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+ 
+ 
+ 	//SPDK_CONFIG_OSS_TARGET
++
++	bool fill_blobfs = g_dragonfly->blk_map;
++	bool kv_pool_enabled = false;
++
+     if(ns->subsystem->oss_target_enabled) {
+         subsystem = ns->subsystem;
+         subsys_blocklen = dss_get_subsys_blocklen(subsystem->id);
++		kv_pool_enabled = dss_subsystem_kv_mode_enabled(dfly_get_subsystem_no_lock(subsystem->id));
+ 	}
+ 
+     if(subsystem && /* Subsystem initialized only for oss_target_enabled */
+@@ -220,9 +225,11 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+         nsdata->nsze = 0;
+         nsdata->nuse = 0;
+ 
+-        if(g_dragonfly->blk_map) {
++        if(fill_blobfs) {
+             dss_fill_ns_blobfs(subsystem->id, &nsdata->ncap, &nsdata->nsze, &nsdata->nuse);
+-        } else {
++        } else if (kv_pool_enabled) {
++			//Aggregation for KV Drives
++			//TODO: Add kv trans usage/capacity
+             device_ns = spdk_nvmf_subsystem_get_first_ns(subsystem);
+             while(device_ns) {
+                 struct spdk_nvme_ctrlr *nvme_ctrlr;
+@@ -256,9 +263,12 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+ 
+                 device_ns = spdk_nvmf_subsystem_get_next_ns(subsystem, device_ns);
+             }
+-        }
++        } else {
++			goto spdk_block_dev;
++		}
+         //TODO: To check all disks are uniform
+     } else {
++spdk_block_dev:
+ 		num_blocks = spdk_bdev_get_num_blocks(bdev);
+ 
+         nsdata->nsze = num_blocks;
+@@ -272,7 +282,7 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
+ 	if (!dif_insert_or_strip) {
+ 		nsdata->lbaf[0].ms = spdk_bdev_get_md_size(bdev);
+ 	//SPDK_CONFIG_OSS_TARGET
+-		if(subsystem->oss_target_enabled) {
++		if(kv_pool_enabled) {
+ 			//Already initialized for oss_target_enabled
+ 			nsdata->lbaf[0].lbads = spdk_u32log2(subsys_blocklen);
+ 		} else {
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 1287ea0fb..23bdbc2a7 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -726,10 +726,19 @@ static int dfly_nvmf_rdma_qpair_init(struct spdk_nvmf_rdma_qpair *rqpair)
+ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+ {
+ 	//TODO: only for subsytem with oss_target _enabled
++    char *cpu_group_name = NULL;
++
++    cpu_group_name = dss_net_module_get_name(rqpair->qpair.dqpair->listen_addr);
++    if(!cpu_group_name) {
++        //Use IP for backward compatability
++        cpu_group_name = rqpair->qpair.dqpair->listen_addr;
++    }
++    DFLY_ASSERT(cpu_group_name);
++
+ 
+ 	if(rqpair->qpair.dqpair) {
+ 		if(rqpair->qpair.qid != 0) {
+-			dfly_put_core(dss_net_module_get_name(rqpair->qpair.dqpair->listen_addr), spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
++			dfly_put_core(cpu_group_name, spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
+ 		}
+ 		dfly_qpair_destroy(rqpair->qpair.dqpair);
+ 	}
+@@ -774,17 +783,23 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
+     int ret;
+     uint32_t core = 0;
+ 	struct spdk_nvmf_rdma_poll_group *pg;
++    char *cpu_group_name = NULL;
+ 
+ 	rtransport = SPDK_CONTAINEROF(qpair->transport, struct spdk_nvmf_rdma_transport, transport);
+ 
+     ret = spdk_nvmf_qpair_get_local_trid(qpair, &trid);
+     if (ret) {
+-        SPDK_ERRLOG("Invalid host transport Id.\n");
++        DSS_ERRLOG("Invalid host transport Id.\n");
+ 		return NULL;
+     } else {
+         struct spdk_nvme_transport_id peer_trid;
+         spdk_nvmf_qpair_get_peer_trid(qpair, &peer_trid);
+-        core = dfly_get_next_core(dss_net_module_get_name(trid.traddr), g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
++        cpu_group_name = dss_net_module_get_name(trid.traddr);
++        if(!cpu_group_name) {
++            cpu_group_name = trid.traddr;
++        }
++        DFLY_ASSERT(cpu_group_name);
++        core = dfly_get_next_core(cpu_group_name, g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
+     }
+ 
+ 	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
+@@ -812,8 +827,7 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 	key_len = (cmd->cdw11 & 0xFF) + 1;
+ 
+ 	if (rdma_req->req.cmd->nvmf_cmd.opcode == SPDK_NVME_OPC_FABRIC ||
+-			(rqpair->qpair.dqpair->dss_enabled == false) ||
+-			!df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++			!df_qpair_susbsys_kv_enabled(&rqpair->qpair)) {
+ 		return 0;
+ 	}
+ 
+@@ -874,7 +888,7 @@ dfly_rdma_setup_key_transfer(struct spdk_nvmf_rdma_qpair *rqpair, struct spdk_nv
+ 				assert(rdma_req->key.wr.sg_list[0].addr == rdma_req->req.dreq->key_data_buf);
+ 				assert(rdma_req->key.wr.sg_list[0].lkey == rqpair->resources->dss_keys_mr->lkey);
+ 
+-				if((rdma_req->req.cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC) && rqpair->qpair.dqpair->dss_enabled == true)assert(rdma_req->req.dreq->src_core == spdk_env_get_current_core());
++				if((rdma_req->req.cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC))assert(rdma_req->req.dreq->src_core == spdk_env_get_current_core());
+ 				rdma_req->num_outstanding_key_wr = 1;
+ 
+ 				STAILQ_INSERT_TAIL(&rqpair->pending_rdma_key_read_queue, rdma_req, state_link);
+@@ -1107,8 +1121,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
+ 	uint64_t data_offset;
+ 
+ 	if (rdma_req->req.cmd->nvmf_cmd.opcode == SPDK_NVME_OPC_FABRIC ||
+-			(rqpair->qpair.dqpair->dss_enabled == false) ||
+-			!df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++			!df_qpair_susbsys_kv_enabled(&rqpair->qpair)) {
+ 		return;
+ 	}
+ 
+@@ -1163,7 +1176,7 @@ dss_request_get_key(struct spdk_nvmf_request *req)
+ 		STAILQ_INSERT_TAIL(&rqpair->poller->qpairs_pending_send, rqpair, send_link);
+ 	}
+ 
+-	if((rdma_req->req.cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC) && rqpair->qpair.dqpair->dss_enabled == true)assert(rdma_req->req.dreq->src_core == spdk_env_get_current_core());
++	if((rdma_req->req.cmd->nvmf_cmd.opcode != SPDK_NVME_OPC_FABRIC))assert(rdma_req->req.dreq->src_core == spdk_env_get_current_core());
+ 	assert(rdma_req->num_outstanding_key_wr == 1);
+ 	rqpair->current_read_depth += rdma_req->num_outstanding_key_wr;//rdma_req->num_outstanding_data_wr;
+ 	rqpair->current_send_depth += rdma_req->num_outstanding_key_wr;//rdma_req->num_outstanding_data_wr;
+@@ -2605,8 +2618,7 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
+ 	memset(&rdma_req->req.dif, 0, sizeof(rdma_req->req.dif));
+ 	rqpair->qd--;
+ 
+-	if((rqpair->qpair.dqpair->dss_enabled == true) &&
+-			df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++	if(df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
+ 		dfly_req_fini(rdma_req->req.dreq);
+ 	}
+ 
+@@ -2691,8 +2703,7 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			//SPDK_CONFIG_OSS_TARGET
+ 			if(rdma_req->req.dreq)
+ 				df_lat_update_tick(rdma_req->req.dreq, DF_LAT_REQ_START);
+-			if((rqpair->qpair.dqpair->dss_enabled == true) &&
+-					df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
++			if(df_qpair_susbsys_enabled(&rqpair->qpair, NULL)) {
+ 				dfly_nvmf_req_init(&rdma_req->req);
+ 				dfly_req_init_nvmf_info(rdma_req->req.dreq);
+ 
+diff --git a/lib/nvmf/subsystem.c b/lib/nvmf/subsystem.c
+index ae1d21f00..6a167c9ca 100644
+--- a/lib/nvmf/subsystem.c
++++ b/lib/nvmf/subsystem.c
+@@ -997,12 +997,11 @@ spdk_nvmf_subsystem_remove_ns(struct spdk_nvmf_subsystem *subsystem, uint32_t ns
+ 		free(reg);
+ 	}
+ //SPDK_CONFIG_OSS_TARGET
+-	if(df_subsystem_enabled(subsystem->id) &&
+-			!g_dragonfly->blk_map) {
+-	spdk_bdev_module_release_bdev(ns->bdev);
++	if(!df_subsystem_enabled(subsystem->id)) {
++	if(ns && ns->bdev)spdk_bdev_module_release_bdev(ns->bdev);
++	if(ns && ns->desc)spdk_bdev_close(ns->desc);
+ 	}
+ //END - SPDK_CONFIG_OSS_TARGET
+-	spdk_bdev_close(ns->desc);
+ 	if (ns->ptpl_file) {
+ 		free(ns->ptpl_file);
+ 	}
+@@ -1143,6 +1142,7 @@ spdk_nvmf_subsystem_add_ns(struct spdk_nvmf_subsystem *subsystem, struct spdk_bd
+ 		 * If no free slots are found, opts.nsid will be subsystem->max_nsid + 1, which will
+ 		 * expand max_nsid if possible.
+ 		 */
++
+ 		for (opts.nsid = 1; opts.nsid <= subsystem->max_nsid; opts.nsid++) {
+ 			if (_nvmf_subsystem_get_ns(subsystem, opts.nsid) == NULL) {
+ 				break;
+@@ -1191,15 +1191,16 @@ spdk_nvmf_subsystem_add_ns(struct spdk_nvmf_subsystem *subsystem, struct spdk_bd
+ 	ns->bdev = bdev;
+ 	ns->opts = opts;
+ 	ns->subsystem = subsystem;
+-	rc = spdk_bdev_open_ext(bdev->name, true, nvmf_ns_event, ns, &ns->desc);
+-	if (rc != 0) {
+-		SPDK_ERRLOG("Subsystem %s: bdev %s cannot be opened, error=%d\n",
+-			    subsystem->subnqn, spdk_bdev_get_name(bdev), rc);
+-		free(ns);
+-		return 0;
+-	}
++
+ //SPDK_CONFIG_OSS_TARGET
+-	if(!g_dragonfly->blk_map) {
++    if(!df_subsystem_enabled(subsystem->id)) {
++	    rc = spdk_bdev_open_ext(bdev->name, true, nvmf_ns_event, ns, &ns->desc);
++	    if (rc != 0) {
++		    SPDK_ERRLOG("Subsystem %s: bdev %s cannot be opened, error=%d\n",
++			        subsystem->subnqn, spdk_bdev_get_name(bdev), rc);
++		    free(ns);
++		    return 0;
++	    }
+ 		rc = spdk_bdev_module_claim_bdev(bdev, ns->desc, &ns_bdev_module);
+ 		if (rc != 0) {
+ 			spdk_bdev_close(ns->desc);
+diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
+index 148d67b2a..3cc12cd6a 100644
+--- a/lib/nvmf/tcp.c
++++ b/lib/nvmf/tcp.c
+@@ -293,7 +293,7 @@ static inline void dfly_update_result_data_len(struct spdk_nvmf_tcp_req * tcp_re
+     tqpair = SPDK_CONTAINEROF(tcp_req->req.qpair, struct spdk_nvmf_tcp_qpair, qpair);
+     rsp = &tcp_req->req.rsp->nvme_cpl;
+ 
+-    if(df_qpair_susbsys_enabled(&tqpair->qpair, NULL)) {
++    if(df_qpair_susbsys_kv_enabled(&tqpair->qpair)) {
+         return;
+     }
+ 
+@@ -444,7 +444,7 @@ int dfly_nvmf_tcp_is_key_transfer_required(struct spdk_nvmf_tcp_req *tcp_req)
+ 	tqpair = SPDK_CONTAINEROF(tcp_req->req.qpair, struct spdk_nvmf_tcp_qpair, qpair);
+ 	assert(tcp_req->state != TCP_REQUEST_STATE_FREE);
+ 
+-	if(!df_qpair_susbsys_enabled(&tqpair->qpair, NULL)) {
++	if(!df_qpair_susbsys_kv_enabled(&tqpair->qpair)) {
+ 		return 0;
+ 	}
+ 
+diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
+index 185dcd709..6fffc889f 100644
+--- a/mk/spdk.app.mk
++++ b/mk/spdk.app.mk
+@@ -48,10 +48,10 @@ endif
+ 
+ LIBS += $(SPDK_LIB_LINKER_ARGS)
+ 
+-SYS_LIBS += -ljemalloc -lsnappy -lz -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldssd -lstdc++
++SYS_LIBS += -ljemalloc -lm -ldl -L$(SPDK_ROOT_DIR)/../../nkv-target/lib -L$(SPDK_ROOT_DIR)/../../ -loss -ldssd -lstdc++
+ 
+ ifeq ($(CONFIG_DSS_ROCKSDB_KV),y)
+-SYS_LIBS += -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
++SYS_LIBS +=  -lsnappy -lz -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
+ endif
+ 
+ ifeq ($(CONFIG_DSS_OSS),n)
+diff --git a/module/event/subsystems/nvmf/conf.c b/module/event/subsystems/nvmf/conf.c
+index 24e34ce56..364961a33 100644
+--- a/module/event/subsystems/nvmf/conf.c
++++ b/module/event/subsystems/nvmf/conf.c
+@@ -339,6 +339,10 @@ nvmf_parse_subsystem(struct spdk_conf_section *sp)
+ 		goto done;
+ 	}
+ 
++	//SPDK_CONFIG_OSS_TARGET
++	df_subsystem_parse_conf(subsystem, sp);
++	//END - SPDK_CONFIG_OSS_TARGET
++
+ 	if (spdk_nvmf_subsystem_set_sn(subsystem, sn)) {
+ 		SPDK_ERRLOG("Subsystem %s: invalid serial number '%s'\n", nqn, sn);
+ 		spdk_nvmf_subsystem_destroy(subsystem);
+@@ -486,10 +490,6 @@ nvmf_parse_subsystem(struct spdk_conf_section *sp)
+ 	allow_any_host = spdk_conf_section_get_boolval(sp, "AllowAnyHost", false);
+ 	spdk_nvmf_subsystem_set_allow_any_host(subsystem, allow_any_host);
+ 
+-	//SPDK_CONFIG_OSS_TARGET
+-	df_subsystem_parse_conf(subsystem, sp);
+-	//END - SPDK_CONFIG_OSS_TARGET
+-
+ done:
+ 	return (subsystem != NULL) ? 0 : -1;
+ }
+diff --git a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+index 4cccc9f7c..c94600922 100644
+--- a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
++++ b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+@@ -62,6 +62,21 @@ DEFINE_STUB(dfly_ustat_init_qpair_stat,
+         (void *qpair),
+         0);
+ 
++DEFINE_STUB(dss_qpair_finish_init,
++        int,
++        (struct spdk_nvmf_qpair *qpair),
++        0);
++
++DEFINE_STUB(dfly_get_subsystem_no_lock,
++            struct dfly_subsystem *,
++            (uint32_t ssid),
++            NULL);
++
++DEFINE_STUB(dss_subsystem_kv_mode_enabled,
++				 bool,
++				 (dss_subsystem_t *ss),
++				 NULL);
++
+ DEFINE_STUB(spdk_nvmf_tgt_find_subsystem,
+ 	    struct spdk_nvmf_subsystem *,
+ 	    (struct spdk_nvmf_tgt *tgt, const char *subnqn),
+diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+index e4b21fdb9..cc141699f 100644
+--- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
++++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+@@ -81,6 +81,9 @@ DEFINE_STUB_V(dfly_req_init_nvmf_info,
+ DEFINE_STUB(df_qpair_susbsys_enabled, uint32_t,
+         (struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req), 0);
+ 
++DEFINE_STUB(df_qpair_susbsys_kv_enabled, uint32_t,
++        (struct spdk_nvmf_qpair *nvmf_qpair), 0);
++
+ DEFINE_STUB(dfly_qpair_init, int,
+         (struct spdk_nvmf_qpair *nvmf_qpair), 0);
+ 
+diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+index 446195ec3..28a535715 100644
+--- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c
++++ b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+@@ -71,6 +71,11 @@ DEFINE_STUB(df_qpair_susbsys_enabled,
+       (struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req),
+       0);
+ 
++DEFINE_STUB(df_qpair_susbsys_kv_enabled,
++      uint32_t,
++      (struct spdk_nvmf_qpair *nvmf_qpair),
++      0);
++
+ DEFINE_STUB_V(dfly_req_init_nvmf_info,
+       (struct dfly_request *req));
+ 
+@@ -92,6 +97,21 @@ DEFINE_STUB(dfly_ustat_init_qpair_stat,
+         (void *qpair),
+         0);
+ 
++DEFINE_STUB(dss_qpair_finish_init,
++        int,
++        (struct spdk_nvmf_qpair *qpair),
++        0);
++
++DEFINE_STUB(dfly_get_subsystem_no_lock,
++            struct dfly_subsystem *,
++            (uint32_t ssid),
++            NULL);
++
++DEFINE_STUB(dss_subsystem_kv_mode_enabled,
++				 bool,
++				 (dss_subsystem_t *ss),
++				 NULL);
++
+ DEFINE_STUB(dfly_handle_request,
+       int,
+       (struct dfly_request *req),
+-- 
+2.24.3
+

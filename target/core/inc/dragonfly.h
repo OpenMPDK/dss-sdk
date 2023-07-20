@@ -189,16 +189,12 @@ struct dfly_io_device_s {
 	struct rdb_dev_ctx_s *rdb_handle;
 };
 
-typedef struct df_subsys_conf_s {
-	uint32_t oss_target_enabled;
-} df_subsys_conf_t;
-
 struct dfly_subsystem {
 	bool dss_enabled;
 	/// @brief  true - kv mode; false - block mode
 	bool dss_kv_mode;
+    bool dss_iops_perf_mode;
 	int num_kvt_threads;
-	df_subsys_conf_t conf;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
 	rdd_ctx_t *rdd_ctx;
@@ -213,6 +209,8 @@ struct dfly_subsystem {
 	uint32_t blocklen;//Blocksize in bytes reported by kvpool nvmf controller
 
 	int num_io_devices;
+	dss_device_t **dev_arr; //Device handle array
+	//TODO: dfly_io_device will be depricated
 	struct dfly_io_device_s *devices;
 
 	void *parent_ctx;//struct spdk_nvmf_subsystem
@@ -291,7 +289,7 @@ struct dragonfly {
 
 	struct dragonfly_core core[64]; /**< round robin core selection data from each core */
 
-	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
+    bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
 	bool blk_map;//Rocksdb block translation
         uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
         uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
@@ -375,6 +373,7 @@ struct dfly_qpair_s {
 	TAILQ_HEAD(, dfly_request) qp_outstanding_reqs;
 
 	bool dss_enabled;
+	bool dss_net_mod_enabled;
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
 	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
@@ -449,11 +448,13 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status);
 void *dfly_subsystem_list_device(struct dfly_subsystem *ss, void **dev_list, uint32_t *nr_dev);
 
-void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled);
+void df_subsys_update_dss_enable(uint32_t ssid, bool ss_dss_enabled);
 void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp);
 uint32_t df_subsystem_enabled(uint32_t ssid);
 
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req);
+uint32_t df_qpair_susbsys_kv_enabled(struct spdk_nvmf_qpair *nvmf_qpair);
+int dss_qpair_finish_init(struct spdk_nvmf_qpair *nvmf_qpair);
 
 int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair);
 int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
@@ -553,6 +554,17 @@ int dfly_spdk_conf_section_get_intval_default(struct spdk_conf_section *sp, cons
 
 void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
 
+static inline bool dss_enable_net_module(struct dfly_subsystem *df_ss)
+{
+    if(df_ss->dss_enabled && !df_ss->dss_iops_perf_mode) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+dss_io_dev_status_t dss_subsystem_initialize_io_devices(dss_subsystem_t *ss);
+void dss_subsystem_deinit_io_devices(dss_subsystem_t *ss);
 
 #ifdef __cplusplus
 }
