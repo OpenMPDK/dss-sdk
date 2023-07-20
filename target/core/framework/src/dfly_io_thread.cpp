@@ -39,6 +39,8 @@
 #include "rocksdb/dss_kv2blk_c.h"
 #endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
+#include "apis/dss_io_task_apis.h"
+
 extern "C" {
 #include "spdk/blob.h"
 #include "spdk/blobfs.h"
@@ -246,8 +248,7 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	} else {
 		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
 			DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
-			thread_instance->io_chann_parr[i] = spdk_bdev_get_io_channel(
-					io_mod_ctx->dfly_subsys->devices[i].ns->desc);
+			thread_instance->io_chann_parr[i] = dss_io_dev_get_channel(io_mod_ctx->dfly_subsys->dev_arr[i]);
 		}
 	}
 	return thread_instance;
@@ -413,6 +414,7 @@ dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 	return _dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, req);
 }
 
+//TODO: Deprecate
 int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 				     struct spdk_nvmf_subsystem *nvmf_subsys)
 {

@@ -31,20 +31,92 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dss.h"
-#include "apis/dss_io_task_apis.h"
-#include "spdk/bdev.h"
+#include "dss_io_bdev.h"
 
-struct dss_device_s {
-    char *dev_name;
-    dss_device_type_t dev_type;
-    struct spdk_bdev *bdev;
+#include "spdk/likely.h"
+#include "spdk/bdev_module.h"
+#include "nvmf_internal.h"
+
+/* Dummy bdev module used to to claim bdevs. */
+static struct spdk_bdev_module dss_bdev_module = {
+	.name	= "DSS Target",
 };
 
-dss_io_dev_status_t  dss_io_device_open(char *dev_name, dss_device_type_t type, dss_device_t **device)
+//static void
+//_dss_nvmf_ns_hot_remove(struct spdk_nvmf_subsystem *subsystem,
+//            void *cb_arg, int status)
+//{
+//    struct spdk_nvmf_ns *ns = cb_arg;
+//    int rc;
+//
+//    rc = spdk_nvmf_subsystem_remove_ns(subsystem, ns->opts.nsid);
+//    if (rc != 0) {
+//        DSS_ERRLOG("Failed to make changes to NVME-oF subsystem with id: %u\n", subsystem->id);
+//    }
+//
+//    spdk_nvmf_subsystem_resume(subsystem, NULL, NULL);
+//}
+
+static void
+dss_nvmf_ns_hot_remove(void *remove_ctx)
+{
+    struct spdk_nvmf_ns *ns = remove_ctx;
+    int rc;
+
+    //TODO: Handle
+    //rc = spdk_nvmf_subsystem_pause(ns->subsystem, _dss_nvmf_ns_hot_remove, ns);
+    //if (rc) {
+    //    DSS_ERRLOG("Unable to pause subsystem to process namespace removal!\n");
+    //}
+}
+
+static void
+_dss_nvmf_ns_resize(struct spdk_nvmf_subsystem *subsystem, void *cb_arg, int status)
+{
+    struct spdk_nvmf_ns *ns = cb_arg;
+
+    //TODO: Handle
+    //nvmf_subsystem_ns_changed(subsystem, ns->opts.nsid);
+    spdk_nvmf_subsystem_resume(subsystem, NULL, NULL);
+}
+
+static void
+dss_nvmf_ns_resize(void *event_ctx)
+{
+    struct spdk_nvmf_ns *ns = event_ctx;
+    int rc;
+
+    //TODO: Handle
+    //rc = spdk_nvmf_subsystem_pause(ns->subsystem, _dss_nvmf_ns_resize, ns);
+    //if (rc) {
+    //    DSS_ERRLOG("Unable to pause subsystem to process namespace resize!\n");
+    //}
+}
+
+static void
+_dss_bdev_desc_event(enum spdk_bdev_event_type type,
+	      struct spdk_bdev *bdev,
+	      void *event_ctx)
+{
+	switch (type) {
+	case SPDK_BDEV_EVENT_REMOVE:
+        dss_nvmf_ns_hot_remove(event_ctx);
+        break;
+	case SPDK_BDEV_EVENT_RESIZE:
+        dss_nvmf_ns_resize(event_ctx);
+        break;
+	default:
+		DSS_NOTICELOG("Unsupported bdev event: type %d\n", type);
+        DSS_ASSERT(0);
+		break;
+	}
+}
+
+dss_io_dev_status_t dss_io_device_open(const char *dev_name, dss_device_type_t type, dss_device_t **device)
 {
     dss_device_t *d;
     dss_io_dev_status_t rc;
+    int status;
 
     DSS_RELEASE_ASSERT(device != NULL);
     DSS_ASSERT(*device == NULL);
@@ -62,13 +134,37 @@ dss_io_dev_status_t  dss_io_device_open(char *dev_name, dss_device_type_t type, 
     {
     case DSS_BLOCK_DEVICE:
         d->bdev = spdk_bdev_get_by_name(d->dev_name);
-        //TODO: Claim Device
         if(!d) {//Device not found
             *device = NULL;
             rc = DSS_IO_DEV_INVALID_DEVICE;
         } else {
             *device = d;
             rc = DSS_IO_DEV_STATUS_SUCCESS;
+        }
+
+        status = spdk_bdev_open_ext(d->dev_name, true, _dss_bdev_desc_event, d, &d->desc);
+	    if (status != 0) {
+		    DSS_ERRLOG("bdev %s cannot be opened, error=%d\n",
+			        d->dev_name, status);
+            *device = NULL;
+		    return DSS_IO_DEV_STATUS_ERROR;
+	    }
+        DSS_ASSERT(d->desc != NULL);
+
+        status = spdk_bdev_module_claim_bdev(d->bdev, d->desc, &dss_bdev_module);
+		if (status != 0) {
+			spdk_bdev_close(d->desc);
+			free(d->dev_name);
+			free(d);
+            return DSS_IO_DEV_STATUS_ERROR;
+		}
+
+        d->n_ch = dss_env_get_spdk_max_cores();
+        d->ch_arr = calloc(d->n_ch + 1, sizeof(dss_device_channel_t));
+        if(!d->ch_arr) {
+            *device = NULL;
+            free(d);
+            return DSS_IO_DEV_STATUS_ERROR;
         }
         break;
     default:
@@ -83,6 +179,7 @@ dss_io_dev_status_t  dss_io_device_open(char *dev_name, dss_device_type_t type, 
 dss_io_dev_status_t dss_io_device_close(dss_device_t *device)
 {
     dss_io_dev_status_t rc; 
+    int i;
 
     DSS_RELEASE_ASSERT(device != NULL);
     DSS_RELEASE_ASSERT(device->dev_name);
@@ -91,6 +188,16 @@ dss_io_dev_status_t dss_io_device_close(dss_device_t *device)
     {
     case DSS_BLOCK_DEVICE:
         //TODO: Release bdev
+        for(i=0; i < device->n_ch; i++) {
+            if(device->ch_arr[i].ch) {
+                DSS_ASSERT(device->ch_arr[i].thread != NULL);
+                dss_spdk_thread_send_msg(device->ch_arr[i].thread, (void *)spdk_put_io_channel, device->ch_arr[i].ch);
+            }
+        }
+        spdk_bdev_module_release_bdev(device->bdev);
+        spdk_bdev_close(device->desc);
+        free(device->ch_arr);
+        free(device);
         rc = DSS_IO_DEV_STATUS_SUCCESS;
         break;
     default:
@@ -98,6 +205,26 @@ dss_io_dev_status_t dss_io_device_close(dss_device_t *device)
         break;
     }
     return rc;
+}
+
+struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device)
+{
+    uint32_t ch_arr_index = dss_env_get_current_core();
+    struct spdk_io_channel *ch;
+
+    DSS_ASSERT(ch_arr_index < io_device->n_ch);
+
+    if(spdk_unlikely(!io_device->ch_arr[ch_arr_index].ch)) {
+        io_device->ch_arr[ch_arr_index].ch = spdk_bdev_get_io_channel(io_device->desc);
+        DSS_ASSERT(io_device->ch_arr[ch_arr_index].ch);
+        io_device->ch_arr[ch_arr_index].thread = dss_env_get_spdk_thread();
+        DSS_ASSERT(io_device->ch_arr[ch_arr_index].thread != NULL);
+    }
+
+    ch = io_device->ch_arr[ch_arr_index].ch;
+    DSS_ASSERT(ch != NULL);
+
+    return ch;
 }
 
 dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)

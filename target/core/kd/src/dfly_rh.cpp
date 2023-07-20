@@ -158,6 +158,46 @@ void *dfly_rh_find_object_disk(void *vctx, void *in, uint32_t len)
 	return max_rh_dev->disk;
 }
 
+int dfly_rh_find_object_disk_index(void *vctx, void *in, uint32_t len)
+{
+	struct dfly_rh_device_s *max_rh_dev = NULL;
+	float max_wt, curr_obj_node_wt;
+	rh_hash_t curr_mmh3;
+	int max_dev_index = -1;
+
+	dfly_rh_instance_t *ctx = (dfly_rh_instance_t *)vctx;
+
+	int i;
+
+	if (!ctx) {
+		assert(0);//Call init first
+		return NULL;
+	}
+
+	for (i = 0; i < ctx->num_devices; i++) {
+
+		__dfly_rh_hash_murmur3(in, len, ctx->devices[i].id.h32.p2, &curr_mmh3);
+		curr_obj_node_wt = rh_compute_object_node_wt(curr_mmh3.h64.p2);
+
+		if (max_rh_dev) {
+			if (curr_obj_node_wt > max_wt) {
+				max_rh_dev = &ctx->devices[i];
+				max_wt = curr_obj_node_wt;
+				max_dev_index = i;
+			}
+		} else {
+			max_rh_dev = &ctx->devices[i];
+			max_wt = curr_obj_node_wt;
+			max_dev_index = i;
+
+		}
+
+	}
+
+	assert(max_dev_index < ctx->num_devices);
+	return max_dev_index;
+}
+
 void *dfly_rh_list_object_disk(void *vctx, void **dev_list, uint32_t *nr_dev)
 {
 	struct dfly_rh_device_s *max_rh_dev = NULL;
@@ -190,6 +230,7 @@ void *dfly_rh_list_object_disk(void *vctx, void **dev_list, uint32_t *nr_dev)
 struct dfly_kd_fn_table dfly_kd_rh_fn_table = {
 	.add_device  = dfly_rh_add_device,
 	.find_device = dfly_rh_find_object_disk,
+	.find_device_index = dfly_rh_find_object_disk_index,
 	.list_device = dfly_rh_list_object_disk,
 };
 

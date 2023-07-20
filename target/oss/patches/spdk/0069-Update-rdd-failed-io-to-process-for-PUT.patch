@@ -1,14 +1,14 @@
-From 0fa87745accb85aad667b9fffe08b531aea20bdb Mon Sep 17 00:00:00 2001
+From 6cfb6789ca357dbf2941db40846bbbbf8e1142cf Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 29 Sep 2022 20:58:16 -0700
-Subject: [PATCH 69/75] Update rdd failed io to process for PUT
+Subject: [PATCH 69/76] Update rdd failed io to process for PUT
 
 ---
  lib/nvmf/rdma.c | 34 ++++++++++++++++++++++++++++------
  1 file changed, 28 insertions(+), 6 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 5c23776..9250498 100644
+index 5c23776cd..9250498cb 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -986,6 +986,8 @@ void dss_rdma_rdd_failed(void *arg, void *dummy)
@@ -73,5 +73,5 @@ index 5c23776..9250498 100644
  
  		} else {
 -- 
-1.8.3.1
+2.24.3
 

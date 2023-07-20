@@ -239,12 +239,14 @@ SET(BLK_ALLOC_HEADERS
 #Io task Module
 SET(IO_TASK_SOURCES
     ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev.c
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev_direct.c
     ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
 )
 
 SET(IO_TASK_HEADERS
     ${CMAKE_SOURCE_DIR}/include/apis/dss_io_task_apis.h
     ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.h
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev.h
 )
 
 # KV Translator
@@ -379,10 +381,12 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_counters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dragonfly.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dss_spdk_wrapper.c
 )
 SET(FW_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/core/inc/uthash.h
     ${CMAKE_CURRENT_SOURCE_DIR}/core/inc/dragonfly.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/dss_spdk_wrapper.h
     ${CMAKE_CURRENT_SOURCE_DIR}/oss/dssd/lib/libustat/ustat.h
 )
 
@@ -407,6 +411,7 @@ include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
+include_directories (${CMAKE_SOURCE_DIR}/oss/libjudy/src)
 
 if(WITH_ROCKSDB_KV)
 include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
@@ -697,7 +702,11 @@ target_compile_options(judy_hashmap PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/libjudy
 add_dependencies(judy_hashmap judyL)
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
+
 add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
+set_property(TEST dss_simbmap_allocator_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
 add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
 set_property(TEST test_bitmap_impl
              PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})

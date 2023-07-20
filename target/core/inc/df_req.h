@@ -55,6 +55,7 @@ extern "C" {
 #include "df_poller.h"
 
 #include "apis/dss_module_apis.h"
+#include "apis/dss_io_task_apis.h"
 
 typedef struct dfly_key dss_key_t;
 typedef struct dfly_value dss_value_t;
@@ -163,6 +164,8 @@ struct dss_request_s {
 	dss_request_opc_t opc;
 	dss_request_rc_t status;
 	dss_subsystem_t *ss;
+	dss_device_t *io_device;
+	uint32_t io_device_index;
 	//Common request context struct for all modules
 	dss_module_req_ctx_t module_ctx[DSS_MODULE_END];
 };
@@ -202,7 +205,7 @@ typedef struct dfly_request {
 	struct dfly_value req_value;
 	//struct dfly_value fuse1_value; /**< value for fuse f1 compare data */
 	void         *req_ctx; /**<parent nvme or rdma request*/
-	void 		 *io_device; /**<kvssd device>*/
+	void 		 *io_device; /**<kvssd device>*/ //TODO: Depricate io_device
 	uint32_t	rsp_cdw0;
 	uint32_t 	rsp_sct;
 	uint32_t	rsp_sc;
