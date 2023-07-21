@@ -339,7 +339,6 @@ struct dragonfly {
 	uint32_t			df_sessionc;
 	pthread_mutex_t			df_ses_lock;
 
-	dict_t	 			*disk_stat_table;
 	uint64_t req_lat_to;//Request latency timeout
 	bool enable_latency_profiling;
 
@@ -390,16 +389,12 @@ struct dword_bytes {
 	uint8_t cdwb4;
 };
 
-int dragonfly_init(void);
-int dragonfly_finish(void);
 
 int dfly_init(void);
+int dragonfly_finish(void);
 
 void dfly_config_read(struct spdk_conf_section *sp);
 int dfly_config_parse(void);
-
-int dragonfly_core_init(uint32_t nvmf_core);
-int dragonfly_core_finish(uint32_t nvmf_core);
 
 struct dfly_subsystem *dfly_get_subsystem_no_lock(uint32_t ssid);
 struct dfly_subsystem *dfly_get_subsystem(uint32_t ssid);
@@ -465,16 +460,6 @@ int dfly_nvmf_request_complete(struct spdk_nvmf_request *req);
 void wal_flush_complete(struct df_dev_response_s resp, void *arg);
 void log_recovery_writethrough_complete(struct df_dev_response_s resp, void *arg);
 
-dict_t *dfly_getItem(dict_t **dict, char *key);
-
-
-void dfly_delItem(dict_t **dict, char *key);
-
-void dfly_addItem(dict_t **dict, char *key, int value, char *message);
-
-void dfly_updateItem(dict_t **dict, char *key, int value, char *message);
-void dfly_deleteAllItems(dict_t **disk_table);
-void dfly_dump_status_info(struct spdk_json_write_ctx *w);
 void nvmf_tgt_subsystem_start_continue(void *nvmf_subsystem, int status);
 
 struct spdk_nvme_cmd *dfly_get_nvme_cmd(struct dfly_request *req);

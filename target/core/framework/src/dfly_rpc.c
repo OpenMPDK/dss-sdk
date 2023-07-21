@@ -253,28 +253,6 @@ static const struct spdk_json_object_decoder dfly_status_decoders[] = {
 
 
 static void
-dfly_dump_disk_state(struct spdk_json_write_ctx *w)
-{
-	spdk_json_write_name(w, "TARGET_DISK");
-	spdk_json_write_object_begin(w);
-
-	dict_t *disk_table = g_dragonfly->disk_stat_table;
-	dict_t *current_item, *tmp;
-	// TODO: Need to check the HASH_iter work mechanism when removing the ns from the table
-	HASH_ITER(hh, disk_table, current_item, tmp) {
-		spdk_json_write_name(w, current_item->key);
-		spdk_json_write_object_begin(w);
-		spdk_json_write_name(w, "status");
-		spdk_json_write_int32(w, current_item->value);
-		//spdk_json_write_int32(w, ptr->value);
-		spdk_json_write_name(w, "message");
-		spdk_json_write_string(w, current_item->message);
-		spdk_json_write_object_end(w);
-	}
-	spdk_json_write_object_end(w);
-}
-
-static void
 dfly_dump_subsystem_state(struct spdk_json_write_ctx *w)
 {
 	struct spdk_nvmf_subsystem *subsystem;
@@ -346,7 +324,6 @@ dfly_dump_status_info(struct spdk_json_write_ctx *w)
 	spdk_json_write_name(w, "status");
 	spdk_json_write_object_begin(w);
 	dfly_dump_timestamp(w);
-	dfly_dump_disk_state(w);
 	dfly_dump_subsystem_state(w);
 	dfly_dump_nic_state(w);
 	spdk_json_write_object_end(w);
