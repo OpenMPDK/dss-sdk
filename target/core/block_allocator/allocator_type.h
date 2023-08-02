@@ -101,13 +101,17 @@ public:
     /**
      * @brief returns char* to a serialized range of the bitmap
      */
-    virtual void serialize_range(int word_begin, int num_words, char* return_buf) const =0;
+    virtual void serialize_range(
+            uint64_t word_begin, uint64_t num_words,
+            char** serialized_buf, uint64_t& serialized_len) =0;
 
     /**
      * @brief
      * - Deserializes a buffer `serialized` to a specific range in the bitmap
      */
-    virtual void deserialize_range(const char* serialized, int len) =0;
+    virtual void deserialize_range(
+            uint64_t word_begin, uint64_t num_words,
+            char** serialized_buf, uint64_t& serialized_len) =0;
 
     /**
      * @brief 

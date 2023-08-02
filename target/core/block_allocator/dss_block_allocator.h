@@ -70,8 +70,9 @@ typedef struct dss_blk_alloc_core_ops_s {
         print_stats_fn print_stats;
 } dss_blk_alloc_core_ops_t;
 
-typedef dss_blk_allocator_status_t (*blk_alloc_get_sync_meta_io_tasks_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
-typedef dss_blk_allocator_status_t (*blk_alloc_complete_meta_sync_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
+typedef dss_blk_allocator_status_t (*blk_alloc_queue_sync_meta_io_tasks_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
+typedef dss_blk_allocator_status_t (*blk_alloc_get_next_submit_meta_io_tasks_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
+typedef dss_blk_allocator_status_t (*blk_alloc_complete_meta_sync_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
 typedef uint64_t (*blk_alloc_get_physical_size_fn)(dss_blk_allocator_context_t *ctx);
 
 /**
@@ -80,7 +81,8 @@ typedef uint64_t (*blk_alloc_get_physical_size_fn)(dss_blk_allocator_context_t *
  */
 typedef struct dss_blk_alloc_disk_ops_s {
     blk_alloc_get_physical_size_fn blk_alloc_get_physical_size;
-    blk_alloc_get_sync_meta_io_tasks_fn blk_alloc_get_sync_meta_io_tasks;
+    blk_alloc_queue_sync_meta_io_tasks_fn blk_alloc_queue_sync_meta_io_tasks;
+    blk_alloc_get_next_submit_meta_io_tasks_fn blk_alloc_get_next_submit_meta_io_tasks;
     blk_alloc_complete_meta_sync_fn blk_alloc_complete_meta_sync;
 } dss_blk_alloc_disk_ops_t;
 

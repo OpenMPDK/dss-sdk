@@ -59,13 +59,18 @@ public:
         num_block_states = 5;
         logical_start_block_offset = 0;
 
+        // Dummy io task orderer for bitmap constructor
+        io_task_orderer_ =
+        std::make_shared<BlockAlloc::
+        IoTaskOrderer>(0, 0, nullptr);
+
         // jso is created during block allocator init
         BlockAlloc::JudySeekOptimizerSharedPtr jso =
             std::make_shared<BlockAlloc::
             JudySeekOptimizer>(total_cells, logical_start_block_offset, 128);
 
         bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, total_cells, bits_per_cell,
+            jso, io_task_orderer_, total_cells, bits_per_cell,
             num_block_states, logical_start_block_offset); 
 
         BlockAlloc::JudySeekOptimizerSharedPtr perf_jso =
@@ -73,7 +78,7 @@ public:
             JudySeekOptimizer>(
                     perf_total_cells, logical_start_block_offset, 128);
         perf_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            perf_jso, perf_total_cells, bits_per_cell,
+            perf_jso, io_task_orderer_, perf_total_cells, bits_per_cell,
             num_block_states, logical_start_block_offset);
 
         // Test bitmap handling with logical start block offset
@@ -85,10 +90,11 @@ public:
                     total_offset_cells, logical_start_block_offset, 128);
 
         offset_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            offset_jso, total_offset_cells, bits_per_cell,
+            offset_jso, io_task_orderer_, total_offset_cells, bits_per_cell,
             num_block_states, logical_start_block_offset); 
 
     }
+
     void setUp();
     void tearDown();
 
@@ -98,6 +104,7 @@ public:
     void test_set_get_all();
     void test_bitmap_empty_range();
     void test_logical_start_block_offset();
+    void test_serialize_deserialize();
     void test_perf_bitmap();
 
     CPPUNIT_TEST_SUITE(BitmapTest);
@@ -107,12 +114,15 @@ public:
     CPPUNIT_TEST(test_set_get_all);
     CPPUNIT_TEST(test_bitmap_empty_range);
     CPPUNIT_TEST(test_logical_start_block_offset);
+    CPPUNIT_TEST(test_serialize_deserialize);
     CPPUNIT_TEST(test_perf_bitmap);
     CPPUNIT_TEST_SUITE_END();
 private:
     AllocatorType::BitMapSharedPtr bmap;
     AllocatorType::BitMapSharedPtr perf_bmap;
     AllocatorType::BitMapSharedPtr offset_bmap;
+    BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer_;
+
     uint64_t total_cells;
     uint64_t perf_total_cells;
     int bits_per_cell;
@@ -301,7 +311,7 @@ void BitmapTest::test_bitmap_empty_range() {
 }
 
 /**
- * - Tests if logical start block handling in bitmap is correct
+ * Tests if logical start block handling in bitmap is correct
  */
 void BitmapTest::test_logical_start_block_offset() {
 
@@ -341,6 +351,52 @@ void BitmapTest::test_logical_start_block_offset() {
     std::dynamic_pointer_cast
         <AllocatorType::QwordVector64Cell>(offset_bmap)->print_stats();
 
+}
+
+/**
+ * Test for serialization and deserialization of bitmap
+ */
+void BitmapTest::test_serialize_deserialize() {
+
+    char *serialized_buf = nullptr;
+    uint64_t serialized_len = 0;
+    int print = 0;
+
+    // Set first 10 cells in the bitmap
+    for (int i=0; i<10; i++) {
+        bmap->set_cell(i,i);
+    }
+
+    for (int i=0; i<10; i++) {
+        print = bmap->get_cell_value(i);
+    }
+
+    // Serialize the bitmap for the set range
+    bmap->serialize_range(0, 10,
+            &serialized_buf, serialized_len);
+    CPPUNIT_ASSERT(serialized_buf != nullptr);
+
+    // Reset first 10 cells in the bitmap with 0
+    for (int i=0; i<10; i++) {
+        bmap->set_cell(i,0);
+    }
+
+    // Reset serialized_len
+    serialized_len = 0;
+
+    bmap->deserialize_range(0, 10,
+            &serialized_buf, serialized_len);
+
+    for (int i=0; i<10; i++) {
+        print = bmap->get_cell_value(i);
+        // The bitmap must be programmed correctly after
+        // deserialization
+        CPPUNIT_ASSERT(print == i);
+    }
+
+    free(serialized_buf);
+
+    return;
 }
 
 /**

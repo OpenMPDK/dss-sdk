@@ -79,14 +79,35 @@ void QwordVector64Cell::deserialize_all(const char* serialized) {
     std::memcpy(data_.data(), serialized, data_.size() * sizeof(uint64_t));
 }
 
-void QwordVector64Cell::serialize_range(int qword_begin, 
-    int num_words, char* return_buf) const {
-    // CXX !TODO: This requires knowledge about the on-disk structure
+void QwordVector64Cell::serialize_range(
+        uint64_t qword_begin, uint64_t num_words,
+        char** serialized_buf, uint64_t& serialized_len) {
+
+    char *alloc_buf = nullptr;
+    uint64_t *data_ptr = data_.data();
+    // Account for offset
+    data_ptr = data_ptr + qword_begin;
+    // CXX!: This memory is procured from a pre-allocated mem-pool
+    alloc_buf = (char*)malloc(num_words * sizeof(uint64_t));
+    std::memcpy(alloc_buf, data_ptr, num_words * sizeof(uint64_t));
+    *serialized_buf = alloc_buf;
+    serialized_len = num_words * sizeof(uint64_t);
     return;
 }
 
-void QwordVector64Cell::deserialize_range(const char* serialized, int len) {
-    // CXX !TODO: This requires knowledge about the on-disk structure
+void QwordVector64Cell::deserialize_range(
+        uint64_t qword_begin, uint64_t num_words,
+        char** serialized_buf, uint64_t& serialized_len) {
+
+    char *copy_ptr = *serialized_buf;
+
+    for (uint64_t i=qword_begin; i<num_words; i++) {
+        std::memcpy(&data_[i], copy_ptr, sizeof(uint64_t));
+        copy_ptr = copy_ptr + sizeof(uint64_t);
+    }
+
+    serialized_len = num_words * sizeof(uint64_t);
+
     return;
 }
 
@@ -129,8 +150,8 @@ uint64_t QwordVector64Cell::get_physical_size() {
 
     // Since data_ is a vector of uint64_t the physical
     // size in bytes will be 8 * data_.size()
-    // 8 being the size of uint64_t in bytes
-    return (8*data_.size());
+    // 8(BITS_PER_BYTE) being the size of uint64_t in bytes
+    return (BITS_PER_BYTE * data_.size());
 }
 
 dss_blk_allocator_status_t QwordVector64Cell::is_block_free(
@@ -364,6 +385,118 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
     for (uint64_t i=0; i<num_blocks; i++ ) {
         QwordVector64Cell::set_cell(iter_blk_id, state);
         iter_blk_id = iter_blk_id + 1;
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
+        uint64_t meta_lba,
+        uint64_t meta_num_blocks,
+        uint64_t drive_smallest_block_size,
+        uint64_t logical_block_size,
+        uint64_t& drive_blk_lba,
+        uint64_t& drive_num_blocks,
+        void** serialized_drive_data,
+        uint64_t& serialized_len) {
+
+    std::cout<<"Qword translate meta"<<std::endl;
+
+    /**
+     * Represents the logical block where bitmap begins
+     */
+    uint64_t logical_start_block_offset =
+        this->logical_start_block_offset_;
+
+    uint64_t drive_start_block_offset = 0;
+    uint64_t drive_vector_start_pos = 0;
+    uint64_t drive_vector_start_pos_mod = 0;
+    uint64_t offset_vector = 0;
+    uint64_t offset_vector_mod = 0;
+    uint64_t meta_bitmap_pos = 0;
+    uint64_t vector_start_index = 0;
+    uint64_t meta_bitmap_num_blks = 0;
+    uint64_t total_indices = 0;
+    uint64_t total_indices_mod = 0;
+    char *serial_buf = nullptr;
+
+    if (logical_block_size == drive_smallest_block_size) {
+
+        drive_start_block_offset = logical_start_block_offset;
+        // CXX: Assumption that drive_smallest_block_size is equal
+        //      to logical_block_size will be consistent for 
+        //      immediate release
+    } else {
+        // CXX TODO!: Handle adjusting drive start block offset
+        assert(("ERROR", false));
+    }
+
+    // 1. Each lba on bitmap is represented by 4 bits
+    //    Determine which 64-bit integer index does lba
+    //    land on
+    if (meta_lba <= logical_start_block_offset) {
+        assert(("ERROR", false));
+    }
+    meta_lba = meta_lba - logical_start_block_offset;
+    meta_bitmap_pos = bits_per_cell_* meta_lba;
+    vector_start_index = meta_bitmap_pos / BITS_PER_WORD;
+    drive_blk_lba = drive_start_block_offset +
+            meta_bitmap_pos / 
+                (drive_smallest_block_size * BITS_PER_BYTE);
+
+    // 1.1. Compute the vector start index aligned to drive_start_lba
+    drive_vector_start_pos = vector_start_index * BITS_PER_WORD;
+    // 1.2. Check the offset of vector start index
+    drive_vector_start_pos_mod =
+        drive_vector_start_pos % 
+            (drive_smallest_block_size * BITS_PER_BYTE);
+    if (drive_vector_start_pos_mod != 0) {
+        // Account vector start pos to be the drive lba start
+        offset_vector = drive_vector_start_pos_mod / BITS_PER_WORD;
+        offset_vector_mod =
+            drive_vector_start_pos_mod % BITS_PER_WORD;
+        if (offset_vector_mod != 0) {
+            assert(("ERROR", false));
+        }
+
+        if (vector_start_index <= offset_vector) {
+            vector_start_index = 0;
+        } else {
+            vector_start_index =
+                vector_start_index - offset_vector;
+        }
+    }
+    // 2. Compute the end vector index based on num_blocks
+    meta_bitmap_num_blks = meta_num_blocks * bits_per_cell_;
+    total_indices = meta_bitmap_num_blks / BITS_PER_WORD;
+    total_indices_mod = meta_bitmap_num_blks % BITS_PER_WORD;
+    if (total_indices_mod != 0) {
+        total_indices = total_indices + 1;
+    }
+    // 3. Vector start index and total_indices will be used for
+    //    serialization
+    if (serialized_drive_data == nullptr) {
+        this->serialize_range(
+                vector_start_index, total_indices,
+                &serial_buf, serialized_len);
+
+        serialized_drive_data = (void **)&serial_buf;
+    } else {
+        this->serialize_range(
+                vector_start_index, total_indices,
+                (char **)serialized_drive_data, serialized_len);
+    }
+
+    if (*serialized_drive_data == nullptr) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    // 4. Update the total number of drive lbas required
+    drive_num_blocks =
+        serialized_len / (drive_smallest_block_size * BITS_PER_BYTE);
+    if (serialized_len % 
+            (drive_smallest_block_size * BITS_PER_BYTE) != 0) {
+        drive_num_blocks = drive_num_blocks + 1;
     }
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;

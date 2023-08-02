@@ -38,8 +38,8 @@
 
 namespace AllocatorType {
 
-#define BITS_PER_WORD 8
-#define BITS_PER_QUAD_WORD 64
+#define BITS_PER_BYTE 8
+#define BITS_PER_WORD 64
 
 /* 
  * - This class represents the bitmap wherein size of each cell 
@@ -58,23 +58,29 @@ public:
     // Constructor of the class
     explicit QwordVector64Cell(
             BlockAlloc::JudySeekOptimizerSharedPtr jso,
+            BlockAlloc::IoTaskOrdererSharedPtr& io_task_orderer,
             uint64_t total_cells, uint8_t bits_per_cell,
             uint64_t num_block_states, uint64_t logical_start_block_offset)
         : jso_(std::move(jso)),
+          io_task_orderer_(io_task_orderer),
           cells_(total_cells),
           bits_per_cell_(
-            ((bits_per_cell > BITS_PER_QUAD_WORD) || (bits_per_cell == 0))?
-            BITS_PER_QUAD_WORD : bits_per_cell),
+            ((bits_per_cell > BITS_PER_WORD) || (bits_per_cell == 0))?
+            BITS_PER_WORD : bits_per_cell),
           num_block_states_(num_block_states),
           logical_start_block_offset_(logical_start_block_offset),
-          cells_per_qword_(BITS_PER_QUAD_WORD/bits_per_cell_),
+          cells_per_qword_(BITS_PER_WORD/bits_per_cell_),
           data_(
             ((total_cells / cells_per_qword_) +
             ((total_cells % cells_per_qword_) ? 1 : 0)), 0),
           read_cell_flag_(
-                  0xff >> (BITS_PER_WORD - bits_per_cell_))
+                  0xff >> (BITS_PER_BYTE - bits_per_cell_))
           {}
-    
+
+    ~QwordVector64Cell() {
+        data_.clear();
+        data_.shrink_to_fit();
+    }    
     // Class specific functions
     /**
      * @return total number of 64 bit unsigned integers
@@ -112,8 +118,10 @@ public:
     int total_words() const override { return total_qwords(); }
     void serialize_all(char* return_buf) const override;
     void deserialize_all(const char* serialized) override;
-    void serialize_range(int qword_begin, int num_words, char* return_buf) const override;
-    void deserialize_range(const char* serialized, int len) override;
+    void serialize_range(uint64_t qword_begin, uint64_t num_words,
+            char** serialized_buf, uint64_t& serialized_len) override;
+    void deserialize_range(uint64_t qword_begin, uint64_t num_words,
+            char** serialized_buf, uint64_t& serialized_len) override;
     bool seek_empty_cell_range(
             uint64_t begin_cell, uint64_t len) const override;
 
@@ -143,10 +151,20 @@ public:
             uint64_t hint_block_index,
             uint64_t num_blocks,
             uint64_t *allocated_start_block) override;
+    dss_blk_allocator_status_t translate_meta_to_drive_data(
+            uint64_t meta_lba,
+            uint64_t meta_num_blocks,
+            uint64_t drive_smallest_block_size,
+            uint64_t logical_block_size,
+            uint64_t& drive_blk_addr,
+            uint64_t& drive_num_blocks,
+            void** serialized_drive_data,
+            uint64_t& serialized_len) override;
     dss_blk_allocator_status_t print_stats() override;
 
 private:
     BlockAlloc::JudySeekOptimizerSharedPtr jso_;
+    BlockAlloc::IoTaskOrdererSharedPtr& io_task_orderer_;
     uint64_t cells_;
     uint8_t bits_per_cell_;
     uint64_t num_block_states_;

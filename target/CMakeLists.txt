@@ -225,10 +225,12 @@ SET(BLK_ALLOC_SOURCES
     ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap_impl.cc
     ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
     ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
 )
 
 SET(BLK_ALLOC_HEADERS
     ${CMAKE_SOURCE_DIR}/include/apis/dss_block_allocator_apis.h
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_io_task_apis.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator.h
     ${CMAKE_SOURCE_DIR}/core/block_allocator/allocator_type.h
@@ -719,6 +721,9 @@ set_property(TEST test_judy_hashmap_impl
              PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 add_test(NAME test_seek_optimization_impl COMMAND test_seek_optimization_impl)
 set_property(TEST test_seek_optimization_impl
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+add_test(NAME test_io_task_orderer_impl COMMAND test_io_task_orderer_impl)
+set_property(TEST test_io_task_orderer_impl
              PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 
 add_test(NAME test_block_allocator_ut COMMAND test_block_allocator_ut)

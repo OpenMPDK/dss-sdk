@@ -89,7 +89,8 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
 
     //On-Disk functions
     DSS_ASSERT(m->disk.blk_alloc_get_physical_size);
-    DSS_ASSERT(m->disk.blk_alloc_get_sync_meta_io_tasks);
+    DSS_ASSERT(m->disk.blk_alloc_queue_sync_meta_io_tasks);
+    //Optional to implement: DSS_ASSERT(m->disk.blk_alloc_get_next_submit_meta_io_tasks);
     DSS_ASSERT(m->disk.blk_alloc_complete_meta_sync);
 
     TAILQ_INSERT_TAIL(&g_blk_alloc_mgr.blk_alloc_modules, m, module_list_link);
@@ -300,8 +301,7 @@ dss_blk_allocator_status_t dss_blk_allocator_print_stats(dss_blk_allocator_conte
     }
 }
 
-uint64_t
-dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
+uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
 
     DSS_ASSERT(ctx->m->disk.blk_alloc_get_physical_size);
 
@@ -309,18 +309,29 @@ dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
 
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
-    DSS_ASSERT(ctx->m->disk.blk_alloc_get_sync_meta_io_tasks);
+    DSS_ASSERT(ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks);
 
     if(!io_task) {
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
-    return ctx->m->disk.blk_alloc_get_sync_meta_io_tasks(ctx, io_task);
+    return ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks(ctx, io_task);
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
+dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+{
+    DSS_ASSERT(ctx->m->disk.blk_alloc_get_next_submit_meta_io_tasks);
+
+    if(!io_task) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    return ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks(ctx, io_task);
+}
+
+dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
     DSS_ASSERT(ctx->m->disk.blk_alloc_complete_meta_sync);
 

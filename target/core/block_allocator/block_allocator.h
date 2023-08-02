@@ -34,14 +34,13 @@
 #pragma once
 #include "dss.h"
 #include "dss_block_allocator.h"
+#include "apis/dss_io_task_apis.h"
 #include "judy_hashmap.h"
 #include <iostream>
 #include <cstring>
 #include <memory>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <functional>
+#include <vector>
 
 /**
  * This namespace includes all block allocator operations
@@ -310,7 +309,7 @@ private:
             const uint64_t& prev_len
             );
 
-    // CounterManager protected API
+    // CounterManager API
     void record_allocated_blocks(const uint64_t& allocated_len) override;
     void record_freed_blocks(const uint64_t& freed_len) override;
 
@@ -445,7 +444,36 @@ public:
             uint64_t hint_block_index,
             uint64_t num_blocks,
             uint64_t *allocated_start_block)=0;
-
+    /**
+     * @brief Translate allocated meta lba to drive data for block
+     *        allocator meta-data
+     *
+     * @param meta_lba lba allocated by block allocator, which is associated
+     *        some meta data on the block allocator
+     * @param meta_num_blocks total number of blocks associated with
+     *        meta_lba
+     * @param drive_smallest_block_size Drive block size in bytes, that is
+     *        needed for translating meta_lb to drive_blk_addr, since start
+     *        block offset is already available
+     * @param[out] drive_blk_addr Actual drive lba associated with block
+     *             allocator meta-data corresponding to meta_lba
+     * @param[out] drive_num_blocks total number of blocks associated with
+     *             drive_blk_addr
+     * @param[out] serialized_drive_data Actual block allocator meta-data
+     *             persisted to disk
+     * @param[out] serialized_len, length of serialized_drive_data in bytes
+     * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS 
+     *         on success or error code otherwise
+     */
+    virtual dss_blk_allocator_status_t translate_meta_to_drive_data(
+            uint64_t meta_lba,
+            uint64_t meta_num_blocks,
+            uint64_t drive_smallest_block_size,
+            uint64_t logical_block_size,
+            uint64_t& drive_blk_lba,
+            uint64_t& drive_num_blocks,
+            void** serialized_drive_data,
+            uint64_t& serialized_len)=0;
     /**
      * @brief print block allocator stats to standard out
      */
@@ -453,6 +481,177 @@ public:
 };
 
 using AllocatorSharedPtr = std::shared_ptr<Allocator>;
+
+/**
+ * Concrete class for ordering Bitmap meta-data ordering
+ */
+class IoTaskOrderer {
+public:
+    // Constructor of the class
+    explicit IoTaskOrderer(
+            uint64_t drive_smallest_block_size,
+            uint64_t max_dirty_segments,
+            dss_device_t *device)
+        : translate_meta_to_drive_data(nullptr),
+          drive_smallest_block_size_(drive_smallest_block_size),
+          max_dirty_segments_(max_dirty_segments),
+          io_device_(device),
+          dirty_meta_data_(max_dirty_segments_, std::make_pair(0,0)),
+          io_ranges_(max_dirty_segments_, std::make_pair(0,0)),
+          dirty_counter_(0),
+          jarr_io_dev_guard_(nullptr)
+    {}
+
+    // Default destructor
+    ~IoTaskOrderer() = default;
+
+    dss_blk_allocator_status_t mark_dirty_meta(
+            uint64_t lba, uint64_t num_blocks);
+
+    /**
+     * Allocator specific translator implementation
+     */
+    std::function<dss_blk_allocator_status_t(
+            uint64_t meta_lba,
+            uint64_t meta_num_blocks,
+            uint64_t drive_smallest_block_size,
+            uint64_t logical_block_size,
+            uint64_t& drive_blk_lba,
+            uint64_t& drive_num_blocks,
+            void** serialized_drive_data,
+            uint64_t& serialized_len)> 
+        translate_meta_to_drive_data;
+
+    /**
+     * @brief API to interface with KV-Translator layer to queue
+     *        IO requests to synchronize with block allocator
+     *        meta-data
+     */
+    dss_blk_allocator_status_t queue_sync_meta_io_tasks(
+            dss_io_task_t** io_task);
+    /**
+     * @brief - API to interface with KV-Translator layer to acquire
+     *          the next IO request that can be scheduled to IO module
+     *        - This IO task ensures that there is no overlap of bitmap
+     *          meta-data associated with the request
+     */
+    dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
+            dss_io_task_t** io_task);
+
+    /**
+     * @brief - API to interface with KV-Translator layer to mark
+     *          completed IO.
+     *        - Issued when IO module invokes completion callback on
+     *          KV-Translator
+     */
+    dss_blk_allocator_status_t complete_meta_sync(
+            dss_io_task_t** io_task);
+
+    // Getter for io device reference
+    dss_device_t** get_io_device() {
+        return &io_device_;
+    }
+
+private:
+
+    /**
+     * @brief API to populate IO ranges associated with an IO task
+     *
+     * @param io_task, task associated with dirty block allocator meta-data
+     * @param[out] io_ranges, lb-len tuple or dirty meta-data to be added
+     *             to io_task
+     * @param[out] num_ranges, total dirty tuples 
+     */
+    void populate_io_ranges(dss_io_task_t** io_task,
+            std::vector<std::pair<uint64_t,uint64_t>>& io_ranges,
+            uint64_t& num_ranges);
+
+    /**
+     * @brief API to check IO range overlap with current in-flight IO range
+     * 
+     * @param drive_lba, lba to check overlap
+     * @return boolean,  True on overlap
+     */
+    bool is_current_overlap(const uint64_t& drive_lba) const;
+
+    /**
+     * @brief API to check IO range overlap with previous in-flight IO range
+     * 
+     * @param drive_lba, lba to check overlap
+     * @return boolean,  True on overlap
+     */
+    bool is_prev_neighbor_overlap(const uint64_t& drive_lba) const;
+
+    /**
+     * @brief API to check IO range overlap with next in-flight IO range
+     *
+     * @param drive_lba, lba to check overlap
+     * @param drive_num_blocks, total blocks starting with `lba` block
+     * @return boolean,  True on overlap
+     */
+    bool is_next_neighbor_overlap(
+            const uint64_t& drive_lba,
+            const uint64_t& drive_num_blocks) const;
+
+    /**
+     * @brief API to check individual IO range overlap
+     *
+     * @param drive_lba, lba to check overlap
+     * @param drive_num_blocks, total blocks starting with `lba` block
+     * @return boolean,  True on overlap for a specific range
+     */
+    bool is_individual_range_overlap(
+            const uint64_t& drive_lba,
+            const uint64_t& drive_num_blocks) const;
+
+    /**
+     * @brief API to check all IO ranges overlap associated with an IO task
+     *
+     * @param io_ranges, list of io-ranges to be checked for overlap
+     * @param num_ranges, total number of io-ranges to be checked
+     * @return boolean,  True on any io-range has overlap
+     */
+    bool is_dev_guard_overlap(
+            const std::vector<std::pair<uint64_t, uint64_t>>& io_ranges,
+            const uint64_t& num_ranges) const;
+
+    /**
+     * @brief -This will indicate to block allocator, that a specific IO
+     *         is in the process of being persisted
+     *        -This will mark dirty meta on `jarr_io_dev_guard_`
+     *
+     * @param io_ranges, io-ranges associated with io-task to be marked in
+     *        flight
+     * @param num_ranges, total number of io-ranges associated with io-task
+     * @return boolean, true on successful operation
+     */
+    bool mark_in_flight(
+            const std::vector<std::pair<uint64_t, uint64_t>>& io_ranges,
+            const uint64_t& num_ranges);
+
+    /**
+     * @brief This API will remove completed IO ranges from `io_dev_guard_q_`
+     *
+     * @param io_ranges, io-ranges to be removed from jarr_io_dev_guard_
+     * @param num_ranges, total number of io-ranges associated with io-task
+     * @return boolean, true on successful operation
+     */
+    bool mark_completed(
+            const std::vector<std::pair<uint64_t, uint64_t>>& io_ranges,
+            const uint64_t& num_ranges);
+
+    // Class specific variables
+    uint64_t drive_smallest_block_size_;
+    uint64_t max_dirty_segments_;
+    dss_device_t *io_device_;
+    std::vector<std::pair<uint64_t, uint64_t>> dirty_meta_data_;
+    std::vector<std::pair<uint64_t, uint64_t>> io_ranges_;
+    uint64_t dirty_counter_;
+    void *jarr_io_dev_guard_;
+    std::vector<dss_io_task_t **> io_dev_guard_q_;
+};
+
+using IoTaskOrdererSharedPtr = std::shared_ptr<IoTaskOrderer>;
 
 class BlockAllocator{
 public:
@@ -471,7 +670,6 @@ public:
             dss_device_t *device,
             dss_blk_allocator_opts_t *config);
 
-
     /**
      * @brief Sets default parameters for block allocator options
      *
@@ -483,7 +681,6 @@ public:
     void set_default_config(
             dss_device_t *device,
             dss_blk_allocator_opts_t *opts);
-
 
     /**
      * @brief load data from disk
@@ -520,7 +717,24 @@ public:
      * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on
      *         success or error code otherwise
      */
-    dss_blk_allocator_status_t get_sync_meta_io_tasks(
+    dss_blk_allocator_status_t queue_sync_meta_io_tasks(
+            dss_blk_allocator_context_t *ctx,
+            dss_io_task_t **io_task);
+
+
+    /**
+     * @brief - Get IO tasks to be submitted that can be scheduled to IO
+     *          module without overlap of block allocator meta-data updates
+     *        - This can be invoked until there are no more tasks to be
+     *          submitted to IO module
+     * @param ctx block allocator context
+     * @param[OUT] io_task io task that needs to be populated to be queued
+     *             and forwarded to io module
+     * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on 
+     *         success or BLK_ALLOCATOR_STATUS_ITERATION_END on no available
+     *         IO tasks to be scheduled to IO module or error code otherwise
+     */
+    dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
             dss_blk_allocator_context_t *ctx,
             dss_io_task_t **io_task);
 
@@ -535,7 +749,7 @@ public:
      */
     dss_blk_allocator_status_t complete_meta_sync(
             dss_blk_allocator_context_t *ctx,
-            dss_io_task_t *io_task);
+            dss_io_task_t **io_task);
 
     /**
      * @brief Setup io tasks to erase super block for block allocator
@@ -565,9 +779,7 @@ public:
             dss_io_task_t *io_task);
 
     AllocatorSharedPtr allocator;
+    IoTaskOrdererSharedPtr io_task_orderer;
 };
 
 } // end BlockAlloc Namespace
-#ifdef __cplusplus
-}
-#endif

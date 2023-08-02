@@ -36,10 +36,14 @@ add_executable(dss_kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                          ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                          ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                          ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+                          ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
                           ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
                           ${CMAKE_SOURCE_DIR}/utils/keygen.cc
                           ${CMAKE_SOURCE_DIR}/utils/crc32.cc
@@ -55,6 +59,7 @@ include_directories(${CMAKE_SOURCE_DIR}/utils)
 target_include_directories(dss_kvtrans_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
                                               ${CMAKE_SOURCE_DIR}/core/kvtrans
                                               ${CMAKE_SOURCE_DIR}/utils
+                                              ${CMAKE_SOURCE_DIR}/core/io_task
                                               ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
                                               ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                               ${CMAKE_SOURCE_DIR}/include/apis)

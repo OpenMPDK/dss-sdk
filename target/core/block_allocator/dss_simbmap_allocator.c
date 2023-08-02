@@ -311,7 +311,7 @@ uint64_t dss_blk_allocator_simbmap_get_physical_size(dss_blk_allocator_context_t
 
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_simbmap_get_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+dss_blk_allocator_status_t dss_blk_allocator_simbmap_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
     if(io_task) {
         DSS_ASSERT(!io_task);
@@ -321,7 +321,7 @@ dss_blk_allocator_status_t dss_blk_allocator_simbmap_get_sync_meta_io_tasks(dss_
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_simbamp_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
+dss_blk_allocator_status_t dss_blk_allocator_simbamp_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
 {
     DSS_ASSERT(!io_task);
 
@@ -347,7 +347,8 @@ static struct dss_blk_alloc_module_s dss_simbmap_allocator = {
     },
     .disk = {
         .blk_alloc_get_physical_size = dss_blk_allocator_simbmap_get_physical_size,
-        .blk_alloc_get_sync_meta_io_tasks = dss_blk_allocator_simbmap_get_sync_meta_io_tasks,
+        .blk_alloc_queue_sync_meta_io_tasks = dss_blk_allocator_simbmap_queue_sync_meta_io_tasks,
+        .blk_alloc_get_next_submit_meta_io_tasks = NULL,
         .blk_alloc_complete_meta_sync = dss_blk_allocator_simbamp_complete_meta_sync
     }
 };

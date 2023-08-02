@@ -61,6 +61,7 @@ dss_blk_allocator_context_t* block_allocator_init(
         DSS_ERRLOG("Block Impresario init failed");
         return NULL;
     }
+
     c = (dss_blk_alloc_impresario_ctx_t *)
             calloc(1, sizeof(dss_blk_alloc_impresario_ctx_t));
     if (c == NULL) {
@@ -240,7 +241,7 @@ dss_blk_allocator_status_t print_stats(
     return ba_i->allocator->print_stats();
 }
 
-dss_blk_allocator_status_t get_sync_meta_io_tasks(
+dss_blk_allocator_status_t queue_sync_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
                      dss_io_task_t **io_task) {
 
@@ -255,13 +256,30 @@ dss_blk_allocator_status_t get_sync_meta_io_tasks(
         return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
-    // STUB
-    return ba_i->get_sync_meta_io_tasks(ctx, io_task);
+    return ba_i->queue_sync_meta_io_tasks(ctx, io_task);
+}
+
+dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
+                     dss_blk_allocator_context_t *ctx,
+                     dss_io_task_t **io_task) {
+
+    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
+
+    dss_blk_alloc_impresario_ctx_t *c =
+        (dss_blk_alloc_impresario_ctx_t *)ctx;
+
+    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    if (ba_i == NULL) {
+        DSS_ERRLOG("Incorrect usage before block allocator init");
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    return ba_i->get_next_submit_meta_io_tasks(ctx, io_task);
 }
 
 dss_blk_allocator_status_t complete_meta_sync(
         dss_blk_allocator_context_t *ctx,
-        dss_io_task_t *io_task) {
+        dss_io_task_t **io_task) {
 
     DSS_ASSERT(!io_task);
 
@@ -289,8 +307,10 @@ struct dss_blk_alloc_module_s dss_block_impresario = {
     .disk = {
         .blk_alloc_get_physical_size =
             BlockInterface::get_physical_size,
-        .blk_alloc_get_sync_meta_io_tasks =
-            BlockInterface::get_sync_meta_io_tasks,
+        .blk_alloc_queue_sync_meta_io_tasks =
+            BlockInterface::queue_sync_meta_io_tasks,
+        .blk_alloc_get_next_submit_meta_io_tasks =
+            BlockInterface::get_next_submit_meta_io_tasks,
         .blk_alloc_complete_meta_sync =
             BlockInterface::complete_meta_sync
     }

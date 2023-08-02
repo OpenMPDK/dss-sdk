@@ -33,10 +33,14 @@
 
 # Tests for simple bitmap implementation with cunit
 add_executable(dss_simbmap_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                                        ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                                        ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                                        ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+                                        ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
                                         ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
                                         dss_simbmap_allocator_ut.c)
 
@@ -62,6 +66,7 @@ add_executable(test_bitmap_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_
                                 test_bitmap_impl.cc)
 
 target_include_directories(test_bitmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/io_task
                                                     ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
                                                     ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                                     ${CMAKE_SOURCE_DIR}/include/apis)
@@ -91,14 +96,37 @@ target_link_libraries(test_seek_optimization_impl -L${CMAKE_BINARY_DIR} -ljudy_h
 target_compile_options(test_seek_optimization_impl PRIVATE -Wall -g -std=gnu++11)
 add_dependencies(test_seek_optimization_impl judy_hashmap)
 
+# Tests for io task orderer implementation with cppunit
+add_executable(test_io_task_orderer_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                                ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                                ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
+                                ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                                ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
+                                test_io_task_orderer_impl.cc)
+
+target_include_directories(test_io_task_orderer_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/io_task
+                                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
+                                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
+                                                    ${CMAKE_SOURCE_DIR}/include/apis)
+target_link_libraries(test_io_task_orderer_impl -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
+target_compile_options(test_io_task_orderer_impl PRIVATE -Wall -g -std=gnu++11)
+add_dependencies(test_io_task_orderer_impl judy_hashmap)
+
 # Tests for block allocator (block impresario) implementation with cunit
 add_executable(test_block_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+                                   ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                                   ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                                   ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
                                    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
+                                   ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
                                    test_block_allocator_ut.c)
 target_include_directories(test_block_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator
+                                                           ${CMAKE_SOURCE_DIR}/core/io_task
                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                                            ${CMAKE_SOURCE_DIR}/include/apis)
