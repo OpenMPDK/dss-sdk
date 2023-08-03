@@ -79,7 +79,8 @@ typedef enum dss_request_opc_e {
 	DSS_NVMF_KV_IO_OPC_DELETE,
 	DSS_NVMF_KV_IO_OPC_LIST,
 	DSS_NVMF_BLK_IO_OPC_READ,
-	DSS_NVMF_BLK_IO_OPC_WRITE
+	DSS_NVMF_BLK_IO_OPC_WRITE,
+    DSS_NVMF_IO_PT
 } dss_request_opc_t;
 
 typedef enum dss_request_rc_e {

@@ -174,6 +174,7 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(req->req_ssid);
 
 	req->req_value.value = nvmf_req->data;//Value
+	req->req_value.length = nvmf_req->length;
 
 	//TODO: Deprecate dfly_request io_device
 	if(ss->dss_kv_mode) {
@@ -461,4 +462,11 @@ dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req)
 	return (dss_subsystem_t *)dreq->req_dfly_ss;
 }
 
+dss_module_instance_t *dss_req_get_net_module_instance(dss_request_t *req)
+{
+	struct dfly_request *dreq = (struct dfly_request *) req;
+
+	DSS_ASSERT(dreq->dqpair->net_module_instance);
+	return dreq->dqpair->net_module_instance;
+}
 

@@ -63,6 +63,7 @@ extern "C" {
 
 #include "dss.h"
 #include "apis/dss_module_apis.h"
+#include "apis/dss_io_task_apis.h"
 
 #include "df_dev.h"
 #include "df_req.h"
@@ -194,6 +195,8 @@ struct dfly_subsystem {
 	/// @brief  true - kv mode; false - block mode
 	bool dss_kv_mode;
     bool dss_iops_perf_mode;
+	bool use_io_task;
+	dss_io_task_module_t *iotmod;
 	int num_kvt_threads;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
@@ -533,6 +536,10 @@ void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_
 
 bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
 
+bool dss_subsystem_use_io_task(dss_subsystem_t *ss);
+
+dss_io_task_module_t *dss_subsytem_get_iotm_ctx(dss_subsystem_t *ss);
+
 void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair);
 
 int dfly_spdk_conf_section_get_intval_default(struct spdk_conf_section *sp, const char *key, int default_val);
@@ -550,6 +557,8 @@ static inline bool dss_enable_net_module(struct dfly_subsystem *df_ss)
 
 dss_io_dev_status_t dss_subsystem_initialize_io_devices(dss_subsystem_t *ss);
 void dss_subsystem_deinit_io_devices(dss_subsystem_t *ss);
+
+uint64_t dss_subystem_get_max_inflight_requests(dss_subsystem_t *ss);
 
 #ifdef __cplusplus
 }

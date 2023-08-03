@@ -47,6 +47,7 @@ extern "C" {
 struct dss_io_task_module_s {
     dss_mallocator_ctx_t *io_task_allocator;
     dss_mallocator_ctx_t *ops_allocator;
+    dss_module_t *io_module;
 };
 
 // struct dss_iov_s {
@@ -85,11 +86,19 @@ typedef struct dss_io_op_s {
     dss_device_t *device;
     dss_io_task_t *parent;
     uint64_t op_id;
+    union {
+        struct {
+            uint32_t cdw0;
+            uint16_t sc;
+            uint16_t sct;
+        } nvme_rsp;
+    } status;
     TAILQ_ENTRY(dss_io_op_s) op_next;
 } dss_io_op_t;
 
 struct dss_io_task_s {
-    dss_io_task_module_t *io_module;
+    dss_io_task_module_t *io_task_module;
+    dss_request_t *dreq;
     dss_module_instance_t *cb_minst;
     void *cb_ctx;
     uint64_t num_total_ops;
@@ -99,6 +108,7 @@ struct dss_io_task_s {
     TAILQ_HEAD(, dss_io_op_s) ops_in_progress;
     TAILQ_HEAD(, dss_io_op_s) op_done;
     TAILQ_HEAD(, dss_io_op_s) failed_ops;
+    dss_io_task_status_t task_status;
     uint32_t tci;//Task cache index
 };
 

@@ -109,7 +109,13 @@ int dfly_io_req_process(void *ctx, struct dfly_request *req)
 	}
 
 	if (req->flags & DFLY_REQF_NVMF) {
-		status = dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, (struct spdk_nvmf_request *)req->req_ctx);
+		if(thrd_inst->module_ctx->dfly_subsys->use_io_task) {
+			DSS_ASSERT(req->common_req.io_task);
+			dss_io_task_submit_to_device(req->common_req.io_task);
+			status = SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+		} else {
+			status = dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, (struct spdk_nvmf_request *)req->req_ctx);
+		}
 	} else if (req->flags & DFLY_REQF_NVME) {
 		status = dfly_nvme_submit_io_cmd(thrd_inst, req);
 		DFLY_ASSERT(status == SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS);

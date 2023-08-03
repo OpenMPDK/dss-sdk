@@ -68,6 +68,7 @@ typedef enum dss_io_task_status_e {
 typedef struct dss_io_task_module_opts_s {
     uint32_t max_io_tasks;
     uint32_t max_io_ops;
+    dss_module_t *io_module;
 } dss_io_task_module_opts_t;
 
 typedef struct dss_device_s dss_device_t;
@@ -166,11 +167,12 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task);
  * @brief Setup IO task call back module instance context and callback context
  *
  * @param io_task IO task context pointer
+ * @param req DSS request that needs to be forwarded to IO Module
  * @param cb_minst Module instance context to invoke on completion
  * @param cb_ctx Context passed back on completion call
  * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
  */
-dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_module_instance_t *cb_minst, void *cb_ctx);
+dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx);
 
 /**
  * @brief Add a block readv operation to the IO task
@@ -239,11 +241,24 @@ dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task);
 /**
  * @brief Submit the dss request to underlying block device without io_module
  * 
+ * @param req DSS block request to be submitted
  */
 void dss_io_submit_direct(dss_request_t *req);
 
+/**
+ * @brief Return io channel for the dss device for current core
+ * 
+ * @param io_device DSS io device whose channel needs to be retrieved
+ * @return struct spdk_io_channel* device io channel for current core
+ */
 struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device);
 
+/**
+ * @brief Submit the dss io task to underlying block device without io_module
+ * 
+ * @param task io task to be submitted
+ */
+void dss_io_task_submit_to_device(dss_io_task_t *task);
 
 #ifdef __cplusplus
 }

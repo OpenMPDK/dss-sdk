@@ -34,6 +34,7 @@
 #include "dragonfly.h"
 
 #include "dss.h"
+#include "dss_spdk_wrapper.h"
 #include "apis/dss_module_apis.h"
 #include "apis/dss_net_module.h"
 
@@ -69,10 +70,55 @@ static inline void dss_net_request_complete(dss_subsystem_t *ss, dss_request_t *
     return;
 }
 
+void dss_net_request_setup_blk_io_task(dss_request_t *req)
+{
+    dss_io_task_status_t iot_rc;
+    dss_io_task_t *io_task = NULL;
+
+    uint64_t lba;
+    uint64_t nblocks;
+    uint64_t len;
+    uint64_t off = 0;
+    bool is_blocking = false;
+    void *d;
+
+    dss_module_instance_t *net_mi = dss_req_get_net_module_instance(req);
+
+    struct dfly_request *dreq = (struct dfly_request *)req;
+
+    if(!dss_subsystem_use_io_task(req->ss)) {
+        DSS_ASSERT(0);
+    }
+
+    if(req->opc == DSS_NVMF_IO_PT) {
+        //TODO: Pass through IO support
+        DSS_ASSERT(0);
+    }
+
+    iot_rc = dss_io_task_get_new(dss_subsytem_get_iotm_ctx(req->ss), &io_task);
+    if(iot_rc != DSS_IO_TASK_STATUS_SUCCESS) {
+        DSS_ASSERT(0);//Should always succed
+    }
+    DSS_ASSERT(io_task != NULL);
+
+    dss_io_task_setup(io_task, req, net_mi, req);
+
+    dss_nvmf_get_rw_params(req, &lba, &nblocks);
+    //TODO: Support IOV
+    d = dreq->req_value.value;
+    len = dreq->req_value.length;
+
+    if(req->opc == DSS_NVMF_BLK_IO_OPC_READ) {
+        dss_io_task_add_blk_read(req->io_task, req->io_device, lba, nblocks, d, len, off, is_blocking);
+    } else if(req->opc == DSS_NVMF_BLK_IO_OPC_WRITE) {
+        dss_io_task_add_blk_write(req->io_task, req->io_device, lba, nblocks, d, len, off, is_blocking);
+    }
+    return;
+}
+
 void dss_net_request_process(dss_request_t *req)
 {
     dss_net_request_state_t prev_state;
-
     do {
         prev_state = req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state;
         switch (req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state)
@@ -92,7 +138,8 @@ void dss_net_request_process(dss_request_t *req)
                     return;
                 }
             } else {
-                //TODO: Block mode
+                dss_net_request_setup_blk_io_task(req);
+                dss_io_task_submit(req->io_task);
                 req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
                 return;
             }

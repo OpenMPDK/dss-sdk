@@ -56,6 +56,8 @@ struct dss_device_s {
     dss_device_channel_t *ch_arr;//n_ch device channel
 };
 
+struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device);
+
 #ifdef __cplusplus
 }
 #endif

@@ -31,7 +31,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "dss_io_task.h"
 #include "dss_io_bdev.h"
+
+#include "apis/dss_module_apis.h"
 
 #include "spdk/likely.h"
 #include "spdk/bdev_module.h"
@@ -41,6 +44,8 @@
 static struct spdk_bdev_module dss_bdev_module = {
 	.name	= "DSS Target",
 };
+
+void dss_io_task_submit_to_device(dss_io_task_t *task);
 
 //static void
 //_dss_nvmf_ns_hot_remove(struct spdk_nvmf_subsystem *subsystem,
@@ -227,7 +232,110 @@ struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device)
     return ch;
 }
 
+
+
+
+void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *cb_arg)
+{
+    dss_io_op_t *op = (dss_io_op_t *)cb_arg;
+    dss_io_task_t *task = op->parent;
+    dss_io_op_t *next_op;
+
+    DSS_ASSERT(task->num_outstanding_ops >= 0);
+
+    task->num_ops_done++;
+    task->num_outstanding_ops--;
+
+    // TODO: Get nvme status
+    // spdk_bdev_io_get_nvme_status(bdev_io, &cdw0, &sct, &sc);
+    spdk_bdev_free_io(bdev_io);
+
+    TAILQ_REMOVE(&task->ops_in_progress, op, op_next);
+    if(success) {
+        TAILQ_INSERT_TAIL(&task->op_done, op, op_next);
+    } else {
+        TAILQ_INSERT_TAIL(&task->failed_ops, op, op_next);
+        //TODO: Update failure code to OP
+        task->task_status = DSS_IO_TASK_STATUS_ERROR;
+    }
+
+    if(task->num_outstanding_ops != 0) {
+        //Do nothing the last completing op will complete IO or trigger more
+        return;
+    }
+
+    next_op = TAILQ_FIRST(&task->op_todo_list);
+    if(next_op) {
+        dss_io_task_submit_to_device(task);
+    } else {//All operations completed
+        //Note: Assumption net module is always present
+        //TODO: If there are no module threads then this callback needs to happen and trigger 
+        //      further processing of the request
+        DSS_ASSERT(task->cb_minst);
+        DSS_ASSERT(task->cb_ctx);
+        dss_module_post_to_instance(DSS_MODULE_NET, task->cb_minst, task->cb_ctx);
+    }
+
+
+    return;
+}
+
+void dss_io_task_submit_to_device(dss_io_task_t *task)
+{
+    dss_io_op_t *curr_op, *tmp_op;
+    dss_device_t *io_device;
+
+    struct spdk_io_channel *ch;
+    int rc;
+
+    TAILQ_FOREACH_SAFE(curr_op, &task->op_todo_list, op_next, tmp_op) {
+        //TODO: io task management
+        io_device = curr_op->device;
+        ch = dss_io_dev_get_channel(io_device);
+        switch(curr_op->opc) {
+            case DSS_IO_BLK_READ:
+                rc = spdk_bdev_read_blocks(io_device->desc, ch, curr_op->rw.data, \
+                                                           curr_op->rw.lba, \
+                                                           curr_op->rw.nblocks,
+                                                           _dss_io_task_op_complete,
+                                                           curr_op);
+                break;
+            case DSS_IO_BLK_WRITE:
+                rc = spdk_bdev_write_blocks(io_device->desc, ch, curr_op->rw.data, \
+                                                            curr_op->rw.lba, \
+                                                            curr_op->rw.nblocks,
+                                                            _dss_io_task_op_complete,
+                                                            curr_op);
+                break;
+            default:
+                DSS_ASSERT(0);
+        }
+        DSS_ASSERT(rc == 0);
+        //TODO: Handle IO submission failure case
+
+        TAILQ_REMOVE(&task->op_todo_list, curr_op, op_next);
+        TAILQ_INSERT_TAIL(&task->ops_in_progress, curr_op, op_next);
+        task->num_outstanding_ops++;
+        if (curr_op->is_blocking) {
+            break;
+        }
+    }
+
+    //Must have atleast one operation
+    DSS_ASSERT(task->num_outstanding_ops != 0);
+
+    return;
+}
+
 dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)
 {
+    DSS_ASSERT(task->dreq);
+    if(task->io_task_module->io_module) {
+        //Send to io module
+        dfly_module_post_request(task->io_task_module->io_module, task->dreq);
+    } else {
+        //Send direct
+        dss_io_task_submit_to_device(task);
+    }
     return DSS_IO_TASK_STATUS_ERROR;
 }

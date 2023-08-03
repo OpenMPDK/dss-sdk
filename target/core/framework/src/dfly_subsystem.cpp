@@ -184,6 +184,7 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 	df_subsys->dss_enabled = spdk_conf_section_get_boolval(subsys_sp, "dss_enabled", true);
 	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
 	df_subsys->dss_iops_perf_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_iops_perf_mode", false);
+	df_subsys->use_io_task = true;//TODO: Decide if this needs to be configurable?
 	//TODO: One thread per drive as default?
 	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", 1);
 
@@ -330,6 +331,16 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 	if (mod_index == DSS_MODULE_END) {
 		if(ss_event->initialize) {
 			int i;
+			if(ss_event->subsys->use_io_task) {
+				dss_io_task_module_status_t task_mod_status;
+				dss_io_task_module_opts_t iotm_opts;
+				iotm_opts.io_module = dss_module_get_subsys_ctx(DSS_MODULE_IO, ss_event->subsys);
+				iotm_opts.max_io_tasks = dss_subystem_get_max_inflight_requests((dss_subsystem_t *)ss_event->subsys);
+				iotm_opts.max_io_ops = 5 * iotm_opts.max_io_tasks;//Default to 5x io tasks TODO: calculate this
+				task_mod_status = dss_io_task_module_init(iotm_opts, &ss_event->subsys->iotmod);
+				//TODO: Handle failure
+				DSS_ASSERT(task_mod_status == DSS_IO_TASK_MODULE_STATUS_SUCCESS);
+			}
 			for(i=DSS_MODULE_START_INIT; i < DSS_MODULE_END; i++) {
 				//Reset arg after subsystem init to prepare for next subsys
 				module_initializers[i].arg = NULL;
@@ -337,6 +348,9 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 			pthread_mutex_init(&ss_event->subsys->subsys_lock, NULL);
 			ss_event->subsys->initialized = true;
 		} else {
+			if(ss_event->subsys->iotmod) {
+				dss_io_task_module_end(ss_event->subsys->iotmod);
+			}
 			ss_event->subsys->initialized = false;
 		}
 		ss_event->cb((struct spdk_nvmf_subsystem *)ss_event->subsys->parent_ctx,
@@ -353,6 +367,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 
 	struct spdk_nvmf_subsystem *spdk_nvmf_ss = (struct spdk_nvmf_subsystem *)vctx;
 	struct dfly_subsystem *dfly_subsystem = NULL;
+
 	int rc = 0;
 
 	struct spdk_nvmf_subsystem_listener *listener = TAILQ_FIRST(&spdk_nvmf_ss->listeners);
@@ -529,6 +544,20 @@ bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss)
 
 }
 
+bool dss_subsystem_use_io_task(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	return df_ss->use_io_task;
+
+}
+
+dss_io_task_module_t *dss_subsytem_get_iotm_ctx(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	return df_ss->iotmod;
+
+}
+
 dss_io_dev_status_t dss_subsystem_initialize_io_devices(dss_subsystem_t *ss)
 {
 	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
@@ -569,4 +598,41 @@ void dss_subsystem_deinit_io_devices(dss_subsystem_t *ss)
 	df_ss->num_io_devices = 0;
 
 	return;
+}
+
+#define DSS_SUBSYS_DEFAULT_MAX_REQS (8192)
+
+//TODO: This can changes if transports can be added dynamically to subsystem. Handle
+uint64_t dss_subystem_get_max_inflight_requests(dss_subsystem_t *ss)
+{
+	uint64_t max_requests = DSS_SUBSYS_DEFAULT_MAX_REQS;
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	struct spdk_nvmf_subsystem *nvmf_subsys = (struct spdk_nvmf_subsystem *)df_ss->parent_ctx;
+
+	struct spdk_nvmf_transport *tgt_transport;
+	struct spdk_nvmf_subsystem_listener *ss_listener;
+
+	tgt_transport = spdk_nvmf_transport_get_first(nvmf_subsys->tgt);
+	if(!tgt_transport) {
+		DSS_NOTICELOG("No transport found for subsystem id:[%d] nqn:[%s]\n", nvmf_subsys->id, nvmf_subsys->subnqn);
+		return max_requests;
+	}
+
+	//Reset max requests
+	max_requests = 0;
+
+	do {
+		TAILQ_FOREACH(ss_listener, &nvmf_subsys->listeners, link) {
+			if(ss_listener->transport == tgt_transport) {//TODO: Check assumption that Pointer should be same?
+				DSS_NOTICELOG("Accounting %s transport for %s nqn max_requests\n", tgt_transport->ops->name, nvmf_subsys->subnqn);
+				max_requests += tgt_transport->opts.num_shared_buffers;
+				break;
+			}
+		}
+	} while((tgt_transport = spdk_nvmf_transport_get_next(tgt_transport)) != NULL);
+
+	//Note: It is possible for max_requests value to be higher that the required requets.
+	//		it is okay since we dont want to run out of resources during IO path
+	//		This will avoid need to queue requests inside DSS and handle at nvmf_tgt layer
+	return max_requests;
 }

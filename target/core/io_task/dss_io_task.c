@@ -33,6 +33,8 @@
 #include "dss.h"
 #include "dss_io_task.h"
 
+#include "dragonfly.h"
+
 #ifndef DSS_BUILD_CUNIT_TEST
 #include "spdk/env.h"
 
@@ -67,6 +69,8 @@ dss_io_task_module_status_t dss_io_task_module_init(dss_io_task_module_opts_t io
     if(!m) {
         goto err_out;
     }
+
+    m->io_module = io_task_opts.io_module;
 
     malloc_opts.item_sz = sizeof(dss_io_task_t);
     malloc_opts.max_per_cache_items = io_task_opts.max_io_tasks;
@@ -135,13 +139,13 @@ dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t 
         TAILQ_INIT(&t->ops_in_progress);
         TAILQ_INIT(&t->failed_ops);
 
-        t->io_module = m;
+        t->io_task_module = m;
         t->tci = tci;
     } else {
         DSS_ASSERT(status == DSS_MALLOC_SUCCESS);
     }
 
-    DSS_ASSERT(t->io_module == m);
+    DSS_ASSERT(t->io_task_module == m);
     DSS_ASSERT(t->tci == tci);
 
     *task = t;
@@ -171,7 +175,7 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
     while(io_op) {
         TAILQ_REMOVE(&io_task->op_done, io_op, op_next);
         memset(io_op, 0, sizeof(dss_io_op_t));
-        status = dss_mallocator_put(io_task->io_module->ops_allocator, io_task->tci, io_op);
+        status = dss_mallocator_put(io_task->io_task_module->ops_allocator, io_task->tci, io_op);
         if(status != DSS_MALLOC_SUCCESS) {
             rc = DSS_IO_TASK_STATUS_ERROR;
         }
@@ -184,7 +188,7 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
     io_task->num_ops_done = 0;
     io_task->num_total_ops = 0;
 
-    status = dss_mallocator_put(io_task->io_module->io_task_allocator, io_task->tci, io_task);
+    status = dss_mallocator_put(io_task->io_task_module->io_task_allocator, io_task->tci, io_task);
     if(status != DSS_MALLOC_SUCCESS) {
         rc = DSS_IO_TASK_STATUS_ERROR;
     }
@@ -192,10 +196,17 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
     return rc;
 }
 
-dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_module_instance_t *cb_minst, void *cb_ctx)
+dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx)
 {
+    DSS_ASSERT(io_task);
     DSS_ASSERT(cb_minst);
     DSS_ASSERT(cb_ctx);
+
+    if(req) {
+        io_task->dreq = req;
+        DSS_ASSERT(req->io_task == NULL);
+        req->io_task = io_task;
+    }
 
     io_task->cb_minst = cb_minst;
     io_task->cb_ctx = cb_ctx;
@@ -211,7 +222,7 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
 
     DSS_ASSERT(__dss_env_get_curr_core() == task->tci);
 
-    status = dss_mallocator_get(task->io_module->ops_allocator, task->tci, (dss_mallocator_item_t **)&io_op);
+    status = dss_mallocator_get(task->io_task_module->ops_allocator, task->tci, (dss_mallocator_item_t **)&io_op);
     if(status == DSS_MALLOC_ERROR) {
         return DSS_IO_TASK_STATUS_ERROR;
     }

@@ -166,6 +166,7 @@ struct dss_request_s {
 	dss_subsystem_t *ss;
 	dss_device_t *io_device;
 	uint32_t io_device_index;
+	dss_io_task_t *io_task;
 	//Common request context struct for all modules
 	dss_module_req_ctx_t module_ctx[DSS_MODULE_END];
 };
@@ -343,6 +344,8 @@ dss_key_t *dss_req_get_key(dss_request_t *req);
 dss_value_t *dss_req_get_value(dss_request_t *req);
 
 dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req);
+
+dss_module_instance_t *dss_req_get_net_module_instance(dss_request_t *req);
 
 #ifdef __cplusplus
 }

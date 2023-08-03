@@ -68,6 +68,8 @@ void dss_nvmf_process_as_no_op(dss_request_t *req);
 
 dss_request_opc_t dss_nvmf_get_dss_opc(void *req);
 
+void dss_nvmf_get_rw_params(dss_request_t *req, uint64_t *start_lba, uint64_t *num_blocks);
+
 #ifdef __cplusplus
 }
 #endif

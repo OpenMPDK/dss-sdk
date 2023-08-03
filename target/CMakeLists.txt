@@ -35,6 +35,9 @@ project(nkv-target)
 enable_language(C)
 enable_language(CXX)
 
+#This option is to support sonarlint integration with vscode
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
