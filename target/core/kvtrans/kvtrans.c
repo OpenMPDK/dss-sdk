@@ -35,6 +35,7 @@
 #include "kvtrans_hash.h"
 #ifdef MEM_BACKEND
 #include "kvtrans_mem_backend.h"
+bool g_disk_as_data_store = true;
 #endif
 
 // util functions to get time ticks.
@@ -180,7 +181,7 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req
     }
 #else
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
-    if(dss_io_task_add_blk_read(*kreq->io_tasks, kvtrans_ctx->target_dev, 
+    if(dss_io_task_add_blk_read(kreq->io_tasks, kvtrans_ctx->target_dev,
             blk_idx, 1, (void *) blk_ctx->blk, BLOCK_SIZE, 0, true) == DSS_IO_TASK_STATUS_SUCCESS) {
         memcpy(kreq ->cb_ctx, blk_ctx, sizeof(blk_ctx_t));
         return KVTRANS_STATUS_SUCCESS;
@@ -191,25 +192,48 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req
 
 dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
+    dss_io_task_status_t iot_rc;
     ondisk_meta_t *blk = blk_ctx->blk;
     req_t *req = &kreq->req;
     int i;
     uint64_t offset = 0;
+    kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
 
 #ifdef MEM_BACKEND
-    if (blk->value_location!=INLINE) {
-        for (i=0; i<blk->num_valid_place_value_entry; i++) {
+    bool queue_for_disk_io = false;
+    DSS_RELEASE_ASSERT(blk->value_location != INLINE);
+    for (i=0; i<blk->num_valid_place_value_entry; i++) {
+#ifndef DSS_BUILD_CUNIT_TEST
+        if (g_disk_as_data_store == true) {
+            iot_rc = dss_io_task_add_blk_read(kreq->io_tasks, \
+                                        kvtrans_ctx->target_dev, \
+                                        blk->place_value[i].value_index, \
+                                        blk->place_value[i].num_chunks, \
+                                        (void *)((uint64_t )kreq->req.req_value.value + offset), \
+                                        blk->place_value[i].num_chunks * BLOCK_SIZE, \
+                                        0, false);
+            DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+            queue_for_disk_io = true;
+         } else
+#endif
             if (!retrieve_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks, req->req_value.value+offset)) {
                     rc = KVTRANS_STATUS_IO_ERROR;
+                    break;
             }
-            offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
-        }
+        offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
     }
+#ifndef DSS_BUILD_CUNIT_TEST
+    if(queue_for_disk_io == true) {
+        kreq->state = QUEUED_FOR_DATA_IO;
+        iot_rc = dss_io_task_submit(kreq->io_tasks);
+        DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+    } else
+#endif
+        kreq->state = REQ_CMPL;
     return rc;
 #else
     uint64_t blk_num;
     uint64_t index;
-    kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
 
     // TODO: integrate io_task
     DSS_ASSERT(blk->num_valid_place_value_entry>0);
@@ -217,7 +241,7 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
     for (int i=0; i<blk->num_valid_place_value_entry; i++) {
         index = blk->place_value[i].value_index;
         blk_num = blk->place_value[i].num_chunks;
-        if(dss_io_task_add_blk_read(*kreq->io_tasks, kvtrans_ctx->target_dev, 
+        if(dss_io_task_add_blk_read(kreq->io_tasks, kvtrans_ctx->target_dev,
             index, blk_num, kreq->req->req_value.value, blk_num*BLOCK_SIZE, offset, false)) {
                 return KVTRANS_STATUS_ERROR;
             }
@@ -225,6 +249,10 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
     }
     kreq->req->req_value.length = offset;
     kreq->req->req_value.offset = 0;
+
+    kreq->state = QUEUED_FOR_DATA_IO;
+    iot_rc = dss_io_task_submit(kreq->io_tasks);
+    DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
     return KVTRANS_STATUS_SUCCESS;
 #endif
 }
@@ -236,7 +264,7 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_re
 #else
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
 
-    if(dss_io_task_add_blk_write(*kreq->io_tasks, kvtrans_ctx->target_dev, 
+    if(dss_io_task_add_blk_write(kreq->io_tasks, kvtrans_ctx->target_dev,
             blk_ctx->index, 1, blk_ctx->blk, BLOCK_SIZE, 0, true) == DSS_IO_TASK_STATUS_SUCCESS) {
         return KVTRANS_STATUS_SUCCESS;
     }
@@ -267,21 +295,45 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_r
     dss_kvtrans_status_t rc;
     ondisk_meta_t *blk = blk_ctx->blk;
     req_t *req = &kreq->req;
+    dss_io_task_status_t iot_rc;
+    kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
 
     int i;
     int offset = 0;
 
 #ifdef MEM_BACKEND
+    bool queue_for_disk_io = false;
+
     rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
     if (blk->value_location!=INLINE) {
         for (i=0; i<blk->num_valid_place_value_entry; i++) {
-            if (!insert_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks, 
+#ifndef DSS_BUILD_CUNIT_TEST
+            if (g_disk_as_data_store == true) {
+                iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, \
+                                        kvtrans_ctx->target_dev, \
+                                        blk->place_value[i].value_index, \
+                                        blk->place_value[i].num_chunks, \
+                                        (void *)((uint64_t )kreq->req.req_value.value + offset), \
+                                        blk->place_value[i].num_chunks * BLOCK_SIZE, \
+                                        0, false);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                queue_for_disk_io = true;
+            } else
+#endif
+                if (!insert_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks,
                                             (void *)((char *)req->req_value.value+offset))) {
-                    rc = KVTRANS_STATUS_IO_ERROR;
-            }
+                       rc = KVTRANS_STATUS_IO_ERROR;
+                }
             offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
         }
     }
+#ifndef DSS_BUILD_CUNIT_TEST
+    if(queue_for_disk_io == true) {
+        kreq->state = QUEUED_FOR_DATA_IO;
+        iot_rc = dss_io_task_submit(kreq->io_tasks);
+        DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+    }
+#endif
     return rc;
 #else
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
@@ -298,20 +350,20 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_r
         break;
     case CONTIG:
         buff = _serialize_data((void *)blk_ctx->blk, BLOCK_SIZE, req->req_value.value, (int)req->req_value.length);
-        dss_io_task_add_blk_write(*kreq->io_tasks, target_dev, blk_ctx->index, 
+        dss_io_task_add_blk_write(kreq->io_tasks, target_dev, blk_ctx->index,
             1+blk_ctx->vctx.value_blocks, buff, BLOCK_SIZE+kreq->req->req_value.length, 0, false);
         break;
     case REMOTE:
-        dss_io_task_add_blk_write(*kreq->io_tasks, target_dev, blk_ctx->index, 1, (void *)blk, BLOCK_SIZE, 0, false);
-        dss_io_task_add_blk_write(*kreq->io_tasks, target_dev, blk_ctx->index, 
+        dss_io_task_add_blk_write(kreq->io_tasks, target_dev, blk_ctx->index, 1, (void *)blk, BLOCK_SIZE, 0, false);
+        dss_io_task_add_blk_write(kreq->io_tasks, target_dev, blk_ctx->index,
             blk_ctx->vctx.value_blocks, req->req_value.value, kreq->req->req_value.length, 0, false);
         break;
     case HYBIRD:
         buff = _serialize_data((void *)blk_ctx->blk, BLOCK_SIZE, req->req_value.value, blk_ctx->blk->place_value[0].num_chunks * BLOCK_SIZE);
-        dss_io_task_add_blk_write(*kreq->io_tasks, target_dev, blk_ctx->index, 1+blk_ctx->blk->place_value[0].num_chunks, buff, (blk_ctx->blk->place_value[0].num_chunks+1)*BLOCK_SIZE, 0, false);
+        dss_io_task_add_blk_write(kreq->io_tasks, target_dev, blk_ctx->index, 1+blk_ctx->blk->place_value[0].num_chunks, buff, (blk_ctx->blk->place_value[0].num_chunks+1)*BLOCK_SIZE, 0, false);
         offset = blk_ctx->blk->place_value[0].num_chunks * BLOCK_SIZE;
         for (int i=1; i<blk->num_valid_place_value_entry; i++) {
-            dss_io_task_add_blk_write(*kreq->io_tasks, target_dev, blk_ctx->blk->place_value[i].value_index, blk_ctx->blk->place_value[i].num_chunks, req->req_value.value, (blk_ctx->blk->place_value[i].num_chunks)*BLOCK_SIZE, offset, false);
+            dss_io_task_add_blk_write(kreq->io_tasks, target_dev, blk_ctx->blk->place_value[i].value_index, blk_ctx->blk->place_value[i].num_chunks, req->req_value.value, (blk_ctx->blk->place_value[i].num_chunks)*BLOCK_SIZE, offset, false);
             offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
         }
         break;
@@ -470,7 +522,7 @@ void free_dc_table(kvtrans_ctx_t  *ctx) {
 }
 
 kvtrans_params_t set_default_params() {
-    kvtrans_params_t params;
+    kvtrans_params_t params = {};
     params.hash_size = 32;
     params.hash_type = spooky;
     params.id = 0;
@@ -487,19 +539,23 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     kvtrans_ctx_t *ctx;
     dss_blk_allocator_opts_t config;
     
-    ctx = (kvtrans_ctx_t *) malloc(sizeof(kvtrans_ctx_t));
+    ctx = (kvtrans_ctx_t *) calloc(1, sizeof(kvtrans_ctx_t));
     if (!ctx) {
-        printf("ERROR: Malloc for kvtrans_ctx failed\n");
+        DSS_ERRLOG("calloc for kvtrans_ctx failed\n");
        goto failure_handle;
     }
 
     if (params!=NULL) {
+        DSS_ASSERT(params->dev);
+        DSS_ASSERT(params->iotm);
         ctx->kvtrans_params = *params;
+        ctx->target_dev = params->dev;
+        ctx->kvt_iotm = params->iotm;
     } else {
         ctx->kvtrans_params = set_default_params();
     }
 
-    dss_blk_allocator_set_default_config(NULL, &config);
+    dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
 
     if (*ctx->kvtrans_params.blk_alloc_name=='\0') {
         ctx->kvtrans_params.blk_alloc_name = DEFAULT_BLK_ALLOC_NAME;
@@ -510,7 +566,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     // exclude empty state
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
 
-    ctx->blk_alloc_ctx = dss_blk_allocator_init(NULL, &config);
+    ctx->blk_alloc_ctx = dss_blk_allocator_init(ctx->kvtrans_params.dev, &config);
     if (!ctx->blk_alloc_ctx) {
         printf("ERROR: blk_allocator init failed\n");
          goto failure_handle;
@@ -602,6 +658,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
         printf("ERROR: req is null.\n");
         goto failure_handle;
     }
+
     kreq->req.req_key = req->req_key;
     kreq->req.req_value = req->req_value;
     kreq->req.opc = req->opc;
@@ -610,6 +667,8 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     kreq->kvtrans_ctx = kvtrans_ctx;
     STAILQ_INSERT_TAIL(&kvtrans_ctx->req_head, kreq, req_link);
     kreq->state = REQ_INITIALIZED;
+    kreq->initialized = true;
+
     return kreq;
 
 failure_handle:
@@ -617,9 +676,17 @@ failure_handle:
     return NULL;
 }
 
-void free_kvtrans_req(kvtrans_req_t *kreq) {
+void free_kvtrans_req(kvtrans_req_t *kreq)
+{
+    dss_io_task_status_t iot_rc;
     if (!kreq) {
         return;
+    }
+
+    if(kreq->io_tasks) {
+        iot_rc = dss_io_task_put(kreq->io_tasks);
+        DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+        //TODO: Error handling
     }
     if (kreq->cb_ctx)
         free(kreq->cb_ctx);
@@ -842,7 +909,7 @@ dss_kvtrans_status_t _blk_load_value(void *ctx) {
         rc = KVTRANS_STATUS_SUCCESS;
     } else {
         rc = dss_kvtrans_load_ondisk_data(blk_ctx, kreq);
-        kreq->state = QUEUE_TO_START_IO;
+        DSS_RELEASE_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
     }
     req->req_value.length = blk->value_size; 
 
@@ -927,7 +994,8 @@ dss_kvtrans_status_t _blk_update_value(void *ctx) {
 }
 
 // initialize a meta or meta_data_collision from an empty block
-static dss_kvtrans_status_t init_meta_blk(void *ctx) {
+static dss_kvtrans_status_t init_meta_blk(void *ctx)
+{
     dss_kvtrans_status_t rc;
     blk_state_t state;
     int i;
@@ -1355,160 +1423,168 @@ static blk_key_ops_t g_blk_register[DEFAULT_BLOCK_STATE_NUM] = {
     { &init_meta_data_collision_blk, NULL, NULL},
 };
 
-dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
+dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
+{
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
 
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     blk_ctx_t *meta_blk = blk_ctx->next;
     req_t *req = &kreq->req;
 
-next_op:
-    switch (kreq->state) {
-    case REQ_INITIALIZED:
-        blk_ctx->kctx.dc_index = 0;
-        memset(&blk_ctx->vctx, 0, sizeof(blk_val_ctx_t));
-        memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
-        rc = _alloc_entry_block(ctx, kreq);
-        if (rc) return rc;
-        goto next_op;
-    case QUEUE_TO_LOAD_ENTRY:
-        if (iscb_valid(kreq)) {
+    enum kvtrans_req_e prev_state;
+
+    do {
+        prev_state = kreq->state;
+        switch (kreq->state) {
+        case REQ_INITIALIZED:
+            blk_ctx->kctx.dc_index = 0;
+            memset(&blk_ctx->vctx, 0, sizeof(blk_val_ctx_t));
+            memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
+            rc = _alloc_entry_block(ctx, kreq);
+            if (rc) return rc;
             break;
-        } 
-        memcpy(blk_ctx, kreq->cb_ctx, sizeof(blk_ctx_t));
-        memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
-        kreq->state = ENTRY_LOADING_DONE;
-        rc = KVTRANS_STATUS_SUCCESS;
-        goto next_op;
-    case ENTRY_LOADING_DONE:
-        blk_ctx->kctx.ops = g_blk_register[blk_ctx->state];
-        if (blk_ctx->state==EMPTY || blk_ctx->state==DATA) {
-            if (blk_ctx->kctx.flag==to_delete) {
-                rc = KVTRANS_STATUS_NOT_FOUND;
-                goto req_terminate;
+        case QUEUE_TO_LOAD_ENTRY:
+            if (iscb_valid(kreq)) {
+                break;
             }
-            rc = blk_ctx->kctx.ops.init_blk((void *)blk_ctx);
-        } else {
-            rc = blk_ctx->kctx.ops.update_blk((void *)blk_ctx);
-        }
-        if (rc) goto req_terminate;
-
-        if (kreq->state==ENTRY_LOADING_DONE) {
-            // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
-            // dss_io_task_submit(*kreq->io_tasks);
-            kreq->state = QUEUE_TO_START_IO;
-        }
-        goto next_op;
-    
-    case QUEUE_TO_LOAD_COL_EXT:
-    case QUEUE_TO_LOAD_COL:
-        if (iscb_valid(kreq)) {
+            memcpy(blk_ctx, kreq->cb_ctx, sizeof(blk_ctx_t));
+            memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
+            kreq->state = ENTRY_LOADING_DONE;
+            rc = KVTRANS_STATUS_SUCCESS;
             break;
-        } 
-        memcpy(meta_blk, kreq->cb_ctx, sizeof(blk_ctx_t));
-        blk_ctx = meta_blk->pre;
-        blk_ctx->next = meta_blk;
-
-        DSS_ASSERT(blk_ctx->next->pre == blk_ctx);
-        memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
-        kreq->state = (kreq->state==QUEUE_TO_LOAD_COL) ? COL_LOADING_DONE : COL_EXT_LOADING_DONE;
-        rc = KVTRANS_STATUS_SUCCESS;
-        goto next_op;
-    case COL_LOADING_DONE:
-        // col is saved in blk_ctx->next;
-        DSS_ASSERT(iskeysame(blk_ctx->next->blk->key, blk_ctx->next->blk->key_len, req->req_key.key, req->req_key.length));
-        blk_ctx->next->kreq = kreq;
-        blk_ctx->next->kctx.pindex = blk_ctx->index;
-        blk_ctx->next->kctx.flag = blk_ctx->kctx.flag;
-        blk_ctx->next->vctx.iscontig = false;
-        blk_ctx->next->vctx.value_blocks = 0;
-        blk_ctx->next->vctx.remote_val_blocks = 0;
-        blk_ctx->next->kctx.dc_index = blk_ctx->kctx.dc_index;
-
-        if (blk_ctx->next->blk->data_collision_index>0) {
-            blk_ctx->next->kctx.dc_index = blk_ctx->next->blk->data_collision_index;
-            blk_ctx->next->state = META_DATA_COLLISION;
-        } else if (blk_ctx->next->blk->num_valid_col_entry==0) {
-            blk_ctx->next->state = META;
-        } else {
-            blk_ctx->next->state = COLLISION;
-        }
-
-        blk_ctx->next->kctx.ops = g_blk_register[blk_ctx->next->state];
-
-        rc = blk_ctx->next->kctx.ops.update_blk((void *)blk_ctx->next);
-        if (rc) goto req_terminate;
-
-        if (blk_ctx->next->state==META_DATA_COLLISION && blk_ctx->blk->num_valid_col_entry>1
-            && blk_ctx->next->kctx.flag==to_delete) {
-            blk_ctx->blk->num_valid_dc_col_entry--;
-            if (blk_ctx->blk->num_valid_dc_col_entry==0) {
-                rc = dss_kvtrans_dc_table_delete(ctx, blk_ctx->next->blk->data_collision_index, blk_ctx->next->index);
-                if (rc==KVTRANS_STATUS_NOT_FOUND) {
-                // The dc_tbl entry has been deleted while deleting the parent blk.
-                    DSS_ASSERT(blk_ctx->next->kctx.pindex>0);
-                } else if (rc) {
-                    return rc;
+        case ENTRY_LOADING_DONE:
+            blk_ctx->kctx.ops = g_blk_register[blk_ctx->state];
+            if (blk_ctx->state==EMPTY || blk_ctx->state==DATA) {
+                if (blk_ctx->kctx.flag==to_delete) {
+                    rc = KVTRANS_STATUS_NOT_FOUND;
+                    goto req_terminate;
                 }
-                ctx->stat.mdc--;
-                rc = dss_kvtrans_set_blk_state(ctx, blk_ctx->index, 1, COLLISION);
-                if (rc) return rc;
-                ctx->stat.mc++;
+                rc = blk_ctx->kctx.ops.init_blk((void *)blk_ctx);
+            } else {
+                rc = blk_ctx->kctx.ops.update_blk((void *)blk_ctx);
             }
-        }
+            if (rc) goto req_terminate;
 
-        if (blk_ctx->state!=EMPTY) {
-            rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
-            if (rc) return rc;
-        }
-        
-        if (kreq->state==COL_LOADING_DONE) {
-            // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
-            // dss_io_task_submit(*kreq->io_tasks);
-            kreq->state = QUEUE_TO_START_IO;
-        }
-        goto next_op;
-    case COL_EXT_LOADING_DONE:
-        // col_ext is saved in blk_ctx->next;
-        DSS_ASSERT(blk_ctx->blk->num_valid_col_entry==MAX_COL_TBL_SIZE);
-        if (blk_ctx->next->blk->num_valid_col_entry==0) {
-            rc = _remove_entry_in_col_tbl(blk_ctx, blk_ctx->blk->num_valid_col_entry-1);
-            if (rc) return rc;
-            blk_ctx->next->kctx.ops = g_blk_register[META];
-            rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
-            if (rc) return rc;
-        } else {
-            blk_ctx->next->next = init_blk_ctx();
-            blk_ctx->next->kctx.ops = g_blk_register[COLLISION];
-        }
-        if (blk_ctx->next->blk->data_collision_index>0) {
-            blk_ctx->next->kctx.dc_index = blk_ctx->next->blk->data_collision_index;
-        }
+            if (kreq->state==ENTRY_LOADING_DONE) {
+                // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
+                // dss_io_task_submit(*kreq->io_tasks);
+                kreq->state = QUEUE_TO_START_IO;
+            }
+            break;
 
-        rc = blk_ctx->next->kctx.ops.update_blk((void *)blk_ctx->next);
-        if (rc) return rc;
+        case QUEUE_TO_LOAD_COL_EXT:
+        case QUEUE_TO_LOAD_COL:
+            if (iscb_valid(kreq)) {
+                break;
+            }
+            memcpy(meta_blk, kreq->cb_ctx, sizeof(blk_ctx_t));
+            blk_ctx = meta_blk->pre;
+            blk_ctx->next = meta_blk;
 
-        if (kreq->state==COL_LOADING_DONE) {
-            // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
-            // dss_io_task_submit(*kreq->io_tasks);
-            kreq->state = QUEUE_TO_START_IO;
+            DSS_ASSERT(blk_ctx->next->pre == blk_ctx);
+            memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
+            kreq->state = (kreq->state==QUEUE_TO_LOAD_COL) ? COL_LOADING_DONE : COL_EXT_LOADING_DONE;
+            rc = KVTRANS_STATUS_SUCCESS;
+            break;
+        case COL_LOADING_DONE:
+            // col is saved in blk_ctx->next;
+            DSS_ASSERT(iskeysame(blk_ctx->next->blk->key, blk_ctx->next->blk->key_len, req->req_key.key, req->req_key.length));
+            blk_ctx->next->kreq = kreq;
+            blk_ctx->next->kctx.pindex = blk_ctx->index;
+            blk_ctx->next->kctx.flag = blk_ctx->kctx.flag;
+            blk_ctx->next->vctx.iscontig = false;
+            blk_ctx->next->vctx.value_blocks = 0;
+            blk_ctx->next->vctx.remote_val_blocks = 0;
+            blk_ctx->next->kctx.dc_index = blk_ctx->kctx.dc_index;
+
+            if (blk_ctx->next->blk->data_collision_index>0) {
+                blk_ctx->next->kctx.dc_index = blk_ctx->next->blk->data_collision_index;
+                blk_ctx->next->state = META_DATA_COLLISION;
+            } else if (blk_ctx->next->blk->num_valid_col_entry==0) {
+                blk_ctx->next->state = META;
+            } else {
+                blk_ctx->next->state = COLLISION;
+            }
+
+            blk_ctx->next->kctx.ops = g_blk_register[blk_ctx->next->state];
+
+            rc = blk_ctx->next->kctx.ops.update_blk((void *)blk_ctx->next);
+            if (rc) goto req_terminate;
+
+            if (blk_ctx->next->state==META_DATA_COLLISION && blk_ctx->blk->num_valid_col_entry>1
+                && blk_ctx->next->kctx.flag==to_delete) {
+                blk_ctx->blk->num_valid_dc_col_entry--;
+                if (blk_ctx->blk->num_valid_dc_col_entry==0) {
+                    rc = dss_kvtrans_dc_table_delete(ctx, blk_ctx->next->blk->data_collision_index, blk_ctx->next->index);
+                    if (rc==KVTRANS_STATUS_NOT_FOUND) {
+                    // The dc_tbl entry has been deleted while deleting the parent blk.
+                        DSS_ASSERT(blk_ctx->next->kctx.pindex>0);
+                    } else if (rc) {
+                        return rc;
+                    }
+                    ctx->stat.mdc--;
+                    rc = dss_kvtrans_set_blk_state(ctx, blk_ctx->index, 1, COLLISION);
+                    if (rc) return rc;
+                    ctx->stat.mc++;
+                }
+            }
+
+            if (blk_ctx->state!=EMPTY) {
+                rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
+                if (rc) return rc;
+            }
+
+            if (kreq->state==COL_LOADING_DONE) {
+                // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
+                // dss_io_task_submit(*kreq->io_tasks);
+                kreq->state = QUEUE_TO_START_IO;
+            }
+            break;
+        case COL_EXT_LOADING_DONE:
+            // col_ext is saved in blk_ctx->next;
+            DSS_ASSERT(blk_ctx->blk->num_valid_col_entry==MAX_COL_TBL_SIZE);
+            if (blk_ctx->next->blk->num_valid_col_entry==0) {
+                rc = _remove_entry_in_col_tbl(blk_ctx, blk_ctx->blk->num_valid_col_entry-1);
+                if (rc) return rc;
+                blk_ctx->next->kctx.ops = g_blk_register[META];
+                rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq);
+                if (rc) return rc;
+            } else {
+                blk_ctx->next->next = init_blk_ctx();
+                blk_ctx->next->kctx.ops = g_blk_register[COLLISION];
+            }
+            if (blk_ctx->next->blk->data_collision_index>0) {
+                blk_ctx->next->kctx.dc_index = blk_ctx->next->blk->data_collision_index;
+            }
+
+            rc = blk_ctx->next->kctx.ops.update_blk((void *)blk_ctx->next);
+            if (rc) return rc;
+
+            if (kreq->state==COL_LOADING_DONE) {
+                // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
+                // dss_io_task_submit(*kreq->io_tasks);
+                kreq->state = QUEUE_TO_START_IO;
+            }
+            break;
+        case QUEUE_TO_START_IO:
+            // assume io is completed immediately
+            kreq->state = IO_CMPL;
+            break;
+        case QUEUED_FOR_DATA_IO:
+            //External code should continue progres
+            break;
+        case IO_CMPL:
+            kreq->state = REQ_CMPL;
+            // dss_blk_allocator_complete_meta_sync(ctx->blk_alloc_ctx, *kreq->io_tasks);
+            break;
+        case REQ_CMPL:
+            free_kvtrans_req(kreq);
+            ctx->task_done++;
+            return rc;
+        default:
+            break;
         }
-        goto next_op;
-    case QUEUE_TO_START_IO:
-        // assume io is completed immediately
-        kreq->state = IO_CMPL;
-        goto next_op;
-    case IO_CMPL:
-        kreq->state = REQ_CMPL;
-        // dss_blk_allocator_complete_meta_sync(ctx->blk_alloc_ctx, *kreq->io_tasks);
-        goto next_op;
-    case REQ_CMPL:
-        free_kvtrans_req(kreq);
-        ctx->task_done++;
-        return rc;
-    default:
-        break;
-    }
+    } while( kreq->state != prev_state);
     STAILQ_INSERT_TAIL(&kreq->kvtrans_ctx->req_head, kreq, req_link);
 
     return rc;
@@ -1523,6 +1599,12 @@ req_terminate:
 dss_kvtrans_status_t kvtrans_store(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
     dss_kvtrans_status_t rc;
     ctx->entry_blk->kctx.flag = new_write;
+
+    if(kreq->state == QUEUED_FOR_DATA_IO) {
+        //Assume second call is after IO completion
+        kreq->state = IO_CMPL;
+    };
+
     rc = _kvtrans_key_ops(ctx, kreq);
     return rc;
 }
@@ -1530,111 +1612,130 @@ dss_kvtrans_status_t kvtrans_store(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
 dss_kvtrans_status_t  kvtrans_delete(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
     dss_kvtrans_status_t rc;
     ctx->entry_blk->kctx.flag = to_delete;
+
+    DSS_RELEASE_ASSERT(kreq->state != QUEUED_FOR_DATA_IO);
+
     rc = _kvtrans_key_ops(ctx, kreq);
     return rc;
 }
 
-dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, blk_cb_t cb) {
+dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, blk_cb_t cb)
+{
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     req_t *req = &kreq->req;
 
-next_op:
-    switch (kreq->state) {
-    case REQ_INITIALIZED:
-        rc = _alloc_entry_block(ctx, kreq);
-        goto next_op;
-    case QUEUE_TO_LOAD_ENTRY:
-        if (iscb_valid(kreq)) {
+    enum kvtrans_req_e prev_state;
+
+    do {
+        prev_state = kreq->state;
+        switch (kreq->state) {
+        case REQ_INITIALIZED:
+            rc = _alloc_entry_block(ctx, kreq);
             break;
-        } 
-        memcpy(blk_ctx, kreq->cb_ctx, sizeof(blk_ctx_t));
-        memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
-        kreq->state = ENTRY_LOADING_DONE;
-        rc = KVTRANS_STATUS_SUCCESS;
-        goto next_op;
-    case ENTRY_LOADING_DONE:
-        switch(blk_ctx->state) {
-            case EMPTY:
-            case DATA:
-                // DATA will become DATA COLLISION in write
-                rc = KVTRANS_STATUS_NOT_FOUND;
-                kreq->state = REQ_CMPL;
-                goto next_op;
-            case META:
-                if (blk_ctx->blk->isvalid && iskeysame(blk_ctx->blk->key, blk_ctx->blk->key_len, req->req_key.key, req->req_key.length)) {
-                    rc = KVTRANS_STATUS_SUCCESS;
-                    if (cb) {
-                        rc = cb((void *)blk_ctx);
-                    } 
-                } else {
-                    rc = KVTRANS_STATUS_NOT_FOUND;
-                }
-                kreq->state = REQ_CMPL;
-                goto next_op;
-            case DATA_COLLISION:
-                DSS_ASSERT(0); // will be mdc
+        case QUEUE_TO_LOAD_ENTRY:
+            if (iscb_valid(kreq)) {
                 break;
-            case COLLISION:
-            case META_DATA_COLLISION:
-                if (blk_ctx->blk->isvalid && iskeysame(blk_ctx->blk->key, blk_ctx->blk->key_len, req->req_key.key, req->req_key.length)) {
-                    rc = KVTRANS_STATUS_SUCCESS;
-                    if (cb) {
-                        rc = cb((void *)blk_ctx);
-                    } 
+            }
+            memcpy(blk_ctx, kreq->cb_ctx, sizeof(blk_ctx_t));
+            memset(kreq->cb_ctx, 0, sizeof(blk_ctx_t));
+            kreq->state = ENTRY_LOADING_DONE;
+            rc = KVTRANS_STATUS_SUCCESS;
+            break;
+        case ENTRY_LOADING_DONE:
+            switch(blk_ctx->state) {
+                case EMPTY:
+                case DATA:
+                    // DATA will become DATA COLLISION in write
+                    rc = KVTRANS_STATUS_NOT_FOUND;
                     kreq->state = REQ_CMPL;
-                    goto next_op;
-                } 
-                // a COLLISION META to update
-                int i;
-                for (i=0;i<blk_ctx->blk->num_valid_col_entry;i++) {
-                    if (!blk_ctx->blk->collision_tbl[i].isvalid) {
+                    break;
+                case META:
+                    if (blk_ctx->blk->isvalid && iskeysame(blk_ctx->blk->key, blk_ctx->blk->key_len, req->req_key.key, req->req_key.length)) {
+                        rc = KVTRANS_STATUS_SUCCESS;
+                        if (cb) {
+                            rc = cb((void *)blk_ctx);
+                            DSS_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
+                            //State should be updated by cb
+                        } else {
+                            kreq->state = REQ_CMPL;
+                        }
+                    } else {
                         rc = KVTRANS_STATUS_NOT_FOUND;
                         kreq->state = REQ_CMPL;
-                        goto next_op;
-                    } else if (blk_ctx->blk->collision_tbl[i].isvalid && 
-                            is_entry_match(&blk_ctx->blk->collision_tbl[i], req->req_key.key, req->req_key.length)) {
+                    }
+                    break;
+                case DATA_COLLISION:
+                    DSS_ASSERT(0); // will be mdc
+                    break;
+                case COLLISION:
+                case META_DATA_COLLISION:
+                    if (blk_ctx->blk->isvalid && iskeysame(blk_ctx->blk->key, blk_ctx->blk->key_len, req->req_key.key, req->req_key.length)) {
+                        rc = KVTRANS_STATUS_SUCCESS;
                         if (cb) {
+                            rc = cb((void *)blk_ctx);
+                            //State should be updated by cb
+                        } else {
+                            kreq->state = REQ_CMPL;
+                        }
+                        break;
+                    }
+                    // a COLLISION META to update
+                    int i;
+                    for (i=0;i<blk_ctx->blk->num_valid_col_entry;i++) {
+                        if (!blk_ctx->blk->collision_tbl[i].isvalid) {
+                            rc = KVTRANS_STATUS_NOT_FOUND;
+                            kreq->state = REQ_CMPL;
+                            break;
+                        } else if (blk_ctx->blk->collision_tbl[i].isvalid &&
+                                is_entry_match(&blk_ctx->blk->collision_tbl[i], req->req_key.key, req->req_key.length)) {
+                            if (cb) {
+                                blk_ctx->index = blk_ctx->blk->collision_tbl[i].meta_collision_index;
+                                rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq);
+                                kreq->state = QUEUE_TO_LOAD_ENTRY;
+                                break;
+                            }
+                            rc = KVTRANS_STATUS_SUCCESS;
+                            kreq->state = REQ_CMPL;
+                            break;
+                        }
+                        if (i==MAX_COL_TBL_SIZE-1) {
                             blk_ctx->index = blk_ctx->blk->collision_tbl[i].meta_collision_index;
                             rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq);
                             kreq->state = QUEUE_TO_LOAD_ENTRY;
-                            goto next_op;
-                        } 
-                        rc = KVTRANS_STATUS_SUCCESS;
+                            break;
+                        }
+                    }
+                    if(i == blk_ctx->blk->num_valid_col_entry) {
+                        rc = KVTRANS_STATUS_NOT_FOUND;
                         kreq->state = REQ_CMPL;
-                        goto next_op;
                     }
-                    if (i==MAX_COL_TBL_SIZE-1) {
-                        blk_ctx->index = blk_ctx->blk->collision_tbl[i].meta_collision_index;
-                        rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq);
-                        kreq->state = QUEUE_TO_LOAD_ENTRY;
-                        goto next_op;
-                    }
-                }
-                rc = KVTRANS_STATUS_NOT_FOUND;
-                kreq->state = REQ_CMPL;
-                break;
-            default:
-                DSS_ASSERT(0);
-                break;
+                    break;
+                default:
+                    DSS_RELEASE_ASSERT(0);
+                    break;
             }
-        goto next_op;
-    case QUEUE_TO_START_IO:
-        // assume io is completed immediately
-        kreq->state = IO_CMPL;
-        goto next_op;
-    case IO_CMPL:
-        kreq->state = REQ_CMPL;
-        // TODO: execute cb function?
-        goto next_op;
-    case REQ_CMPL:
-        free_kvtrans_req(kreq);
-        ctx->task_done++;
-        return rc;
-    default:
-        break;
-    }
+            break;
+        case QUEUE_TO_START_IO:
+            // assume io is completed immediately
+            kreq->state = IO_CMPL;
+            break;
+        case QUEUED_FOR_DATA_IO:
+            //External code should continue progres
+            break;
+        case IO_CMPL:
+            kreq->state = REQ_CMPL;
+            // TODO: execute cb function?
+            break;
+        case REQ_CMPL:
+            free_kvtrans_req(kreq);
+            ctx->task_done++;
+            return rc;
+        default:
+            break;
+        }
+    } while (kreq->state != prev_state);
     STAILQ_INSERT_TAIL(&kreq->kvtrans_ctx->req_head, kreq, req_link);
     return rc;
 }
@@ -1642,6 +1743,12 @@ next_op:
 dss_kvtrans_status_t kvtrans_retrieve(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
     dss_kvtrans_status_t rc;
     kvtrans_ctx_t *kvtrans_ctx = (kvtrans_ctx_t *)ctx;
+
+    if(kreq->state == QUEUED_FOR_DATA_IO) {
+        //Assume second call is after IO completion
+        kreq->state = IO_CMPL;
+    };
+
     rc = _kvtrans_val_ops(kvtrans_ctx , kreq, &_blk_load_value);
     return rc;
 }
@@ -1649,6 +1756,9 @@ dss_kvtrans_status_t kvtrans_retrieve(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
 dss_kvtrans_status_t kvtrans_exist(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq) {
     dss_kvtrans_status_t rc;
     kvtrans_ctx_t *kvtrans_ctx = (kvtrans_ctx_t *)ctx;
+
+    DSS_RELEASE_ASSERT(kreq->state != QUEUED_FOR_DATA_IO);
+
     rc = _kvtrans_val_ops(kvtrans_ctx , kreq, NULL);
     return rc;
 }

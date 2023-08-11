@@ -154,6 +154,7 @@ enum kvtrans_req_e {
     QUEUE_TO_LOAD_COL_EXT,
     COL_EXT_LOADING_DONE,
     QUEUE_TO_START_IO,
+    QUEUED_FOR_DATA_IO,
     IO_CMPL,
     REQ_CMPL
 };
@@ -172,12 +173,13 @@ struct req_time_tick {
  */
 struct kvtrans_req{
     req_t req;
+    bool initialized;
 	bool req_allocated;
     uint64_t id;
     enum kvtrans_req_e state;
     // a blk_ctx to maintain meta info 
     kvtrans_ctx_t *kvtrans_ctx;
-    dss_io_task_t **io_tasks;
+    dss_io_task_t *io_tasks;
     void *cb_ctx;
     struct req_time_tick time_tick;
     STAILQ_ENTRY(kvtrans_req) req_link;

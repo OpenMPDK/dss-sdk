@@ -139,8 +139,13 @@ dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t 
         TAILQ_INIT(&t->ops_in_progress);
         TAILQ_INIT(&t->failed_ops);
 
+        t->num_total_ops = 0;
+        t->num_outstanding_ops = 0;
+        t->num_ops_done = 0;
+
         t->io_task_module = m;
         t->tci = tci;
+        t->task_status = DSS_IO_TASK_STATUS_SUCCESS;
     } else {
         DSS_ASSERT(status == DSS_MALLOC_SUCCESS);
     }
@@ -153,13 +158,14 @@ dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t 
 }
 
 
-dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
+dss_io_task_status_t dss_io_task_reset_ops(dss_io_task_t *io_task)
 {
     dss_io_task_status_t rc = DSS_IO_TASK_STATUS_SUCCESS;
     dss_mallocator_status_t status;
+    dss_io_op_t *io_op;
+
     uint32_t freed_ops = 0;
     uint32_t tci;
-    dss_io_op_t *io_op;
 
     DSS_ASSERT(io_task);
 
@@ -168,6 +174,8 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
 
     DSS_ASSERT(TAILQ_EMPTY(&io_task->op_todo_list));
     DSS_ASSERT(TAILQ_EMPTY(&io_task->ops_in_progress));
+    //TODO: Handle failed ops
+    DSS_ASSERT(TAILQ_EMPTY(&io_task->failed_ops));
     DSS_ASSERT(io_task->num_outstanding_ops == 0);
     DSS_ASSERT(io_task->num_ops_done == io_task->num_total_ops);
 
@@ -187,6 +195,18 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
 
     io_task->num_ops_done = 0;
     io_task->num_total_ops = 0;
+    io_task->task_status = DSS_IO_TASK_STATUS_SUCCESS;
+    DSS_ASSERT(TAILQ_EMPTY(&io_task->op_done));
+
+    return rc;
+}
+
+dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
+{
+    dss_io_task_status_t rc = DSS_IO_TASK_STATUS_SUCCESS;
+    dss_mallocator_status_t status;
+
+    rc = dss_io_task_reset_ops(io_task);
 
     status = dss_mallocator_put(io_task->io_task_module->io_task_allocator, io_task->tci, io_task);
     if(status != DSS_MALLOC_SUCCESS) {
@@ -221,6 +241,8 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
     dss_io_task_status_t rc;
 
     DSS_ASSERT(__dss_env_get_curr_core() == task->tci);
+    //TODO: offset support only whole block operations supported currently.
+    DSS_ASSERT(offset == 0);
 
     status = dss_mallocator_get(task->io_task_module->ops_allocator, task->tci, (dss_mallocator_item_t **)&io_op);
     if(status == DSS_MALLOC_ERROR) {

@@ -34,8 +34,7 @@
 #include "dragonfly.h"
 #include "dss_kvtrans_module.h"
 
-kvtrans_params_t * set_default_kvtrans_params() {
-    kvtrans_params_t *params = (kvtrans_params_t *) malloc (sizeof(kvtrans_params_t));
+void set_default_kvtrans_params(kvtrans_params_t *params) {
     // C(params);
     params->thread_num = 1;
     params->name = "DSS_KVTRANS";
@@ -44,47 +43,61 @@ kvtrans_params_t * set_default_kvtrans_params() {
     params->mb_blk_num = DEFAULT_META_NUM;
     params->mb_data_num = BLK_NUM;
     params->hash_size = 32;
-    return params;
+    params->dev = NULL;
+
+    return;
 }
 
-dss_kvtrans_thread_ctx_t *init_kvtrans_thread_ctx(dss_kvtrans_module_ctx_t *mctx, int inst_index, kvtrans_params_t *params) {
-    dss_kvtrans_thread_ctx_t *inst_ctx = (dss_kvtrans_thread_ctx_t *) malloc (sizeof(dss_kvtrans_thread_ctx_t));
-    DSS_ASSERT(inst_ctx);
-    if (params) {
-        inst_ctx->params = params;
-    } else {
-        inst_ctx->params = set_default_kvtrans_params();
+void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
+{
+    dss_io_task_status_t iot_rc;
+    kvtrans_req_t *kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
+    dss_module_instance_t *kvt_mi = req->module_ctx[DSS_MODULE_KVTRANS].module_instance;
+
+    //req->common_req.module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt.
+    //req->common_req.module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt.
+    iot_rc = dss_io_task_get_new(kvt_ctx->kvt_iotm, &kreq->io_tasks);
+    if(iot_rc != DSS_IO_TASK_STATUS_SUCCESS) {
+        DSS_RELEASE_ASSERT(0);//Should always succed
     }
-    inst_ctx->ctx = init_kvtrans_ctx(inst_ctx->params);
-    DSS_ASSERT(inst_ctx->ctx);
-    DSS_ASSERT(mctx);
-    inst_ctx->mctx = mctx;
-    inst_ctx->inst_index = inst_index;
-    return inst_ctx;
+
+    dss_io_task_setup(kreq->io_tasks, req, kvt_mi, req);
+
+    return;
 }
 
-void free_kvtrans_thread_ctx(dss_kvtrans_thread_ctx_t *inst_ctx) {
-    if (!inst_ctx) return;
-    if (inst_ctx->params) free(inst_ctx->params);
-    if (inst_ctx->ctx) free_kvtrans_ctx(inst_ctx->ctx);
-}
-
-void *dss_kvtrans_thread_instance_init(void *mctx, void *inst_ctx, int inst_index) {
-    struct dfly_subsystem *dfly_subsystem = NULL;
-    dss_kvtrans_thread_ctx_t *thread_ctx = NULL;
+void *dss_kvtrans_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
+{
     dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = (dss_kvtrans_module_ctx_t *)mctx;
     int num_devices = dss_kvtrans_mctx->dfly_subsys->num_io_devices;
     int num_threads = dss_kvtrans_mctx->num_threads;
+    int i;
 
-    thread_ctx = init_kvtrans_thread_ctx(dss_kvtrans_mctx, inst_index, NULL);
-    DSS_ASSERT(thread_ctx);
+    kvtrans_params_t params;
+    dss_kvtrans_thread_ctx_t *thread_ctx = (dss_kvtrans_thread_ctx_t *) calloc (1, sizeof(dss_kvtrans_thread_ctx_t));
+    DSS_RELEASE_ASSERT(thread_ctx);
 
-    thread_ctx->inst_ctx = inst_ctx;
-    
-    if (num_devices < num_threads) {
-        dss_kvtrans_mctx->num_threads = num_devices;
+    thread_ctx->mctx = mctx;
+    thread_ctx->inst_index = inst_index;
+    thread_ctx->module_inst_ctx = inst_ctx;
+
+    dss_kvtrans_mctx->kvt_thrd_ctx_arr[inst_index] = thread_ctx;
+    //Initialize devices corresponding to thread
+    for(i=inst_index; i < num_devices; i= i+num_threads) {
+
+        set_default_kvtrans_params(&params);
+        params.dev =  dss_kvtrans_mctx->dfly_subsys->dev_arr[i];
+        DSS_ASSERT(params.dev != NULL);
+        //TODO: Setup device specific kvtrans params
+        params.iotm = dss_subsytem_get_iotm_ctx(dss_kvtrans_mctx->dfly_subsys);
+        DSS_ASSERT(params.iotm);
+
+        dss_kvtrans_mctx->kvt_ctx_arr[i] = init_kvtrans_ctx(&params);
     }
-    thread_ctx->shard_index = num_devices % num_threads;
+
+    //Only one shard per device
+    //TODO: Support multiple shards. one shard per thread
+    thread_ctx->shard_index = 0;
     
     return thread_ctx;
 }
@@ -108,7 +121,28 @@ int dss_kvtrans_complete(void *ctx, struct dfly_request *req) {
 }
 
 void *dss_kvtrans_find_instance_context(struct dfly_request *req) {
-    return NULL;
+    uint32_t thread_index;
+    uint32_t num_threads = req->req_dfly_ss->num_kvt_threads;
+    uint32_t num_devices = req->req_dfly_ss->num_io_devices;
+
+    dfly_module_t *mctx = dss_module_get_subsys_ctx(DSS_MODULE_KVTRANS, req->req_dfly_ss);
+    dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = dfly_module_get_ctx(mctx);
+    dss_module_instance_t *kvt_mi;
+
+    thread_index = req->common_req.io_device_index % num_threads;
+
+    DSS_ASSERT(thread_index < dss_kvtrans_mctx->num_threads);
+
+    kvt_mi = dss_kvtrans_mctx->kvt_thrd_ctx_arr[thread_index]->module_inst_ctx;
+
+    DSS_ASSERT(req->common_req.module_ctx[DSS_MODULE_KVTRANS].module_instance == NULL);
+    DSS_ASSERT(req->common_req.module_ctx[DSS_MODULE_KVTRANS].module == NULL);
+
+    req->common_req.module_ctx[DSS_MODULE_KVTRANS].module_instance = kvt_mi;
+    req->common_req.module_ctx[DSS_MODULE_KVTRANS].module = kvt_mi->module;
+
+    DSS_ASSERT(kvt_mi != NULL);
+    return kvt_mi;
 }
 
 struct dfly_module_ops kvtrans_module_ops = {
@@ -116,7 +150,7 @@ struct dfly_module_ops kvtrans_module_ops = {
 	.module_rpoll = dss_kvtrans_process,
 	.module_cpoll = NULL,
 	.module_gpoll = NULL,
-	.find_instance_context = NULL,
+	.find_instance_context = dss_kvtrans_find_instance_context,
 	.module_instance_destroy = dss_kvtrans_thread_instance_destroy,
 };
 
@@ -141,27 +175,35 @@ void dss_kvtrans_net_request_complete(dss_request_t *req, dss_kvtrans_status_t r
         dss_module_post_to_instance(DSS_MODULE_NET, req->module_ctx[DSS_MODULE_NET].module_instance, req);
 }
 
-static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req) {
-    dss_kvtrans_status_t rc;
-    dss_kvtrans_thread_ctx_t *thread_ctx = (dss_kvtrans_thread_ctx_t *) ctx;
-    // kvtrans_req_t *kreq = init_kvtrans_req(thread_ctx->ctx, dss_request, NULL);
+static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
+{
+    dss_kvtrans_thread_ctx_t *kvt_thread_ctx = (dss_kvtrans_thread_ctx_t *)ctx;
     kvtrans_req_t *kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
+
+    kvtrans_ctx_t *kvt_ctx = kvt_thread_ctx->mctx->kvt_ctx_arr[req->io_device_index];
+    dss_kvtrans_status_t rc;
+
     DSS_ASSERT(kreq);
-    init_kvtrans_req(thread_ctx->ctx, &kreq->req, kreq);
-    thread_ctx->ctx->entry_blk->kreq = kreq;
+    if(kreq->initialized == false) {
+        dss_kvtrans_setup_request(req, kvt_ctx);
+        init_kvtrans_req(kvt_ctx, &kreq->req, kreq);
+    }
+
+    DSS_ASSERT(kreq->initialized == true);
+    kvt_ctx->entry_blk->kreq = kreq;
 
     switch(kreq->req.opc) {
     case KVTRANS_OPC_STORE:
-        rc = kvtrans_store(thread_ctx->ctx, kreq);
+        rc = kvtrans_store(kvt_ctx, kreq);
         break;
     case KVTRANS_OPC_RETRIEVE:
-        rc = kvtrans_retrieve(thread_ctx->ctx, kreq);
+        rc = kvtrans_retrieve(kvt_ctx, kreq);
         break;
     case KVTRANS_OPC_DELETE:
-        rc = kvtrans_delete(thread_ctx->ctx, kreq);
+        rc = kvtrans_delete(kvt_ctx, kreq);
         break;
     case KVTRANS_OPC_EXIST:
-        rc = kvtrans_exist(thread_ctx->ctx, kreq);
+        rc = kvtrans_exist(kvt_ctx, kreq);
         break;
     default:
         break;
@@ -172,15 +214,11 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req) {
 
     if(kreq->state == REQ_CMPL) {
         // if (kreq->id%999==0) {
-            printf("[KVTRANS]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n", 
-                     thread_ctx->ctx->stat.meta, thread_ctx->ctx->stat.mc,
-                     thread_ctx->ctx->stat.dc, thread_ctx->ctx->stat.mdc);
+            //printf("[KVTRANS]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n",
+            //       kvt_ctx->stat.meta, kvt_ctx->stat.mc,
+            //       kvt_ctx->stat.dc, kvt_ctx->stat.mdc);
         // }
         dss_kvtrans_net_request_complete(req, rc);
-
-    } else {
-        //TODO: Handling for async completion
-        DSS_ASSERT(0);
     }
 
     return DFLY_MODULE_REQUEST_QUEUED;
@@ -217,6 +255,7 @@ void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v)
     kreq->req.req_value.value = v->value;
     kreq->req.req_value.length = v->length;
     kreq->req.req_value.offset = v->offset;
+
     return;
 }
 
@@ -227,10 +266,24 @@ int dss_kvtrans_module_subsystem_start(struct dfly_subsystem *subsystem,
 
     dss_kvtrans_module_ctx_t *mctx = (dss_kvtrans_module_ctx_t *) calloc (1, sizeof(dss_kvtrans_module_ctx_t));
     DSS_ASSERT(mctx);
+    DSS_ASSERT(subsystem->num_kvt_threads > 0);
 
     mctx->dfly_subsys = subsystem;
     mctx->num_threads = subsystem->num_kvt_threads;
     mctx->request_handler = dss_kvtrans_request_handler;
+
+    mctx->num_kvts = subsystem->num_io_devices;
+    mctx->kvt_ctx_arr = (kvtrans_ctx_t **)calloc(mctx->num_kvts, sizeof(kvtrans_ctx_t *));
+    DSS_RELEASE_ASSERT(mctx->kvt_ctx_arr);
+
+    if (mctx->num_kvts < mctx->num_threads) {
+        DSS_NOTICELOG("Reduced kv trans num threads to %d from %d\n", mctx->num_kvts, mctx->num_threads);
+        mctx->num_threads = mctx->num_kvts;
+        subsystem->num_kvt_threads = mctx->num_kvts;
+    }
+
+    mctx->kvt_thrd_ctx_arr = (dss_kvtrans_thread_ctx_t **)calloc(mctx->num_threads, sizeof(dss_kvtrans_thread_ctx_t *));
+    DSS_RELEASE_ASSERT(mctx->kvt_thrd_ctx_arr != NULL);
 
     mctx->dss_kvtrans_module = dfly_module_start("DSS_KVTRANS", subsystem->id, DSS_MODULE_KVTRANS, &kvtrans_module_ops, 
                                         mctx, mctx->num_threads, -1, cb, cb_arg);

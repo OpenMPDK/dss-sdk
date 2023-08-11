@@ -203,7 +203,7 @@ void dfly_req_init_nvmf_value(struct dfly_request *req)
 	if(ss->dev_arr && (ss->num_io_devices > 0)) {
 		if(ss->dss_kv_mode) {
 			io_dev_arr_index = dfly_kd_get_device_index(req);
-			DSS_ASSERT(io_dev_arr_index > 0);
+			DSS_ASSERT(io_dev_arr_index >= 0);
 			DSS_ASSERT(io_dev_arr_index  < ss->num_io_devices);
 			req->common_req.io_device = ss->dev_arr[io_dev_arr_index];
 			req->common_req.io_device_index = io_dev_arr_index;

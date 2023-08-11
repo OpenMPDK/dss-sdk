@@ -337,5 +337,5 @@ dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)
         //Send direct
         dss_io_task_submit_to_device(task);
     }
-    return DSS_IO_TASK_STATUS_ERROR;
+    return DSS_IO_TASK_STATUS_SUCCESS;
 }

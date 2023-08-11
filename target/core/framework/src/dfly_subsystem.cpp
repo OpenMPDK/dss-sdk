@@ -331,16 +331,6 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 	if (mod_index == DSS_MODULE_END) {
 		if(ss_event->initialize) {
 			int i;
-			if(ss_event->subsys->use_io_task) {
-				dss_io_task_module_status_t task_mod_status;
-				dss_io_task_module_opts_t iotm_opts;
-				iotm_opts.io_module = dss_module_get_subsys_ctx(DSS_MODULE_IO, ss_event->subsys);
-				iotm_opts.max_io_tasks = dss_subystem_get_max_inflight_requests((dss_subsystem_t *)ss_event->subsys);
-				iotm_opts.max_io_ops = 5 * iotm_opts.max_io_tasks;//Default to 5x io tasks TODO: calculate this
-				task_mod_status = dss_io_task_module_init(iotm_opts, &ss_event->subsys->iotmod);
-				//TODO: Handle failure
-				DSS_ASSERT(task_mod_status == DSS_IO_TASK_MODULE_STATUS_SUCCESS);
-			}
 			for(i=DSS_MODULE_START_INIT; i < DSS_MODULE_END; i++) {
 				//Reset arg after subsystem init to prepare for next subsys
 				module_initializers[i].arg = NULL;

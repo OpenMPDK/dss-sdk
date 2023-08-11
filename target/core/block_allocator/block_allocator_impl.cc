@@ -59,10 +59,10 @@ bool BlockAllocator::init(
     num_block_states = config->num_block_states;
     logical_start_block_offset = config->logical_start_block_offset;
 
-    DSS_ASSERT(!device);//Persistence not supported by allocator
-    if(device) {
-        return false;
-    }
+    //DSS_ASSERT(!device);//Persistence not supported by allocator
+    //if(device) {
+    //    return false;
+    //}
 
     if(config->num_block_states == 0) {
         return false;

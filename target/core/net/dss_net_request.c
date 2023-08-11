@@ -97,7 +97,7 @@ void dss_net_request_setup_blk_io_task(dss_request_t *req)
 
     iot_rc = dss_io_task_get_new(dss_subsytem_get_iotm_ctx(req->ss), &io_task);
     if(iot_rc != DSS_IO_TASK_STATUS_SUCCESS) {
-        DSS_ASSERT(0);//Should always succed
+        DSS_RELEASE_ASSERT(0);//Should always succed
     }
     DSS_ASSERT(io_task != NULL);
 
@@ -118,6 +118,7 @@ void dss_net_request_setup_blk_io_task(dss_request_t *req)
 
 void dss_net_request_process(dss_request_t *req)
 {
+    dss_io_task_status_t iot_rc;
     dss_net_request_state_t prev_state;
     do {
         prev_state = req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state;
@@ -132,6 +133,7 @@ void dss_net_request_process(dss_request_t *req)
                     dss_nvmf_process_as_no_op(req);
                     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
                 } else {
+                    DSS_ASSERT(req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt.initialized == false);
                     dss_setup_kvtrans_req(req, dss_req_get_key(req), dss_req_get_value(req));
                     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
                     dfly_module_post_request(dss_module_get_subsys_ctx(DSS_MODULE_KVTRANS, req->ss), req);
@@ -139,7 +141,8 @@ void dss_net_request_process(dss_request_t *req)
                 }
             } else {
                 dss_net_request_setup_blk_io_task(req);
-                dss_io_task_submit(req->io_task);
+                iot_rc = dss_io_task_submit(req->io_task);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
                 return;
             }

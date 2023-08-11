@@ -43,33 +43,27 @@ extern "C" {
 
 typedef int (*request_handler_fn)(void *ctx, void *dss_request);
 
+typedef struct dss_kvtrans_thread_ctx_s dss_kvtrans_thread_ctx_t;
 typedef struct dss_kvtrans_module_ctx_s {
     struct dfly_subsystem *dfly_subsys;
     uint32_t num_threads;
     request_handler_fn request_handler;
     struct dfly_module_s *dss_kvtrans_module;
+    dss_kvtrans_thread_ctx_t **kvt_thrd_ctx_arr;
+    uint32_t num_kvts;
+    kvtrans_ctx_t **kvt_ctx_arr;
 } dss_kvtrans_module_ctx_t;
 
-typedef struct dss_kvtrans_thread_ctx_s {
+struct dss_kvtrans_thread_ctx_s {
     dss_kvtrans_module_ctx_t *mctx;
-    // instance ctx, used in dfly_module->m_inst
-    void *inst_ctx;
+    void *module_inst_ctx;
     int inst_index;
-    kvtrans_ctx_t *ctx;
-    kvtrans_params_t *params;
+    // kvtrans_params_t *params;
     // now one shard is one device;
     uint32_t shard_index;
-} dss_kvtrans_thread_ctx_t;
-
-kvtrans_params_t *set_default_kvtrans_params();
-dss_kvtrans_thread_ctx_t *init_kvtrans_thread_ctx(dss_kvtrans_module_ctx_t *mctx, int inst_index, kvtrans_params_t *params);
-void free_kvtrans_thread_ctx(dss_kvtrans_thread_ctx_t *inst_ctx);
-
-
+};
 
 #ifdef __cplusplus
 }
 #endif
-
-
-#endif
+#endif //_DSS_KVTRANS_MODULE_H

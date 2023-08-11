@@ -252,6 +252,8 @@ typedef struct kvtrans_params_s {
     uint16_t hash_size;
     uint64_t mb_blk_num;
     uint64_t mb_data_num;
+    dss_device_t *dev;
+    dss_io_task_module_t *iotm;
 } kvtrans_params_t;
 
 /**
@@ -344,6 +346,8 @@ typedef struct kvtrans_ctx_s {
     hash_fn_ctx_t *hash_fn_ctx;
     dss_blk_allocator_context_t *blk_alloc_ctx;
 
+    dss_io_task_module_t *kvt_iotm;
+
     // a blk_ctx to maintain hashed entry.
     blk_ctx_t *entry_blk;
     
@@ -364,9 +368,7 @@ typedef struct kvtrans_ctx_s {
     dc_item_t *dc_pool;
 
     void (*kv_assign_block)(uint64_t *, kvtrans_ctx_t *);
-
     dstat_t stat;
-
 } kvtrans_ctx_t;
 
 

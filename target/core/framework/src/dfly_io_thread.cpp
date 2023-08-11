@@ -491,6 +491,18 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, DSS_MODULE_IO, &io_module_ops,
 					  io_thrd_ctx, io_thrd_ctx->num_threads, -1, cb, cb_arg);
 
+	if(subsystem->use_io_task) {
+		dss_io_task_module_status_t task_mod_status;
+		dss_io_task_module_opts_t iotm_opts;
+		iotm_opts.io_module = dss_module_get_subsys_ctx(DSS_MODULE_IO, subsystem);
+		iotm_opts.max_io_tasks = dss_subystem_get_max_inflight_requests((dss_subsystem_t *)subsystem);
+		iotm_opts.max_io_ops = 5 * iotm_opts.max_io_tasks;//Default to 5x io tasks TODO: calculate this
+		task_mod_status = dss_io_task_module_init(iotm_opts, &subsystem->iotmod);
+		//TODO: Handle failure
+		DSS_ASSERT(task_mod_status == DSS_IO_TASK_MODULE_STATUS_SUCCESS);
+	}
+
+
 	return 0;
 }
 

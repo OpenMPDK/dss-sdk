@@ -154,6 +154,8 @@ dss_io_task_module_status_t dss_io_task_module_end(dss_io_task_module_t *m);
  */
 dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t **task);
 
+dss_io_task_status_t dss_io_task_reset_ops(dss_io_task_t *io_task);
+
 /**
  * @brief Return an IO task to the IO module task pool
  *
