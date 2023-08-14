@@ -548,33 +548,54 @@ bool JudySeekOptimizer::allocate_lb(const uint64_t& hint_lb,
                     num_blocks, hint_lb, &free_contig_lb)) {
             // Found a contiguous block at `free_contig_lb` with
             // num_blocks
-            // Perform split next operation
-            if (split_next_chunk(free_contig_lb,
-                        num_blocks, num_blocks, allocated_lb)) {
-                is_allocable = true;
+            
+            if (free_contig_lb > hint_lb) {
+                // Perform split next operation
+                if (split_next_chunk(free_contig_lb,
+                            num_blocks, num_blocks, allocated_lb)) {
+                    is_allocable = true;
+                } 
             } else {
-                // No such free contiguous chunk is found,
-                // search for the next bigger chunk if any
-                is_next_free =
-                    jarr_free_contig_len_->get_closest_l0_element(
-                                num_blocks,
-                                hint_lb,
-                                &free_contig_val,
-                                free_contig_indexl0,
-                                free_contig_indexl1
-                                );
-                if(is_next_free) {
-                    // Found a contiguous block at `free_contig_lb`
-                    // whose indices are indexl0(free len) &
-                    // indexl1(lb)
+                // Perforn split previous operation
+                if (split_prev_chunk(free_contig_lb,
+                            num_blocks, num_blocks, allocated_lb)) {
+                    is_allocable = true;
+                } 
+            }
+        }
+    }
 
-                    // Perform split next operation
-                    if (split_next_chunk(free_contig_indexl1,
-                                free_contig_indexl0, num_blocks,
-                                allocated_lb)) {
-                        is_allocable = true;
-                    }
-                }
+    // Still not Allocable ?
+    if (!is_allocable) {
+        // No such free contiguous chunk is found,
+        // search for the next bigger chunk if any
+        is_next_free =
+            jarr_free_contig_len_->get_closest_l0_element(
+                        num_blocks,
+                        hint_lb,
+                        &free_contig_val,
+                        free_contig_indexl0,
+                        free_contig_indexl1
+                        );
+        if(is_next_free) {
+            // Found a contiguous block at `free_contig_lb`
+            // whose indices are indexl0(free len) &
+            // indexl1(lb)
+            
+            if (free_contig_indexl1 > hint_lb) {
+                // Perform split next operation
+                if (split_next_chunk(free_contig_indexl1,
+                            free_contig_indexl0, num_blocks,
+                            allocated_lb)) {
+                    is_allocable = true;
+                } 
+            } else {
+                // Perform split previous operation
+                if (split_prev_chunk(free_contig_indexl1,
+                            free_contig_indexl0, num_blocks,
+                            allocated_lb)) {
+                    is_allocable = true;
+                } 
             }
         }
     }
