@@ -1707,10 +1707,12 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
                     }
                     // a COLLISION META to update
                     int i;
+                    bool state_changed = false;
                     for (i=0;i<blk_ctx->blk->num_valid_col_entry;i++) {
                         if (!blk_ctx->blk->collision_tbl[i].isvalid) {
                             rc = KVTRANS_STATUS_NOT_FOUND;
                             kreq->state = REQ_CMPL;
+                            state_changed = true;
                             break;
                         } else if (blk_ctx->blk->collision_tbl[i].isvalid &&
                                 is_entry_match(&blk_ctx->blk->collision_tbl[i], req->req_key.key, req->req_key.length)) {
@@ -1718,20 +1720,23 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
                                 blk_ctx->index = blk_ctx->blk->collision_tbl[i].meta_collision_index;
                                 rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq);
                                 kreq->state = QUEUE_TO_LOAD_ENTRY;
+                                state_changed = true;
                                 break;
                             }
                             rc = KVTRANS_STATUS_SUCCESS;
                             kreq->state = REQ_CMPL;
+                            state_changed = true;
                             break;
                         }
                         if (i==MAX_COL_TBL_SIZE-1) {
                             blk_ctx->index = blk_ctx->blk->collision_tbl[i].meta_collision_index;
                             rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq);
                             kreq->state = QUEUE_TO_LOAD_ENTRY;
+                            state_changed = true;
                             break;
                         }
                     }
-                    if(i == blk_ctx->blk->num_valid_col_entry) {
+                    if(state_changed == false) {
                         rc = KVTRANS_STATUS_NOT_FOUND;
                         kreq->state = REQ_CMPL;
                     }
