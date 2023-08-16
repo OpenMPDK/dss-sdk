@@ -58,6 +58,20 @@
 #define DSS_WARNLOG(...) \
     dfly_log(DFLY_LOG_WARN, __FILE__, __LINE__, __func__, __VA_ARGS__)
 
+#ifdef DEBUG
+
+#define DSS_DEBUGLOG(FLAG, ...)								\
+	do {											\
+		extern dfly_trace_flag_t FLAG;						\
+		if (FLAG.enabled) {								\
+			dfly_log(DFLY_LOG_DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__);	\
+		}										\
+	} while (0)
+
+#else
+#define DFLY_DEBUGLOG(...) do { } while (0)
+#endif
+
 #else
 
 #define DSS_LOG printf
@@ -67,5 +81,10 @@
 #define DSS_NOTICELOG printf
 
 #define DSS_WARNLOG printf
+
+#define DSS_DEBUGLOG(FLAG, ...) \
+	do {						 \
+		printf(__VA_ARGS__);	 \
+	} while (0)
 
 #endif //DSS_BUILD_CUNIT_TEST
