@@ -45,6 +45,8 @@
     #define DSS_ASSERT(x) assert((x))
 #endif //DSS_RELEASE_BUILD
 
+void set_kvtrans_disk_data_store(bool val);
+
 #ifndef DSS_BUILD_CUNIT_TEST
 
 #define DSS_LOG(...) DFLY_LOG(...)

@@ -94,6 +94,15 @@ dss_io_dev_status_t  dss_io_device_open(const char *dev_name, dss_device_type_t 
 dss_io_dev_status_t dss_io_device_close(dss_device_t *device);
 
 /**
+ * @brief Set user block size for dss device in multiples of disk block size
+ * 
+ * @param device Device whose user block size needs to be updated
+ * @param usr_blk_sz  Value of user block size in bytes that need to be updated for device
+ * @return dss_io_dev_status_t DSS_IO_DEV_STATUS_SUCCESS on success, otherwise DSS_IO_DEV_STATUS_ERROR
+ */
+dss_io_dev_status_t dss_io_dev_set_user_blk_sz(dss_device_t *device, uint32_t usr_blk_sz);
+
+/**
  * @brief Initializes and returns a io_task module context
  * 
  * @param io_task_opts Options for initializing io module
@@ -154,6 +163,12 @@ dss_io_task_module_status_t dss_io_task_module_end(dss_io_task_module_t *m);
  */
 dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t **task);
 
+/**
+ * @brief Reset/remove all completed operations from io_task
+ * 
+ * @param io_task io task containing ops to be reset
+ * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
+ */
 dss_io_task_status_t dss_io_task_reset_ops(dss_io_task_t *io_task);
 
 /**

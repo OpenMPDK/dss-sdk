@@ -164,6 +164,11 @@ dss_io_dev_status_t dss_io_device_open(const char *dev_name, dss_device_type_t t
             return DSS_IO_DEV_STATUS_ERROR;
 		}
 
+        d->disk_blk_sz = spdk_bdev_get_block_size(d->bdev);
+        d->user_blk_sz = d->disk_blk_sz;//Default to same as disk block size
+
+        DSS_NOTICELOG("Initialized device %s with %d block size\n", d->dev_name, d->disk_blk_sz);
+
         d->n_ch = dss_env_get_spdk_max_cores();
         d->ch_arr = calloc(d->n_ch + 1, sizeof(dss_device_channel_t));
         if(!d->ch_arr) {
@@ -210,6 +215,22 @@ dss_io_dev_status_t dss_io_device_close(dss_device_t *device)
         break;
     }
     return rc;
+}
+
+dss_io_dev_status_t dss_io_dev_set_user_blk_sz(dss_device_t *device, uint32_t usr_blk_sz)
+{
+    dss_io_dev_status_t rc = DSS_IO_DEV_STATUS_ERROR;
+
+    if ((usr_blk_sz < device->disk_blk_sz) || \
+        (usr_blk_sz % device->disk_blk_sz)) {
+        //User block size should be an integral multiple of disk block size
+        return rc;
+    }
+
+    device->user_blk_sz = usr_blk_sz;
+    DSS_NOTICELOG("Updated device %s user block size to %d\n", device->dev_name, device->user_blk_sz);
+
+    return DSS_IO_DEV_STATUS_SUCCESS;
 }
 
 struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device)
@@ -288,22 +309,39 @@ void dss_io_task_submit_to_device(dss_io_task_t *task)
     struct spdk_io_channel *ch;
     int rc;
 
+    uint64_t disk_lba;
+    uint64_t num_disk_blocks;
+    uint64_t disk_tr_factor;
+
     TAILQ_FOREACH_SAFE(curr_op, &task->op_todo_list, op_next, tmp_op) {
         //TODO: io task management
         io_device = curr_op->device;
         ch = dss_io_dev_get_channel(io_device);
+
+
+        disk_lba = curr_op->rw.lba;
+        num_disk_blocks = curr_op->rw.nblocks;
+        if(io_device->user_blk_sz != io_device->disk_blk_sz) {
+            DSS_ASSERT(io_device->disk_blk_sz <= io_device->user_blk_sz);
+            DSS_ASSERT(io_device->user_blk_sz % io_device->disk_blk_sz == 0);
+
+            disk_tr_factor = io_device->user_blk_sz / io_device->disk_blk_sz;
+            disk_lba *= disk_tr_factor;
+            num_disk_blocks *= disk_tr_factor;
+        }
+
         switch(curr_op->opc) {
             case DSS_IO_BLK_READ:
                 rc = spdk_bdev_read_blocks(io_device->desc, ch, curr_op->rw.data, \
-                                                           curr_op->rw.lba, \
-                                                           curr_op->rw.nblocks,
+                                                           disk_lba, \
+                                                           num_disk_blocks,
                                                            _dss_io_task_op_complete,
                                                            curr_op);
                 break;
             case DSS_IO_BLK_WRITE:
                 rc = spdk_bdev_write_blocks(io_device->desc, ch, curr_op->rw.data, \
-                                                            curr_op->rw.lba, \
-                                                            curr_op->rw.nblocks,
+                                                            disk_lba, \
+                                                            num_disk_blocks,
                                                             _dss_io_task_op_complete,
                                                             curr_op);
                 break;

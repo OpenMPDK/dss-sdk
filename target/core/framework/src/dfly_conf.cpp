@@ -211,6 +211,8 @@ void
 dfly_config_read(struct spdk_conf_section *sp)
 {
 	char *str = NULL;
+    bool val;
+
 	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", false);
 	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", false);
     	g_dragonfly->rdb_bg_core_start = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_core_start", 40);
@@ -358,6 +360,10 @@ dfly_config_read(struct spdk_conf_section *sp)
 		dfly_qos_init(sp);
 	}
 
+    val = spdk_conf_section_get_boolval(sp, "kvtrans_disk_data_store", true);
+    set_kvtrans_disk_data_store(val);
+
+    return;
 }
 
 void

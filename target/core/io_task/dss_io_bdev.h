@@ -52,6 +52,8 @@ struct dss_device_s {
     dss_device_type_t dev_type;
     struct spdk_bdev *bdev;
     struct spdk_bdev_desc *desc;
+    uint32_t disk_blk_sz;
+    uint32_t user_blk_sz;
     uint64_t n_ch;//Max cores - Not all channels will be populated
     dss_device_channel_t *ch_arr;//n_ch device channel
 };

@@ -103,7 +103,7 @@ typedef enum dss_kvtrans_status_e {
 /* tmp use for test */
 #define REHASH_MAX 32
 // #define BLK_NUM (3758096384 >> 8)
-#define BLK_NUM 4000000 / 8
+#define BLK_NUM 4000000
 #define BLOCK_SIZE 4096
 
 /* tmp use for test end */

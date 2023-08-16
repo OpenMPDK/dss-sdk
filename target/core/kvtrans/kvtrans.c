@@ -36,6 +36,15 @@
 #ifdef MEM_BACKEND
 #include "kvtrans_mem_backend.h"
 bool g_disk_as_data_store = true;
+
+void set_kvtrans_disk_data_store(bool val) {
+    g_disk_as_data_store = val;
+}
+
+#else
+void set_kvtrans_disk_data_store(bool val) {
+    return;
+}
 #endif
 
 // util functions to get time ticks.
@@ -205,6 +214,9 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
     for (i=0; i<blk->num_valid_place_value_entry; i++) {
 #ifndef DSS_BUILD_CUNIT_TEST
         if (g_disk_as_data_store == true) {
+            DSS_DEBUGLOG(DSS_KVTRANS, "Key [%s] LBA [%x] nBlks [%x] value [%p] offset [%x] blk_sz [%d] io_index [%d]\n", \
+                            kreq->req.req_key.key, blk->place_value[i].value_index, blk->place_value[i].num_chunks, \
+                            kreq->req.req_value.value, offset, BLOCK_SIZE,  i);
             iot_rc = dss_io_task_add_blk_read(kreq->io_tasks, \
                                         kvtrans_ctx->target_dev, \
                                         blk->place_value[i].value_index, \
@@ -216,7 +228,7 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
             queue_for_disk_io = true;
          } else
 #endif
-            if (!retrieve_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks, req->req_value.value+offset)) {
+            if (!retrieve_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks, (void *)((char *)req->req_value.value + offset))) {
                     rc = KVTRANS_STATUS_IO_ERROR;
                     break;
             }
@@ -309,6 +321,9 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_r
         for (i=0; i<blk->num_valid_place_value_entry; i++) {
 #ifndef DSS_BUILD_CUNIT_TEST
             if (g_disk_as_data_store == true) {
+                DSS_DEBUGLOG(DSS_KVTRANS, "Key [%s] LBA [%x] nBlks [%x] value [%p] offset [%x] blk_sz [%d] io_index [%d]\n", \
+                            kreq->req.req_key.key, blk->place_value[i].value_index, blk->place_value[i].num_chunks, \
+                            kreq->req.req_value.value, offset, BLOCK_SIZE,  i);
                 iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, \
                                         kvtrans_ctx->target_dev, \
                                         blk->place_value[i].value_index, \
@@ -555,7 +570,12 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         ctx->kvtrans_params = set_default_params();
     }
 
+#ifndef DSS_BUILD_CUNIT_TEST
+    dss_io_dev_set_user_blk_sz(ctx->kvtrans_params.dev, BLOCK_SIZE);
+#endif
+
     dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
+    //dss_blk_allocator_set_default_config(NULL, &config);
 
     if (*ctx->kvtrans_params.blk_alloc_name=='\0') {
         ctx->kvtrans_params.blk_alloc_name = DEFAULT_BLK_ALLOC_NAME;
@@ -567,6 +587,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
 
     ctx->blk_alloc_ctx = dss_blk_allocator_init(ctx->kvtrans_params.dev, &config);
+    //ctx->blk_alloc_ctx = dss_blk_allocator_init(NULL, &config);
     if (!ctx->blk_alloc_ctx) {
         printf("ERROR: blk_allocator init failed\n");
          goto failure_handle;
@@ -906,6 +927,7 @@ dss_kvtrans_status_t _blk_load_value(void *ctx) {
     if (blk->value_location == INLINE) {
         // blk is in memory
         memcpy(req->req_value.value, blk->value_buffer, blk->value_size); 
+        kreq->state = REQ_CMPL;
         rc = KVTRANS_STATUS_SUCCESS;
     } else {
         rc = dss_kvtrans_load_ondisk_data(blk_ctx, kreq);
@@ -1431,9 +1453,10 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     blk_ctx_t *meta_blk = blk_ctx->next;
     req_t *req = &kreq->req;
 
-    enum kvtrans_req_e prev_state;
+    enum kvtrans_req_e prev_state = -1;
 
     do {
+        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d]\n", kreq, prev_state, kreq->state);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
@@ -1626,9 +1649,10 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     req_t *req = &kreq->req;
 
-    enum kvtrans_req_e prev_state;
+    enum kvtrans_req_e prev_state = -1;
 
     do {
+        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d]\n", kreq, prev_state, kreq->state);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
