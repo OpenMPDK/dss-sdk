@@ -32,6 +32,7 @@
 #
 add_executable(dss_kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
                           ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+                          ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c

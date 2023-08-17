@@ -57,6 +57,18 @@ extern "C" {
 #include "apis/dss_io_task_apis.h"
 #include "dss.h"
 
+/* tmp use for test */
+#define REHASH_MAX 32
+// #define BLK_NUM (3758096384 >> 8)
+#define BLK_NUM 4000000
+#define BLOCK_SIZE 4096
+
+/* tmp use for test end */
+
+#ifdef MEM_BACKEND
+#include "kvtrans_mem_backend.h"
+#endif
+
 #define MAX_DC_NUM 262144
 
 #define MAX_COL_TBL_SIZE 32
@@ -98,15 +110,6 @@ typedef enum dss_kvtrans_status_e {
     // I/O failed
     KVTRANS_STATUS_IO_ERROR = 9
 } dss_kvtrans_status_t;
-
-
-/* tmp use for test */
-#define REHASH_MAX 32
-// #define BLK_NUM (3758096384 >> 8)
-#define BLK_NUM 4000000
-#define BLOCK_SIZE 4096
-
-/* tmp use for test end */
 
 typedef enum blk_state_e {
     EMPTY = 0,
@@ -368,6 +371,12 @@ typedef struct kvtrans_ctx_s {
     dc_item_t *dc_pool;
 
     void (*kv_assign_block)(uint64_t *, kvtrans_ctx_t *);
+
+#ifdef MEM_BACKEND
+    ondisk_meta_ctx_t *meta_ctx;
+    ondisk_data_ctx_t *data_ctx;
+#endif
+
     dstat_t stat;
 } kvtrans_ctx_t;
 
@@ -414,6 +423,11 @@ int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req);
 
 // void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
 
+#ifdef MEM_BACKEND
+void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t data_pool_size);
+void reset_mem_backend(kvtrans_ctx_t  *ctx);
+void free_mem_backend(kvtrans_ctx_t  *ctx);
+#endif
 
 #ifdef __cplusplus
 }

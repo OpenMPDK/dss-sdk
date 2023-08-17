@@ -180,7 +180,7 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req
     DSS_ASSERT(blk_ctx->index!=0);
 #ifdef MEM_BACKEND
     val_t val;
-    val = load_meta(blk_ctx->index);
+    val = load_meta(kreq->kvtrans_ctx->meta_ctx, blk_ctx->index);
     if(val) {
         memcpy(blk_ctx->blk, val, sizeof(ondisk_meta_t));
         memcpy(kreq->cb_ctx, blk_ctx, sizeof(blk_ctx_t));
@@ -228,7 +228,10 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
             queue_for_disk_io = true;
          } else
 #endif
-            if (!retrieve_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks, (void *)((char *)req->req_value.value + offset))) {
+            if (!retrieve_data(kreq->kvtrans_ctx->data_ctx, 
+                                blk->place_value[i].value_index, 
+                                blk->place_value[i].num_chunks, 
+                                (void *)((char *)req->req_value.value + offset))) {
                     rc = KVTRANS_STATUS_IO_ERROR;
                     break;
             }
@@ -271,7 +274,9 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
 
 dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
 #ifdef MEM_BACKEND
-    insert_meta((idx_t) blk_ctx->index, blk_ctx->blk);
+    insert_meta(kreq->kvtrans_ctx->meta_ctx, 
+                blk_ctx->index,
+                blk_ctx->blk);
     return KVTRANS_STATUS_SUCCESS;
 #else
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
@@ -286,7 +291,8 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_re
 
 dss_kvtrans_status_t dss_kvtrans_delete_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
 #ifdef MEM_BACKEND
-    delete_meta((idx_t) blk_ctx->index);
+    delete_meta(kreq->kvtrans_ctx->meta_ctx, 
+                blk_ctx->index);
     return KVTRANS_STATUS_SUCCESS;
 #else
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
@@ -335,8 +341,10 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_r
                 queue_for_disk_io = true;
             } else
 #endif
-                if (!insert_data(blk->place_value[i].value_index, blk->place_value[i].num_chunks,
-                                            (void *)((char *)req->req_value.value+offset))) {
+                if (!insert_data(kreq->kvtrans_ctx->data_ctx, 
+                                    blk->place_value[i].value_index, 
+                                    blk->place_value[i].num_chunks,
+                                    (void *)((char *)req->req_value.value+offset))) {
                        rc = KVTRANS_STATUS_IO_ERROR;
                 }
             offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
@@ -625,11 +633,11 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
 
 #ifdef MEM_BACKEND
     init_mem_backend(ctx, ctx->kvtrans_params.mb_blk_num, ctx->kvtrans_params.mb_data_num);
-    // TODO: add g_blks to kvtrans_ctx
-    if (!g_metas.pool) {
-        printf("ERROR: dc_table init failed\n");
+    if (!ctx->meta_ctx || !ctx->data_ctx) {
+        printf("ERROR: mem_backend init failed\n");
         goto failure_handle;
     }
+    DSS_DEBUGLOG(DSS_KVTRANS, "Data backend [%x] and Meta backend [%x] created for kvtrans [%x]\n", ctx->data_ctx, ctx->meta_ctx, ctx);
 #endif
     STAILQ_INIT(&ctx->req_head);
 
@@ -648,7 +656,7 @@ void free_kvtrans_ctx(kvtrans_ctx_t *ctx)
     if (ctx->entry_blk) free_blk_ctx(ctx->entry_blk);
     free_dc_table(ctx);
 #ifdef MEM_BACKEND
-    free_mem_backend();
+    free_mem_backend(ctx);
 #endif
     free(ctx);
 }
@@ -763,6 +771,7 @@ dss_kvtrans_status_t _alloc_entry_block(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     dss_blk_allocator_context_t *blk_alloc_ctx = ctx->blk_alloc_ctx;
     blk_ctx_t *blk_ctx = ctx->entry_blk;
     req_t *req = &kreq->req;
+    uint64_t blk_state = DEFAULT_BLOCK_STATE_NUM;
 
     // TODO: it's possbile key is all zero.
     DSS_ASSERT(!iskeynull(req->req_key.key));
@@ -773,10 +782,12 @@ dss_kvtrans_status_t _alloc_entry_block(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     ctx->kv_assign_block(&blk_ctx->index, ctx);
 
     DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
-    if(dss_blk_allocator_get_block_state(blk_alloc_ctx, blk_ctx->index, (uint64_t *) &blk_ctx->state)) {
+    if(dss_blk_allocator_get_block_state(blk_alloc_ctx, blk_ctx->index, &blk_state)) {
         return KVTRANS_STATUS_ERROR;
     }
+    DSS_ASSERT(blk_state<DEFAULT_BLOCK_STATE_NUM);
 
+    blk_ctx->state = (blk_state_t) blk_state;
     switch (blk_ctx->state) {
     case EMPTY:
         // no need to load blk
@@ -1921,3 +1932,54 @@ void dump_blk_ctx(blk_ctx_t *blk_ctx) {
         printf("    data_collision_index: %zu\n", blk_ctx->blk->data_collision_index);   
     }
 }
+
+
+#ifdef MEM_BACKEND
+
+void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t data_pool_size) {
+    if (!ctx) {
+        printf("kvtrans_ctx is not initialized\n");
+        return;
+    }  
+    ctx->meta_ctx = (ondisk_meta_ctx_t *) calloc(1, sizeof(ondisk_meta_ctx_t));
+    if (!ctx->meta_ctx) {
+        printf("meta_ctx init failed\n");
+        return;
+    }
+
+    if (g_disk_as_data_store) {
+        return;
+    }
+    
+    ctx->data_ctx = (ondisk_data_ctx_t *) calloc(1, sizeof(ondisk_data_ctx_t));
+    if (!ctx->data_ctx) {
+        printf("data_ctx init failed\n");
+        return;
+    }
+
+    init_meta_ctx(ctx->meta_ctx, meta_pool_size);
+    init_data_ctx(ctx->data_ctx, data_pool_size);
+}
+
+
+void reset_mem_backend(kvtrans_ctx_t  *ctx) {
+    if (!ctx) {
+        printf("kvtrans_ctx is not initialized\n");
+        return;
+    }  
+    free_metas(ctx->meta_ctx);
+    memset(ctx->meta_ctx->pool, 0, sizeof(ondisk_meta_t) * ctx->kvtrans_params.mb_blk_num);
+    memset(ctx->meta_ctx->free_index, 0, sizeof(uint64_t) * INIT_FREE_INDEX_SIZE);
+    ctx->meta_ctx->num = 0;
+    ctx->meta_ctx->free_num = 0;
+}
+
+void free_mem_backend(kvtrans_ctx_t  *ctx) {
+    if (!ctx) {
+        printf("kvtrans_ctx is not initialized\n");
+        return;
+    }
+    if (ctx->meta_ctx) free_meta_ctx(ctx->meta_ctx);
+    if (ctx->data_ctx) free_data_ctx(ctx->data_ctx);
+}
+#endif
