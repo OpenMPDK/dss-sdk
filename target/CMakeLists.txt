@@ -155,6 +155,7 @@ add_custom_command(
 
 #--Judy--
 
+
 # Prohibit a common type of an in-source build.
 # Note that building in a subdirectory in the source tree is still allowed
 # as it can be convenient.
@@ -258,6 +259,7 @@ SET(IO_TASK_HEADERS
 SET(KVTRANS_SOURCES
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.c
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.c
     ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.c
     ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
@@ -268,6 +270,8 @@ SET(KVTRANS_SOURCES
 SET(KVTRANS_HEADERS
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.h
     ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.h
     ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.h
 )
 

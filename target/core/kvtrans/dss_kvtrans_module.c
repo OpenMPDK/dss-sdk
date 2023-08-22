@@ -40,8 +40,8 @@ void set_default_kvtrans_params(kvtrans_params_t *params) {
     params->name = "DSS_KVTRANS";
     params->hash_type = spooky;
     params->blk_alloc_name = DEFAULT_BLK_ALLOC_NAME;
-    params->mb_blk_num = DEFAULT_META_NUM;
-    params->mb_data_num = BLK_NUM;
+    params->meta_blk_num = DEFAULT_META_NUM;
+    params->total_blk_num = BLK_NUM;
     params->hash_size = 32;
     params->dev = NULL;
 

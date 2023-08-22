@@ -33,6 +33,7 @@
 add_executable(dss_kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
                           ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
                           ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.c
+                          ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
                           ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
@@ -66,7 +67,7 @@ target_include_directories(dss_kvtrans_ut PRIVATE ${CMAKE_SOURCE_DIR}/core/block
                                               ${CMAKE_SOURCE_DIR}/include/apis)
 
 # include_directories(${CMAKE_SOURCE_DIR}/oss/spdk_tcp/dpdk/config)
-target_link_libraries(dss_kvtrans_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS} -lm )
+target_link_libraries(dss_kvtrans_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap ${UNIT_LIBS} -lJudy -lm )
 target_compile_options(dss_kvtrans_ut PRIVATE -Wall -g -std=gnu++11)
 add_dependencies(dss_kvtrans_ut judy_hashmap)
 add_dependencies(dss_kvtrans_ut judyL)

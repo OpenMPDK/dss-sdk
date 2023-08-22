@@ -33,7 +33,8 @@
 
 
 set(SRC_FILES ${CMAKE_SOURCE_DIR}/test/unit/utils/dss_kvtrans_utils.c/dss_kvtrans_utils_ut.c
-            )
+                ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.c
+                )
 
 add_executable(dss_kvtrans_utils_ut ${SRC_FILES})
 

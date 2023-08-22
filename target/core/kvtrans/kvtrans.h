@@ -57,14 +57,6 @@ extern "C" {
 #include "apis/dss_io_task_apis.h"
 #include "dss.h"
 
-/* tmp use for test */
-#define REHASH_MAX 32
-// #define BLK_NUM (3758096384 >> 8)
-#define BLK_NUM 4000000
-#define BLOCK_SIZE 4096
-
-/* tmp use for test end */
-
 #ifdef MEM_BACKEND
 #include "kvtrans_mem_backend.h"
 #endif
@@ -78,7 +70,9 @@ extern "C" {
 #define MIN_HASH_SIZE 8
 #define DEFAULT_BLOCK_STATE_NUM 7
 #define DEFAULT_BLK_ALLOC_NAME "block_impresario"
-#define DEFAULT_META_NUM 100000
+#define DEFAULT_META_NUM 1000000
+// A 64 bit value to indicate if meta blk valid
+#define META_MAGIC 0xabc0
 
 #define CEILING(x,y) (((x) + (y) - 1) / (y))
 
@@ -110,6 +104,15 @@ typedef enum dss_kvtrans_status_e {
     // I/O failed
     KVTRANS_STATUS_IO_ERROR = 9
 } dss_kvtrans_status_t;
+
+
+/* tmp use for test */
+#define REHASH_MAX 32
+// #define BLK_NUM (3758096384 >> 8)
+#define BLK_NUM (536870912)
+#define BLOCK_SIZE 4096
+
+/* tmp use for test end */
 
 typedef enum blk_state_e {
     EMPTY = 0,
@@ -152,6 +155,7 @@ enum value_loc_e {
 };
 
 typedef struct ondisk_meta_s {
+    uint64_t    magic;
     char        key[KEY_LEN];
     char        checksum[16];
     // char        creation_time[32];
@@ -253,8 +257,8 @@ typedef struct kvtrans_params_s {
     char *blk_alloc_name;
     enum hash_type_e hash_type;
     uint16_t hash_size;
-    uint64_t mb_blk_num;
-    uint64_t mb_data_num;
+    uint64_t meta_blk_num;
+    uint64_t total_blk_num;
     dss_device_t *dev;
     dss_io_task_module_t *iotm;
 } kvtrans_params_t;

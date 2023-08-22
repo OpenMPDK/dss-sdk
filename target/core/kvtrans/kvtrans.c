@@ -34,8 +34,10 @@
 #include "kvtrans.h"
 #include "kvtrans_hash.h"
 #ifdef MEM_BACKEND
-#include "kvtrans_mem_backend.h"
 bool g_disk_as_data_store = true;
+
+#include "kvtrans_mem_backend.h"
+
 
 void set_kvtrans_disk_data_store(bool val) {
     g_disk_as_data_store = val;
@@ -427,7 +429,7 @@ static void kv_assign_block(uint64_t *index, kvtrans_ctx_t *ctx) {
     bit_shift = ctx->hash_fn_ctx->hash_size - ctx->hash_bit_in_use;
     
     // avoid index 0
-    *index = (*index >> bit_shift) % (BLK_NUM - 1) + 1;
+    *index = (*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - 1) + 1;
 }
 
 hash_fn_ctx_t *init_hash_fn_ctx(kvtrans_params_t *params) 
@@ -495,6 +497,7 @@ blk_ctx_t *init_blk_ctx() {
 
     blk_ctx = (blk_ctx_t *) calloc (1, sizeof(blk_ctx_t));
     blk = (ondisk_meta_t *) calloc (1, sizeof(ondisk_meta_t));
+    blk->magic = META_MAGIC;
     if (!blk_ctx || !blk) {
         printf("ERROR: blk_ctx or blk malloc failed.\n");
         if (blk_ctx) free(blk_ctx);
@@ -508,6 +511,7 @@ blk_ctx_t *init_blk_ctx() {
     // we leave memory allocation of that as demanded.
     blk_ctx->next = (blk_ctx_t *) calloc (1, sizeof(blk_ctx_t));
     blk_ctx->next->blk = (ondisk_meta_t *) calloc (1, sizeof(ondisk_meta_t));
+    blk_ctx->next->blk->magic = META_MAGIC;
     if (!blk_ctx || !blk) {
         printf("ERROR: blk_ctx->next or next->blk malloc failed.\n");
         free_blk_ctx(blk_ctx);
@@ -551,8 +555,8 @@ kvtrans_params_t set_default_params() {
     params.id = 0;
     params.name = "dss_kvtrans";
     params.thread_num = 1;
-    params.mb_blk_num = 1024;
-    params.mb_data_num = BLK_NUM;
+    params.meta_blk_num = 1024;
+    params.total_blk_num = BLK_NUM;
     params.blk_alloc_name = "simbmap_allocator";
     return params;    
 }
@@ -590,7 +594,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
     //TODO: Check for valid block alloc name and set
     config.blk_allocator_type = ctx->kvtrans_params.blk_alloc_name;
-    config.num_total_blocks = BLK_NUM;
+    config.num_total_blocks = ctx->kvtrans_params.total_blk_num;
     // exclude empty state
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
 
@@ -632,8 +636,8 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
 
 #ifdef MEM_BACKEND
-    init_mem_backend(ctx, ctx->kvtrans_params.mb_blk_num, ctx->kvtrans_params.mb_data_num);
-    if (!ctx->meta_ctx || !ctx->data_ctx) {
+    init_mem_backend(ctx, ctx->kvtrans_params.meta_blk_num, ctx->kvtrans_params.total_blk_num);
+    if (!ctx->meta_ctx || (!g_disk_as_data_store && !ctx->data_ctx)) {
         printf("ERROR: mem_backend init failed\n");
         goto failure_handle;
     }
@@ -728,6 +732,7 @@ int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req) {
     kvtrans_req_t *kreq;
     kreq = init_kvtrans_req(ctx, req, NULL);
     DSS_ASSERT(kreq);
+    kreq->io_tasks = NULL;
     return 0;
 }
 
@@ -785,6 +790,7 @@ dss_kvtrans_status_t _alloc_entry_block(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     if(dss_blk_allocator_get_block_state(blk_alloc_ctx, blk_ctx->index, &blk_state)) {
         return KVTRANS_STATUS_ERROR;
     }
+
     DSS_ASSERT(blk_state<DEFAULT_BLOCK_STATE_NUM);
 
     blk_ctx->state = (blk_state_t) blk_state;
@@ -855,6 +861,7 @@ dss_kvtrans_status_t find_data_blocks(blk_ctx_t *ctx, dss_blk_allocator_context_
         DSS_ASSERT(allocated_start_block>0 && allocated_start_block<BLK_NUM);
         ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
         ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
+
         if (allocated_start_block!=ctx->index+1) {
             ctx->vctx.remote_val_blocks++;
         }
@@ -1947,6 +1954,8 @@ void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t dat
         return;
     }
 
+    init_meta_ctx(ctx->meta_ctx, meta_pool_size);
+
     if (g_disk_as_data_store) {
         return;
     }
@@ -1957,7 +1966,6 @@ void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t dat
         return;
     }
 
-    init_meta_ctx(ctx->meta_ctx, meta_pool_size);
     init_data_ctx(ctx->data_ctx, data_pool_size);
 }
 
@@ -1967,11 +1975,8 @@ void reset_mem_backend(kvtrans_ctx_t  *ctx) {
         printf("kvtrans_ctx is not initialized\n");
         return;
     }  
-    free_metas(ctx->meta_ctx);
-    memset(ctx->meta_ctx->pool, 0, sizeof(ondisk_meta_t) * ctx->kvtrans_params.mb_blk_num);
-    memset(ctx->meta_ctx->free_index, 0, sizeof(uint64_t) * INIT_FREE_INDEX_SIZE);
-    ctx->meta_ctx->num = 0;
-    ctx->meta_ctx->free_num = 0;
+    reset_cache_table(ctx->meta_ctx->meta_mem);
+    reset_data_ctx(ctx->data_ctx);
 }
 
 void free_mem_backend(kvtrans_ctx_t  *ctx) {

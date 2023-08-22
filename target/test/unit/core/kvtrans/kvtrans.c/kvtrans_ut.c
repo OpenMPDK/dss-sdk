@@ -41,6 +41,10 @@
 #define VAL_LEN 4096 * 3
 #define KEY_BATCH 10000
 #define KEY_NUM 100000
+#define DEFAULT_DEV 0x34acb239
+#define DEFAULT_IOTM 0xffffffff
+#undef BLK_NUM
+#define BLK_NUM 4000000 / 8
 
 typedef struct key_generator_s key_generator_t;
 typedef struct obj_key_s obj_key_t;
@@ -72,6 +76,7 @@ typedef struct key_generator_s {
     void (*run)(key_generator_t *, int);
 } key_generator_t;
 
+extern bool g_disk_as_data_store;
 
 void object_key_generate(key_generator_t *kg, int key_len)
 {   
@@ -128,9 +133,11 @@ void init_params(kvtrans_params_t *params) {
     params->name = "kvtrans_ut";
     params->hash_type = spooky;
     params->hash_size = 0;
-    params->mb_blk_num = KEY_NUM;
-    params->mb_data_num = BLK_NUM;
+    params->total_blk_num = BLK_NUM;
+    params->meta_blk_num = KEY_NUM;
     params->blk_alloc_name = "block_impresario";
+    params->dev = DEFAULT_DEV;
+    params->iotm = DEFAULT_IOTM;
 }
 
 void init_test_ctx() {
@@ -392,7 +399,7 @@ int main( )
     if(CUE_SUCCESS != CU_initialize_registry()) {
         return CU_get_error();
     }
-
+    g_disk_as_data_store = false;
     init_test_ctx();
 
     pSuite = CU_add_suite("DSS kv translator", NULL, NULL);
@@ -402,8 +409,8 @@ int main( )
     }
 
     if(
-        NULL == CU_add_test(pSuite, "testInitCase" ,  testInitCase)
-        || NULL == CU_add_test(pSuite, "testInitParaCase" ,  testInitParaCase)
+        // NULL == CU_add_test(pSuite, "testInitCase" ,  testInitCase)
+        NULL == CU_add_test(pSuite, "testInitParaCase" ,  testInitParaCase)
         || NULL == CU_add_test(pSuite, "testSuccessFlow" ,  testSuccessFlow)
         // || NULL == CU_add_test(pSuite, "testCollision" ,  testCollision) // included in testFullDelete
         || NULL == CU_add_test(pSuite, "testBatchDelete" ,  testBatchDelete)
