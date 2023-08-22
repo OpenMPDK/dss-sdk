@@ -1,14 +1,14 @@
-From ccc86eda5ae1be9900572cf0fa77445727b1b17b Mon Sep 17 00:00:00 2001
+From bf4841b8aebede5bd2f1a4970771bd95e320da78 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 10 Feb 2021 11:09:32 -0800
-Subject: [PATCH 30/76] Update assert for offset validate for user buffer
+Subject: [PATCH 30/77] Update assert for offset validate for user buffer
 
 ---
  lib/nvmf/rdma.c | 4 +---
  1 file changed, 1 insertion(+), 3 deletions(-)
 
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index d59b3c8f9..0b1df92f8 100644
+index d59b3c8..0b1df92 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -910,9 +910,7 @@ dfly_rdma_setup_data_transfer_out(struct spdk_nvmf_rdma_qpair *rqpair, struct sp
@@ -23,5 +23,5 @@ index d59b3c8f9..0b1df92f8 100644
  				sge_len = rdma_req->data.wr.sg_list[sge_index].length;
  				if(data_offset > 0) {
 -- 
-2.24.3
+1.8.3.1
 

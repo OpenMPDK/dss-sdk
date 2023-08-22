@@ -1,14 +1,14 @@
-From 92b88e127bb11488669919f58218c23dae5bc9d8 Mon Sep 17 00:00:00 2001
+From 9f14b8662821f2ca33b3f3d8f57925253f031c51 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 20 Apr 2021 16:04:12 -0700
-Subject: [PATCH 47/76] Add hsl lib to link
+Subject: [PATCH 47/77] Add hsl lib to link
 
 ---
  mk/spdk.app.mk | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index 51a3c5b6d..559396b56 100644
+index 51a3c5b..559396b 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,7 +48,7 @@ endif
@@ -21,5 +21,5 @@ index 51a3c5b6d..559396b56 100644
  CLEAN_FILES = $(APP)
  
 -- 
-2.24.3
+1.8.3.1
 

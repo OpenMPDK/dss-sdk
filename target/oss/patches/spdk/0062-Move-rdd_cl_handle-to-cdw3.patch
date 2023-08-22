@@ -1,7 +1,7 @@
-From 0c7666c05ce52cc6f55c0640510577fb3420bf38 Mon Sep 17 00:00:00 2001
+From 3afe51ecc9e2911598666ffb7bf5d6e261a3ab72 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 6 Jun 2022 15:25:20 -0700
-Subject: [PATCH 62/76] Move rdd_cl_handle to cdw3
+Subject: [PATCH 62/77] Move rdd_cl_handle to cdw3
 
 ---
  include/spdk/nvme_spec.h | 21 +++++++++++++++++++--
@@ -9,7 +9,7 @@ Subject: [PATCH 62/76] Move rdd_cl_handle to cdw3
  2 files changed, 24 insertions(+), 5 deletions(-)
 
 diff --git a/include/spdk/nvme_spec.h b/include/spdk/nvme_spec.h
-index 120cea543..1e0c28dea 100644
+index 120cea5..1e0c28d 100644
 --- a/include/spdk/nvme_spec.h
 +++ b/include/spdk/nvme_spec.h
 @@ -867,7 +867,7 @@ union spdk_nvme_feat_kv {
@@ -55,7 +55,7 @@ index 120cea543..1e0c28dea 100644
  	/* dword 4-5 */
  	uint64_t mptr;		/* metadata pointer */
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index b58939f2e..b273bc1a4 100644
+index b58939f..b273bc1 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -2331,7 +2331,9 @@ nvmf_rdma_request_parse_sgl(struct spdk_nvmf_rdma_transport *rtransport,
@@ -88,5 +88,5 @@ index b58939f2e..b273bc1a4 100644
  
  		SPDK_DEBUGLOG(SPDK_LOG_RDMA, "Request %p took %d buffer/s from central pool\n", rdma_req,
 -- 
-2.24.3
+1.8.3.1
 

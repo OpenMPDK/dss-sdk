@@ -1,15 +1,15 @@
-From 6a0c27f5026f2c9b9a25351869df13fe541399f0 Mon Sep 17 00:00:00 2001
+From 782e1a0c11c590d633f6db68c1a7ba067c604b6a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 7 Oct 2021 09:53:06 -0700
-Subject: [PATCH 49/76] Normalize capacity reproting to least blocklen
+Subject: [PATCH 49/77] Normalize capacity reproting to least blocklen
 
 ---
- lib/nvmf/ctrlr.c      |  7 +++-
- lib/nvmf/ctrlr_bdev.c | 79 +++++++++++++++++++++++++++++++++++++------
+ lib/nvmf/ctrlr.c      |  7 ++++-
+ lib/nvmf/ctrlr_bdev.c | 79 ++++++++++++++++++++++++++++++++++++++++++++-------
  2 files changed, 74 insertions(+), 12 deletions(-)
 
 diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
-index 7bcc525a9..5050d02bb 100644
+index 7bcc525..5050d02 100644
 --- a/lib/nvmf/ctrlr.c
 +++ b/lib/nvmf/ctrlr.c
 @@ -401,7 +401,12 @@ nvmf_ctrlr_create(struct spdk_nvmf_subsystem *subsystem,
@@ -27,7 +27,7 @@ index 7bcc525a9..5050d02bb 100644
  	req->qpair->ctrlr = ctrlr;
  	spdk_thread_send_msg(subsystem->thread, _nvmf_subsystem_add_ctrlr, req);
 diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
-index b0677c2f3..bf9741da6 100644
+index b0677c2..bf9741d 100644
 --- a/lib/nvmf/ctrlr_bdev.c
 +++ b/lib/nvmf/ctrlr_bdev.c
 @@ -146,6 +146,7 @@ void dss_fill_ns_blobfs(uint32_t ssid, uint64_t *ncap, uint64_t *nsze, uint64_t
@@ -176,5 +176,5 @@ index b0677c2f3..bf9741da6 100644
  		nsdata->lbaf[0].lbads = spdk_u32log2(spdk_bdev_get_data_block_size(bdev));
  	}
 -- 
-2.24.3
+1.8.3.1
 

@@ -60,7 +60,7 @@ void free_cache_tbl(cache_tbl_t *cache_tbl) {
  * @param cache_tbl the cache table to reset.
 */
 void reset_cache_table(cache_tbl_t *cache_tbl) {
-    int i;
+    uint64_t i;
     int rc;
     
     Judy1FreeArray(&cache_tbl->free_array, PJE0);
@@ -156,7 +156,10 @@ int _shrink_cache_tbl(cache_tbl_t *cache_tbl) {
     while (mem_pool_entry!=NULL)
     {
         if (*mem_pool_entry >= new_total) {
-            new_index = _pop_free_index(cache_tbl);
+            rc = _pop_free_index(cache_tbl, &new_index);
+            if (rc) {
+                assert(0);
+            }
             assert(new_index<new_total);
             memcpy(get_elm_addr(cache_tbl, new_index), \
                     get_elm_addr(cache_tbl,*mem_pool_entry), \
@@ -204,23 +207,26 @@ void print_cache_tbl_state(cache_tbl_t *cache_tbl) {
 }
 
 // pop the smallest available index, expand memory pool if necessary.
-uint64_t _pop_free_index(cache_tbl_t *cache_tbl) {
-    uint64_t free_index = 0;
+int _pop_free_index(cache_tbl_t *cache_tbl, uint64_t *free_index) {
     int rc = 0;
+    uint64_t index_to_free;
     if (cache_tbl->free_num == 0) {
         if (!cache_tbl->dynamic) {
             printf("Error: no free element.\n");
+            return 1;
         }
         if(_extend_cache_tbl(cache_tbl)) {
             printf("ERROR: get free failed, because no free elm. \n"); 
+            return 1;
         }
     } 
-    Judy1First(cache_tbl->free_array, &free_index, PJE0);
-    rc = Judy1Unset(&cache_tbl->free_array, free_index, PJE0);
+    rc = Judy1First(cache_tbl->free_array, &index_to_free, PJE0);
+    assert(rc==1);
+    rc = Judy1Unset(&cache_tbl->free_array, index_to_free, PJE0);
     assert(rc==1);
     cache_tbl->free_num--;
-
-    return free_index;
+    *free_index = index_to_free;
+    return 0;
 }
 
 // put a index to free_array, shrink cache if necessary
@@ -253,10 +259,11 @@ int _put_free_index(cache_tbl_t *cache_tbl, uint64_t index) {
 */
 int store_elm(cache_tbl_t *cache_tbl, uint64_t kidx, void *data) {
     uint64_t *new_entry;
+    int rc;
     new_entry = (uint64_t *)JudyLGet(cache_tbl->mem_array, kidx, PJE0);
     if (new_entry==NULL) {
         new_entry = (uint64_t *)JudyLIns(&cache_tbl->mem_array, kidx, PJE0);
-        *new_entry = _pop_free_index(cache_tbl);
+        rc = _pop_free_index(cache_tbl, new_entry);
     }
     memcpy(get_elm_addr(cache_tbl, *new_entry), data, cache_tbl->elm_size);
     return 0;

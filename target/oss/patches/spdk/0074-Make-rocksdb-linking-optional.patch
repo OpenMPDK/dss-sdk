@@ -1,7 +1,7 @@
-From d0a0895141b9b7d0b019da580e976876efa6ec12 Mon Sep 17 00:00:00 2001
+From 36b593b70c82c14104328e85fca5c86b61cd2c18 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 19 Apr 2023 16:21:04 -0700
-Subject: [PATCH 74/76] Make rocksdb linking optional
+Subject: [PATCH 74/77] Make rocksdb linking optional
 
 ---
  CONFIG         | 3 +++
@@ -9,7 +9,7 @@ Subject: [PATCH 74/76] Make rocksdb linking optional
  2 files changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/CONFIG b/CONFIG
-index c8fd1a8ba..8346a4248 100644
+index c8fd1a8..8346a42 100644
 --- a/CONFIG
 +++ b/CONFIG
 @@ -173,3 +173,6 @@ CONFIG_IDXD=n
@@ -20,7 +20,7 @@ index c8fd1a8ba..8346a4248 100644
 +#Build with Rocksdb KV support
 +CONFIG_DSS_ROCKSDB_KV=n
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index 80569b744..185dcd709 100644
+index 80569b7..185dcd7 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,7 +48,11 @@ endif
@@ -37,5 +37,5 @@ index 80569b744..185dcd709 100644
  ifeq ($(CONFIG_DSS_OSS),n)
  SYS_LIBS += -ldss_hsl -ldss_lat -ljudyL
 -- 
-2.24.3
+1.8.3.1
 

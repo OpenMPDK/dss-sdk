@@ -1,15 +1,15 @@
-From b8f0f246e64c2b9984fa268abc49b2591affbe8f Mon Sep 17 00:00:00 2001
+From c7687769d4002f7baf348f0b3f8fdcfdab697b96 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 20 Dec 2021 16:38:29 -0800
-Subject: [PATCH 56/76] RDD IO path implementation
+Subject: [PATCH 56/77] RDD IO path implementation
 
 ---
  lib/nvmf/ctrlr.c |   2 +-
- lib/nvmf/rdma.c  | 126 +++++++++++++++++++++++++++++++++++++++++------
+ lib/nvmf/rdma.c  | 126 ++++++++++++++++++++++++++++++++++++++++++++++++-------
  2 files changed, 111 insertions(+), 17 deletions(-)
 
 diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
-index 5050d02bb..e6995282b 100644
+index 5050d02..e699528 100644
 --- a/lib/nvmf/ctrlr.c
 +++ b/lib/nvmf/ctrlr.c
 @@ -402,7 +402,7 @@ nvmf_ctrlr_create(struct spdk_nvmf_subsystem *subsystem,
@@ -22,7 +22,7 @@ index 5050d02bb..e6995282b 100644
  	} else {
  		ctrlr->dif_insert_or_strip = transport->opts.dif_insert_or_strip;
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 74a0a7586..000050565 100644
+index 74a0a75..0000505 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -892,6 +892,75 @@ static void dfly_rdma_fini_key_transfer(struct spdk_nvmf_rdma_request *rdma_req)
@@ -206,5 +206,5 @@ index 74a0a7586..000050565 100644
  		}
  		break;
 -- 
-2.24.3
+1.8.3.1
 

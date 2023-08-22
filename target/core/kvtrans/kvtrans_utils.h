@@ -40,7 +40,7 @@ cache_tbl_t *init_cache_tbl(char *name, uint64_t init_elm_num, size_t elm_size, 
 void free_cache_tbl(cache_tbl_t *cache_tbl);
 int _extend_cache_tbl(cache_tbl_t *cache_tbl);
 int _shrink_cache_tbl(cache_tbl_t *cache_tbl);
-uint64_t _pop_free_index(cache_tbl_t *cache_tbl);
+int _pop_free_index(cache_tbl_t *cache_tbl, uint64_t *free_index);
 int _put_free_index(cache_tbl_t *cache_tbl, uint64_t index);
 
 int store_elm(cache_tbl_t *cache_tbl, uint64_t kidx, void *data);

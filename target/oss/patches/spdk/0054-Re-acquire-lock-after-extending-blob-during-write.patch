@@ -1,7 +1,7 @@
-From 5e5bbd62dedc164b545f9e753cc03c0ffb1535e8 Mon Sep 17 00:00:00 2001
+From c4cf4ac51f2f7ac9474d8bf81c532a8ffbe22908 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 28 Oct 2021 10:46:01 -0700
-Subject: [PATCH 54/76] Re-acquire lock after extending blob during write
+Subject: [PATCH 54/77] Re-acquire lock after extending blob during write
 
     * Caused issue with cache buffer corruption during reclaim
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH 54/76] Re-acquire lock after extending blob during write
  1 file changed, 1 insertion(+)
 
 diff --git a/lib/blobfs/blobfs.c b/lib/blobfs/blobfs.c
-index a3ba66120..afc56d435 100644
+index a3ba661..afc56d4 100644
 --- a/lib/blobfs/blobfs.c
 +++ b/lib/blobfs/blobfs.c
 @@ -2732,6 +2732,7 @@ spdk_file_write(struct spdk_file *file, struct spdk_fs_thread_ctx *ctx,
@@ -21,5 +21,5 @@ index a3ba66120..afc56d435 100644
  
  #ifdef WT_FLUSH
 -- 
-2.24.3
+1.8.3.1
 

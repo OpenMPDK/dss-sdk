@@ -163,18 +163,18 @@ typedef struct ondisk_meta_s {
     bool isvalid;
     key_size_t key_len;
 
-    //collision entry
-    uint8_t     num_valid_col_entry;
-    uint8_t     num_valid_dc_col_entry;
-    col_entry_t  collision_tbl[MAX_COL_TBL_SIZE];
-    uint64_t data_collision_index;
-
     //value entry
     uint64_t  value_size;   // if value_size = 0, it is just holding the blkment to serve other collision keys
     enum value_loc_e value_location;   // 0 = Along with Meta, 1 = next adjacent blkment, 2 = remote, 3 = some adjacent and  some remote
     uint8_t    num_valid_place_value_entry;
     value_loc_t   place_value [MAX_VALUE_SCATTER];
     uint8_t    value_buffer[MAX_INLINE_VALUE];  //Small values we can club together with Meta
+
+    //collision entry
+    uint8_t     num_valid_col_entry;
+    uint8_t     num_valid_dc_col_entry;
+    col_entry_t  collision_tbl[MAX_COL_TBL_SIZE];
+    uint64_t data_collision_index;
 } ondisk_meta_t;
 
 /* blkment context */

@@ -1,14 +1,14 @@
-From 45dd27d0d708caa0b01b0e8b778db191ab063c51 Mon Sep 17 00:00:00 2001
+From 3459981dc37260b1e2e178cda67d7aebcbc0312d Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 23 Mar 2021 14:24:03 -0700
-Subject: [PATCH 39/76] Trim disable update
+Subject: [PATCH 39/77] Trim disable update
 
 ---
  lib/blob/blobstore.c | 3 +++
  1 file changed, 3 insertions(+)
 
 diff --git a/lib/blob/blobstore.c b/lib/blob/blobstore.c
-index 6141eb32b..5af1561ad 100644
+index 6141eb3..5af1561 100644
 --- a/lib/blob/blobstore.c
 +++ b/lib/blob/blobstore.c
 @@ -1544,6 +1544,9 @@ bs_batch_clear_dev(struct spdk_blob_persist_ctx *ctx, spdk_bs_batch_t *batch, ui
@@ -22,5 +22,5 @@ index 6141eb32b..5af1561ad 100644
  		bs_batch_unmap_dev(batch, lba, lba_count);
  		break;
 -- 
-2.24.3
+1.8.3.1
 

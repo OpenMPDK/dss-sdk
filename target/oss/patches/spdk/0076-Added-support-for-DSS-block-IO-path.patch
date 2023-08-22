@@ -1,23 +1,23 @@
-From 8cc05763d08561fc12a409f4516261529a7c28b4 Mon Sep 17 00:00:00 2001
+From ecc30d4647eafd291f6de137ee026992e230a685 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 17 Jul 2023 17:44:40 -0700
-Subject: [PATCH 76/76] Added support for DSS block IO path
+Subject: [PATCH 76/77] Added support for DSS block IO path
 
 ---
- lib/nvmf/ctrlr.c                      |  6 +++--
- lib/nvmf/ctrlr_bdev.c                 | 18 ++++++++++---
- lib/nvmf/rdma.c                       | 37 +++++++++++++++++----------
- lib/nvmf/subsystem.c                  | 25 +++++++++---------
- lib/nvmf/tcp.c                        |  4 +--
- mk/spdk.app.mk                        |  4 +--
- module/event/subsystems/nvmf/conf.c   |  8 +++---
- test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c | 15 +++++++++++
+ lib/nvmf/ctrlr.c                      |  6 ++++--
+ lib/nvmf/ctrlr_bdev.c                 | 18 +++++++++++++----
+ lib/nvmf/rdma.c                       | 37 +++++++++++++++++++++++------------
+ lib/nvmf/subsystem.c                  | 25 +++++++++++------------
+ lib/nvmf/tcp.c                        |  4 ++--
+ mk/spdk.app.mk                        |  4 ++--
+ module/event/subsystems/nvmf/conf.c   |  8 ++++----
+ test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c | 15 ++++++++++++++
  test/unit/lib/nvmf/rdma.c/rdma_ut.c   |  3 +++
- test/unit/lib/nvmf/tcp.c/tcp_ut.c     | 20 +++++++++++++++
+ test/unit/lib/nvmf/tcp.c/tcp_ut.c     | 20 +++++++++++++++++++
  10 files changed, 101 insertions(+), 39 deletions(-)
 
 diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
-index 8f4db8cfe..238905d1c 100644
+index 8f4db8c..238905d 100644
 --- a/lib/nvmf/ctrlr.c
 +++ b/lib/nvmf/ctrlr.c
 @@ -484,6 +484,7 @@ nvmf_ctrlr_add_io_qpair(void *ctx)
@@ -55,7 +55,7 @@ index 8f4db8cfe..238905d1c 100644
  				dss_net_setup_request(&req->dreq->common_req, req->qpair->dqpair->net_module_instance, (void *)req);
  				dss_module_post_to_instance(DSS_MODULE_NET, req->dreq->common_req.module_ctx[DSS_MODULE_NET].module_instance, &req->dreq->common_req);
 diff --git a/lib/nvmf/ctrlr_bdev.c b/lib/nvmf/ctrlr_bdev.c
-index bf9741da6..97eb7ecff 100644
+index bf9741d..97eb7ec 100644
 --- a/lib/nvmf/ctrlr_bdev.c
 +++ b/lib/nvmf/ctrlr_bdev.c
 @@ -206,9 +206,14 @@ nvmf_bdev_ctrlr_identify_ns(struct spdk_nvmf_ns *ns, struct spdk_nvme_ns_data *n
@@ -111,7 +111,7 @@ index bf9741da6..97eb7ecff 100644
  			nsdata->lbaf[0].lbads = spdk_u32log2(subsys_blocklen);
  		} else {
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index 1287ea0fb..23bdbc2a7 100644
+index 1287ea0..23bdbc2 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -726,10 +726,19 @@ static int dfly_nvmf_rdma_qpair_init(struct spdk_nvmf_rdma_qpair *rqpair)
@@ -220,7 +220,7 @@ index 1287ea0fb..23bdbc2a7 100644
  				dfly_req_init_nvmf_info(rdma_req->req.dreq);
  
 diff --git a/lib/nvmf/subsystem.c b/lib/nvmf/subsystem.c
-index ae1d21f00..6a167c9ca 100644
+index ae1d21f..6a167c9 100644
 --- a/lib/nvmf/subsystem.c
 +++ b/lib/nvmf/subsystem.c
 @@ -997,12 +997,11 @@ spdk_nvmf_subsystem_remove_ns(struct spdk_nvmf_subsystem *subsystem, uint32_t ns
@@ -273,7 +273,7 @@ index ae1d21f00..6a167c9ca 100644
  		if (rc != 0) {
  			spdk_bdev_close(ns->desc);
 diff --git a/lib/nvmf/tcp.c b/lib/nvmf/tcp.c
-index 148d67b2a..3cc12cd6a 100644
+index 148d67b..3cc12cd 100644
 --- a/lib/nvmf/tcp.c
 +++ b/lib/nvmf/tcp.c
 @@ -293,7 +293,7 @@ static inline void dfly_update_result_data_len(struct spdk_nvmf_tcp_req * tcp_re
@@ -295,7 +295,7 @@ index 148d67b2a..3cc12cd6a 100644
  	}
  
 diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
-index 185dcd709..6fffc889f 100644
+index 185dcd7..6fffc88 100644
 --- a/mk/spdk.app.mk
 +++ b/mk/spdk.app.mk
 @@ -48,10 +48,10 @@ endif
@@ -312,7 +312,7 @@ index 185dcd709..6fffc889f 100644
  
  ifeq ($(CONFIG_DSS_OSS),n)
 diff --git a/module/event/subsystems/nvmf/conf.c b/module/event/subsystems/nvmf/conf.c
-index 24e34ce56..364961a33 100644
+index 24e34ce..364961a 100644
 --- a/module/event/subsystems/nvmf/conf.c
 +++ b/module/event/subsystems/nvmf/conf.c
 @@ -339,6 +339,10 @@ nvmf_parse_subsystem(struct spdk_conf_section *sp)
@@ -338,7 +338,7 @@ index 24e34ce56..364961a33 100644
  	return (subsystem != NULL) ? 0 : -1;
  }
 diff --git a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
-index 4cccc9f7c..c94600922 100644
+index 4cccc9f..c946009 100644
 --- a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
 +++ b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
 @@ -62,6 +62,21 @@ DEFINE_STUB(dfly_ustat_init_qpair_stat,
@@ -364,7 +364,7 @@ index 4cccc9f7c..c94600922 100644
  	    struct spdk_nvmf_subsystem *,
  	    (struct spdk_nvmf_tgt *tgt, const char *subnqn),
 diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
-index e4b21fdb9..cc141699f 100644
+index e4b21fd..cc14169 100644
 --- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 +++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
 @@ -81,6 +81,9 @@ DEFINE_STUB_V(dfly_req_init_nvmf_info,
@@ -378,7 +378,7 @@ index e4b21fdb9..cc141699f 100644
          (struct spdk_nvmf_qpair *nvmf_qpair), 0);
  
 diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
-index 446195ec3..28a535715 100644
+index 446195e..28a5357 100644
 --- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c
 +++ b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
 @@ -71,6 +71,11 @@ DEFINE_STUB(df_qpair_susbsys_enabled,
@@ -416,5 +416,5 @@ index 446195ec3..28a535715 100644
        int,
        (struct dfly_request *req),
 -- 
-2.24.3
+1.8.3.1
 

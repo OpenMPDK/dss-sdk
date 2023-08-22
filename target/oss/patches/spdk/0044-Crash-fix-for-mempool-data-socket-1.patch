@@ -1,7 +1,7 @@
-From 467d4c15ca83016dc301ebff01ba532e633d6935 Mon Sep 17 00:00:00 2001
+From b0d3ea4cec00ccf129a310fd24d6a41cc5f70b4c Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 2 Apr 2021 14:05:10 -0700
-Subject: [PATCH 44/76] Crash fix for mempool data socket -1
+Subject: [PATCH 44/77] Crash fix for mempool data socket -1
 
     * Move dfly_req_fini to just before adding to free queue
     * Add nvme_opcode to request struct and initialize
@@ -13,7 +13,7 @@ Subject: [PATCH 44/76] Crash fix for mempool data socket -1
  3 files changed, 18 insertions(+), 7 deletions(-)
 
 diff --git a/lib/nvmf/nvmf.c b/lib/nvmf/nvmf.c
-index 47779a21f..33ee41d19 100644
+index 47779a2..33ee41d 100644
 --- a/lib/nvmf/nvmf.c
 +++ b/lib/nvmf/nvmf.c
 @@ -951,6 +951,8 @@ spdk_nvmf_qpair_disconnect(struct spdk_nvmf_qpair *qpair, nvmf_qpair_disconnect_
@@ -26,7 +26,7 @@ index 47779a21f..33ee41d19 100644
  	if (qpair->state == SPDK_NVMF_QPAIR_UNINITIALIZED) {
  		nvmf_transport_qpair_fini(qpair);
 diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
-index ee48b8474..032aa9194 100644
+index ee48b84..032aa91 100644
 --- a/lib/nvmf/rdma.c
 +++ b/lib/nvmf/rdma.c
 @@ -653,6 +653,7 @@ nvmf_rdma_request_free_data(struct spdk_nvmf_rdma_request *rdma_req,
@@ -84,7 +84,7 @@ index ee48b8474..032aa9194 100644
  		_nvmf_rdma_try_disconnect(&rqpair->qpair);
  	}
 diff --git a/lib/nvmf/transport.c b/lib/nvmf/transport.c
-index fb0e8901b..24ba92c8f 100644
+index fb0e890..24ba92c 100644
 --- a/lib/nvmf/transport.c
 +++ b/lib/nvmf/transport.c
 @@ -157,6 +157,10 @@ int dss_numa_mempool_get(struct dss_numa_mempool_s *mp, uint32_t node, int count
@@ -134,5 +134,5 @@ index fb0e8901b..24ba92c8f 100644
  					assert(iod);
  					if(iod->numa_node != -1) {
 -- 
-2.24.3
+1.8.3.1
 

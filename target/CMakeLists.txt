@@ -742,5 +742,7 @@ set_property(TEST test_block_allocator_ut
 #set_property(TEST dss_kvtrans_ut
 #             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 
+add_test(NAME dss_kvtrans_utils_ut COMMAND dss_kvtrans_utils_ut)
+
 enable_testing()
 

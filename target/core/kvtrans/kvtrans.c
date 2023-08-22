@@ -429,7 +429,7 @@ static void kv_assign_block(uint64_t *index, kvtrans_ctx_t *ctx) {
     bit_shift = ctx->hash_fn_ctx->hash_size - ctx->hash_bit_in_use;
     
     // avoid index 0
-    *index = (*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - 1) + 1;
+    *index = ((*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - 1)) + 1;
 }
 
 hash_fn_ctx_t *init_hash_fn_ctx(kvtrans_params_t *params) 
