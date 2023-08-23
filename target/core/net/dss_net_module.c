@@ -227,6 +227,9 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
     struct dss_net_module_ss_node_s *net_ss_node = NULL;
     int current_index = e->current_index;
     int nic_numa_node = -1;
+    dss_module_config_t c;
+
+	dss_module_set_default_config(&c);
 
     //TODO: lock ??
     if(current_index == e->cfg->count) {
@@ -264,11 +267,12 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
     }
 
     if(rc == DSS_MODULE_STATUS_MOD_CREATED) {
+        c.id = DSS_DEFAULT_NET_MODULE_ID;
+	    c.num_cores = e->cfg->dev_list[current_index].num_nw_threads;
+        c.numa_node = nic_numa_node;
         /*TODO: Change ip to device name e->cfg->dev_list[current_index].dev_name*/
         net_module->module = dfly_module_start(e->cfg->dev_list[current_index].ip,
-                          DSS_DEFAULT_NET_MODULE_ID,
-                          DSS_MODULE_NET, &g_net_module_ops, net_module,
-                          e->cfg->dev_list[current_index].num_nw_threads, nic_numa_node,
+                          DSS_MODULE_NET, &c, &g_net_module_ops, net_module,
                           (df_module_event_complete_cb) dss_net_module_init_next, (void *)e);
 
         DSS_NOTICELOG("Started Network module for IP %s\n", net_module->ip);

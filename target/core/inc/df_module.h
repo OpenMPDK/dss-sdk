@@ -70,6 +70,20 @@ typedef struct dfly_module_s {
 #endif
 	void *ctx; //Module Context info
 
+	struct {
+		bool async_load_enabled;
+		pthread_mutex_t async_load_lock;
+		enum {
+			DSS_MODULE_UNINITIALIZED = 0,
+			DSS_MODULE_LOADING,
+			DSS_MODULE_LOADED,
+			DSS_MODULE_UNLOADING,
+			DSS_MODULE_UNLOADED
+		} state;
+		uint64_t pending_load_count;
+		dss_module_cmpl_evt_t *cmpl_evt_info;
+	} async_load;
+
 	TAILQ_HEAD(, dfly_module_poller_instance_s) active_threads;
 
 } dfly_module_t;
@@ -99,9 +113,9 @@ struct df_module_event_complete_s {
 	void *arg2;
 };
 
-struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_type_t mtype, struct dfly_module_ops *mops,
+struct dfly_module_s *dfly_module_start(const char *name, dss_module_type_t mtype, dss_module_config_t *cfg, struct dfly_module_ops *mops,
 					void *ctx,
-					int num_cores, int numa_node, df_module_event_complete_cb cb, void *cb_arg);
+					df_module_event_complete_cb cb, void *cb_arg);
 void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg, void *cb_private);
 void dfly_module_post_request(struct dfly_module_s *module, struct dfly_request *req);
 void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_request *req);

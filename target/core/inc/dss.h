@@ -45,6 +45,9 @@
     #define DSS_ASSERT(x) assert((x))
 #endif //DSS_RELEASE_BUILD
 
+#define dss_unlikely(cond)	__builtin_expect((cond), 0)
+#define dss_likely(cond)	__builtin_expect(!!(cond), 1)
+
 void set_kvtrans_disk_data_store(bool val);
 
 #ifndef DSS_BUILD_CUNIT_TEST

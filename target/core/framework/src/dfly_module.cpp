@@ -210,10 +210,6 @@ void dfly_module_thread_start(void *inst, void *cb_event)
 
 	pthread_mutex_lock(&module->module_lock);
 
-	if (module->ops->module_init_instance_context) {
-		m_inst->ctx = module->ops->module_init_instance_context(m_inst->ctx, m_inst, module->num_threads);
-	}
-
 	DFLY_ASSERT(m_inst->icore  == spdk_env_get_current_core());
 
 	DFLY_INFOLOG(DFLY_LOG_MODULE, "Launching module thread on core %u\n", m_inst->icore);
@@ -225,6 +221,10 @@ void dfly_module_thread_start(void *inst, void *cb_event)
 	m_inst->pipe.cmpl_ring = spdk_ring_create(SPDK_RING_TYPE_MP_SC, 65536, SPDK_ENV_SOCKET_ID_ANY);
 	assert(m_inst->pipe.cmpl_ring);
 #endif
+
+	if (module->ops->module_init_instance_context) {
+		m_inst->ctx = module->ops->module_init_instance_context(m_inst->ctx, m_inst, module->num_threads);
+	}
 
 #if defined DFLY_MODULE_MSG_MP_SC
 	module->active_thread_arr[module->num_threads] = m_inst;
@@ -241,7 +241,11 @@ void dfly_module_thread_start(void *inst, void *cb_event)
 		event = spdk_event_allocate(m_inst->icore, dfly_module_thread_start, m_inst, cb_event);
 		spdk_event_call(event);
 	} else {
-		dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
+		if(!module->async_load.async_load_enabled) {//Otherwise completion triggerd by dec pending count
+			dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
+		} else {
+			dss_module_dec_async_pending_task(module);//Decrement extra ref
+		}
 	}
 
 	pthread_mutex_unlock(&module->module_lock);
@@ -268,8 +272,8 @@ static inline void str_replace_char(char *str, char orig_ch, char replace_ch, si
 //connect to module instance
 
 #define STAT_NAME_MAX_LEN (64)
-struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_type_t mtype,
-					struct dfly_module_ops *mops, void *ctx, int num_cores, int numa_node,
+struct dfly_module_s *dfly_module_start(const char *name, dss_module_type_t mtype, dss_module_config_t *cfg,
+					struct dfly_module_ops *mops, void *ctx,
 					df_module_event_complete_cb cb, void *cb_arg)
 {
 
@@ -281,7 +285,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 
 	char stat_name[STAT_NAME_MAX_LEN];
 	memset(stat_name, 0, STAT_NAME_MAX_LEN);
-	snprintf(stat_name, STAT_NAME_MAX_LEN, "m_%s_%d", name, id);
+	snprintf(stat_name, STAT_NAME_MAX_LEN, "m_%s_%d", name, cfg->id);
 	DFLY_ASSERT(strlen(stat_name) < STAT_NAME_MAX_LEN);
 
 	module = (dfly_module_t *)calloc(1, sizeof(dfly_module_t));
@@ -300,7 +304,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 	module->ctx = ctx;
 
 	m_inst = (struct dfly_module_poller_instance_s *)calloc(1,
-			sizeof(struct dfly_module_poller_instance_s) * num_cores);
+			sizeof(struct dfly_module_poller_instance_s) * cfg->num_cores);
 	if (!m_inst) {
 		free(module);
 		return NULL;
@@ -312,7 +316,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 #if 0
 	launch_core = spdk_env_get_current_core();
 #endif
-	for (i = 0; i < num_cores; i++) {
+	for (i = 0; i < cfg->num_cores; i++) {
 		m_inst[i].ctx = ctx;
 		m_inst[i].module = module;
 #if 0
@@ -321,7 +325,7 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 			launch_core = spdk_env_get_first_core();
 		}
 #else
-		launch_core = dss_get_next_numa_core(module->name, num_cores, numa_node);
+		launch_core = dss_get_next_numa_core(module->name, cfg->num_cores, cfg->numa_node);
 		m_inst[i].icore = launch_core;
 		DFLY_ASSERT(launch_core != -1);
 #endif
@@ -348,11 +352,30 @@ struct dfly_module_s *dfly_module_start(const char *name, int id, dss_module_typ
 	//Last init instance will give module
 	struct spdk_event *event;
 
+	if(cfg->async_load_enabled) {
+		dss_module_init_async_load(module, true, cb_event);
+		//Extra ref to guard completion cb before all module threads gets a chance to incremetn ref
+		dss_module_inc_async_pending_task(module);
+	}
+
 	//TODO: clean code: use TAILQ_FIRST instead of index
 	event = spdk_event_allocate(m_inst[0].icore, dfly_module_thread_start, &m_inst[0], cb_event);
 	spdk_event_call(event);
 
 	return module;
+}
+
+void dss_module_free_active_threads(dss_module_t *m)
+{
+	struct dfly_module_s *module = (struct dfly_module_s *)m;
+	struct dfly_module_poller_instance_s *m_inst_next = NULL;
+
+	m_inst_next = TAILQ_FIRST(&module->active_threads);
+    free(m_inst_next);
+
+	memset(module, 0, sizeof(dfly_module_t));
+	free(module);
+	return;
 }
 
 void dfly_module_thread_stop(void *ctx, void *cb_event)
@@ -388,11 +411,15 @@ void dfly_module_thread_stop(void *ctx, void *cb_event)
 		event = spdk_event_allocate(m_inst_next->icore, dfly_module_thread_stop, m_inst_next, cb_event);
 		spdk_event_call(event);
 	} else {
-		dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
-		m_inst_next = TAILQ_FIRST(&module->active_threads);
-		free(m_inst_next);
-		memset(module, 0, sizeof(dfly_module_t));
-		free(module);
+		if(!module->async_load.async_load_enabled) {//Otherwise completion triggerd by dec pending count
+			dfly_module_event_processed((struct df_module_event_complete_s *)cb_event, strdup(module->name));
+			m_inst_next = TAILQ_FIRST(&module->active_threads);
+			free(m_inst_next);
+			memset(module, 0, sizeof(dfly_module_t));
+			free(module);
+		} else {
+			dss_module_dec_async_pending_task(module);//Decrement extra ref
+		}
 	}
 
 }
@@ -420,11 +447,84 @@ void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb 
 	cb_event->arg1 = cb_arg;
 	cb_event->arg2 = cb_private;
 
+	if(module->async_load.async_load_enabled) {
+		DSS_ASSERT(module->async_load.state == module->async_load.DSS_MODULE_LOADED);
+		//TODO: Handle unloading while loading
+		dss_module_init_async_load(module, false, cb_event);
+		//Extra ref to guard completion cb before all module threads gets a chance to incremetn ref
+		dss_module_inc_async_pending_task(module);
+	}
+
 	event = spdk_event_allocate(m_inst->icore, dfly_module_thread_stop, m_inst, cb_event);
 	spdk_event_call(event);
 
 	pthread_mutex_unlock(&module->module_lock);
 
+}
+
+void dss_module_set_default_config(dss_module_config_t *c)
+{
+	c->id = 0;
+	c->num_cores = 1;
+	c->numa_node = -1;
+	c->async_load_enabled = false;
+
+	return;
+}
+
+dss_module_status_t dss_module_init_async_load(dss_module_t *m, bool loading, dss_module_cmpl_evt_t *cmpl_evt)
+{
+	int rc;
+
+	if(loading) {
+		rc = pthread_mutex_init(&m->async_load.async_load_lock, NULL);
+		if(rc) {
+			DSS_ERRLOG("Failed to init async lock for %s\n", m->name);
+			return DSS_MODULE_STATUS_ERROR;
+		}
+		m->async_load.async_load_enabled = true;
+		m->async_load.state = m->async_load.DSS_MODULE_LOADING;
+	} else {
+		m->async_load.state = m->async_load.DSS_MODULE_UNLOADING;
+	}
+	m->async_load.pending_load_count = 0;
+	m->async_load.cmpl_evt_info = cmpl_evt;
+
+	return DSS_MODULE_STATUS_SUCCESS;
+}
+
+dss_module_status_t dss_module_inc_async_pending_task(dss_module_t *m)
+{
+	pthread_mutex_lock(&m->async_load.async_load_lock);
+	m->async_load.pending_load_count++;
+	pthread_mutex_unlock(&m->async_load.async_load_lock);
+
+	return DSS_MODULE_STATUS_SUCCESS;
+}
+
+dss_module_status_t dss_module_dec_async_pending_task(dss_module_t *m)
+{
+	pthread_mutex_lock(&m->async_load.async_load_lock);
+	DSS_ASSERT(m->async_load.pending_load_count > 0);
+	m->async_load.pending_load_count--;
+	if (m->async_load.pending_load_count == 0) {
+		if(m->async_load.state == m->async_load.DSS_MODULE_LOADING) {
+			m->async_load.state = m->async_load.DSS_MODULE_LOADED;
+			DSS_NOTICELOG("%s async module loading done for type %d\n", m->name, m->mtype);
+		} else if (m->async_load.state == m->async_load.DSS_MODULE_UNLOADING) {
+			m->async_load.state = m->async_load.DSS_MODULE_UNLOADED;
+			DSS_NOTICELOG("%s async module unloading done for type %d\n", m->name, m->mtype);
+		} else {
+			DSS_ASSERT(0);
+		}
+		dfly_module_event_processed((struct df_module_event_complete_s *)m->async_load.cmpl_evt_info, strdup(m->name));
+		if(m->async_load.state == m->async_load.DSS_MODULE_UNLOADED) {
+			dss_module_free_active_threads(m);
+		}
+	}
+	pthread_mutex_unlock(&m->async_load.async_load_lock);
+
+	return DSS_MODULE_STATUS_SUCCESS;
 }
 
 dss_module_status_t dss_module_post_to_instance(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req)

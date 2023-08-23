@@ -425,10 +425,14 @@ void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
 int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, void *cb_arg)
 {
 	list_context_t  *list_mctx;
-	int nr_cores, nr_zones;
+	int nr_zones;
 	int i;
+	dss_module_config_t c;
 
-	nr_cores = g_list_conf.list_nr_cores;
+	dss_module_set_default_config(&c);
+	c.id = pool->id;
+	c.num_cores = g_list_conf.list_nr_cores;
+
 	nr_zones = g_list_conf.list_zone_per_pool;
 
 	list_debug_level = g_list_conf.list_debug_level;
@@ -481,8 +485,8 @@ DFLY_ASSERT(0);
 	list_cb_event.src_core = spdk_env_get_current_core();
 	list_cb_event.start_tick = spdk_get_ticks();
 
-	pool->mlist.dfly_list_module = dfly_module_start("list", pool->id, DSS_MODULE_LIST, &list_module_ops,
-				       list_mctx, nr_cores, -1, (df_module_event_complete_cb)list_module_started_cb, pool);
+	pool->mlist.dfly_list_module = dfly_module_start("list", DSS_MODULE_LIST, &c, &list_module_ops,
+				       list_mctx, (df_module_event_complete_cb)list_module_started_cb, pool);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);

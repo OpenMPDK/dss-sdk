@@ -294,7 +294,8 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
         //      further processing of the request
         DSS_ASSERT(task->cb_minst);
         DSS_ASSERT(task->cb_ctx);
-        dss_module_post_to_instance(DSS_MODULE_NET, task->cb_minst, task->cb_ctx);
+        //TODO: store module context and get mtype
+        dss_module_post_to_instance(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
     }
 
 

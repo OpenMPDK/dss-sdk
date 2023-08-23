@@ -565,6 +565,9 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 {
 	int rc = 0;
 	struct lock_service_subsys_s *ls_ss_ctx;
+	dss_module_config_t c;
+
+	dss_module_set_default_config(&c);
 
 	ls_ss_ctx = (struct lock_service_subsys_s *)calloc(1, sizeof(struct lock_service_subsys_s));
 	assert(ls_ss_ctx);
@@ -591,8 +594,10 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 		return -1;
 	}
 
-	subsys->mlist.lock_service = dfly_module_start("Lock_service", subsys->id, DSS_MODULE_LOCK, &lock_svc_module_ops,
-				     ls_ss_ctx, 1, -1, cb, cb_arg);
+	c.id = subsys->id;
+
+	subsys->mlist.lock_service = dfly_module_start("Lock_service", DSS_MODULE_LOCK, &c, &lock_svc_module_ops,
+				     ls_ss_ctx, cb, cb_arg);
 
 	DFLY_ASSERT(subsys->mlist.lock_service);
 

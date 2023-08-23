@@ -66,7 +66,15 @@ typedef enum dss_module_status_e {
 	DSS_MODULE_STATUS_ERROR = -1
 } dss_module_status_t;
 
+typedef struct dss_module_config_s {
+    uint32_t id;
+    int num_cores;
+    int numa_node;
+    bool async_load_enabled;
+} dss_module_config_t;
+
 //TODO: typedef to enable deprecating old names
+typedef struct df_module_event_complete_s dss_module_cmpl_evt_t;
 typedef struct dfly_module_poller_instance_s dss_module_instance_t;
 typedef struct dfly_module_s dss_module_t;
 typedef struct dfly_module_ops dss_module_ops_t;
@@ -80,7 +88,8 @@ typedef enum dss_request_opc_e {
 	DSS_NVMF_KV_IO_OPC_LIST,
 	DSS_NVMF_BLK_IO_OPC_READ,
 	DSS_NVMF_BLK_IO_OPC_WRITE,
-    DSS_NVMF_IO_PT
+    DSS_NVMF_IO_PT,
+    DSS_INTERNAL_IO
 } dss_request_opc_t;
 
 typedef enum dss_request_rc_e {
@@ -105,7 +114,9 @@ typedef struct dss_net_req_ctx_s {
 //End - Network structs
 
 //IO Task Common
+typedef struct dss_device_s dss_device_t;
 typedef struct dss_io_task_s dss_io_task_t;
+typedef struct dss_io_task_module_s dss_io_task_module_t;
 //End - IO task Common
 
 //KV Trans Module
@@ -113,6 +124,21 @@ typedef struct dss_io_task_s dss_io_task_t;
 typedef uint32_t key_size_t;
 typedef struct kvtrans_ctx_s kvtrans_ctx_t;
 typedef struct kvtrans_req kvtrans_req_t;
+
+typedef enum dss_kvt_state_e {
+    DSS_KVT_LOADING_SUPERBLOCK = 0,
+    DSS_KVT_LOADING_BA_META,
+    DSS_KVT_INITIALIZED
+} dss_kvt_state_t;
+
+typedef struct dss_kvt_init_ctx_s {
+    dss_device_t *dev;
+    dss_io_task_module_t *iotm;
+    kvtrans_ctx_t **kvt_ctx;
+    void *data;
+    uint64_t data_len;
+    dss_kvt_state_t state;
+} dss_kvt_init_ctx_t;
 
 typedef double tick_t;
 #define KEY_LEN 1024
@@ -197,6 +223,7 @@ typedef struct dss_module_req_ctx_s {
 	union {
 		dss_net_req_ctx_t net;
 		kvtrans_req_t kvt;
+        dss_kvt_init_ctx_t kvt_init;
 	} mreq_ctx;//Module request context
 } dss_module_req_ctx_t;
 
@@ -229,6 +256,39 @@ dss_module_status_t dss_module_get_instance(dss_module_t *module , dss_request_t
  * @return dss_module_status_t DSS_MODULE_STATUS_MOD_INST_NOT_CLEARED if `*module_instance` was populated, DSS_MODULE_STATUS_SUCCESS if successfully set, DSS_MODULE_STATUS_ERROR otherwise
  */
 dss_module_status_t dss_module_get_instance_for_core(dss_module_t *module , uint64_t core, dss_module_instance_t **module_instance);
+
+/**
+ * @brief Populate the default module config
+ *
+ * @param[OUT] c Config struct that will be updated
+ */
+void dss_module_set_default_config(dss_module_config_t *c);
+
+/**
+ * @brief Initializes module for asyc loading
+ *
+ * @param m Module that needs to load asynchronously
+ * @param loading Indicates whether this is loading or unloading
+ * @param cmpl_evt Event to trigger module init/destroy completion
+ * @return dss_module_status_t DSS_MODULE_STATUS_SUCCESS if successfull, DSS_MODULE_STATUS_ERROR otherwise
+ */
+dss_module_status_t dss_module_init_async_load(dss_module_t *m, bool loading, dss_module_cmpl_evt_t *cmpl_evt);
+
+/**
+ * @brief Increment reference count to add a new async task
+ *
+ * @param m Module to add an async task
+ * @return dss_module_status_t DSS_MODULE_STATUS_SUCCESS if successfull, DSS_MODULE_STATUS_ERROR otherwise
+ */
+dss_module_status_t dss_module_inc_async_pending_task(dss_module_t *m);
+
+/**
+ * @brief Decrement reference corresponding to added task on completion
+ *
+ * @param m Module to complete an async task
+ * @return dss_module_status_t DSS_MODULE_STATUS_SUCCESS if successfull, DSS_MODULE_STATUS_ERROR otherwise
+ */
+dss_module_status_t dss_module_dec_async_pending_task(dss_module_t *m);
 
 void *dss_module_get_subsys_ctx( dss_module_type_t type, void *ss);
 

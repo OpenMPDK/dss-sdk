@@ -119,7 +119,12 @@ int dfly_io_req_process(void *ctx, struct dfly_request *req)
 	} else if (req->flags & DFLY_REQF_NVME) {
 		status = dfly_nvme_submit_io_cmd(thrd_inst, req);
 		DFLY_ASSERT(status == SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS);
-	} else {
+	} else if (req->common_req.opc == DSS_INTERNAL_IO) {
+		DSS_ASSERT(thrd_inst->module_ctx->dfly_subsys->use_io_task == true);
+		DSS_ASSERT(req->common_req.io_task);
+		dss_io_task_submit_to_device(req->common_req.io_task);
+		status = SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+	}else {
 		assert(0);
 	}
 
@@ -488,8 +493,14 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg,
 					struct io_thread_ctx_s *io_thrd_ctx)
 {
-	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, DSS_MODULE_IO, &io_module_ops,
-					  io_thrd_ctx, io_thrd_ctx->num_threads, -1, cb, cb_arg);
+	dss_module_config_t c;
+
+	dss_module_set_default_config(&c);
+	c.id = subsystem->id;
+	c.num_cores = io_thrd_ctx->num_threads;
+
+	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", DSS_MODULE_IO, &c, &io_module_ops,
+					  io_thrd_ctx, cb, cb_arg);
 
 	if(subsystem->use_io_task) {
 		dss_io_task_module_status_t task_mod_status;
@@ -501,8 +512,6 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 		//TODO: Handle failure
 		DSS_ASSERT(task_mod_status == DSS_IO_TASK_MODULE_STATUS_SUCCESS);
 	}
-
-
 	return 0;
 }
 

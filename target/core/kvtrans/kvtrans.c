@@ -582,10 +582,6 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         ctx->kvtrans_params = set_default_params();
     }
 
-#ifndef DSS_BUILD_CUNIT_TEST
-    dss_io_dev_set_user_blk_sz(ctx->kvtrans_params.dev, BLOCK_SIZE);
-#endif
-
     dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
     //dss_blk_allocator_set_default_config(NULL, &config);
 
@@ -641,6 +637,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         printf("ERROR: mem_backend init failed\n");
         goto failure_handle;
     }
+
     DSS_DEBUGLOG(DSS_KVTRANS, "Data backend [%x] and Meta backend [%x] created for kvtrans [%x]\n", ctx->data_ctx, ctx->meta_ctx, ctx);
 #endif
     STAILQ_INIT(&ctx->req_head);

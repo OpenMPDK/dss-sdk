@@ -71,8 +71,6 @@ typedef struct dss_io_task_module_opts_s {
     dss_module_t *io_module;
 } dss_io_task_module_opts_t;
 
-typedef struct dss_device_s dss_device_t;
-typedef struct dss_io_task_module_s dss_io_task_module_t;
 typedef struct dss_iov_s dss_iov_t;
 
 /**
