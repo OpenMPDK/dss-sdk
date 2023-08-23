@@ -187,7 +187,6 @@ int _shrink_cache_tbl(cache_tbl_t *cache_tbl) {
         rc = Judy1Next(cache_tbl->free_array, &free_array_idx, PJE0);
     }    
 
-
 #ifdef DEBUG_ENABLED
     uint64_t total_free;
     total_free = Judy1Count(cache_tbl->free_array, 0, cache_tbl->elm_num, PJE0);
@@ -209,7 +208,7 @@ void print_cache_tbl_state(cache_tbl_t *cache_tbl) {
 // pop the smallest available index, expand memory pool if necessary.
 int _pop_free_index(cache_tbl_t *cache_tbl, uint64_t *free_index) {
     int rc = 0;
-    uint64_t index_to_free;
+    uint64_t index_to_free = 0;
     if (cache_tbl->free_num == 0) {
         if (!cache_tbl->dynamic) {
             printf("Error: no free element.\n");
@@ -221,7 +220,10 @@ int _pop_free_index(cache_tbl_t *cache_tbl, uint64_t *free_index) {
         }
     } 
     rc = Judy1First(cache_tbl->free_array, &index_to_free, PJE0);
-    assert(rc==1);
+    if (rc==0) {
+        printf("ERROR: no bits set in array\n");
+        return 1;
+    }
     rc = Judy1Unset(&cache_tbl->free_array, index_to_free, PJE0);
     assert(rc==1);
     cache_tbl->free_num--;
@@ -259,14 +261,14 @@ int _put_free_index(cache_tbl_t *cache_tbl, uint64_t index) {
 */
 int store_elm(cache_tbl_t *cache_tbl, uint64_t kidx, void *data) {
     uint64_t *new_entry;
-    int rc;
+    int rc = 0;
     new_entry = (uint64_t *)JudyLGet(cache_tbl->mem_array, kidx, PJE0);
     if (new_entry==NULL) {
         new_entry = (uint64_t *)JudyLIns(&cache_tbl->mem_array, kidx, PJE0);
         rc = _pop_free_index(cache_tbl, new_entry);
     }
     memcpy(get_elm_addr(cache_tbl, *new_entry), data, cache_tbl->elm_size);
-    return 0;
+    return rc;
 }
 
 /**
