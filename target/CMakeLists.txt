@@ -737,10 +737,10 @@ set_property(TEST test_io_task_orderer_impl
 add_test(NAME test_block_allocator_ut COMMAND test_block_allocator_ut)
 set_property(TEST test_block_allocator_ut
              PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
-# TODO: Test causing segfault fix and then enable
-#add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
-#set_property(TEST dss_kvtrans_ut
-#             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
+add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
+set_property(TEST dss_kvtrans_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
 
 add_test(NAME dss_kvtrans_utils_ut COMMAND dss_kvtrans_utils_ut)
 
