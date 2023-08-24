@@ -87,9 +87,6 @@ void set_kvtrans_disk_data_store(bool val);
 
 #define DSS_WARNLOG printf
 
-#define DSS_DEBUGLOG(FLAG, ...) \
-	do {						 \
-		printf(__VA_ARGS__);	 \
-	} while (0)
+#define DSS_DEBUGLOG(...) do { } while (0)
 
 #endif //DSS_BUILD_CUNIT_TEST
