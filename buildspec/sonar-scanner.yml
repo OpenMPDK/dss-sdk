@@ -33,4 +33,4 @@ phases:
           -Dsonar.pullrequest.key=$(echo $GITHUB_REF | grep -oP "^refs/pull/\K[^/]+") \
           -Dsonar.pullrequest.base=$GITHUB_BASE_REF \
           -Dsonar.pullrequest.branch=$GITHUB_HEAD_REF \
-          -Dsonar.python.coverage.reportPaths=$SONAR_UNIT_TEST_REPORT
+          -Dsonar.coverageReportPaths=$SONAR_UNIT_TEST_REPORT
