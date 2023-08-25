@@ -10,9 +10,12 @@ env:
 phases:
   build:
     commands:
-      - |
-        build-wrapper-linux-x86-64 --out-dir bw-output \
-          ./scripts/build_all.sh kdd-samsung-remote
+      # Download build wrapper output from dss-client build job
+      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/sonar" . --only-show-errors
+      # Download unit test coverage report(s)
+      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/df_out/reports/" df_out/ --only-show-errors
+      # Download df_out and host_out
+      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/build" . --only-show-errors
       - |
         sonar-scanner \
           -Dsonar.branch.name="$([[ "$GITHUB_REF_NAME" != *"/merge" ]] && echo "$GITHUB_REF_NAME")" \

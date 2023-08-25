@@ -1,0 +1,21 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    DSSS3URI: Codebuild-DSS:DSSS3URI
+  variables:
+    SONAR_UNIT_TEST_REPORT: df_out/reports/sonar_qube_ut_coverage_report.xml
+
+phases:
+  pre_build:
+    commands:
+      # Download unit test df_out
+      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/" ./ --only-show-errors
+  build:
+    commands:
+      # Correct paths of target files in Sonar report
+      - sed -i -r 's/path="/path="target\//g' $SONAR_UNIT_TEST_REPORT
+  post_build:
+    commands:
+      # Copy df_out for later sonar-scanner stage
+      - aws s3 cp --recursive "$SONAR_UNIT_TEST_REPORT" "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/$SONAR_UNIT_TEST_REPORT" --only-show-errors
