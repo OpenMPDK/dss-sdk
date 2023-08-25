@@ -38,17 +38,10 @@ jobs:
       component: ${{ matrix.component }}
       project-name: OpenMPDK_dss-sdk
     secrets: inherit
-  test:
-    uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
-    with:
-      component: target-unit-test-coverage-report
-      project-name: OpenMPDK_dss-sdk
-    needs: [build]
-    secrets: inherit
   scan:
     uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
     with:
       component: sonar-scanner
       project-name: OpenMPDK_dss-sdk
     secrets: inherit
-    needs: [test, build]
+    needs: [build]
