@@ -12,10 +12,10 @@ phases:
     commands:
       # Download build wrapper output from build job
       - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/sonar" . --only-show-errors
-      # Download unit test coverage report(s)
-      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/df_out/reports/" df_out/ --only-show-errors
       # Download df_out and host_out
       - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/build" . --only-show-errors
+      # Download unit test coverage report(s)
+      - aws s3 cp --recursive "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/df_out/reports/" df_out/ --only-show-errors
       # Correct paths of target files in coverage report
       - sed -i -r 's/path="/path="target\//g' $SONAR_UNIT_TEST_REPORT
       # replace the old CODEBUILD_SRC_DIR with the current one in bw-output
