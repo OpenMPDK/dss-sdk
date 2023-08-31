@@ -81,17 +81,19 @@ void QwordVector64Cell::deserialize_all(const char* serialized) {
 
 void QwordVector64Cell::serialize_range(
         uint64_t qword_begin, uint64_t num_words,
-        char** serialized_buf, uint64_t& serialized_len) {
+        void *serialized_buf, uint64_t serialized_len) {
 
-    char *alloc_buf = nullptr;
+    // char *alloc_buf = nullptr;
     uint64_t *data_ptr = data_.data();
     // Account for offset
     data_ptr = data_ptr + qword_begin;
     // CXX!: This memory is procured from a pre-allocated mem-pool
-    alloc_buf = (char*)malloc(num_words * sizeof(uint64_t));
-    std::memcpy(alloc_buf, data_ptr, num_words * sizeof(uint64_t));
-    *serialized_buf = alloc_buf;
-    serialized_len = num_words * sizeof(uint64_t);
+    //TODO: allocated DMAable aligned memory
+    // alloc_buf = (char*)malloc(num_words * sizeof(uint64_t));
+    std::memcpy(serialized_buf, data_ptr, num_words * sizeof(uint64_t));
+    // *serialized_buf = alloc_buf;
+    //Serialized data should fill the entire block that is requested
+    DSS_ASSERT(serialized_len == num_words * sizeof(uint64_t));
     return;
 }
 
@@ -418,7 +420,7 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     uint64_t meta_bitmap_num_blks = 0;
     uint64_t total_indices = 0;
     uint64_t total_indices_mod = 0;
-    char *serial_buf = nullptr;
+    void *serial_buf = nullptr;
 
     if (logical_block_size == drive_smallest_block_size) {
 
@@ -473,30 +475,33 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     if (total_indices_mod != 0) {
         total_indices = total_indices + 1;
     }
-    // 3. Vector start index and total_indices will be used for
-    //    serialization
-    if (serialized_drive_data == nullptr) {
-        this->serialize_range(
-                vector_start_index, total_indices,
-                &serial_buf, serialized_len);
 
-        serialized_drive_data = (void **)&serial_buf;
-    } else {
-        this->serialize_range(
-                vector_start_index, total_indices,
-                (char **)serialized_drive_data, serialized_len);
-    }
-
-    if (*serialized_drive_data == nullptr) {
-        return BLK_ALLOCATOR_STATUS_ERROR;
-    }
-
-    // 4. Update the total number of drive lbas required
+    // 3. Update the total number of drive lbas required
     drive_num_blocks =
         serialized_len / (drive_smallest_block_size * BITS_PER_BYTE);
     if (serialized_len % 
             (drive_smallest_block_size * BITS_PER_BYTE) != 0) {
         drive_num_blocks = drive_num_blocks + 1;
+    }
+
+    // 4. Vector start index and total_indices will be used for
+    //    serialization
+
+#ifndef DSS_BUILD_CUNIT_TEST
+    serial_buf = dss_dma_zmalloc(serialized_len, drive_smallest_block_size);
+#else
+    serial_buf = malloc(serialized_len);
+#endif
+    DSS_ASSERT(serial_buf != NULL);
+
+    this->serialize_range(
+            vector_start_index, total_indices,
+            serial_buf, serialized_len);
+
+    *serialized_drive_data = serial_buf;
+
+    if (*serialized_drive_data == nullptr) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;

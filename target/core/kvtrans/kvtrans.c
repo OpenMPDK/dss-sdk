@@ -349,8 +349,7 @@ dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx,
                                         blk->place_value[i].value_index, \
                                         blk->place_value[i].num_chunks, \
                                         (void *)((uint64_t )kreq->req.req_value.value + offset), \
-                                        blk->place_value[i].num_chunks * BLOCK_SIZE, \
-                                        0, false);
+                                        NULL);
             DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
             kreq->io_to_queue = true;
          } else
@@ -523,8 +522,7 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
                                         blk->place_value[i].value_index, \
                                         blk->place_value[i].num_chunks, \
                                         (void *)((uint64_t )kreq->req.req_value.value + offset), \
-                                        blk->place_value[i].num_chunks * BLOCK_SIZE, \
-                                        0, false);
+                                        NULL);
                 DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 kreq->io_to_queue = true;
             } else
@@ -542,8 +540,16 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
 #ifndef DSS_BUILD_CUNIT_TEST
     if(submit_for_disk_io == true) {
         kreq->state = QUEUED_FOR_DATA_IO;
-        iot_rc = dss_io_task_submit(kreq->io_tasks);
-        DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+        if(kvtrans_ctx->is_ba_meta_sync_enabled) {
+            dss_blk_allocator_status_t ba_rc;
+            DSS_DEBUGLOG(DSS_KVTRANS, "Queued [%p] task\n", kreq->io_tasks);
+            ba_rc = dss_blk_allocator_queue_sync_meta_io_tasks(kvtrans_ctx->blk_alloc_ctx, kreq->io_tasks);
+            DSS_ASSERT(ba_rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+        } else {
+            iot_rc = dss_io_task_submit(kreq->io_tasks);
+            DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+            //Will be queued in block allocator
+        }
         rc = KVTRANS_IO_SUBMITTED;
         kreq->io_to_queue = false;
     } else {
@@ -831,6 +837,9 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
 #ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INIT(&ctx->req_head);
 #endif
+
+    //TODO: Make configuraable
+    ctx->is_ba_meta_sync_enabled = true;
 
     return ctx;
 

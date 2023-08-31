@@ -75,12 +75,11 @@ typedef struct dss_io_op_s {
         struct {
             uint64_t lba;
             uint64_t nblocks;
-            void *data;
-            uint64_t length;
-            uint64_t offset;
+            void *data;//DMA aligned data buffer
             bool is_write;
-        } rw;
+        } blk_rw;
     };
+    dss_io_op_owner_t mod_id;
     bool is_blocking;
     bool data_buff_from_io_module;
     dss_device_t *device;

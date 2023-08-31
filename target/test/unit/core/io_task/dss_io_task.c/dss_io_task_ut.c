@@ -45,8 +45,6 @@ dss_io_task_t *g_io_task;
 #define DSS_IO_TASK_UT_TEST_LBA ((uint64_t) 0x54321)
 #define DSS_IO_TASK_UT_TEST_NBLOCKS ((uint64_t) 0x100)
 #define DSS_IO_TASK_UT_TEST_DATAP ((void *) 0x70ABCDEF)
-#define DSS_IO_TASK_UT_TEST_DATA_LEN ((uint64_t) 0x100)
-#define DSS_IO_TASK_UT_TEST_OFFSET ((uint64_t) 0)
 #define DSS_IO_TASK_UT_TEST_DEV ((dss_device_t *)0xDE51CE)
 
 #define DSS_IO_TASK_UT_TEST_CB_INST ((dss_module_instance_t *)0x7023456)
@@ -92,11 +90,9 @@ void dss_io_task_ut_sim_completion(dss_io_task_t *task)
 
     CU_ASSERT(task->tci == 0);
     CU_ASSERT(op->device == DSS_IO_TASK_UT_TEST_DEV);
-    CU_ASSERT(op->rw.data == DSS_IO_TASK_UT_TEST_DATAP);
-    CU_ASSERT(op->rw.length == DSS_IO_TASK_UT_TEST_DATA_LEN);
-    CU_ASSERT(op->rw.lba == DSS_IO_TASK_UT_TEST_LBA);
-    CU_ASSERT(op->rw.offset == DSS_IO_TASK_UT_TEST_OFFSET);
-    CU_ASSERT(op->rw.nblocks == DSS_IO_TASK_UT_TEST_NBLOCKS);
+    CU_ASSERT(op->blk_rw.data == DSS_IO_TASK_UT_TEST_DATAP);
+    CU_ASSERT(op->blk_rw.lba == DSS_IO_TASK_UT_TEST_LBA);
+    CU_ASSERT(op->blk_rw.nblocks == DSS_IO_TASK_UT_TEST_NBLOCKS);
     CU_ASSERT(task->cb_ctx == DSS_IO_TASK_UT_TEST_CB_CTX);
     CU_ASSERT(task->cb_minst == DSS_IO_TASK_UT_TEST_CB_INST);
 
@@ -141,9 +137,7 @@ void testIOTaskReadOp(void)
                                              DSS_IO_TASK_UT_TEST_LBA, \
                                              DSS_IO_TASK_UT_TEST_NBLOCKS, \
                                              DSS_IO_TASK_UT_TEST_DATAP, \
-                                             DSS_IO_TASK_UT_TEST_DATA_LEN, \
-                                             DSS_IO_TASK_UT_TEST_OFFSET, \
-                                             false);
+                                             NULL);
 
     CU_ASSERT(rc == DSS_IO_TASK_STATUS_SUCCESS);
     op = TAILQ_FIRST(&g_io_task->op_todo_list);
@@ -159,19 +153,58 @@ void testIOTaskWriteOP(void)
     dss_io_task_status_t rc;
     dss_io_op_t *op;
 
+    void *tmp_ctx = NULL;
+    dss_io_op_user_param_t op_params = {};
+
     rc = dss_io_task_add_blk_write(g_io_task, DSS_IO_TASK_UT_TEST_DEV, \
                                               DSS_IO_TASK_UT_TEST_LBA, \
                                               DSS_IO_TASK_UT_TEST_NBLOCKS, \
                                               DSS_IO_TASK_UT_TEST_DATAP, \
-                                              DSS_IO_TASK_UT_TEST_DATA_LEN, \
-                                              DSS_IO_TASK_UT_TEST_OFFSET, \
-                                              false);
+                                              NULL);
 
     CU_ASSERT(rc == DSS_IO_TASK_STATUS_SUCCESS);
     op = TAILQ_FIRST(&g_io_task->op_todo_list);
     CU_ASSERT(op->opc == DSS_IO_BLK_WRITE);
 
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_FOR_SUBMISSION, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == true);
+    CU_ASSERT(op_params.data == NULL);
+    CU_ASSERT(op_params.lba == DSS_IO_TASK_UT_TEST_LBA);
+    CU_ASSERT(op_params.num_blocks == DSS_IO_TASK_UT_TEST_NBLOCKS)
+
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_COMPLETED, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == false);
+
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_FAILED, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == false);
+
+
     dss_io_task_ut_sim_completion(g_io_task);
+
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_COMPLETED, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == true);
+    CU_ASSERT(op_params.data == DSS_IO_TASK_UT_TEST_DATAP);
+    CU_ASSERT(op_params.lba == DSS_IO_TASK_UT_TEST_LBA);
+    CU_ASSERT(op_params.num_blocks == DSS_IO_TASK_UT_TEST_NBLOCKS)
+
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_FOR_SUBMISSION, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == false);
+
+    rc = dss_io_task_get_op_ranges(g_io_task, DSS_IO_OP_OWNER_NONE, DSS_IO_OP_FAILED, &tmp_ctx, &op_params);
+    CU_ASSERT(rc == DSS_IO_TASK_STATUS_IT_END);
+    CU_ASSERT(tmp_ctx == NULL);
+    CU_ASSERT(op_params.is_params_valid == false);
+
     return;
 }
 
@@ -191,6 +224,9 @@ int main()
         return CU_get_error();
     }
 
+    //TODO: Add test cases
+    //          * Different Module ID for OPs
+    //          * Test adding multiple ops to io task
     if (
         NULL == CU_add_test(pSuite, "testIoTaskGetNewMalloc", testIoTaskGetNew) ||
         NULL == CU_add_test(pSuite, "testIOTaskReadOp", testIOTaskReadOp) ||

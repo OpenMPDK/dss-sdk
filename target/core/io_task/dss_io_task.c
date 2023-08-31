@@ -236,11 +236,20 @@ dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *re
     return DSS_IO_TASK_STATUS_SUCCESS;
 }
 
-static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, uint64_t len, uint64_t offset, bool is_blocking, bool is_write)
+static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, bool is_write, dss_io_opts_t *opts)
 {
     dss_io_op_t *io_op;
     dss_mallocator_status_t status;
     dss_io_task_status_t rc;
+
+    bool is_blocking = false;
+    dss_io_op_owner_t mod_id = DSS_IO_OP_OWNER_NONE;
+
+    if(opts != NULL) {
+        //TODO: Validate options for debug builds
+        is_blocking = opts->is_blocking;
+        mod_id = opts->mod_id;
+    }
 
     DSS_ASSERT(__dss_env_get_curr_core() == task->tci);
     DSS_ASSERT(task->in_progress == false);
@@ -259,15 +268,14 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
     }
 
     io_op->is_blocking = is_blocking;
+    io_op->mod_id = mod_id;
     io_op->op_id = task->num_total_ops;
     io_op->device = target_dev;
 
-    io_op->rw.is_write = is_write;
-    io_op->rw.lba = lba;
-    io_op->rw.nblocks = num_blocks;
-    io_op->rw.data = data;
-    io_op->rw.length = len;
-    io_op->rw.offset = offset;
+    io_op->blk_rw.is_write = is_write;
+    io_op->blk_rw.lba = lba;
+    io_op->blk_rw.nblocks = num_blocks;
+    io_op->blk_rw.data = data;
 
     io_op->parent = task;
 
@@ -278,12 +286,85 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
 
 }
 
-dss_io_task_status_t dss_io_task_add_blk_read(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, uint64_t len, uint64_t offset, bool is_blocking)
+dss_io_task_status_t dss_io_task_add_blk_read(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, dss_io_opts_t *opts)
 {
-    return _dss_io_task_add_blk_op(task, target_dev, lba, num_blocks, data, len, offset, is_blocking, false);
+    return _dss_io_task_add_blk_op(task, target_dev, lba, num_blocks, data,false, opts);
 }
 
-dss_io_task_status_t dss_io_task_add_blk_write(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, uint64_t len, uint64_t offset, bool is_blocking)
+dss_io_task_status_t dss_io_task_add_blk_write(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, dss_io_opts_t *opts)
 {
-    return _dss_io_task_add_blk_op(task, target_dev, lba, num_blocks, data, len, offset, is_blocking, true);
+    return _dss_io_task_add_blk_op(task, target_dev, lba, num_blocks, data, true, opts);
+}
+
+dss_io_task_status_t dss_io_task_get_op_ranges(dss_io_task_t *task, dss_io_op_owner_t mod_id, dss_io_op_exec_state_t op_state, void **it_ctx, dss_io_op_user_param_t *op_params)
+{
+    dss_io_op_t *op;
+    bool found = false;
+
+    DSS_ASSERT(op_params != NULL);
+    DSS_ASSERT(it_ctx != NULL);
+
+    //API can only be called before submit or after completion
+    DSS_ASSERT((task->num_outstanding_ops == 0) ||
+                (task->num_ops_done == task->num_total_ops));
+
+    //TODO: Handle failure path
+    DSS_ASSERT(task->task_status == DSS_IO_TASK_STATUS_SUCCESS);
+
+    op_params->is_params_valid = false;
+
+    op = (dss_io_op_t *)*it_ctx;
+    *it_ctx = NULL;
+    if(!op) {
+        //First Call
+        switch(op_state) {
+            case DSS_IO_OP_FOR_SUBMISSION:
+                op = TAILQ_FIRST(&task->op_todo_list);
+                break;
+            case DSS_IO_OP_COMPLETED:
+                op = TAILQ_FIRST(&task->op_done);
+                break;
+            case DSS_IO_OP_FAILED:
+                op = TAILQ_FIRST(&task->failed_ops);
+                break;
+            default:
+                DSS_RELEASE_ASSERT(0);
+        }
+    }
+
+    if(!op) {
+        //Empty list
+        return DSS_IO_TASK_STATUS_IT_END;
+    }
+    op_params->data = NULL;
+
+    do {
+        if(op->mod_id == mod_id) {
+            if(found == false) {
+               //Only write ops is expected
+                DSS_ASSERT(op->opc == DSS_IO_BLK_WRITE);
+                op_params->lba = op->blk_rw.lba;
+                op_params->num_blocks = op->blk_rw.nblocks;
+                if(op_state != DSS_IO_OP_FOR_SUBMISSION) {
+                    op_params->data = op->blk_rw.data;
+                }
+                op_params->is_params_valid = true;
+                found = true;
+            } else {
+                //OP to start processing on next iteration
+                *it_ctx = op;
+                break;
+            }
+        }
+        op = TAILQ_NEXT(op, op_next);
+    } while(op);
+
+    DSS_ASSERT(found == true);
+
+    if(!*it_ctx) {
+        //Last item
+        return DSS_IO_TASK_STATUS_IT_END;
+    } else {
+        return DSS_IO_TASK_STATUS_SUCCESS;
+    }
 }

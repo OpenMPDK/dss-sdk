@@ -169,7 +169,7 @@ void IoTaskOrdererTest::test_queue_sync_meta_io_tasks() {
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Queue the IO task for persisting state to disk
-    status = io_task_orderer_->queue_sync_meta_io_tasks(&io_task);
+    status = io_task_orderer_->queue_sync_meta_io_tasks(io_task);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
 }
@@ -183,7 +183,7 @@ void IoTaskOrdererTest::test_get_next_submit_meta_io_tasks() {
     uint64_t dirty_num_blks = 1000;
 
     // Check for iteration end first
-    status = io_task_orderer_->get_next_submit_meta_io_tasks(&io_task);
+    status = io_task_orderer_->get_next_submit_meta_io_tasks(io_task);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_ITERATION_END);
 
     // Queue some IO task
@@ -193,11 +193,11 @@ void IoTaskOrdererTest::test_get_next_submit_meta_io_tasks() {
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Queue the IO task for persisting state to disk
-    status = io_task_orderer_->queue_sync_meta_io_tasks(&io_task);
+    status = io_task_orderer_->queue_sync_meta_io_tasks(io_task);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Get the next IO task to schedule to IO module
-    status = io_task_orderer_->get_next_submit_meta_io_tasks(&io_task);
+    status = io_task_orderer_->get_next_submit_meta_io_tasks(io_task);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 }
 
@@ -219,30 +219,30 @@ void IoTaskOrdererTest::test_complete_meta_sync() {
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Queue the first IO task for persisting state to disk
-    status = io_task_orderer_->queue_sync_meta_io_tasks(&io_task1);
+    status = io_task_orderer_->queue_sync_meta_io_tasks(io_task1);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Queue the second IO task for persisting state to disk
     status = io_task_orderer_->mark_dirty_meta(dirty_lb, dirty_num_blks);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
-    status = io_task_orderer_->queue_sync_meta_io_tasks(&io_task1);
+    status = io_task_orderer_->queue_sync_meta_io_tasks(io_task1);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Now getting first IO task should be OK
-    status = io_task_orderer_->get_next_submit_meta_io_tasks(&io_task2);
+    status = io_task_orderer_->get_next_submit_meta_io_tasks(io_task2);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Getting the next IO task should fail due to overlapping range
-    status = io_task_orderer_->get_next_submit_meta_io_tasks(&io_task_out);
+    status = io_task_orderer_->get_next_submit_meta_io_tasks(io_task_out);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_ITERATION_END);
 
     // Now mark IO 1 completed
-    status = io_task_orderer_->complete_meta_sync(&io_task1);
+    status = io_task_orderer_->complete_meta_sync(io_task1);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     // Querying for the next IO task should succeed
-    status = io_task_orderer_->get_next_submit_meta_io_tasks(&io_task_out);
+    status = io_task_orderer_->get_next_submit_meta_io_tasks(io_task_out);
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
 }

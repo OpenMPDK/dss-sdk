@@ -43,6 +43,8 @@
 //#define DFLY_MODULE_MSG_SP_SC
 //
 
+bool dss_module_loaded(dss_module_t *m);
+
 int module_poller(void *ctx)
 {
 	struct dfly_module_poller_instance_s *m_inst = (struct dfly_module_poller_instance_s *)ctx;
@@ -95,7 +97,7 @@ int module_poller(void *ctx)
 		nprocessed += num_msgs;
 	}
 
-	if (m_inst->module->ops->module_gpoll) {
+	if (m_inst->module->ops->module_gpoll && dss_module_loaded(m_inst->module)) {
 		m_inst->module->ops->module_gpoll(m_inst->ctx);
 	}
 
@@ -491,6 +493,19 @@ dss_module_status_t dss_module_init_async_load(dss_module_t *m, bool loading, ds
 	m->async_load.cmpl_evt_info = cmpl_evt;
 
 	return DSS_MODULE_STATUS_SUCCESS;
+}
+
+bool dss_module_loaded(dss_module_t *m)
+{
+	bool loaded = false;
+	if(m->async_load.async_load_enabled) {
+		pthread_mutex_lock(&m->async_load.async_load_lock);
+		if(m->async_load.state == m->async_load.DSS_MODULE_LOADED) {
+			loaded = true;
+		}
+		pthread_mutex_unlock(&m->async_load.async_load_lock);
+	}
+	return loaded;
 }
 
 dss_module_status_t dss_module_inc_async_pending_task(dss_module_t *m)

@@ -309,7 +309,7 @@ uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
 
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
 {
     DSS_ASSERT(ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks);
 
@@ -320,7 +320,7 @@ dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_al
     return ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks(ctx, io_task);
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
 {
     DSS_ASSERT(ctx->m->disk.blk_alloc_get_next_submit_meta_io_tasks);
 
@@ -331,7 +331,7 @@ dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_b
     return ctx->m->disk.blk_alloc_queue_sync_meta_io_tasks(ctx, io_task);
 }
 
-dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task)
+dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task)
 {
     DSS_ASSERT(ctx->m->disk.blk_alloc_complete_meta_sync);
 

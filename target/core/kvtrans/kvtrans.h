@@ -397,6 +397,8 @@ typedef struct kvtrans_ctx_s {
     ondisk_data_ctx_t *data_ctx;
 #endif
 
+    bool is_ba_meta_sync_enabled;
+
     dstat_t stat;
 } kvtrans_ctx_t;
 

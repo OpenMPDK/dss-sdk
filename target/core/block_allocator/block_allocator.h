@@ -35,6 +35,7 @@
 #include "dss.h"
 #include "dss_block_allocator.h"
 #include "apis/dss_io_task_apis.h"
+
 #include "judy_hashmap.h"
 #include <iostream>
 #include <cstring>
@@ -528,7 +529,7 @@ public:
      *        meta-data
      */
     dss_blk_allocator_status_t queue_sync_meta_io_tasks(
-            dss_io_task_t** io_task);
+            dss_io_task_t* io_task);
     /**
      * @brief - API to interface with KV-Translator layer to acquire
      *          the next IO request that can be scheduled to IO module
@@ -536,7 +537,7 @@ public:
      *          meta-data associated with the request
      */
     dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
-            dss_io_task_t** io_task);
+            dss_io_task_t* io_task);
 
     /**
      * @brief - API to interface with KV-Translator layer to mark
@@ -545,7 +546,7 @@ public:
      *          KV-Translator
      */
     dss_blk_allocator_status_t complete_meta_sync(
-            dss_io_task_t** io_task);
+            dss_io_task_t* io_task);
 
     // Getter for io device reference
     dss_device_t** get_io_device() {
@@ -562,9 +563,9 @@ private:
      *             to io_task
      * @param[out] num_ranges, total dirty tuples 
      */
-    void populate_io_ranges(dss_io_task_t** io_task,
+    void populate_io_ranges(dss_io_task_t* io_task,
             std::vector<std::pair<uint64_t,uint64_t>>& io_ranges,
-            uint64_t& num_ranges);
+            uint64_t& num_ranges, bool is_completion);
 
     /**
      * @brief API to check IO range overlap with current in-flight IO range
@@ -648,7 +649,7 @@ private:
     std::vector<std::pair<uint64_t, uint64_t>> io_ranges_;
     uint64_t dirty_counter_;
     void *jarr_io_dev_guard_;
-    std::vector<dss_io_task_t **> io_dev_guard_q_;
+    std::vector<dss_io_task_t *> io_dev_guard_q_;
 };
 
 using IoTaskOrdererSharedPtr = std::shared_ptr<IoTaskOrderer>;
@@ -719,7 +720,7 @@ public:
      */
     dss_blk_allocator_status_t queue_sync_meta_io_tasks(
             dss_blk_allocator_context_t *ctx,
-            dss_io_task_t **io_task);
+            dss_io_task_t *io_task);
 
 
     /**
@@ -736,7 +737,7 @@ public:
      */
     dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
             dss_blk_allocator_context_t *ctx,
-            dss_io_task_t **io_task);
+            dss_io_task_t *io_task);
 
     /**
      * @brief Update block allocator of meta IO completion
@@ -749,7 +750,7 @@ public:
      */
     dss_blk_allocator_status_t complete_meta_sync(
             dss_blk_allocator_context_t *ctx,
-            dss_io_task_t **io_task);
+            dss_io_task_t *io_task);
 
     /**
      * @brief Setup io tasks to erase super block for block allocator

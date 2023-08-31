@@ -61,15 +61,39 @@ typedef enum dss_io_task_module_status_e {
 
 typedef enum dss_io_task_status_e {
     DSS_IO_TASK_STATUS_SUCCESS = 0,
+    DSS_IO_TASK_STATUS_IT_END,
     /*Add new errors here */
     DSS_IO_TASK_STATUS_ERROR = -1
 } dss_io_task_status_t;
+
+typedef enum dss_io_op_owner_e {
+    DSS_IO_OP_OWNER_NONE = 0,
+    DSS_IO_OP_OWNER_BA,//Belongs to block allocator
+} dss_io_op_owner_t;
+
+typedef enum dss_io_op_exec_state_e {
+    DSS_IO_OP_FOR_SUBMISSION = 0,
+    DSS_IO_OP_COMPLETED,
+    DSS_IO_OP_FAILED
+} dss_io_op_exec_state_t;
+
+typedef struct dss_io_op_user_params_s {
+    uint64_t lba;
+    uint64_t num_blocks;
+    void *data;
+    bool is_params_valid;
+} dss_io_op_user_param_t;
 
 typedef struct dss_io_task_module_opts_s {
     uint32_t max_io_tasks;
     uint32_t max_io_ops;
     dss_module_t *io_module;
 } dss_io_task_module_opts_t;
+
+typedef struct dss_io_opts_s {
+    dss_io_op_owner_t mod_id;//Module ID this io op should be attribuited to
+    bool is_blocking; //Indicates if the current operation is blocking until completion
+} dss_io_opts_t;
 
 typedef struct dss_iov_s dss_iov_t;
 
@@ -99,6 +123,22 @@ dss_io_dev_status_t dss_io_device_close(dss_device_t *device);
  * @return dss_io_dev_status_t DSS_IO_DEV_STATUS_SUCCESS on success, otherwise DSS_IO_DEV_STATUS_ERROR
  */
 dss_io_dev_status_t dss_io_dev_set_user_blk_sz(dss_device_t *device, uint32_t usr_blk_sz);
+
+/**
+ * @brief Get user block size for the given device
+ *
+ * @param device Device whose user block size needs to be returned
+ * @return uint32_t user block size value in bytes
+ */
+uint32_t dss_io_dev_get_user_blk_sz(dss_device_t *device);
+
+/**
+ * @brief Get disk block size for the given device
+ *
+ * @param device Device whose disk block size needs to be returned
+ * @return uint32_t user block size value in bytes
+ */
+uint32_t dss_io_dev_get_disk_blk_sz(dss_device_t *device);
 
 /**
  * @brief Initializes and returns a io_task module context
@@ -222,13 +262,11 @@ dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *re
  * @param target_dev Target IO device
  * @param lba Target LBA on disk
  * @param num_blocks Number blocks corresponding to the IO operation starting from `lba`
- * @param data Pointer to data start
- * @param len Length of data
- * @param offset byte offset from LBA to read data
- * @param is_blocking
- * @return dss_io_task_status_t
+ * @param data DMAable Pointer to data start and should be valid till (target_dev->user_blk_sz * num_blocks)
+ * @param opts For using default option opts can be NULL. Otherwise opts should have valid options
+ * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
  */
-dss_io_task_status_t dss_io_task_add_blk_read(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, uint64_t len, uint64_t offset, bool is_blocking);
+dss_io_task_status_t dss_io_task_add_blk_read(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, dss_io_opts_t *opts);
 
 /**
  * @brief Add a block write operation to the IO task
@@ -237,13 +275,24 @@ dss_io_task_status_t dss_io_task_add_blk_read(dss_io_task_t *task, dss_device_t 
  * @param target_dev Target IO device
  * @param lba Target LBA on disk
  * @param num_blocks Number blocks corresponding to the IO operation starting from `lba`
- * @param data Pointer to data start
- * @param len Length of data
- * @param offset byte offset from LBA to write data
- * @param is_blocking Indicates if the current operation is blocking until completion
- * @return dss_io_task_status_t
+ * @param data DMAable Pointer to data start and should be valid till (target_dev->user_blk_sz * num_blocks)
+ * @param opts For using default option opts can be NULL. Otherwise opts should have valid options
+ * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
  */
-dss_io_task_status_t dss_io_task_add_blk_write(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, uint64_t len, uint64_t offset, bool is_blocking);
+dss_io_task_status_t dss_io_task_add_blk_write(dss_io_task_t *task, dss_device_t *target_dev, uint64_t lba, uint64_t num_blocks, void *data, dss_io_opts_t *opts);
+
+
+/**
+ * @brief Iterate over ops in an io task to get op details filtered with module id
+ *
+ * @param task IO Task whose ops needs to be iterated over
+ * @param mod_id Module ID that needs to be matching with op
+ * @param op_state State that needs to iterated over
+ * @param it_ctx Pointer to store state of iterator. *it_ctx should be set to NULL on first call and unmodified for subsequent calls
+ * @param[OUT] op_params Output value for LBA, value and data pointer
+ * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS for next entry available, DSS_IO_TASK_STATUS_IT_END for last entry
+ */
+dss_io_task_status_t dss_io_task_get_op_ranges(dss_io_task_t *task, dss_io_op_owner_t mod_id, dss_io_op_exec_state_t op_state, void **it_ctx, dss_io_op_user_param_t *op_params);
 
 /**
  * @brief Submit a populated IO task to IO module

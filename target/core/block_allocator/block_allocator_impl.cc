@@ -133,21 +133,21 @@ bool BlockAllocator::init(
 
 dss_blk_allocator_status_t BlockAllocator::queue_sync_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t **io_task) {
+                     dss_io_task_t *io_task) {
 
     return this->io_task_orderer->queue_sync_meta_io_tasks(io_task);
 }
 
 dss_blk_allocator_status_t BlockAllocator::get_next_submit_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t **io_task) {
+                     dss_io_task_t *io_task) {
 
     return this->io_task_orderer->get_next_submit_meta_io_tasks(io_task);
 }
 
 dss_blk_allocator_status_t BlockAllocator::complete_meta_sync(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t **io_task) {
+                     dss_io_task_t *io_task) {
 
     return this->io_task_orderer->complete_meta_sync(io_task);
 }

@@ -32,7 +32,6 @@
  */
 
 #include "dss_spdk_wrapper.h"
-#include "spdk/env.h"
 #include "spdk/thread.h"
 
 uint32_t dss_env_get_current_core(void)
@@ -57,4 +56,15 @@ int dss_spdk_thread_send_msg(void *th, void *fn, void *ctx)
     spdk_msg_fn sm_fn = (spdk_msg_fn)fn;
 
     return spdk_thread_send_msg(sth, sm_fn, ctx);
+}
+
+void *dss_dma_zmalloc(size_t size, size_t align)
+{
+    return spdk_dma_zmalloc(size, align, NULL);
+}
+
+void dss_free(void *p)
+{
+    spdk_free(p);
+    return;
 }

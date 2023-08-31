@@ -222,7 +222,7 @@ uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx);
  * @param[OUT] io_task io task that needs to be populated to be queued and forwarded to io module
  * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
  */
-dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
+dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
 
 /**
  * @brief -Get IO tasks to be submitted that can be scheduled to IO module without overlap of block allocator
@@ -233,7 +233,7 @@ dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_al
  * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or BLK_ALLOCATOR_STATUS_ITERATION_END on no available
  *         IO tasks to be scheduled to IO module or error code otherwise
  */
-dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
+dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
 
 /**
  * @brief Update block allocator of meta IO completion
@@ -242,7 +242,7 @@ dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_b
  * @param io_task completing io task corresponding to previously generated meta disk IO
  * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
  */
-dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
+dss_blk_allocator_status_t dss_blk_allocator_complete_meta_sync(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
 
 /**
  * @brief Setup io tasks to erase super block for block allocator instance

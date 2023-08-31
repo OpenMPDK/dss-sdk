@@ -35,6 +35,7 @@
 #define DSS_SPDK_WRAPPER_H
 
 #include <stdint.h>
+#include <spdk/env.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,10 @@ uint32_t dss_env_get_spdk_max_cores(void);
 void *dss_env_get_spdk_thread(void);
 
 int dss_spdk_thread_send_msg(void *th, void *fn, void *ctx);
+
+void *dss_dma_zmalloc(size_t size, size_t align);
+
+void dss_free(void *p);
 
 #ifdef __cplusplus
 }

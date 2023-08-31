@@ -36,6 +36,7 @@
 #include <sys/queue.h>
 
 #include "df_log.h"
+#include "dss_spdk_wrapper.h"
 
 #define DSS_RELEASE_ASSERT(x) assert((x))
 

@@ -107,8 +107,10 @@ dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, ds
     iot_rc = dss_io_task_setup(iot, req, kvt_m_thrd_inst, req);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
 
+    DSS_ASSERT(init_req_ctx->data_len >= dss_io_dev_get_user_blk_sz(init_req_ctx->dev) * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
+
     iot_rc = dss_io_task_add_blk_read(iot, init_req_ctx->dev, DSS_KVT_SUPERBLOCK_LBA, DSS_KVT_SUPERBLOCK_NUM_BLOCKS, \
-                                    init_req_ctx->data, init_req_ctx->data_len, 0, false);
+                                    init_req_ctx->data, NULL);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
 
     dss_module_inc_async_pending_task(m);
@@ -176,6 +178,40 @@ void *dss_kvtrans_thread_instance_destroy(void *mctx, void *inst_ctx) {
     return NULL;
 }
 
+void dss_kvtrans_submit_runnable_tasks(kvtrans_ctx_t *kv_ctx)
+{
+    dss_io_task_t *io_task = NULL;
+    dss_io_task_status_t rc;
+
+    //TODO: Can we try to sudmit multiple availabe tasks upto a defined threshold
+    rc = dss_blk_allocator_get_next_submit_meta_io_tasks(kv_ctx->blk_alloc_ctx, &io_task);
+    if(rc != BLK_ALLOCATOR_STATUS_SUCCESS) {
+        DSS_ASSERT(rc == BLK_ALLOCATOR_STATUS_ITERATION_END);
+        return;//No IO task available to submit
+    }
+
+    DSS_ASSERT(io_task != NULL);
+    DSS_DEBUGLOG(DSS_KVTRANS, "submit task [%p]\n", io_task);
+    dss_io_task_submit(io_task);
+
+    return;
+}
+
+int dss_kvtrans_process_generic(void *ctx)
+{
+    dss_kvtrans_thread_ctx_t *thread_ctx = (dss_kvtrans_thread_ctx_t *) ctx;
+    dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = thread_ctx->mctx;
+    int num_devices = dss_kvtrans_mctx->dfly_subsys->num_io_devices;
+    int num_threads = dss_kvtrans_mctx->num_threads;
+    int i, inst_index;
+
+    inst_index = thread_ctx->inst_index;
+    for(i=inst_index; i < num_devices; i= i+num_threads) {
+        dss_kvtrans_submit_runnable_tasks(dss_kvtrans_mctx->kvt_ctx_arr[i]);
+    }
+    return 0;
+}
+
 int dss_kvtrans_process(void *ctx, dss_request_t *req) {
     int rc;
 
@@ -219,7 +255,7 @@ struct dfly_module_ops kvtrans_module_ops = {
 	.module_init_instance_context = dss_kvtrans_thread_instance_init,
 	.module_rpoll = dss_kvtrans_process,
 	.module_cpoll = NULL,
-	.module_gpoll = NULL,
+	.module_gpoll = dss_kvtrans_process_generic,
 	.find_instance_context = dss_kvtrans_find_instance_context,
 	.module_instance_destroy = dss_kvtrans_thread_instance_destroy,
 };
@@ -263,11 +299,12 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 params.iotm = kv_init_ctx->iotm;
                 DSS_ASSERT(params.iotm != NULL);
                 //TODO: Process super block
+                //TODO: init path if not loading from superblock
                 //TODO: Setup device specific kvtrans params
                 DSS_ASSERT(*kv_init_ctx->kvt_ctx == NULL);
                 DSS_NOTICELOG("Read kv trans superblock from device %p\n", params.dev);
                 *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
-                dss_module_dec_async_pending_task(req->module_ctx[DSS_MODULE_KVTRANS].module);
+                dss_module_dec_async_pending_task(req->module_ctx[DSS_MODULE_KVTRANS].module);//TODO: This need to be moved to after all loading is completed
                 //TODO: Continue to load block allocator meta
                 kv_init_ctx->state = DSS_KVT_INITIALIZED;
                 break;

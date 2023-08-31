@@ -243,7 +243,7 @@ dss_blk_allocator_status_t print_stats(
 
 dss_blk_allocator_status_t queue_sync_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t **io_task) {
+                     dss_io_task_t *io_task) {
 
     DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
 
@@ -261,7 +261,7 @@ dss_blk_allocator_status_t queue_sync_meta_io_tasks(
 
 dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t **io_task) {
+                     dss_io_task_t *io_task) {
 
     DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
 
@@ -279,11 +279,20 @@ dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
 
 dss_blk_allocator_status_t complete_meta_sync(
         dss_blk_allocator_context_t *ctx,
-        dss_io_task_t **io_task) {
+        dss_io_task_t *io_task) {
 
-    DSS_ASSERT(!io_task);
+    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
 
-    return BLK_ALLOCATOR_STATUS_SUCCESS;
+    dss_blk_alloc_impresario_ctx_t *c =
+        (dss_blk_alloc_impresario_ctx_t *)ctx;
+
+    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    if (ba_i == NULL) {
+        DSS_ERRLOG("Incorrect usage before block allocator init");
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    return ba_i->complete_meta_sync(ctx, io_task);
 }
 
 } // End namespace BlockInterface

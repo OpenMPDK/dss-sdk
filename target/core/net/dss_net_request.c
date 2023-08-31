@@ -79,7 +79,6 @@ void dss_net_request_setup_blk_io_task(dss_request_t *req)
     uint64_t nblocks;
     uint64_t len;
     uint64_t off = 0;
-    bool is_blocking = false;
     void *d;
 
     dss_module_instance_t *net_mi = dss_req_get_net_module_instance(req);
@@ -108,10 +107,13 @@ void dss_net_request_setup_blk_io_task(dss_request_t *req)
     d = dreq->req_value.value;
     len = dreq->req_value.length;
 
+    DSS_ASSERT(len >= dss_io_dev_get_disk_blk_sz(req->io_device) * nblocks);
+    DSS_ASSERT(dss_io_dev_get_user_blk_sz(req->io_device) == dss_io_dev_get_disk_blk_sz(req->io_device));
+
     if(req->opc == DSS_NVMF_BLK_IO_OPC_READ) {
-        dss_io_task_add_blk_read(req->io_task, req->io_device, lba, nblocks, d, len, off, is_blocking);
+        dss_io_task_add_blk_read(req->io_task, req->io_device, lba, nblocks, d, NULL);
     } else if(req->opc == DSS_NVMF_BLK_IO_OPC_WRITE) {
-        dss_io_task_add_blk_write(req->io_task, req->io_device, lba, nblocks, d, len, off, is_blocking);
+        dss_io_task_add_blk_write(req->io_task, req->io_device, lba, nblocks, d, NULL);
     }
     return;
 }
