@@ -182,3 +182,20 @@ dss_mallocator_status_t dss_mallocator_put(dss_mallocator_ctx_t *c, uint32_t cac
 
     return DSS_MALLOC_SUCCESS;
 }
+
+dss_mallocator_status_t dss_mallocator_get_cache_size(dss_mallocator_ctx_t *c, uint32_t cache_index, int *cache_size) 
+{
+    if(cache_index >= c->n_c_ctx) {
+        return DSS_MALLOC_ERROR;
+    }
+
+    if(!c->c_ctx[cache_index]) {
+        return DSS_MALLOC_ERROR;
+    }
+
+    dss_item_cache_context_t *cctx = c->c_ctx[cache_index];
+
+    *cache_size = dss_item_cache_get_item_number(cctx);
+    
+    return DSS_MALLOC_SUCCESS;
+}

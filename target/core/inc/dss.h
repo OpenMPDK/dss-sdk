@@ -49,6 +49,7 @@
 #define dss_likely(cond)	__builtin_expect(!!(cond), 1)
 
 void set_kvtrans_disk_data_store(bool val);
+void set_kvtrans_disk_meta_store(bool val);
 
 #ifndef DSS_BUILD_CUNIT_TEST
 

@@ -72,6 +72,8 @@ dss_mallocator_status_t dss_mallocator_destroy(dss_mallocator_ctx_t *c);
 dss_mallocator_status_t dss_mallocator_get(dss_mallocator_ctx_t *c, uint32_t cache_index, dss_mallocator_item_t **mitem);
 dss_mallocator_status_t dss_mallocator_put(dss_mallocator_ctx_t *c, uint32_t cache_index, dss_mallocator_item_t *item);
 
+dss_mallocator_status_t dss_mallocator_get_cache_size(dss_mallocator_ctx_t *c, uint32_t cache_index, int *cache_size);
+
 #ifdef __cplusplus
 }
 #endif

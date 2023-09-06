@@ -39,7 +39,7 @@
 
 #define KEY_LEN 1024
 #define VAL_LEN 4096 * 3
-#define KEY_BATCH 10000
+#define KEY_BATCH 1000
 #define KEY_NUM 100000
 #define DEFAULT_DEV 0x34acb239
 #define DEFAULT_IOTM 0xffffffff
@@ -195,41 +195,43 @@ void construct_test_dfly_request(char *key, void *value, kv_op_t opc, req_t *req
 
 void testSuccessFlow(void)
 {
-    req_t req;
-    char *k = "keySuccess";
+    req_t *req;
+    req = (req_t *)calloc(1, sizeof(req_t));
+    char k[1024] = {"keySuccess"};
     void *v = malloc(VAL_LEN);//Sample data - opaque pointer will be stored
     CU_ASSERT(v!=NULL);
-    memcpy(v, k, strlen(k));
+    memcpy(v, k, KEY_LEN);
     dss_kvtrans_status_t  rc;
-    construct_test_dfly_request(k, v, KVTRANS_OPC_STORE, &req);
-    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, &req);
+    construct_test_dfly_request(k, v, KVTRANS_OPC_STORE, req);
+    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, req);
     rc = kv_process(g_kvtrans_ut.ctx);
     CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
 
-    construct_test_dfly_request(k, v, KVTRANS_OPC_EXIST, &req);
-    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, &req);
+    construct_test_dfly_request(k, v, KVTRANS_OPC_EXIST, req);
+    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, req);
     rc = kv_process(g_kvtrans_ut.ctx);
     CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
 
-    // memset(req.req_value.value, 0, req.req_value.length);
-    // req.req_value.length = 0;
-    construct_test_dfly_request(k, v, KVTRANS_OPC_RETRIEVE, &req);
-    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, &req);
+    memset(req->req_value.value, 0, req->req_value.length);
+    req->req_value.length = 0;
+    construct_test_dfly_request(k, v, KVTRANS_OPC_RETRIEVE, req);
+    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, req);
     rc = kv_process(g_kvtrans_ut.ctx);
     CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
-    // CU_ASSERT(req.req_value.length == VAL_LEN);
-    // CU_ASSERT(!memcmp(req.req_value.value, v, req.req_value.length));
+    CU_ASSERT(req->req_value.length == VAL_LEN);
+    CU_ASSERT(!memcmp(req->req_value.value, v, req->req_value.length));
 
-    construct_test_dfly_request(k, v, KVTRANS_OPC_DELETE, &req);
-    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, &req);
+    construct_test_dfly_request(k, v, KVTRANS_OPC_DELETE, req);
+    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, req);
     rc = kv_process(g_kvtrans_ut.ctx);
     CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
 
-    construct_test_dfly_request(k, v, KVTRANS_OPC_EXIST, &req);
-    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, &req);
+    construct_test_dfly_request(k, v, KVTRANS_OPC_EXIST, req);
+    dss_kvtrans_handle_request(g_kvtrans_ut.ctx, req);
     rc = kv_process(g_kvtrans_ut.ctx);
     CU_ASSERT(rc == KVTRANS_STATUS_NOT_FOUND);
 
+    free(req);
     reset_mem_backend(g_kvtrans_ut.ctx);
 }
 
@@ -290,6 +292,7 @@ void testBatchDelete(void)
         }
         do {
             rc = kv_process(g_kvtrans_ut.ctx);
+            assert(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             idx++;
         } while(rc != KVTRANS_STATUS_FREE);
@@ -301,6 +304,7 @@ void testBatchDelete(void)
         }
         do {
             rc = kv_process(g_kvtrans_ut.ctx);
+            assert(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             idx++;
         } while(rc != KVTRANS_STATUS_FREE);
@@ -312,6 +316,7 @@ void testBatchDelete(void)
         }
         do {
             rc = kv_process(g_kvtrans_ut.ctx);
+            assert(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
             idx++;
         } while(rc != KVTRANS_STATUS_FREE);
@@ -323,6 +328,7 @@ void testBatchDelete(void)
         }
         do {
             rc = kv_process(g_kvtrans_ut.ctx);
+            assert(rc == KVTRANS_STATUS_NOT_FOUND || rc==KVTRANS_STATUS_FREE);
             CU_ASSERT(rc == KVTRANS_STATUS_NOT_FOUND || rc==KVTRANS_STATUS_FREE);
             idx++;
         } while(rc != KVTRANS_STATUS_FREE);

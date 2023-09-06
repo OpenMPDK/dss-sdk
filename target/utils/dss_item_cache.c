@@ -124,9 +124,9 @@ int dss_item_cache_put_item(dss_item_cache_context_t *cctx, void *item)
         return 0;
     }
 
-    cctx->nitems++;
     index = (cctx->item_index + cctx->nitems) % cctx->cap;
     cctx->items[index] = item;
+    cctx->nitems++;
 
     return 0;
 }
@@ -157,4 +157,9 @@ void dss_item_cache_print_info(dss_item_cache_context_t *cctx)
 {
     dss_item_cache_noticelog("Cache %p usage (%d/%d)\n", cctx, cctx->nitems, cctx->cap);
     return;
+}
+
+int dss_item_cache_get_item_number(dss_item_cache_context_t *cctx)
+{
+    return cctx->nitems;
 }

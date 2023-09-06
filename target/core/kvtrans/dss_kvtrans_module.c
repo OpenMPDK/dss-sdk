@@ -307,7 +307,6 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
     }
 
     DSS_ASSERT(kreq->initialized == true);
-    kvt_ctx->entry_blk->kreq = kreq;
 
     switch(kreq->req.opc) {
     case KVTRANS_OPC_STORE:

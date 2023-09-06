@@ -56,23 +56,27 @@ extern "C" {
 #include "apis/dss_block_allocator_apis.h"
 #include "apis/dss_io_task_apis.h"
 #include "dss.h"
+#include "utils/dss_mallocator.h"
+#include "dragonfly.h"
 
 #ifdef MEM_BACKEND
 #include "kvtrans_mem_backend.h"
 #endif
 
-#define MAX_DC_NUM 262144
+#define MAX_DC_NUM (262144)
 
-#define MAX_COL_TBL_SIZE 32
+#define MAX_COL_TBL_SIZE (2)
 #define MAX_DATA_COL_TBL_SIZE MAX_COL_TBL_SIZE
-#define MAX_VALUE_SCATTER 32
-#define MAX_INLINE_VALUE 1024
-#define MIN_HASH_SIZE 8
-#define DEFAULT_BLOCK_STATE_NUM 7
+#define MAX_VALUE_SCATTER (8)
+// make sure blk_ctx is 4096 Byte
+#define MAX_INLINE_VALUE (1024 - 248)
+#define MIN_HASH_SIZE (8)
+#define DEFAULT_BLOCK_STATE_NUM (7)
 #define DEFAULT_BLK_ALLOC_NAME "block_impresario"
-#define DEFAULT_META_NUM 1000000
+#define DEFAULT_META_NUM (1000000)
 // A 64 bit value to indicate if meta blk valid
-#define META_MAGIC 0xabc0
+#define META_MAGIC (0xabc0)
+#define BLK_ALIGN (4096)
 
 #define CEILING(x,y) (((x) + (y) - 1) / (y))
 
@@ -81,7 +85,7 @@ typedef double tick_t;
 typedef struct hash_fn_ctx_s hash_fn_ctx_t;
 typedef struct kvtrans_params_s kvtrans_params_t;
 typedef struct ondisk_meta_s ondisk_meta_t;
-typedef struct blk_ctx_s blk_ctx_t;
+typedef struct blk_ctx blk_ctx_t;
 
 // typedef dfly_module_t kvtrans_t;
 
@@ -102,7 +106,9 @@ typedef enum dss_kvtrans_status_e {
     // failed to alloc memory
     KVTRANS_MALLOC_ERROR = 8,
     // I/O failed
-    KVTRANS_STATUS_IO_ERROR = 9
+    KVTRANS_STATUS_IO_ERROR = 9,
+    KVTRANS_IO_QUEUED = 10,
+    KVTRANS_IO_SUBMITTED = 11
 } dss_kvtrans_status_t;
 
 
@@ -110,7 +116,7 @@ typedef enum dss_kvtrans_status_e {
 #define REHASH_MAX 32
 // #define BLK_NUM (3758096384 >> 8)
 #define BLK_NUM (536870912)
-#define BLOCK_SIZE 4096
+#define BLOCK_SIZE (4096)
 
 /* tmp use for test end */
 
@@ -129,17 +135,17 @@ typedef struct dc_item_s {
     blk_state_t ori_state;
 } dc_item_t;
 
-// typedef enum col_entry_state_s {
-//     META_COL_ENTRY = 0,
-//     DATA_COL_ENTRY,
-//     DELETED
-// } col_entry_state_t;
+typedef enum col_entry_state_s {
+    INVALID = 0,
+    DELETED,
+    META_COL_ENTRY,
+    DATA_COL_ENTRY,
+} col_entry_state_t;
 
 typedef struct col_entry_s {
     char key[KEY_LEN];
     uint64_t  meta_collision_index;
-    // col_entry_state_t state;
-    bool isvalid;
+    col_entry_state_t state;
 } col_entry_t;
 
 typedef struct value_loc_s {
@@ -173,8 +179,9 @@ typedef struct ondisk_meta_s {
     //collision entry
     uint8_t     num_valid_col_entry;
     uint8_t     num_valid_dc_col_entry;
-    col_entry_t  collision_tbl[MAX_COL_TBL_SIZE];
-    uint64_t data_collision_index;
+    col_entry_t collision_tbl[MAX_COL_TBL_SIZE];
+    uint64_t    data_collision_index;
+    uint64_t    collision_extension_index;
 } ondisk_meta_t;
 
 /* blkment context */
@@ -222,7 +229,7 @@ typedef struct blk_val_ctx_s {
  *  Include a key context and a value context
  *  to update key and value related variables.
  */
-typedef struct blk_ctx_s {
+struct blk_ctx {
     uint64_t index;
     blk_state_t state;
     ondisk_meta_t *blk;
@@ -231,9 +238,13 @@ typedef struct blk_ctx_s {
     kvtrans_req_t *kreq;
     // two types of blk: 1. hashed; 2. lookuped
     bool nothash;
-    blk_ctx_t *next;
-    blk_ctx_t *pre;
-} blk_ctx_t;
+
+    // track the first insertable blk if a blk chain exists
+    blk_ctx_t *first_insert_blk_ctx;
+
+    // the number of meta in chain
+    TAILQ_ENTRY(blk_ctx) blk_link;
+} ;
 
 
 /**
@@ -328,11 +339,12 @@ struct kvtrans_req{
 #endif
 
 typedef struct dstat_s {
+    // meta + mc + mdc = all dirty blks on disk
     counter_t meta;
     counter_t mc;
     counter_t dc;
     counter_t mdc;
-    counter_t ce;
+    counter_t ce; // overlapped with other stats
     counter_t data_scatter;
     tick_t pre;
     tick_t hash;
@@ -356,7 +368,7 @@ typedef struct kvtrans_ctx_s {
     dss_io_task_module_t *kvt_iotm;
 
     // a blk_ctx to maintain hashed entry.
-    blk_ctx_t *entry_blk;
+    // blk_ctx_t *entry_blk;
     
     // each kvtrans handles one target
     dss_device_t *target_dev;
@@ -373,6 +385,8 @@ typedef struct kvtrans_ctx_s {
     uint64_t dc_size;
     // TODO: pool size should be dynamic
     dc_item_t *dc_pool;
+
+    dss_mallocator_ctx_t *blk_ctx_allocator;
 
     void (*kv_assign_block)(uint64_t *, kvtrans_ctx_t *);
 
@@ -409,10 +423,10 @@ dss_kvtrans_status_t dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx, const uint6
 dss_kvtrans_status_t dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx, const uint64_t dc_index,  const uint64_t mdc_index);
 
 
-dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq);
-dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq);
-dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq);
-dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq);
+dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
+dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
+dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
+dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
 
 
 typedef dss_kvtrans_status_t (async_kvtrans_fn)(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq);

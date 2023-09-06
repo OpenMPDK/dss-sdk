@@ -363,6 +363,8 @@ dfly_config_read(struct spdk_conf_section *sp)
     val = spdk_conf_section_get_boolval(sp, "kvtrans_disk_data_store", true);
     set_kvtrans_disk_data_store(val);
 
+	val = spdk_conf_section_get_boolval(sp, "kvtrans_disk_meta_store", true);
+	set_kvtrans_disk_meta_store(val);
     return;
 }
 

@@ -87,6 +87,14 @@ void *dss_item_cache_get_item(dss_item_cache_context_t *cctx);
  */
 void dss_item_cache_print_info(dss_item_cache_context_t *cctx);
 
+
+/**
+ * @brief Get the number of items in cache context
+ * 
+ * @param cctx Cache context
+ */
+int dss_item_cache_get_item_number(dss_item_cache_context_t *cctx);
+
 #ifdef __cplusplus
 }
 #endif
