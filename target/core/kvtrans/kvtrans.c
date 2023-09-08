@@ -802,7 +802,9 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
     DSS_DEBUGLOG(DSS_KVTRANS, "Data backend [%p] and Meta backend [%p] created for kvtrans [%p]\n", ctx->data_ctx, ctx->meta_ctx, ctx);
 #endif
+#ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INIT(&ctx->req_head);
+#endif
 
     return ctx;
 
@@ -881,7 +883,9 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     kreq->req.req_ts = req->req_ts;
     kreq->id = kvtrans_ctx->task_num++;
     kreq->kvtrans_ctx = kvtrans_ctx;
+#ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INSERT_TAIL(&kvtrans_ctx->req_head, kreq, req_link);
+#endif
     kreq->state = REQ_INITIALIZED;
     kreq->initialized = true;
 
@@ -2016,7 +2020,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             break;
         }
     } while( kreq->state != prev_state);
+#ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INSERT_TAIL(&kreq->kvtrans_ctx->req_head, kreq, req_link);
+#endif
 
     return rc;
 
@@ -2194,7 +2200,9 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
             DSS_ASSERT(0);
         }
     } while (kreq->state != prev_state);
+#ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INSERT_TAIL(&kreq->kvtrans_ctx->req_head, kreq, req_link);
+#endif
     return rc;
 }
 
@@ -2227,6 +2235,7 @@ bool iskreq_healthy(kvtrans_req_t *kreq) {
     return true;
 }
 
+#ifdef DSS_BUILD_CUNIT_TEST
 dss_kvtrans_status_t kv_process(kvtrans_ctx_t *kvtrans_ctx) {
     dss_kvtrans_status_t rc;
     kvtrans_req_t *kreq;
@@ -2273,6 +2282,7 @@ dss_kvtrans_status_t kv_process(kvtrans_ctx_t *kvtrans_ctx) {
 
     return rc;
 }
+#endif
 
 void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     if(!blk_ctx) {

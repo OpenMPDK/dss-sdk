@@ -372,8 +372,10 @@ typedef struct kvtrans_ctx_s {
     
     // each kvtrans handles one target
     dss_device_t *target_dev;
+#ifdef DSS_BUILD_CUNIT_TEST
     // to mimic request queue
     STAILQ_HEAD(, kvtrans_req) req_head;
+#endif
     uint64_t task_num;
     uint64_t task_done;
     uint64_t task_failed;
