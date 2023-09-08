@@ -110,6 +110,7 @@ struct dss_io_task_s {
     TAILQ_HEAD(, dss_io_op_s) failed_ops;
     dss_io_task_status_t task_status;
     uint32_t tci;//Task cache index
+    bool in_progress;
 };
 
 #ifdef __cplusplus

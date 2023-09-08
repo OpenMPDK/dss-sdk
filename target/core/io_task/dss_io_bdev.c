@@ -45,7 +45,7 @@ static struct spdk_bdev_module dss_bdev_module = {
 	.name	= "DSS Target",
 };
 
-void dss_io_task_submit_to_device(dss_io_task_t *task);
+void _dss_io_task_submit_to_device(dss_io_task_t *task);
 
 //static void
 //_dss_nvmf_ns_hot_remove(struct spdk_nvmf_subsystem *subsystem,
@@ -287,7 +287,7 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
 
     next_op = TAILQ_FIRST(&task->op_todo_list);
     if(next_op) {
-        dss_io_task_submit_to_device(task);
+        _dss_io_task_submit_to_device(task);
     } else {//All operations completed
         //Note: Assumption net module is always present
         //TODO: If there are no module threads then this callback needs to happen and trigger 
@@ -295,6 +295,7 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
         DSS_ASSERT(task->cb_minst);
         DSS_ASSERT(task->cb_ctx);
         //TODO: store module context and get mtype
+        task->in_progress = false;
         dss_module_post_to_instance(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
     }
 
@@ -302,7 +303,7 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
     return;
 }
 
-void dss_io_task_submit_to_device(dss_io_task_t *task)
+void _dss_io_task_submit_to_device(dss_io_task_t *task)
 {
     dss_io_op_t *curr_op, *tmp_op;
     dss_device_t *io_device;
@@ -313,6 +314,8 @@ void dss_io_task_submit_to_device(dss_io_task_t *task)
     uint64_t disk_lba;
     uint64_t num_disk_blocks;
     uint64_t disk_tr_factor;
+
+    DSS_ASSERT(task->in_progress == true);
 
     TAILQ_FOREACH_SAFE(curr_op, &task->op_todo_list, op_next, tmp_op) {
         //TODO: io task management
@@ -366,15 +369,31 @@ void dss_io_task_submit_to_device(dss_io_task_t *task)
     return;
 }
 
+void dss_io_task_submit_to_device(dss_io_task_t *task)
+{
+    if(task->in_progress == false) {
+        //TODO: Don't expose this function directly outside of io_task
+        //      So when this is called in_progress is already true
+        task->in_progress = true;
+    }
+
+    _dss_io_task_submit_to_device(task);
+
+    return;
+}
+
 dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)
 {
     DSS_ASSERT(task->dreq);
+    DSS_ASSERT(task->in_progress == false);
+
+    task->in_progress = true;
     if(task->io_task_module->io_module) {
         //Send to io module
         dfly_module_post_request(task->io_task_module->io_module, task->dreq);
     } else {
         //Send direct
-        dss_io_task_submit_to_device(task);
+        _dss_io_task_submit_to_device(task);
     }
     return DSS_IO_TASK_STATUS_SUCCESS;
 }

@@ -146,6 +146,7 @@ dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t 
         t->io_task_module = m;
         t->tci = tci;
         t->task_status = DSS_IO_TASK_STATUS_SUCCESS;
+        t->in_progress = false;
     } else {
         DSS_ASSERT(status == DSS_MALLOC_SUCCESS);
     }
@@ -171,6 +172,7 @@ dss_io_task_status_t dss_io_task_reset_ops(dss_io_task_t *io_task)
 
     tci = __dss_env_get_curr_core();
     DSS_ASSERT(tci == io_task->tci);
+    DSS_ASSERT(io_task->in_progress == false);
 
     DSS_ASSERT(TAILQ_EMPTY(&io_task->op_todo_list));
     DSS_ASSERT(TAILQ_EMPTY(&io_task->ops_in_progress));
@@ -241,6 +243,7 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
     dss_io_task_status_t rc;
 
     DSS_ASSERT(__dss_env_get_curr_core() == task->tci);
+    DSS_ASSERT(task->in_progress == false);
     //TODO: offset support only whole block operations supported currently.
     DSS_ASSERT(offset == 0);
 
