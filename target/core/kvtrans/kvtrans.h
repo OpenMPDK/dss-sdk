@@ -388,7 +388,7 @@ typedef struct kvtrans_ctx_s {
     // TODO: pool size should be dynamic
     dc_item_t *dc_pool;
 
-    dss_mallocator_ctx_t *blk_ctx_allocator;
+    dss_mallocator_ctx_t *blk_ctx_mallocator;
 
     void (*kv_assign_block)(uint64_t *, kvtrans_ctx_t *);
 

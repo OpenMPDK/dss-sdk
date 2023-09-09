@@ -44,22 +44,36 @@ struct dss_mallocator_ctx_s {
     uint64_t allocation_size;//sizeof(struct dss_mallocator_item_id_s) + opts.item_sz
     uint32_t n_c_ctx;
     dss_item_cache_context_t **c_ctx;
+    dss_mallocator_obj_cb_fn ctor;
+    dss_mallocator_obj_cb_fn dtor;
+    void *cb_arg;
     pthread_mutex_t allocator_lock;
 };
 
 
 static inline dss_mallocator_item_t *__dss_mallocator_alloc(dss_mallocator_ctx_t *c) {
     //TODO: support multiple types -- function impl
-    return malloc(c->allocation_size);
+    dss_mallocator_item_t *item;
+    item = malloc(c->allocation_size);
+    if(!item) {
+        return NULL;
+    }
+    if(c->ctor) {
+        c->ctor(c->cb_arg, item);
+    }
+    return item;
 }
 
 static inline dss_mallocator_status_t __dss_mallocator_free(dss_mallocator_ctx_t *c, dss_mallocator_item_t *item) {
         //TODO: support multiple types -- use function impl
+        if(c->dtor) {
+            c->dtor(c->cb_arg, item);
+        }
         free(item);
         return DSS_MALLOC_SUCCESS;
 }
 
-dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, dss_mallocator_opts_t opts)
+dss_mallocator_ctx_t *dss_mallocator_init_with_cb(dss_mallocator_type_t allocator_type, dss_mallocator_opts_t opts, dss_mallocator_obj_cb_fn ctor, dss_mallocator_obj_cb_fn dtor, void *cb_arg)
 {
     struct dss_mallocator_ctx_s *c;
     int rc;
@@ -78,6 +92,10 @@ dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, 
     c->opts = opts;
     c->n_c_ctx = c->opts.num_caches;
     c->allocation_size = c->opts.item_sz;
+
+    c->ctor = ctor;
+    c->dtor = dtor;
+    c->cb_arg = cb_arg;
     
     rc = pthread_mutex_init(&c->allocator_lock, NULL);
     if(rc == -1) {
@@ -93,6 +111,11 @@ dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, 
     }
 
     return c;
+}
+
+dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, dss_mallocator_opts_t opts)
+{
+    return dss_mallocator_init_with_cb(allocator_type, opts, NULL, NULL, NULL);
 }
 
 dss_mallocator_status_t dss_mallocator_destroy(dss_mallocator_ctx_t *c)
@@ -180,22 +203,5 @@ dss_mallocator_status_t dss_mallocator_put(dss_mallocator_ctx_t *c, uint32_t cac
         __dss_mallocator_free(c, item);
     }
 
-    return DSS_MALLOC_SUCCESS;
-}
-
-dss_mallocator_status_t dss_mallocator_get_cache_size(dss_mallocator_ctx_t *c, uint32_t cache_index, int *cache_size) 
-{
-    if(cache_index >= c->n_c_ctx) {
-        return DSS_MALLOC_ERROR;
-    }
-
-    if(!c->c_ctx[cache_index]) {
-        return DSS_MALLOC_ERROR;
-    }
-
-    dss_item_cache_context_t *cctx = c->c_ctx[cache_index];
-
-    *cache_size = dss_item_cache_get_item_number(cctx);
-    
     return DSS_MALLOC_SUCCESS;
 }

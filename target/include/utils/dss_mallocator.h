@@ -66,13 +66,16 @@ typedef struct dss_mallocator_opts_s {
     uint64_t max_per_cache_items;
 } dss_mallocator_opts_t;
 
+typedef void (*dss_mallocator_obj_cb_fn)(void *cb_arg, dss_mallocator_item_t *obj);
+
 dss_mallocator_ctx_t *dss_mallocator_init(dss_mallocator_type_t allocator_type, dss_mallocator_opts_t opts);
+
+dss_mallocator_ctx_t *dss_mallocator_init_with_cb(dss_mallocator_type_t allocator_type, dss_mallocator_opts_t opts, dss_mallocator_obj_cb_fn ctor, dss_mallocator_obj_cb_fn dtor, void *cb_arg);
+
 dss_mallocator_status_t dss_mallocator_destroy(dss_mallocator_ctx_t *c);
 
 dss_mallocator_status_t dss_mallocator_get(dss_mallocator_ctx_t *c, uint32_t cache_index, dss_mallocator_item_t **mitem);
 dss_mallocator_status_t dss_mallocator_put(dss_mallocator_ctx_t *c, uint32_t cache_index, dss_mallocator_item_t *item);
-
-dss_mallocator_status_t dss_mallocator_get_cache_size(dss_mallocator_ctx_t *c, uint32_t cache_index, int *cache_size);
 
 #ifdef __cplusplus
 }

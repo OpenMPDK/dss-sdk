@@ -116,15 +116,14 @@ dss_kvtrans_status_t
 dss_kvtrans_get_free_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t **blk_ctx)
 {
     dss_mallocator_status_t rc;
-    rc = dss_mallocator_get(ctx->blk_ctx_allocator, 0, (dss_mallocator_item_t **)blk_ctx);
-    if (blk_ctx==NULL) return KVTRANS_STATUS_ERROR;
-    if (rc==DSS_MALLOC_NEW_ALLOCATION || (*blk_ctx)->blk==NULL) {
+
+    DSS_ASSERT(blk_ctx != NULL);
+    DSS_ASSERT(*blk_ctx == NULL);
+
+    rc = dss_mallocator_get(ctx->blk_ctx_mallocator, 0, (dss_mallocator_item_t **)blk_ctx);
+    if (*blk_ctx==NULL) return KVTRANS_STATUS_ERROR;
+    if (rc==DSS_MALLOC_NEW_ALLOCATION) {
         // alloc blk 
-#ifndef DSS_BUILD_CUNIT_TEST
-        (*blk_ctx)->blk = (ondisk_meta_t *)spdk_dma_zmalloc(BLOCK_SIZE, BLK_ALIGN, NULL);
-#else
-        (*blk_ctx)->blk = (ondisk_meta_t *) calloc(1, BLOCK_SIZE);
-#endif
         if ((*blk_ctx)->blk==NULL) {
             return KVTRANS_STATUS_ERROR;
         }
@@ -134,31 +133,22 @@ dss_kvtrans_get_free_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t **blk_ctx)
 
 dss_kvtrans_status_t
 dss_kvtrans_put_free_blk_ctx(kvtrans_ctx_t *ctx,
-                            blk_ctx_t *blk_ctx,
-                            bool free_blk)
+                            blk_ctx_t *blk_ctx)
 {
     dss_mallocator_status_t rc;
     
     ondisk_meta_t *tmp = blk_ctx->blk;
-    if (tmp && free_blk) {
-#ifndef DSS_BUILD_CUNIT_TEST
-        spdk_free(tmp);
-#else
-        free(tmp);
-#endif
-        tmp = NULL;
-    }
     memset(blk_ctx, 0, sizeof(blk_ctx_t));
     blk_ctx->blk = tmp;
     if (blk_ctx->blk) {
         memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
     }
     if (blk_ctx==NULL){
-        printf("Error: blk_ctx to put is NULL\n");
+        DSS_ERRLOG("blk_ctx to put is NULL\n");
         DSS_ASSERT(0);
         return KVTRANS_STATUS_ERROR;
     }
-    rc = dss_mallocator_put(ctx->blk_ctx_allocator, 0, (dss_mallocator_item_t *)blk_ctx);
+    rc = dss_mallocator_put(ctx->blk_ctx_mallocator, 0, (dss_mallocator_item_t *)blk_ctx);
     if (rc==DSS_MALLOC_ERROR) {
         return KVTRANS_STATUS_ERROR;
     }
@@ -721,6 +711,40 @@ kvtrans_params_t set_default_params() {
     return params;    
 }
 
+void dss_kvtrans_blk_ctx_ctor(void *ctx, void *item)
+{
+    kvtrans_ctx_t *kvt_ctx = (kvtrans_ctx_t *)ctx;
+    blk_ctx_t *blk_ctx = (blk_ctx_t *)item;
+
+    DSS_ASSERT(ctx != NULL);
+
+    //TODO: BLOCK_SIZE and BLK_ALIGN should be replaced from kvtrans ctx
+#ifndef DSS_BUILD_CUNIT_TEST
+    blk_ctx->blk = (ondisk_meta_t *)spdk_dma_zmalloc(BLOCK_SIZE, BLK_ALIGN, NULL);
+#else
+    blk_ctx->blk = (ondisk_meta_t *) calloc(1, BLOCK_SIZE);
+#endif
+
+    return;
+}
+
+void dss_kvtrans_blk_ctx_dtor(void *ctx, void *item)
+{
+    kvtrans_ctx_t *kvt_ctx = (kvtrans_ctx_t *)ctx;
+    blk_ctx_t *blk_ctx = (blk_ctx_t *)item;
+
+    DSS_ASSERT(ctx != NULL);
+
+    DSS_ASSERT(blk_ctx->blk != NULL);
+#ifndef DSS_BUILD_CUNIT_TEST
+        spdk_free(blk_ctx->blk);
+#else
+        free(blk_ctx->blk);
+#endif
+    blk_ctx->blk = NULL;
+    return;
+}
+
 kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params) 
 {
     kvtrans_ctx_t *ctx;
@@ -785,8 +809,10 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     blk_ma_opts.max_per_cache_items = 1024; 
     blk_ma_opts.num_caches = 1;
 
-    ctx->blk_ctx_allocator = dss_mallocator_init(DSS_MEM_ALLOC_MALLOC, blk_ma_opts);
-    DSS_ASSERT(ctx->blk_ctx_allocator);
+    DSS_ASSERT(ctx != NULL);
+
+    ctx->blk_ctx_mallocator = dss_mallocator_init_with_cb(DSS_MEM_ALLOC_MALLOC, blk_ma_opts, dss_kvtrans_blk_ctx_ctor, dss_kvtrans_blk_ctx_dtor, ctx);
+    DSS_ASSERT(ctx->blk_ctx_mallocator);
 
     init_dc_table(ctx);
     if (!ctx->dc_pool) {
@@ -815,26 +841,18 @@ failure_handle:
 
 void free_kvtrans_ctx(kvtrans_ctx_t *ctx) 
 {
+    DSS_ASSERT(ctx != NULL);
     if (!ctx) return;
+
     if (ctx->blk_alloc_ctx) {
-        // work around to free blk pointer inside blk_ctx
-        dss_mallocator_status_t dm_rc;
-        int max_blk_size;
-        int i;
-        dss_mallocator_get_cache_size(ctx->blk_ctx_allocator, 0, &max_blk_size);
-        blk_ctx_t *blk_ctx[max_blk_size];
-        for (i=0; i<max_blk_size; i++) {
-            dm_rc = dss_mallocator_get(ctx->blk_ctx_allocator, 0, (dss_mallocator_item_t **) &blk_ctx[i]);
-            DSS_ASSERT(dm_rc != DSS_MALLOC_NEW_ALLOCATION);
-            if (blk_ctx[i]->blk) free(blk_ctx[i]->blk);
-        }
-        for (i=0; i<max_blk_size; i++) {
-            dm_rc = dss_mallocator_put(ctx->blk_ctx_allocator, 0, (dss_mallocator_item_t *) blk_ctx[i]);
-        }
-        dss_blk_allocator_destroy(ctx->blk_ctx_allocator);
+        dss_blk_allocator_destroy(ctx->blk_alloc_ctx);
     }
+
+    //kvtrans_ctx might be used since it is registered in cb_arg
+    //So this is called first
+    if (ctx->blk_ctx_mallocator)  dss_mallocator_destroy(ctx->blk_ctx_mallocator);
+
     if (ctx->hash_fn_ctx) free_hash_fn_ctx(ctx->hash_fn_ctx);
-    if (ctx->blk_ctx_allocator)  dss_mallocator_destroy(ctx->blk_ctx_allocator);
     free_dc_table(ctx);
 #ifdef MEM_BACKEND
     free_mem_backend(ctx);
@@ -843,10 +861,12 @@ void free_kvtrans_ctx(kvtrans_ctx_t *ctx)
 }
 
 
-kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_req_t *preallocated_req) {
+kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_req_t *preallocated_req)
+{
     dss_kvtrans_status_t rc;
     kvtrans_req_t *kreq;
-    blk_ctx_t *blk_ctx;
+    blk_ctx_t *blk_ctx = NULL;
+
     if(preallocated_req) {
         kreq = preallocated_req;
         kreq->req_allocated = false;
@@ -860,11 +880,10 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     }
 
     if (TAILQ_EMPTY(&kreq->meta_chain)) {
-        TAILQ_INIT(&kreq->meta_chain);
         rc = dss_kvtrans_get_free_blk_ctx(kvtrans_ctx, &blk_ctx);
         if (rc) {
-            printf("ERROR: blk_ctx allocator returns false.\n");
-            return NULL;
+            DSS_ERRLOG("blk_ctx allocator returns false.\n");
+            goto failure_handle;
         }
         
         TAILQ_INSERT_HEAD(&kreq->meta_chain, blk_ctx, blk_link);
@@ -873,7 +892,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     }
     
     if (!req) {
-        printf("ERROR: req is null.\n");
+        DSS_ERRLOG("req is null.\n");
         goto failure_handle;
     }
 
@@ -900,6 +919,11 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
 {
     dss_io_task_status_t iot_rc;
     dss_kvtrans_status_t rc;
+
+    struct blk_ctx *b1;
+    struct blk_ctx *b2;
+
+    DSS_ASSERT(kreq != NULL);
     if (!kreq) {
         return;
     }
@@ -910,19 +934,27 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
         //TODO: Error handling
     }
 
-    if (kreq && kreq->req_allocated) {
-        struct blk_ctx *b1;
-        struct blk_ctx *b2;
+    b1 = TAILQ_FIRST(&kreq->meta_chain);
+    DSS_ASSERT(b1 != NULL);//Atleast one blk ctx in kreq
+    //Skip freeing first blk_ctx for preallocated requests
+    b1 = TAILQ_NEXT(b1, blk_link);
+    while(b1) {
+        b2 = TAILQ_NEXT(b1, blk_link);
+        TAILQ_REMOVE(&kreq->meta_chain, b1, blk_link);
+        rc = dss_kvtrans_put_free_blk_ctx(kreq->kvtrans_ctx, b1);
+        if (rc) DSS_ERRLOG("free blk_ctx failed\n");
+        b1 = b2;
+    }
+
+    if (kreq->req_allocated) {
         b1 = TAILQ_FIRST(&kreq->meta_chain);
-        while (b1!=NULL) {
-            b2 = TAILQ_NEXT(b1, blk_link);
-            TAILQ_REMOVE(&kreq->meta_chain, b1, blk_link);
-            rc = dss_kvtrans_put_free_blk_ctx(kreq->kvtrans_ctx, b1, true);
-            if (rc) DSS_DEBUGLOG(DSS_KVTRANS, "free blk_ctx failed\n");
-            b1 = b2;
-        }
+        TAILQ_REMOVE(&kreq->meta_chain, b1, blk_link);
+        rc = dss_kvtrans_put_free_blk_ctx(kreq->kvtrans_ctx, b1);
+        if (rc) DSS_DEBUGLOG(DSS_KVTRANS, "free blk_ctx failed\n");
         free(kreq);
     }
+
+    return;
 }
 
 int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req) {

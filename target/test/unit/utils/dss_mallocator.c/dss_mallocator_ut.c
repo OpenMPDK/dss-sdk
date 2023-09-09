@@ -41,10 +41,36 @@
 #define DSS_MA_UT_DEFAULT_NUM_CACHES (1024)
 #define DSS_MA_UT_DEFAULT_MAX_CACHE_ITEMS (256)
 #define DSS_MA_UT_DEFAULT_ITEM_SIZE (64)
+#define DSS_MA_UT_DEFAULT_CB_ARG (0x73ABCD)
+#define DSS_MA_UT_DEFAULT_INIT_VAR (75432)
 
 dss_mallocator_ctx_t *g_ma_ctx;
 dss_mallocator_opts_t g_ma_opts;
 
+
+void test_ma_ctor(void *cb_arg, dss_mallocator_item_t *item)
+{
+    uint64_t *allocated_var = item;
+
+    CU_ASSERT(item != NULL);
+    CU_ASSERT(cb_arg == DSS_MA_UT_DEFAULT_CB_ARG);
+    CU_ASSERT(*allocated_var == 0);
+
+    *allocated_var = DSS_MA_UT_DEFAULT_INIT_VAR;
+
+    return;
+}
+
+void test_ma_dtor(void *cb_arg, dss_mallocator_item_t *item)
+{
+    uint64_t *allocated_var = item;
+
+    CU_ASSERT(item != NULL);
+    CU_ASSERT(cb_arg == DSS_MA_UT_DEFAULT_CB_ARG);
+    CU_ASSERT(*allocated_var == DSS_MA_UT_DEFAULT_INIT_VAR);
+
+    return;
+}
 
 void testInitAllocatorSuccess(void)
 {
@@ -54,6 +80,18 @@ void testInitAllocatorSuccess(void)
     g_ma_opts.num_caches = DSS_MA_UT_DEFAULT_NUM_CACHES;
 
     g_ma_ctx = dss_mallocator_init(DSS_MEM_ALLOC_MALLOC, g_ma_opts);
+    assert(g_ma_ctx);
+    return;
+}
+
+void testInitAllocatorWithCbSuccess(void)
+{
+
+    g_ma_opts.item_sz = DSS_MA_UT_DEFAULT_ITEM_SIZE;
+    g_ma_opts.max_per_cache_items = DSS_MA_UT_DEFAULT_MAX_CACHE_ITEMS;
+    g_ma_opts.num_caches = DSS_MA_UT_DEFAULT_NUM_CACHES;
+
+    g_ma_ctx = dss_mallocator_init_with_cb(DSS_MEM_ALLOC_MALLOC, g_ma_opts, test_ma_ctor, test_ma_dtor, DSS_MA_UT_DEFAULT_CB_ARG);
     assert(g_ma_ctx);
     return;
 }
@@ -140,9 +178,15 @@ int main()
         NULL == CU_add_test(pSuite, "testInitAllocatorSuccess", testInitAllocatorSuccess) ||
         NULL == CU_add_test(pSuite, "testAlloc2xMax", testAlloc2xMax) ||
         NULL == CU_add_test(pSuite, "testDestructMA_withelements", testDestructMA) ||
-        NULL == CU_add_test(pSuite, "testInitAllocatorSuccess", testInitAllocatorSuccess) ||
+        NULL == CU_add_test(pSuite, "testInitAllocatorSuccess1", testInitAllocatorSuccess) ||
         NULL == CU_add_test(pSuite, "testAllocandFree2xMax", testAllocandFree2xMax) ||
-        NULL == CU_add_test(pSuite, "testDestructMA", testDestructMA))
+        NULL == CU_add_test(pSuite, "testDestructMA", testDestructMA) ||
+        NULL == CU_add_test(pSuite, "testInitAllocatorWithCbSuccess", testInitAllocatorWithCbSuccess) ||
+        NULL == CU_add_test(pSuite, "testAlloc2xMaxWithCb", testAlloc2xMax) ||
+        NULL == CU_add_test(pSuite, "testDestructMA_withelementsWithCb", testDestructMA) ||
+        NULL == CU_add_test(pSuite, "testInitAllocatorWithCbSuccess1", testInitAllocatorWithCbSuccess) ||
+        NULL == CU_add_test(pSuite, "testAllocandFree2xMaxWithCb1", testAllocandFree2xMax) ||
+        NULL == CU_add_test(pSuite, "testDestructMAWithCb1", testDestructMA))
 
     {
         CU_cleanup_registry();
