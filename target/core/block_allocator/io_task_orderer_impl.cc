@@ -81,18 +81,18 @@ dss_blk_allocator_status_t IoTaskOrderer::mark_dirty_meta(
     // If there are more dirty segments per IO request than
     // the specified max_dirty_segments for IoTaskOrderer
     // assert for now.
-    if (dirty_counter_ > max_dirty_segments_) {
+    if (this->dirty_counter_ > this->max_dirty_segments_) {
         assert(("ERROR", false));
         //return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
     // Add dirty data into `diry_meta` container at the position
     // of dirty_counter_
-    dirty_meta_data_[dirty_counter_].first = lba;
-    dirty_meta_data_[dirty_counter_].second = num_blocks;
+    this->dirty_meta_data_[dirty_counter_].first = lba;
+    this->dirty_meta_data_[dirty_counter_].second = num_blocks;
 
     // Increase the dirty_counter_
-    dirty_counter_++;
+    this->dirty_counter_++;
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
@@ -259,6 +259,11 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     void* serialized_drive_data = nullptr;
     uint64_t serialized_len = 0;
     uint64_t logical_block_size = 4096;
+    // CXX TODO: Remove hack
+    // Drive smallest block size needs to be populated from init
+    // while reading the super block ? or some library dealing with
+    // disk like IO task ?
+    this->drive_smallest_block_size_ = 4096;
     dss_blk_allocator_status_t blk_status = BLK_ALLOCATOR_STATUS_ERROR;
     dss_io_task_status_t io_status = DSS_IO_TASK_STATUS_ERROR;
 
@@ -270,7 +275,7 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
         blk_status = this->translate_meta_to_drive_data(
                 dirty_meta_data_[i].first,
                 dirty_meta_data_[i].second,
-                drive_smallest_block_size_,
+                this->drive_smallest_block_size_,
                 logical_block_size,
                 drive_blk_addr,
                 drive_num_blocks,

@@ -788,7 +788,8 @@ bool JudySeekOptimizer::free_lb(
     // Make sure `free` request is offset adjusted and valid
     if (lb < logical_start_block_offset_) {
         // Invalid free_lb request
-        std::cout<<"Invalid free lb request on lb: "<<lb<<std::endl;
+        std::cout<<"Invalid free lb request on lb with on offset: "
+            <<lb<<std::endl;
         return false;
     }
 

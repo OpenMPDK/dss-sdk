@@ -47,7 +47,10 @@ bool BlockAllocator::init(
     uint64_t num_bits_per_block = 0;
 
     uint64_t drive_smallest_block_size = 0;
-    uint64_t max_dirty_segments = 0;
+    // CXX TODO: This needs to be tuned appropriately
+    // This represents the total number of disjoint ranges
+    // that can be flushed to the disk in one io_task
+    uint64_t max_dirty_segments = 4096;
 
     if (config == NULL) {
         return false;
@@ -86,7 +89,7 @@ bool BlockAllocator::init(
     // num_block_states represents number of states excluding cleared state
 
     // Associate an io task ordering instance for disk operations
-    BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer =
+    this->io_task_orderer =
         std::make_shared<BlockAlloc::IoTaskOrderer>
         (drive_smallest_block_size, max_dirty_segments, device);
     if (io_task_orderer == nullptr) {
@@ -97,8 +100,8 @@ bool BlockAllocator::init(
     // CXX TODO: Config should be parsed to arrive at a specific
     //           allocator type. However, only 1 type of allocator
     //           is supported for now.
-    allocator = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, io_task_orderer, total_blocks, num_bits_per_block,
+    this->allocator = std::make_shared<AllocatorType::QwordVector64Cell>(
+            jso, this->io_task_orderer, total_blocks, num_bits_per_block,
             num_block_states + 1, logical_start_block_offset);
     if (allocator == NULL) {
         return false;
@@ -106,7 +109,7 @@ bool BlockAllocator::init(
 
     // Bind the translator logic specific to each implementation of the
     // allocator
-    io_task_orderer->translate_meta_to_drive_data =
+    this->io_task_orderer->translate_meta_to_drive_data =
         [&](uint64_t meta_lba, uint64_t meta_num_blocks,
                 uint64_t drive_smallest_block_size,
                 uint64_t logical_block_size,
@@ -115,7 +118,7 @@ bool BlockAllocator::init(
                 void** serialized_drive_data,
                 uint64_t& serialized_len) {
 
-            return allocator->translate_meta_to_drive_data(
+            return this->allocator->translate_meta_to_drive_data(
                     meta_lba, meta_num_blocks,
                     drive_smallest_block_size,
                     logical_block_size,

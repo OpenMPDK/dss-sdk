@@ -56,7 +56,8 @@ struct tc_list_arr_s g_ba_test_cases[] = {
     {"testClearAllBlocks1", testClearAllBlocks},/*Clear previous*/
     {"testRanges", testRanges},
     {"testInvalidBlockIndex", testInvalidBlockIndex},
-    {"testInvalidBlockRange", testInvalidBlockRange}
+    {"testInvalidBlockRange", testInvalidBlockRange},
+    {"testIoOrdering", testIoOrdering}
 };
 
 int main(int argc, char **argv)

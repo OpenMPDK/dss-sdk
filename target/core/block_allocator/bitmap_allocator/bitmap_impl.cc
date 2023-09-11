@@ -485,6 +485,8 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
         total_indices = total_indices + 1;
     }
 
+    serialized_len = total_indices * sizeof(uint64_t);
+
     // 3. Update the total number of drive lbas required
     drive_num_blocks =
         serialized_len / (drive_smallest_block_size * BITS_PER_BYTE);

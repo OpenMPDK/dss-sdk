@@ -379,6 +379,24 @@ void testInvalidBlockRange(void)
     return;
 }
 
+void testIoOrdering(void)
+{
+    uint64_t block_index = g_ba_ut.opts.logical_start_block_offset + 1;
+    dss_blk_allocator_status_t rc;
+    dss_blk_allocator_context_t *c = g_ba_ut.ctx;
+    dss_io_task_t *io_task;
+
+    // Allocate some data
+    rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), block_index, 1, NULL);
+    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+    // Since some allocation has taken place, we can procure the IO submitted to drive
+    rc = dss_blk_allocator_get_next_submit_meta_io_tasks(c, io_task);
+    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+    return;
+}
+
 //Test Case End
 
 int dss_ba_add_tc_to_suite(CU_pSuite psuite, const char *ba_type, const char *tc_name, CU_TestFunc tc_fn)

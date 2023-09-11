@@ -58,7 +58,7 @@ public:
     // Constructor of the class
     explicit QwordVector64Cell(
             BlockAlloc::JudySeekOptimizerSharedPtr jso,
-            BlockAlloc::IoTaskOrdererSharedPtr& io_task_orderer,
+            BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer,
             uint64_t total_cells, uint8_t bits_per_cell,
             uint64_t num_block_states, uint64_t logical_start_block_offset)
         : jso_(std::move(jso)),
@@ -164,7 +164,7 @@ public:
 
 private:
     BlockAlloc::JudySeekOptimizerSharedPtr jso_;
-    BlockAlloc::IoTaskOrdererSharedPtr& io_task_orderer_;
+    BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer_;
     uint64_t cells_;
     uint8_t bits_per_cell_;
     uint64_t num_block_states_;
