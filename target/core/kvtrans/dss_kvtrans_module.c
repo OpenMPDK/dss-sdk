@@ -340,6 +340,7 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
 
     kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
     kvt_ctx = kvt_thread_ctx->mctx->kvt_ctx_arr[req->io_device_index];
+    kreq->dreq = req;
 
     DSS_ASSERT(kreq);
     if(kreq->initialized == false) {

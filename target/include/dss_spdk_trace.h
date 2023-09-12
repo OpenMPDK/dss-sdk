@@ -31,46 +31,25 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dss_spdk_wrapper.h"
-#include "spdk/thread.h"
-#include "spdk/trace.h"
+#ifndef DSS_SPDK_TRACE_H
+#define DSS_SPDK_TRACE_H
 
-uint32_t dss_env_get_current_core(void)
-{
-    return spdk_env_get_current_core();
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define OBJECT_KVTRANS_IO   0xc0
+#define OBJECT_NET_IO       0xd0
+#define OBJECT_IO_TASK      0Xe0
+
+#define TRACE_GROUP_DSS_KVTRANS 0x0c
+#define TRACE_GROUP_DSS_NET 0x0d
+#define TRACE_GROUP_DSS_IO_TASK 0x0e
+
+#ifdef __cplusplus
 }
+#endif
 
-uint32_t dss_env_get_spdk_max_cores(void)
-{
-    return spdk_env_get_last_core();
-}
-
-void *
-dss_env_get_spdk_thread(void)
-{
-    return (void *)spdk_get_thread();
-}
-
-int dss_spdk_thread_send_msg(void *th, void *fn, void *ctx)
-{
-    struct spdk_thread *sth = (struct spdk_thread *)th;
-    spdk_msg_fn sm_fn = (spdk_msg_fn)fn;
-
-    return spdk_thread_send_msg(sth, sm_fn, ctx);
-}
-
-void *dss_dma_zmalloc(size_t size, size_t align)
-{
-    return spdk_dma_zmalloc(size, align, NULL);
-}
-
-void dss_free(void *p)
-{
-    spdk_free(p);
-    return;
-}
-
-void dss_trace_record(uint16_t tpoint_id, uint16_t poller_id, uint32_t size,
-		       uint64_t object_id, uint64_t arg1) {
-	return spdk_trace_record(tpoint_id, poller_id, size, object_id, arg1);
-}
+#endif // DSS_SPDK_WRAPPER_H

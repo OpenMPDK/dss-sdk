@@ -58,6 +58,7 @@ extern "C" {
 #include "spdk/nvme.h"
 #include "spdk/nvmf_transport.h"
 #include "spdk/likely.h"
+#include "spdk/trace.h"
 
 #include "spdk_internal/log.h"
 

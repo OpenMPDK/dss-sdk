@@ -33,6 +33,65 @@
 
 #include "kvtrans.h"
 #include "kvtrans_hash.h"
+
+#ifndef DSS_BUILD_CUNIT_TEST
+#include "dss_spdk_wrapper.h"
+
+#define TRACE_KVTRANS_WRITE_REQ_INITIALIZED         SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x0)
+#define TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_ENTRY     SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x1)
+#define TRACE_KVTRANS_WRITE_ENTRY_LOADING_DONE      SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x2)
+#define TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_COL       SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x3)
+#define TRACE_KVTRANS_WRITE_COL_LOADING_DONE        SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x4)
+#define TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_COL_EXT   SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x5)
+#define TRACE_KVTRANS_WRITE_QUEUE_TO_START_IO       SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x6)
+#define TRACE_KVTRANS_WRITE_IO_CMPL                 SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x7)
+#define TRACE_KVTRANS_WRITE_REQ_CMPL                SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x8)
+
+#define TRACE_KVTRANS_READ_REQ_INITIALIZED          SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x9)
+#define TRACE_KVTRANS_READ_ENTRY_LOADING_DONE       SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0xa)
+#define TRACE_KVTRANS_READ_QUEUE_TO_START_IO        SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0xb)
+#define TRACE_KVTRANS_READ_IO_CMPL                  SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0xc)
+#define TRACE_KVTRANS_READ_REQ_CMPL                 SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0xd)
+
+#define TRACE_KVTRANS_ENTER_POLLER_QUEUE            SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0xe)
+
+SPDK_TRACE_REGISTER_FN(kvtrans_trace, "kvtrans", TRACE_GROUP_DSS_KVTRANS)
+{
+    spdk_trace_register_object(OBJECT_KVTRANS_IO, 'k');
+    
+    spdk_trace_register_description("KVT_KEY_REQ_INITIALIZED", TRACE_KVTRANS_WRITE_REQ_INITIALIZED,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 1, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_KEY_QUEUE_ENTRY", TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_ENTRY,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:     ");
+    spdk_trace_register_description("KVT_KEY_ENTRY_DONE", TRACE_KVTRANS_WRITE_ENTRY_LOADING_DONE,
+                                        OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:     ");
+    spdk_trace_register_description("KVT_KEY_QUEUE_COL", TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_COL,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:     ");
+    spdk_trace_register_description("KVT_KEY_COL_DONE", TRACE_KVTRANS_WRITE_COL_LOADING_DONE,
+                                        OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:     ");
+    spdk_trace_register_description("KVT_KEY_QUEUE_IO", TRACE_KVTRANS_WRITE_QUEUE_TO_START_IO,
+                                        OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:     ");
+    spdk_trace_register_description("KVT_KEY_IO_CMPL", TRACE_KVTRANS_WRITE_IO_CMPL,
+                                        OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:   ");
+    spdk_trace_register_description("KVT_KEY_REQ_CMPL", TRACE_KVTRANS_WRITE_REQ_CMPL,
+                                        OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:   ");
+    
+    spdk_trace_register_description("KVT_VAL_REQ_INITIALIZED", TRACE_KVTRANS_READ_REQ_INITIALIZED,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 1, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_VAL_ENTRY_DONE", TRACE_KVTRANS_READ_ENTRY_LOADING_DONE,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_VAL_QUEUE_IO", TRACE_KVTRANS_READ_QUEUE_TO_START_IO,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_VAL_IO_CMPL", TRACE_KVTRANS_READ_IO_CMPL,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_VAL_REQ_CMPL", TRACE_KVTRANS_READ_REQ_CMPL,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+
+    spdk_trace_register_description("KVT_ENTER_POLLER_QUEUE", TRACE_KVTRANS_ENTER_POLLER_QUEUE,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 1, 1, "dreq_ptr:    ");
+}
+#endif
+
 #ifdef MEM_BACKEND
 
 #ifndef DSS_BUILD_CUNIT_TEST
@@ -825,7 +884,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     
     dss_mallocator_opts_t blk_ma_opts;
     blk_ma_opts.item_sz = sizeof(blk_ctx_t);
-    blk_ma_opts.max_per_cache_items = 1024; 
+    blk_ma_opts.max_per_cache_items = DEFAULT_BLK_CTX_CACHE; 
     blk_ma_opts.num_caches = 1;
 
     DSS_ASSERT(ctx != NULL);
@@ -1115,6 +1174,7 @@ blk_ctx_t *_get_next_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx) {
     blk_ctx_t *col_blk_ctx = TAILQ_NEXT(blk_ctx, blk_link);
     if (col_blk_ctx == NULL) {
         rc = dss_kvtrans_get_free_blk_ctx(ctx, &col_blk_ctx);
+        blk_ctx->kreq->num_meta_blk++;
         if (rc) return NULL;
         TAILQ_INSERT_TAIL(&blk_ctx->kreq->meta_chain, col_blk_ctx, blk_link);
     }
@@ -1918,6 +1978,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_REQ_INITIALIZED, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             // only one blk_ctx in the meta_chain
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
             DSS_ASSERT(blk_ctx);
@@ -1928,11 +1991,19 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             }
             rc = _alloc_entry_block(ctx, kreq, blk_ctx);
             if (rc) return rc;
+#ifndef DSS_BUILD_CUNIT_TEST
+            if (kreq->state == QUEUE_TO_LOAD_ENTRY) {
+                dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_ENTRY, 0, 0, 0, (uintptr_t)kreq->dreq);
+            }
+#endif
             break;
         case QUEUE_TO_LOAD_ENTRY:
             //External code should continue progres
             break;
         case ENTRY_LOADING_DONE:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_ENTRY_LOADING_DONE, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
             DSS_ASSERT(blk_ctx);
             blk_ctx->kctx.ops = g_blk_register[blk_ctx->state];
@@ -1962,6 +2033,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             //External code should continue progres
             break;
         case COL_LOADING_DONE:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_COL, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             col_ctx = TAILQ_LAST(&kreq->meta_chain, blk_elm);
             DSS_ASSERT(col_ctx!=NULL && col_ctx!=blk_ctx);
             blk_ctx = TAILQ_PREV(col_ctx, blk_elm, blk_link);
@@ -2052,6 +2126,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             break;
         case QUEUE_TO_START_IO:
 #ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_START_IO, 0, 0, (uintptr_t)kreq->id, (uintptr_t)kreq);
             if (kreq->io_to_queue) {
                 if(ctx->is_ba_meta_sync_enabled == true && kreq->ba_meta_updated == true) {
                     ba_rc = dss_blk_allocator_queue_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
@@ -2069,12 +2144,18 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             //External code should continue progres
             break;
         case IO_CMPL:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_IO_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             kreq->state = REQ_CMPL;
             if(ctx->is_ba_meta_sync_enabled && kreq->ba_meta_updated) {
                 dss_blk_allocator_complete_meta_sync(ctx->blk_alloc_ctx, kreq->io_tasks);
             }
             break;
         case REQ_CMPL:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_WRITE_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             free_kvtrans_req(kreq);
             ctx->task_done++;
             return rc;
@@ -2155,6 +2236,9 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_READ_REQ_INITIALIZED, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             // only one blk_ctx in the meta_chain
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
             // TODO: init blk_ctx with 0
@@ -2163,6 +2247,9 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
         case QUEUE_TO_LOAD_ENTRY:
             break;
         case ENTRY_LOADING_DONE:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_READ_ENTRY_LOADING_DONE, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
             switch(blk_ctx->state) {
                 case EMPTY:
@@ -2240,6 +2327,8 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
             break;
         case QUEUE_TO_START_IO:
 #ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_READ_QUEUE_TO_START_IO, 0, 0, 0, (uintptr_t)kreq->dreq);
+            DSS_ASSERT(cb!=NULL);
             iot_rc = dss_io_task_submit(kreq->io_tasks);
             DSS_ASSERT(iot_rc==DSS_IO_TASK_STATUS_SUCCESS);
             break;
@@ -2250,10 +2339,16 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
             //External code should continue progres
             break;
         case IO_CMPL:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_READ_IO_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             kreq->state = REQ_CMPL;
             // TODO: execute cb function?
             break;
         case REQ_CMPL:
+#ifndef DSS_BUILD_CUNIT_TEST
+            dss_trace_record(TRACE_KVTRANS_READ_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+#endif
             free_kvtrans_req(kreq);
             ctx->task_done++;
             return rc;

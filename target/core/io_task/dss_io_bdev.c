@@ -38,7 +38,23 @@
 
 #include "spdk/likely.h"
 #include "spdk/bdev_module.h"
+#include "spdk/trace.h"
+
 #include "nvmf_internal.h"
+#include "dss_spdk_wrapper.h"
+
+#define TRACE_IO_ENQUEUE_KREQ           SPDK_TPOINT_ID(TRACE_GROUP_DSS_IO_TASK, 0x1)
+#define TRACE_IO_DEQUEUE_KREQ           SPDK_TPOINT_ID(TRACE_GROUP_DSS_IO_TASK, 0x2)
+
+SPDK_TRACE_REGISTER_FN(dss_io_task_trace, "dss_io_task", TRACE_GROUP_DSS_IO_TASK)
+{   
+    spdk_trace_register_object(OBJECT_IO_TASK, 'i');
+    spdk_trace_register_description("IO_TASK_ENQUEUE_KREQ", TRACE_IO_ENQUEUE_KREQ,
+                                    OWNER_NONE, OBJECT_IO_TASK, 1, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("IO_TASK_DEQUEUE_KREQ", TRACE_IO_DEQUEUE_KREQ,
+                                    OWNER_NONE, OBJECT_IO_TASK, 0, 1, "dreq_ptr:    ");
+}
+
 
 /* Dummy bdev module used to to claim bdevs. */
 static struct spdk_bdev_module dss_bdev_module = {
@@ -306,6 +322,7 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
         DSS_ASSERT(task->cb_ctx);
         //TODO: store module context and get mtype
         task->in_progress = false;
+        dss_trace_record(TRACE_IO_DEQUEUE_KREQ, 0, 0, 0, (uintptr_t)task->dreq);
         dss_module_post_to_instance(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
     }
 
@@ -402,6 +419,7 @@ dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)
     task->in_progress = true;
     if(task->io_task_module->io_module) {
         //Send to io module
+        dss_trace_record(TRACE_IO_ENQUEUE_KREQ, 0, 0, 0, (uintptr_t)task->dreq);
         dfly_module_post_request(task->io_task_module->io_module, task->dreq);
     } else {
         //Send direct

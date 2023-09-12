@@ -77,6 +77,7 @@ extern "C" {
 // A 64 bit value to indicate if meta blk valid
 #define META_MAGIC (0xabc0)
 #define BLK_ALIGN (4096)
+#define DEFAULT_BLK_CTX_CACHE (1024)
 
 #define CEILING(x,y) (((x) + (y) - 1) / (y))
 

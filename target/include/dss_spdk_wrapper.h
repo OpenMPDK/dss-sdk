@@ -36,6 +36,7 @@
 
 #include <stdint.h>
 #include <spdk/env.h>
+#include "dss_spdk_trace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,8 @@ int dss_spdk_thread_send_msg(void *th, void *fn, void *ctx);
 void *dss_dma_zmalloc(size_t size, size_t align);
 
 void dss_free(void *p);
+void dss_trace_record(uint16_t tpoint_id, uint16_t poller_id, uint32_t size,
+		       uint64_t object_id, uint64_t arg1);
 
 #ifdef __cplusplus
 }

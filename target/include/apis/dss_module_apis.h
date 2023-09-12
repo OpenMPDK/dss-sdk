@@ -213,6 +213,7 @@ struct kvtrans_req{
     int32_t num_meta_blk;
 
     struct req_time_tick time_tick;
+    dss_request_t *dreq;
 #ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_ENTRY(kvtrans_req) req_link;
 #endif

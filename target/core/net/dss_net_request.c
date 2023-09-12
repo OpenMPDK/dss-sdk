@@ -38,6 +38,18 @@
 #include "apis/dss_module_apis.h"
 #include "apis/dss_net_module.h"
 
+#define TRACE_NET_ENQUEUE_KREQ           SPDK_TPOINT_ID(TRACE_GROUP_DSS_NET, 0x1)
+#define TRACE_NET_DEQUEUE_KREQ           SPDK_TPOINT_ID(TRACE_GROUP_DSS_NET, 0x2)
+
+SPDK_TRACE_REGISTER_FN(dss_net_trace, "dss_net", TRACE_GROUP_DSS_NET)
+{   
+    spdk_trace_register_object(OBJECT_NET_IO, 'n');
+    spdk_trace_register_description("NET_ENQUEUE_KREQ", TRACE_NET_ENQUEUE_KREQ,
+                                    OWNER_NONE, OBJECT_NET_IO, 1, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("NET_DEQUEUE_KREQ", TRACE_NET_DEQUEUE_KREQ  ,
+                                    OWNER_NONE, OBJECT_NET_IO, 0, 1, "dreq_ptr:    ");
+}
+
 void dss_net_setup_request(dss_request_t *req, dss_module_instance_t *m_inst, void *nvmf_req)
 {
     dfly_req_init_nvmf_value(req);
@@ -139,6 +151,7 @@ void dss_net_request_process(dss_request_t *req)
                     dss_setup_kvtrans_req(req, dss_req_get_key(req), dss_req_get_value(req));
                     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
                     dfly_module_post_request(dss_module_get_subsys_ctx(DSS_MODULE_KVTRANS, req->ss), req);
+                    dss_trace_record(TRACE_NET_ENQUEUE_KREQ , 0, 0, 0, (uintptr_t)req);
                     return;
                 }
             } else {
@@ -153,6 +166,7 @@ void dss_net_request_process(dss_request_t *req)
             req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
             break;
         case DSS_NET_REQUEST_COMPLETE:
+            dss_trace_record(TRACE_NET_DEQUEUE_KREQ, 0, 0, 0, (uintptr_t)req);
             dss_net_request_complete(req->ss, req);
             dss_net_teardown_request(req);
             break;
