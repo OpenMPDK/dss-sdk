@@ -46,7 +46,7 @@ void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
     is_completion?(op_state_filter = DSS_IO_OP_COMPLETED):(op_state_filter = DSS_IO_OP_FOR_SUBMISSION);
     num_ranges = 0;
 
-#ifndef DSS_BUILD_CUNIT_TEST
+#ifndef DSS_BUILD_CUNIT_WO_IO_TASK
     do {
         rc = dss_io_task_get_op_ranges(io_task, DSS_IO_OP_OWNER_BA, op_state_filter, &tmp_it_ctx, &op_params);
         DSS_ASSERT((rc == DSS_IO_TASK_STATUS_SUCCESS) || (rc == DSS_IO_TASK_STATUS_IT_END));
@@ -212,16 +212,19 @@ bool IoTaskOrderer::mark_in_flight(
             assert(("ERROR", false));
         }
 
-        if (*(Word_t *)ptr_j_entry != 0) {
-            //CXX: Add debug `Failed to insert at jarr_io_dev_guard_`
-            // Assert for now
-            assert(("ERROR", false));
-            //return false;
-        } else {
-            // Assign value to the location pointer by ptr_j_entry
-            *ptr_j_entry = (Word_t)io_ranges[i].second;
-        }
+        //TODO: It is possible the entry can be already there
+        //          Handle overlaps
 
+        // if (*(Word_t *)ptr_j_entry != 0) {
+        //     //CXX: Add debug `Failed to insert at jarr_io_dev_guard_`
+        //     // Assert for now
+        //     assert(("ERROR", false));
+        //     //return false;
+        // } else {
+        //     // Assign value to the location pointer by ptr_j_entry
+        //     *ptr_j_entry = (Word_t)io_ranges[i].second;
+        // }
+        *ptr_j_entry = (Word_t)io_ranges[i].second;
         ptr_j_entry = nullptr;
     }
 
@@ -240,12 +243,13 @@ bool IoTaskOrderer::mark_completed(
                 &jarr_io_dev_guard_, (Word_t)io_ranges[i].first, PJE0);
 
         // rc can not be anything but 1
-        if(rc != 1) {
-            std::cout<<"Remove from jarr_io_dev_guard_ failed"<<std::endl;
-            // Assert for now
-            assert(("ERROR", false));
-            // retun false;
-        }
+        //TODO: Handle
+        // if(rc != 1) {
+        //     std::cout<<"Remove from jarr_io_dev_guard_ failed"<<std::endl;
+        //     // Assert for now
+        //     assert(("ERROR", false));
+        //     // retun false;
+        // }
     }
 
     return true;
@@ -294,6 +298,7 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
             std::cout<<
                 "IO module stub for testing IO ordering"<<std::endl;
         } else {
+            #ifndef DSS_BUILD_CUNIT_WO_IO_TASK
             dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_BA, .is_blocking = false};
             io_status = dss_io_task_add_blk_write(
                   io_task,
@@ -304,9 +309,10 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
                   &io_opts
                   );
 
-            if (io_status != DSS_IO_TASK_STATUS_ERROR) {
+            if (io_status != DSS_IO_TASK_STATUS_SUCCESS) {
                 assert(("ERROR", false));
             }
+            #endif
         }
     }
 

@@ -31,6 +31,8 @@
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+add_definitions(-DDSS_BUILD_CUNIT_WO_IO_TASK)
+
 # Tests for simple bitmap implementation with cunit
 add_executable(dss_simbmap_allocator_ut ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
                                         ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
