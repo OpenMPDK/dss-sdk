@@ -91,6 +91,7 @@ struct dss_blk_allocator_opts_s {
                                          //   and size for persistent block allocator data in blocks
                                          //   at the minimum
     dss_blk_allocator_disk_config_t d; // On disk configuration for block allocator
+    bool enable_ba_meta_sync; //Enable or disable block allocation meta sync interface to disk
 };
 
 /**

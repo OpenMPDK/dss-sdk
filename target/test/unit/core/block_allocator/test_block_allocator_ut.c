@@ -69,6 +69,8 @@ int main(int argc, char **argv)
     g_ba_ut.opts.logical_start_block_offset =
         BLOCK_IMPRESARIO_DEFAULT_LOGICAL_START_BLK_OFFSET;
 
+    g_ba_ut.opts.enable_ba_meta_sync = true;
+
     if(argc == 2) {
         g_ba_ut.opts.num_block_states = atol(argv[1]);
     }

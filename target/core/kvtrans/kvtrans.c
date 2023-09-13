@@ -781,6 +781,8 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         ctx->kvtrans_params = set_default_params();
     }
 
+    ctx->is_ba_meta_sync_enabled = g_ba_enable_meta_sync;
+
     dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
     //dss_blk_allocator_set_default_config(NULL, &config);
 
@@ -792,6 +794,8 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     config.num_total_blocks = ctx->kvtrans_params.total_blk_num;
     // exclude empty state
     config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
+
+    config.enable_ba_meta_sync = ctx->is_ba_meta_sync_enabled;
 
     ctx->blk_alloc_ctx = dss_blk_allocator_init(ctx->kvtrans_params.dev, &config);
     //ctx->blk_alloc_ctx = dss_blk_allocator_init(NULL, &config);
@@ -846,8 +850,6 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
 #ifdef DSS_BUILD_CUNIT_TEST
     STAILQ_INIT(&ctx->req_head);
 #endif
-
-    ctx->is_ba_meta_sync_enabled = g_ba_enable_meta_sync;
 
     return ctx;
 

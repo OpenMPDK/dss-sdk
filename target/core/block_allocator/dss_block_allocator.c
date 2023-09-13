@@ -141,7 +141,6 @@ dss_blk_allocator_context_t* dss_blk_allocator_init(dss_device_t *device, dss_bl
 
     //TODO: Validate Config
     //TODO: Use *device
-    //TODO: Dynamically enable block allocator meta data sync support
 
     c = m->core.blk_alloc_init(device, config);
     if(!c) {
@@ -173,6 +172,7 @@ void dss_blk_allocator_set_default_config(dss_device_t *device, dss_blk_allocato
     // opts->d.allocatable_start_disk_block = 
     opts->d.reserved_data_blocks_start_index = BLK_ALLOCATOR_DEFAULT_RSVD_START_BLOCK_INDEX;
     opts->d.reserved_data_blocks = BLK_ALLOCATOR_DEFAULT_RESVD_BLOCKS;
+    opts->enable_ba_meta_sync = false;
 
     return;
 }

@@ -88,12 +88,14 @@ bool BlockAllocator::init(
 
     // num_block_states represents number of states excluding cleared state
 
-    // Associate an io task ordering instance for disk operations
-    this->io_task_orderer =
-        std::make_shared<BlockAlloc::IoTaskOrderer>
-        (drive_smallest_block_size, max_dirty_segments, device);
-    if (io_task_orderer == nullptr) {
-        return false;
+    if(config->enable_ba_meta_sync == true) {
+        // Associate an io task ordering instance for disk operations
+        this->io_task_orderer =
+            std::make_shared<BlockAlloc::IoTaskOrderer>(drive_smallest_block_size, max_dirty_segments, device);
+        if (io_task_orderer == nullptr)
+        {
+            return false;
+        }
     }
 
     // Concrete definition of the allocator
@@ -107,30 +109,29 @@ bool BlockAllocator::init(
         return false;
     }
 
-    // Bind the translator logic specific to each implementation of the
-    // allocator
-    this->io_task_orderer->translate_meta_to_drive_data =
-        [&](uint64_t meta_lba, uint64_t meta_num_blocks,
+    if(config->enable_ba_meta_sync == true) {
+        // Bind the translator logic specific to each implementation of the
+        // allocator
+        this->io_task_orderer->translate_meta_to_drive_data =
+            [&](uint64_t meta_lba, uint64_t meta_num_blocks,
                 uint64_t drive_smallest_block_size,
                 uint64_t logical_block_size,
-                uint64_t& drive_blk_addr,
-                uint64_t& drive_num_blocks,
-                void** serialized_drive_data,
-                uint64_t& serialized_len) {
-
+                uint64_t &drive_blk_addr,
+                uint64_t &drive_num_blocks,
+                void **serialized_drive_data,
+                uint64_t &serialized_len)
+        {
             return this->allocator->translate_meta_to_drive_data(
-                    meta_lba, meta_num_blocks,
-                    drive_smallest_block_size,
-                    logical_block_size,
-                    drive_blk_addr,
-                    drive_num_blocks,
-                    serialized_drive_data,
-                    serialized_len
-                    );
+                meta_lba, meta_num_blocks,
+                drive_smallest_block_size,
+                logical_block_size,
+                drive_blk_addr,
+                drive_num_blocks,
+                serialized_drive_data,
+                serialized_len);
         };
-
-    DSS_ASSERT(io_task_orderer->translate_meta_to_drive_data);
-
+        DSS_ASSERT(io_task_orderer->translate_meta_to_drive_data);
+    }
     return true;
 }
 
@@ -138,21 +139,33 @@ dss_blk_allocator_status_t BlockAllocator::queue_sync_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
                      dss_io_task_t *io_task) {
 
-    return this->io_task_orderer->queue_sync_meta_io_tasks(io_task);
+    if(this->io_task_orderer) {
+        return this->io_task_orderer->queue_sync_meta_io_tasks(io_task);
+    } else {
+        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+    }
 }
 
 dss_blk_allocator_status_t BlockAllocator::get_next_submit_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
                      dss_io_task_t **io_task) {
 
-    return this->io_task_orderer->get_next_submit_meta_io_tasks(io_task);
+    if(this->io_task_orderer) {
+        return this->io_task_orderer->get_next_submit_meta_io_tasks(io_task);
+    } else {
+        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+    }
 }
 
 dss_blk_allocator_status_t BlockAllocator::complete_meta_sync(
                      dss_blk_allocator_context_t *ctx,
                      dss_io_task_t *io_task) {
 
-    return this->io_task_orderer->complete_meta_sync(io_task);
+    if(this->io_task_orderer) {
+        return this->io_task_orderer->complete_meta_sync(io_task);
+    } else {
+        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+    }
 }
 
 } // End namespace BlockAlloc
