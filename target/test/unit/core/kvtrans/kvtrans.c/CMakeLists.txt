@@ -30,6 +30,8 @@
 #   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 #   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+
+add_definitions(-DDSS_BUILD_CUNIT_DISABLE_MARK_DIRTY)
 add_executable(dss_kvtrans_ut ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
                           ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
                           ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.c

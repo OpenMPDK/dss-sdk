@@ -162,6 +162,8 @@ void testInitCase(void)
     CU_ASSERT(ctx!=NULL);
     CU_ASSERT(ctx->hash_fn_ctx!=NULL);
     CU_ASSERT(ctx->blk_alloc_ctx!=NULL);
+    //Disable block allocator meta sync
+    ctx->is_ba_meta_sync_enabled = false;
 }
 
 void testInitParaCase(void)
@@ -179,6 +181,10 @@ void testInitParaCase(void)
     CU_ASSERT(ctx!=NULL);
     CU_ASSERT(ctx->hash_fn_ctx!=NULL);
     CU_ASSERT(ctx->blk_alloc_ctx!=NULL);
+    //Disable block allocator meta sync
+    ctx->is_ba_meta_sync_enabled = false;
+
+    return;
 }
 
 

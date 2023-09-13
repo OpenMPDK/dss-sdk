@@ -269,8 +269,10 @@ dss_blk_allocator_status_t QwordVector64Cell::set_blocks_state(
     if(cell_value != DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
         // OK to change state here
         QwordVector64Cell::set_cell(block_index, state);
+        #ifndef DSS_BUILD_CUNIT_DISABLE_MARK_DIRTY
         // Mark dirty bitmap
         this->io_task_orderer_->mark_dirty_meta(block_index, 1);
+        #endif
         return BLK_ALLOCATOR_STATUS_SUCCESS;
     }
 
@@ -293,8 +295,10 @@ dss_blk_allocator_status_t QwordVector64Cell::set_blocks_state(
 
     // Now proceed to represent state on bitmap
     QwordVector64Cell::set_cell(block_index, state);
+    #ifndef DSS_BUILD_CUNIT_DISABLE_MARK_DIRTY
     // Mark dirty bitmap
     this->io_task_orderer_->mark_dirty_meta(block_index, 1);
+    #endif
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
@@ -337,8 +341,10 @@ dss_blk_allocator_status_t QwordVector64Cell::clear_blocks(
                 iter_blk_id, DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
         iter_blk_id = iter_blk_id + 1;
     }
+    #ifndef DSS_BUILD_CUNIT_DISABLE_MARK_DIRTY
     // Mark dirty bitmap
     this->io_task_orderer_->mark_dirty_meta(block_index, num_blocks);
+    #endif
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
@@ -395,9 +401,10 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
         QwordVector64Cell::set_cell(iter_blk_id, state);
         iter_blk_id = iter_blk_id + 1;
     }
+    #ifndef DSS_BUILD_CUNIT_DISABLE_MARK_DIRTY
     // Mark dirty bitmap
-    this->io_task_orderer_->
-        mark_dirty_meta(actual_allocated_lb, num_blocks);
+    this->io_task_orderer_->mark_dirty_meta(actual_allocated_lb, num_blocks);
+    #endif
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
