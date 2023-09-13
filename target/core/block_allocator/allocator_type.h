@@ -111,7 +111,7 @@ public:
      */
     virtual void deserialize_range(
             uint64_t word_begin, uint64_t num_words,
-            char** serialized_buf, uint64_t& serialized_len) =0;
+            void* serialized_buf, uint64_t serialized_len) =0;
 
     /**
      * @brief 

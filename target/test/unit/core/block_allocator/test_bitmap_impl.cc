@@ -358,8 +358,8 @@ void BitmapTest::test_logical_start_block_offset() {
  */
 void BitmapTest::test_serialize_deserialize() {
 
-    char *serialized_buf = nullptr;
-    uint64_t serialized_len = 0;
+    char serialized_buf[100];
+    uint64_t serialized_len = 100;
     int print = 0;
 
     // Set first 10 cells in the bitmap
@@ -369,23 +369,20 @@ void BitmapTest::test_serialize_deserialize() {
 
     for (int i=0; i<10; i++) {
         print = bmap->get_cell_value(i);
+        CPPUNIT_ASSERT(print == i);
     }
 
     // Serialize the bitmap for the set range
     bmap->serialize_range(0, 10,
-            &serialized_buf, serialized_len);
-    CPPUNIT_ASSERT(serialized_buf != nullptr);
+            serialized_buf, serialized_len);
 
     // Reset first 10 cells in the bitmap with 0
     for (int i=0; i<10; i++) {
         bmap->set_cell(i,0);
     }
 
-    // Reset serialized_len
-    serialized_len = 0;
-
     bmap->deserialize_range(0, 10,
-            &serialized_buf, serialized_len);
+            serialized_buf, serialized_len);
 
     for (int i=0; i<10; i++) {
         print = bmap->get_cell_value(i);
@@ -393,8 +390,6 @@ void BitmapTest::test_serialize_deserialize() {
         // deserialization
         CPPUNIT_ASSERT(print == i);
     }
-
-    free(serialized_buf);
 
     return;
 }

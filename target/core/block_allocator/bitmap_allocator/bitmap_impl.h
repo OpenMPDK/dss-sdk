@@ -121,7 +121,7 @@ public:
     void serialize_range(uint64_t qword_begin, uint64_t num_words,
             void *serialized_buf, uint64_t serialized_len) override;
     void deserialize_range(uint64_t qword_begin, uint64_t num_words,
-            char** serialized_buf, uint64_t& serialized_len) override;
+            void* serialized_buf, uint64_t serialized_len) override;
     bool seek_empty_cell_range(
             uint64_t begin_cell, uint64_t len) const override;
 

@@ -64,7 +64,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_COMPILER "g++")
 
 add_executable(test_bitmap_impl ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+                                ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+                                ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
+                                ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
                                 ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+                                ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
                                 test_bitmap_impl.cc)
 
 target_include_directories(test_bitmap_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/block_allocator

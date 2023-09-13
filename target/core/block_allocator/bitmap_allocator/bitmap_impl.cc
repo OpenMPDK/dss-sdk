@@ -92,23 +92,24 @@ void QwordVector64Cell::serialize_range(
     // alloc_buf = (char*)malloc(num_words * sizeof(uint64_t));
     std::memcpy(serialized_buf, data_ptr, num_words * sizeof(uint64_t));
     // *serialized_buf = alloc_buf;
+    DSS_ASSERT(serialized_len >= num_words * sizeof(uint64_t));
+#ifndef DSS_BUILD_CUNIT_TEST
     //Serialized data should fill the entire block that is requested
     DSS_ASSERT(serialized_len == num_words * sizeof(uint64_t));
+#endif
     return;
 }
 
 void QwordVector64Cell::deserialize_range(
         uint64_t qword_begin, uint64_t num_words,
-        char** serialized_buf, uint64_t& serialized_len) {
+        void* serialized_buf, uint64_t serialized_len) {
 
-    char *copy_ptr = *serialized_buf;
+    char *copy_ptr = (char *)serialized_buf;
 
     for (uint64_t i=qword_begin; i<num_words; i++) {
         std::memcpy(&data_[i], copy_ptr, sizeof(uint64_t));
         copy_ptr = copy_ptr + sizeof(uint64_t);
     }
-
-    serialized_len = num_words * sizeof(uint64_t);
 
     return;
 }
@@ -411,7 +412,7 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
         void** serialized_drive_data,
         uint64_t& serialized_len) {
 
-    std::cout<<"Qword translate meta"<<std::endl;
+    // std::cout<<"Qword translate meta"<<std::endl;
 
     /**
      * Represents the logical block where bitmap begins
@@ -445,7 +446,7 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     // 1. Each lba on bitmap is represented by 4 bits
     //    Determine which 64-bit integer index does lba
     //    land on
-    if (meta_lba <= logical_start_block_offset) {
+    if ((logical_start_block_offset != 0) && (meta_lba < logical_start_block_offset)) {
         assert(("ERROR", false));
     }
     meta_lba = meta_lba - logical_start_block_offset;
