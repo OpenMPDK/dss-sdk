@@ -207,6 +207,7 @@ struct kvtrans_req{
     kvtrans_ctx_t *kvtrans_ctx;
     dss_io_task_t *io_tasks;
     bool io_to_queue;
+    bool ba_meta_updated;
     // a blk_ctx to maintain meta info
     TAILQ_HEAD(blk_elm, blk_ctx) meta_chain;
     int32_t num_meta_blk;

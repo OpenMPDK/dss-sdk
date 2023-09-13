@@ -207,7 +207,10 @@ int dss_kvtrans_process_generic(void *ctx)
 
     inst_index = thread_ctx->inst_index;
     for(i=inst_index; i < num_devices; i= i+num_threads) {
-        dss_kvtrans_submit_runnable_tasks(dss_kvtrans_mctx->kvt_ctx_arr[i]);
+        if(dss_kvtrans_mctx->kvt_ctx_arr[i]->is_ba_meta_sync_enabled) {
+            //TODO: Optimize to disable genric poller if no kv trans instance has ba meta sync enabled
+            dss_kvtrans_submit_runnable_tasks(dss_kvtrans_mctx->kvt_ctx_arr[i]);
+        }
     }
     return 0;
 }

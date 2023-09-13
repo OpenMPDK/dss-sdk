@@ -422,9 +422,9 @@ kvtrans_params_t set_default_params();
 
 dss_kvtrans_status_t dss_kvtrans_dc_table_exist(kvtrans_ctx_t *ctx, const uint64_t index);
 dss_kvtrans_status_t dss_kvtrans_dc_table_lookup(kvtrans_ctx_t *ctx, const uint64_t dc_index, uint64_t *mdc_index);
-dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, const uint64_t dc_index, const uint64_t mdc_index, blk_state_t ori_stat);
+dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index, const uint64_t mdc_index, blk_state_t ori_stat);
 dss_kvtrans_status_t dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx, const uint64_t dc_index, blk_state_t ori_state);
-dss_kvtrans_status_t dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx, const uint64_t dc_index,  const uint64_t mdc_index);
+dss_kvtrans_status_t dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index,  const uint64_t mdc_index);
 
 
 dss_kvtrans_status_t dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);

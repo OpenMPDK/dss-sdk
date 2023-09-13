@@ -253,8 +253,6 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
 
     DSS_ASSERT(__dss_env_get_curr_core() == task->tci);
     DSS_ASSERT(task->in_progress == false);
-    //TODO: offset support only whole block operations supported currently.
-    DSS_ASSERT(offset == 0);
 
     status = dss_mallocator_get(task->io_task_module->ops_allocator, task->tci, (dss_mallocator_item_t **)&io_op);
     if(status == DSS_MALLOC_ERROR) {
