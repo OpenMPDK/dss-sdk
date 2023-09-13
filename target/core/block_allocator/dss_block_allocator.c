@@ -141,6 +141,7 @@ dss_blk_allocator_context_t* dss_blk_allocator_init(dss_device_t *device, dss_bl
 
     //TODO: Validate Config
     //TODO: Use *device
+    //TODO: Dynamically enable block allocator meta data sync support
 
     c = m->core.blk_alloc_init(device, config);
     if(!c) {

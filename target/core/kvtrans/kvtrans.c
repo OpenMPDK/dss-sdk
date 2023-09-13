@@ -43,6 +43,8 @@ bool g_disk_as_data_store = false;
 bool g_disk_as_meta_store = false;
 #endif
 
+bool g_ba_enable_meta_sync = false;
+
 #include "kvtrans_mem_backend.h"
 
 void set_kvtrans_disk_data_store(bool val) {
@@ -53,12 +55,17 @@ void set_kvtrans_disk_meta_store(bool val) {
     g_disk_as_meta_store = val;
 }
 
+void set_kvtrans_ba_meta_sync_enabled(bool val) {
+    g_ba_enable_meta_sync = val;
+}
 #else
 void set_kvtrans_disk_data_store(bool val) {
+    DSS_NOTICELOG("kvtrans disk data store config not available\n");
     return;
 }
 
 void set_kvtrans_disk_meta_store(bool val) {
+        DSS_NOTICELOG("kvtrans disk meta store config not available\n");
     return;
 }
 #endif
@@ -840,8 +847,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     STAILQ_INIT(&ctx->req_head);
 #endif
 
-    //TODO: Make configuraable
-    ctx->is_ba_meta_sync_enabled = true;
+    ctx->is_ba_meta_sync_enabled = g_ba_enable_meta_sync;
 
     return ctx;
 
