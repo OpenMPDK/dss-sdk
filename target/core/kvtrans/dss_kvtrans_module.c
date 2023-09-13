@@ -181,7 +181,7 @@ void *dss_kvtrans_thread_instance_destroy(void *mctx, void *inst_ctx) {
 void dss_kvtrans_submit_runnable_tasks(kvtrans_ctx_t *kv_ctx)
 {
     dss_io_task_t *io_task = NULL;
-    dss_io_task_status_t rc;
+    dss_blk_allocator_status_t rc;
 
     //TODO: Can we try to sudmit multiple availabe tasks upto a defined threshold
     rc = dss_blk_allocator_get_next_submit_meta_io_tasks(kv_ctx->blk_alloc_ctx, &io_task);
