@@ -322,7 +322,7 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
 }
 
 dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
-        dss_io_task_t* io_task) {
+        dss_io_task_t** io_task) {
 
     // Iterate from the front of queue to examine all possible
     // io tasks that do not have overlap and can be executed in
@@ -358,7 +358,7 @@ dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
         return BLK_ALLOCATOR_STATUS_ITERATION_END;
     } else {
         this->mark_in_flight(io_ranges_, num_ranges);
-        io_task = *it;
+        *io_task = *it;
         io_dev_guard_q_.erase(it);
 
         return BLK_ALLOCATOR_STATUS_SUCCESS;

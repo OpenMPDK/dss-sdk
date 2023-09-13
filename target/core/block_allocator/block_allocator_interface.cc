@@ -261,7 +261,7 @@ dss_blk_allocator_status_t queue_sync_meta_io_tasks(
 
 dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
                      dss_blk_allocator_context_t *ctx,
-                     dss_io_task_t *io_task) {
+                     dss_io_task_t **io_task) {
 
     DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
 

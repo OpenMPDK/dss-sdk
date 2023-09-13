@@ -537,7 +537,7 @@ public:
      *          meta-data associated with the request
      */
     dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
-            dss_io_task_t* io_task);
+            dss_io_task_t** io_task);
 
     /**
      * @brief - API to interface with KV-Translator layer to mark
@@ -737,7 +737,7 @@ public:
      */
     dss_blk_allocator_status_t get_next_submit_meta_io_tasks(
             dss_blk_allocator_context_t *ctx,
-            dss_io_task_t *io_task);
+            dss_io_task_t **io_task);
 
     /**
      * @brief Update block allocator of meta IO completion

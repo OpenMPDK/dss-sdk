@@ -233,7 +233,7 @@ dss_blk_allocator_status_t dss_blk_allocator_queue_sync_meta_io_tasks(dss_blk_al
  * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or BLK_ALLOCATOR_STATUS_ITERATION_END on no available
  *         IO tasks to be scheduled to IO module or error code otherwise
  */
-dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
+dss_blk_allocator_status_t dss_blk_allocator_get_next_submit_meta_io_tasks(dss_blk_allocator_context_t *ctx, dss_io_task_t **io_task);
 
 /**
  * @brief Update block allocator of meta IO completion
