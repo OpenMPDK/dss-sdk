@@ -33,6 +33,17 @@
 
 #include "dragonfly.h"
 #include "dss_kvtrans_module.h"
+#include "dss_spdk_wrapper.h"
+
+#define TRACE_KVS_GET_NEW            SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x1)
+#define TRACE_KVS_PUSH_CPL           SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x2)
+SPDK_TRACE_REGISTER_FN(kvm_trace, "kvtrans_module", TRACE_GROUP_DSS_KVTRANS)
+{
+    spdk_trace_register_description("KVT_GET_NEW", TRACE_KVS_GET_NEW,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+    spdk_trace_register_description("KVT_PUSH_CPL", TRACE_KVS_PUSH_CPL,
+                                    OWNER_NONE, OBJECT_KVTRANS_IO, 0, 1, "dreq_ptr:    ");
+}
 
 void set_default_kvtrans_params(kvtrans_params_t *params) {
     // C(params);
@@ -217,9 +228,8 @@ int dss_kvtrans_process_generic(void *ctx)
 
 int dss_kvtrans_process(void *ctx, dss_request_t *req) {
     int rc;
-
     dss_kvtrans_thread_ctx_t *thread_ctx = (dss_kvtrans_thread_ctx_t *) ctx;
-    
+    dss_trace_record(TRACE_KVS_GET_NEW, 0, 0, 0, (uintptr_t)req);
     return thread_ctx->mctx->request_handler(ctx, req);
 }
 
@@ -281,6 +291,7 @@ void dss_kvtrans_net_request_complete(dss_request_t *req, dss_kvtrans_status_t r
 
         dss_net_setup_nvmf_resp(req, req->status, kreq->req.req_value.length);
         //Send back to net module
+        dss_trace_record(TRACE_KVS_PUSH_CPL, 0, 0, 0, (uintptr_t)req);
         dss_module_post_to_instance(DSS_MODULE_NET, req->module_ctx[DSS_MODULE_NET].module_instance, req);
 }
 

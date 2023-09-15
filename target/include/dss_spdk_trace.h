@@ -44,9 +44,12 @@ extern "C" {
 #define OBJECT_NET_IO       0xd0
 #define OBJECT_IO_TASK      0Xe0
 
+#define TRACE_GROUP_KVT 0X0b
 #define TRACE_GROUP_DSS_KVTRANS 0x0c
 #define TRACE_GROUP_DSS_NET 0x0d
 #define TRACE_GROUP_DSS_IO_TASK 0x0e
+
+#define OWNER_DSS_KVTRANS 0x0b
 
 #ifdef __cplusplus
 }
