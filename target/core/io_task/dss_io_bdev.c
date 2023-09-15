@@ -323,7 +323,11 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
         //TODO: store module context and get mtype
         task->in_progress = false;
         dss_trace_record(TRACE_IO_DEQUEUE_KREQ, 0, 0, 0, (uintptr_t)task->dreq);
-        dss_module_post_to_instance(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
+        if(task->cb_to_cq) {
+            dss_module_post_to_instance_cq(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
+        } else {
+            dss_module_post_to_instance(DSS_MODULE_END, task->cb_minst, task->cb_ctx);
+        }
     }
 
 

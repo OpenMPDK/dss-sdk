@@ -110,6 +110,7 @@ struct dss_io_task_s {
     dss_io_task_status_t task_status;
     uint32_t tci;//Task cache index
     bool in_progress;
+    bool cb_to_cq;
 };
 
 #ifdef __cplusplus

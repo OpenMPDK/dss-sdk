@@ -225,9 +225,10 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task);
  * @param req DSS request that needs to be forwarded to IO Module
  * @param cb_minst Module instance context to invoke on completion
  * @param cb_ctx Context passed back on completion call
+ * @param cb_cb_to_cq should completion be posted to module completion poller or request poller
  * @return dss_io_task_status_t DSS_IO_TASK_STATUS_SUCCESS on succes, DSS_IO_TASK_STATUS_ERROR otherwise
  */
-dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx);
+dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx, bool cb_to_cq);
 
 /**
  * @brief Add a block readv operation to the IO task

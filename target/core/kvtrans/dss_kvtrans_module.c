@@ -73,7 +73,7 @@ void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
         DSS_RELEASE_ASSERT(0);//Should always succed
     }
 
-    dss_io_task_setup(kreq->io_tasks, req, kvt_mi, req);
+    dss_io_task_setup(kreq->io_tasks, req, kvt_mi, req, true);
 
     return;
 }
@@ -115,7 +115,7 @@ dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, ds
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
     DSS_ASSERT(iot != NULL);
 
-    iot_rc = dss_io_task_setup(iot, req, kvt_m_thrd_inst, req);
+    iot_rc = dss_io_task_setup(iot, req, kvt_m_thrd_inst, req, false);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
 
     DSS_ASSERT(init_req_ctx->data_len >= dss_io_dev_get_user_blk_sz(init_req_ctx->dev) * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
@@ -267,7 +267,7 @@ void *dss_kvtrans_find_instance_context(struct dfly_request *req) {
 struct dfly_module_ops kvtrans_module_ops = {
 	.module_init_instance_context = dss_kvtrans_thread_instance_init,
 	.module_rpoll = dss_kvtrans_process,
-	.module_cpoll = NULL,
+	.module_cpoll = dss_kvtrans_process,//Completion still process request but it is from a different queue
 	.module_gpoll = dss_kvtrans_process_generic,
 	.find_instance_context = dss_kvtrans_find_instance_context,
 	.module_instance_destroy = dss_kvtrans_thread_instance_destroy,

@@ -112,7 +112,7 @@ void dss_net_request_setup_blk_io_task(dss_request_t *req)
     }
     DSS_ASSERT(io_task != NULL);
 
-    dss_io_task_setup(io_task, req, net_mi, req);
+    dss_io_task_setup(io_task, req, net_mi, req, false);
 
     dss_nvmf_get_rw_params(req, &lba, &nblocks);
     //TODO: Support IOV

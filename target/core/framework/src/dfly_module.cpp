@@ -59,24 +59,7 @@ int module_poller(void *ctx)
 		return 0;
 	}
 
-	//deque from ring
-#if defined DFLY_MODULE_MSG_MP_SC
-	num_msgs = spdk_ring_dequeue(m_inst->pipe.msg_ring, reqs, REQ_PER_POLL);
-#endif
-	dfly_ustat_update_module_inst_stat(m_inst, 1, num_msgs);
-	//call registered function for each request
-	for (i = 0; i < num_msgs; i++) {
-		struct dfly_request *req = (struct dfly_request *)reqs[i];
-
-		req->tgt_core = spdk_env_get_current_core();//m_inst->mpoller->lcore;
-
-		ret = m_inst->module->ops->module_rpoll(m_inst->ctx, req);
-		if (ret == DFLY_MODULE_REQUEST_PROCESSED) {
-			dfly_handle_request(req);
-		}
-	}
-	nprocessed += num_msgs;
-
+	//Do completion polling first to priotitizes requests already in progress
 	if (m_inst->module->ops->module_cpoll) {
 		//deque from ring
 #if	defined DFLY_MODULE_MSG_MP_SC
@@ -96,6 +79,24 @@ int module_poller(void *ctx)
 		}
 		nprocessed += num_msgs;
 	}
+
+	//deque from ring
+#if defined DFLY_MODULE_MSG_MP_SC
+	num_msgs = spdk_ring_dequeue(m_inst->pipe.msg_ring, reqs, REQ_PER_POLL);
+#endif
+	dfly_ustat_update_module_inst_stat(m_inst, 1, num_msgs);
+	//call registered function for each request
+	for (i = 0; i < num_msgs; i++) {
+		struct dfly_request *req = (struct dfly_request *)reqs[i];
+
+		req->tgt_core = spdk_env_get_current_core();//m_inst->mpoller->lcore;
+
+		ret = m_inst->module->ops->module_rpoll(m_inst->ctx, req);
+		if (ret == DFLY_MODULE_REQUEST_PROCESSED) {
+			dfly_handle_request(req);
+		}
+	}
+	nprocessed += num_msgs;
 
 	if (m_inst->module->ops->module_gpoll && dss_module_loaded(m_inst->module)) {
 		m_inst->module->ops->module_gpoll(m_inst->ctx);
@@ -548,6 +549,21 @@ dss_module_status_t dss_module_post_to_instance(dss_module_type_t mtype, dss_mod
 	//TODO: Verify module thread instance pointer
 #if defined DFLY_MODULE_MSG_MP_SC
 	rc = spdk_ring_enqueue(module_thread_instance->pipe.msg_ring, (void **)&req, 1, NULL);
+	if (rc != 1) {
+		DSS_ASSERT(rc == 1);
+		return DSS_MODULE_STATUS_ERROR;
+	}
+	dfly_ustat_update_module_inst_stat(module_thread_instance, 0, 1);
+	return DSS_MODULE_STATUS_SUCCESS;
+#endif
+}
+
+dss_module_status_t dss_module_post_to_instance_cq(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req)
+{
+	int rc;
+	//TODO: Verify module thread instance pointer
+#if defined DFLY_MODULE_MSG_MP_SC
+	rc = spdk_ring_enqueue(module_thread_instance->pipe.cmpl_ring, (void **)&req, 1, NULL);
 	if (rc != 1) {
 		DSS_ASSERT(rc == 1);
 		return DSS_MODULE_STATUS_ERROR;

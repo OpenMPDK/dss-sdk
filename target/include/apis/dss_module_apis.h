@@ -245,6 +245,17 @@ typedef struct dss_module_req_ctx_s {
  */
 dss_module_status_t dss_module_post_to_instance(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req);
 
+
+/**
+ * @brief Submit a request directly to a given module thread's completion queue
+ *
+ * @param mtype Type of module used to verify module_thread_instance is correct
+ * @param module_thread_instance Module instance pointer to submit the request
+ * @param req Request to be submitted. This should be the one the module would expect to process.
+ * @return dss_module_status_t DSS_MODULE_STATUS_SUCCESS if successfull, DSS_MODULE_STATUS_ERROR otherwise
+ */
+dss_module_status_t dss_module_post_to_instance_cq(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req);
+
 /**
  * @brief Find module instance corresponding to the request
  *

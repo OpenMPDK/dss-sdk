@@ -147,6 +147,7 @@ dss_io_task_status_t dss_io_task_get_new(dss_io_task_module_t *m, dss_io_task_t 
         t->tci = tci;
         t->task_status = DSS_IO_TASK_STATUS_SUCCESS;
         t->in_progress = false;
+        t->cb_to_cq = false;
     } else {
         DSS_ASSERT(status == DSS_MALLOC_SUCCESS);
     }
@@ -218,7 +219,7 @@ dss_io_task_status_t dss_io_task_put(dss_io_task_t *io_task)
     return rc;
 }
 
-dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx)
+dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *req, dss_module_instance_t *cb_minst, void *cb_ctx, bool cb_to_cq)
 {
     DSS_ASSERT(io_task);
     DSS_ASSERT(cb_minst);
@@ -232,6 +233,7 @@ dss_io_task_status_t dss_io_task_setup(dss_io_task_t *io_task, dss_request_t *re
 
     io_task->cb_minst = cb_minst;
     io_task->cb_ctx = cb_ctx;
+    io_task->cb_to_cq = cb_to_cq;
 
     return DSS_IO_TASK_STATUS_SUCCESS;
 }

@@ -110,7 +110,9 @@ void testIoTaskGetNew(void)
     CU_ASSERT(rc == DSS_IO_TASK_STATUS_SUCCESS);
     CU_ASSERT(g_io_task != NULL);
 
-    rc = dss_io_task_setup(g_io_task, NULL, DSS_IO_TASK_UT_TEST_CB_INST, DSS_IO_TASK_UT_TEST_CB_CTX);
+    CU_ASSERT(g_io_task->cb_to_cq == false);
+    rc = dss_io_task_setup(g_io_task, NULL, DSS_IO_TASK_UT_TEST_CB_INST, DSS_IO_TASK_UT_TEST_CB_CTX, true);
+    CU_ASSERT(g_io_task->cb_to_cq == true);
     CU_ASSERT(rc == DSS_IO_TASK_STATUS_SUCCESS);
 
     return;
