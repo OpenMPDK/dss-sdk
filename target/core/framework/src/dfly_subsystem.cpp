@@ -177,6 +177,7 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 
 	uint32_t ssid = subsys->id;
 	struct dfly_subsystem *df_subsys = NULL;
+	int num_kvt_threads;
 
 	df_subsys = dfly_get_subsystem_no_lock(ssid);//Preallocated structure
 
@@ -185,8 +186,17 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
 	df_subsys->dss_iops_perf_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_iops_perf_mode", false);
 	df_subsys->use_io_task = true;//TODO: Decide if this needs to be configurable?
-	//TODO: One thread per drive as default?
-	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", 1);
+	// Count number of namespaces
+	for (num_kvt_threads = 0;; num_kvt_threads++)
+	{
+		char *tmp;
+		tmp = spdk_conf_section_get_nmval(subsys_sp, "Namespace", num_kvt_threads, 0);
+		if (!tmp)
+		{
+			break;
+		}
+	}
+	df_subsys->num_kvt_threads = dfly_spdk_conf_section_get_intval_default(subsys_sp, "num_kvt_threads", num_kvt_threads);
 
 	df_subsys_update_dss_enable(ssid, df_subsys->dss_enabled);
 
