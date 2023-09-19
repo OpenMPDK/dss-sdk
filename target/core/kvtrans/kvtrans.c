@@ -951,9 +951,11 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
             goto failure_handle;
         }
         kreq->req_allocated = true;
+        TAILQ_INIT(&kreq->meta_chain);
     }
 
     if (TAILQ_EMPTY(&kreq->meta_chain)) {
+        DSS_DEBUGLOG(DSS_KVTRANS, "allocating blk_ctx for kreq %p\n", kreq);
         rc = dss_kvtrans_get_free_blk_ctx(kvtrans_ctx, &blk_ctx);
         if (rc) {
             DSS_ERRLOG("blk_ctx allocator returns false.\n");
@@ -1006,6 +1008,7 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
     if(kreq->io_tasks && kreq->initialized) {
         iot_rc = dss_io_task_put(kreq->io_tasks);
         DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+        kreq->io_tasks = NULL;
         //TODO: Error handling
     }
 
@@ -1021,12 +1024,25 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
         b1 = b2;
     }
 
+    DSS_ASSERT(TAILQ_FIRST(&kreq->meta_chain) != NULL);
+
     if (kreq->req_allocated) {
+        DSS_DEBUGLOG(DSS_KVTRANS, "Kreq %p freed\n", kreq);
         b1 = TAILQ_FIRST(&kreq->meta_chain);
         TAILQ_REMOVE(&kreq->meta_chain, b1, blk_link);
         rc = dss_kvtrans_put_free_blk_ctx(kreq->kvtrans_ctx, b1);
         if (rc) DSS_DEBUGLOG(DSS_KVTRANS, "free blk_ctx failed\n");
         free(kreq);
+        kreq = NULL;
+    }
+
+    if(kreq) {
+        kreq->ba_meta_updated = false;
+        kreq->dreq = NULL;
+        kreq->id = -1;
+        kreq->io_to_queue = false;
+        kreq->kvtrans_ctx = NULL;
+        kreq->initialized = false;
     }
 
     return;
@@ -1169,6 +1185,7 @@ blk_ctx_t *_get_next_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx) {
     dss_kvtrans_status_t rc;
     blk_ctx_t *col_blk_ctx = TAILQ_NEXT(blk_ctx, blk_link);
     if (col_blk_ctx == NULL) {
+        DSS_DEBUGLOG(DSS_KVTRANS, "allocating blk_ctx for kreq %p\n", blk_ctx->kreq);
         rc = dss_kvtrans_get_free_blk_ctx(ctx, &col_blk_ctx);
         blk_ctx->kreq->num_meta_blk++;
         if (rc) return NULL;

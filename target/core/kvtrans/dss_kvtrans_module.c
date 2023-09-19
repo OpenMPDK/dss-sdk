@@ -59,6 +59,16 @@ void set_default_kvtrans_params(kvtrans_params_t *params) {
     return;
 }
 
+void dss_kvtrans_init_req_on_alloc(dss_request_t *req)
+{
+    kvtrans_req_t *kreq;
+
+    kreq = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt;
+	TAILQ_INIT(&kreq->meta_chain);
+
+    return;
+}
+
 void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
 {
     dss_io_task_status_t iot_rc;
@@ -67,7 +77,6 @@ void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
 
     //req->common_req.module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt.
     //req->common_req.module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt.
-    TAILQ_INIT(&kreq->meta_chain);
     iot_rc = dss_io_task_get_new(kvt_ctx->kvt_iotm, &kreq->io_tasks);
     if(iot_rc != DSS_IO_TASK_STATUS_SUCCESS) {
         DSS_RELEASE_ASSERT(0);//Should always succed

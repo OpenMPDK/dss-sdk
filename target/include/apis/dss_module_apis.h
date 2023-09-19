@@ -220,6 +220,13 @@ struct kvtrans_req{
 
 };
 
+/**
+ * @brief Initialize kvtrans context when the request is allocated first time
+ * 
+ * @param req dss request that needs to be initialized
+ */
+void dss_kvtrans_init_req_on_alloc(dss_request_t *req);
+
 //End - DSS KV Trans module
 
 

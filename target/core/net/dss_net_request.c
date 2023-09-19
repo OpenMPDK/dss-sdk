@@ -68,6 +68,7 @@ void dss_net_setup_request(dss_request_t *req, dss_module_instance_t *m_inst, vo
 void dss_net_teardown_request(dss_request_t *req)
 {
     req->status = DSS_REQ_STATUS_ERROR;
+    req->ss = NULL;
     req->module_ctx[DSS_MODULE_NET].module_instance = NULL;
     req->module_ctx[DSS_MODULE_NET].module = NULL;
     DSS_ASSERT(req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state == DSS_NET_REQUEST_COMPLETE);

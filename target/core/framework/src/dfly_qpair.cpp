@@ -232,6 +232,8 @@ int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int 
 	for (i = 0; i < max_reqs; i++) {
 		nvmf_req = (struct spdk_nvmf_request *)(req_arr + (i * req_size));
 		nvmf_req->dreq = dfly_req + i;
+
+		dss_kvtrans_init_req_on_alloc(&nvmf_req->dreq->common_req);
 	}
 
 	return 0;

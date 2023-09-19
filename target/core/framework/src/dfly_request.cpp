@@ -53,6 +53,7 @@ void dss_req_set_from_nvme_cmd(struct dfly_request *req)
 
 int dfly_req_fini(struct dfly_request *req)
 {
+	int i;
 
 	void *key_data_buf = req->key_data_buf;//Still valid after fini
 	struct dfly_subsystem *ss = dfly_get_subsystem_no_lock(req->req_ssid);
@@ -74,10 +75,20 @@ int dfly_req_fini(struct dfly_request *req)
 		df_update_lat_us(req);
 	}
 
-	memset(req, 0, sizeof(dfly_request_t));
+	for(i= DSS_MODULE_START_INIT + 1; i < DSS_MODULE_END; i++) {
+		req->common_req.module_ctx[i].module_instance = NULL;
+		req->common_req.module_ctx[i].module = NULL;
+	}
+
+	memset((((char *)req) + sizeof(req->common_req)) , 0, sizeof(dfly_request_t) - sizeof(req->common_req));
 
 	req->src_core = req->tgt_core = -1;
 	req->key_data_buf = key_data_buf;//restore key_data_buf
+
+	//DSS Request
+	req->common_req.io_task = NULL;
+	req->common_req.io_device = NULL;
+	req->common_req.io_device_index = -1;
 
 #ifdef WAL_DFLY_TRACK
 	req->cache_rc = -1;
