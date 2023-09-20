@@ -91,7 +91,8 @@ bool BlockAllocator::init(
     if(config->enable_ba_meta_sync == true) {
         // Associate an io task ordering instance for disk operations
         this->io_task_orderer =
-            std::make_shared<BlockAlloc::IoTaskOrderer>(drive_smallest_block_size, max_dirty_segments, device);
+            std::make_shared<BlockAlloc::IoTaskOrderer>(
+                    drive_smallest_block_size, max_dirty_segments, device);
         if (io_task_orderer == nullptr)
         {
             return false;
@@ -142,7 +143,8 @@ dss_blk_allocator_status_t BlockAllocator::queue_sync_meta_io_tasks(
     if(this->io_task_orderer) {
         return this->io_task_orderer->queue_sync_meta_io_tasks(io_task);
     } else {
-        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+        //This API should not be called if io ordering is not enabled
+        DSS_ASSERT(0);
     }
 }
 
@@ -153,7 +155,8 @@ dss_blk_allocator_status_t BlockAllocator::get_next_submit_meta_io_tasks(
     if(this->io_task_orderer) {
         return this->io_task_orderer->get_next_submit_meta_io_tasks(io_task);
     } else {
-        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+        //This API should not be called if io ordering is not enabled
+        DSS_ASSERT(0);
     }
 }
 
@@ -164,7 +167,8 @@ dss_blk_allocator_status_t BlockAllocator::complete_meta_sync(
     if(this->io_task_orderer) {
         return this->io_task_orderer->complete_meta_sync(io_task);
     } else {
-        DSS_ASSERT(0);//This API should not be called if io ordering is not enabled
+        //This API should not be called if io ordering is not enabled
+        DSS_ASSERT(0);
     }
 }
 

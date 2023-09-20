@@ -497,31 +497,19 @@ public:
           drive_smallest_block_size_(drive_smallest_block_size),
           max_dirty_segments_(max_dirty_segments),
           io_device_(device),
-          dirty_meta_data_(max_dirty_segments_, std::make_pair(0,0)),
-          io_ranges_(max_dirty_segments_, std::make_pair(0,0)),
-          dirty_counter_(0),
+          jarr_dirty_meta_(nullptr),
+          io_ranges_(max_dirty_segments, std::make_pair(0,0)),
           jarr_io_dev_guard_(nullptr)
     {}
 
     // Default destructor
     ~IoTaskOrderer() = default;
 
+    /**
+     * @brief API to indicate dirty meta from block allocator
+     */
     dss_blk_allocator_status_t mark_dirty_meta(
             uint64_t lba, uint64_t num_blocks);
-
-    /**
-     * Allocator specific translator implementation
-     */
-    std::function<dss_blk_allocator_status_t(
-            uint64_t meta_lba,
-            uint64_t meta_num_blocks,
-            uint64_t drive_smallest_block_size,
-            uint64_t logical_block_size,
-            uint64_t& drive_blk_lba,
-            uint64_t& drive_num_blocks,
-            void** serialized_drive_data,
-            uint64_t& serialized_len)> 
-        translate_meta_to_drive_data;
 
     /**
      * @brief API to interface with KV-Translator layer to queue
@@ -553,7 +541,84 @@ public:
         return &io_device_;
     }
 
+    /**
+     * Allocator specific translator implementation
+     */
+    std::function<dss_blk_allocator_status_t(
+            uint64_t meta_lba,
+            uint64_t meta_num_blocks,
+            uint64_t drive_smallest_block_size,
+            uint64_t logical_block_size,
+            uint64_t& drive_blk_lba,
+            uint64_t& drive_num_blocks,
+            void** serialized_drive_data,
+            uint64_t& serialized_len)> 
+        translate_meta_to_drive_data;
+
 private:
+
+    /**
+     * @brief API to remove dirty meta range from
+     *        jarr_dirty_meta_ (judy array)
+     * @param lba, input lba to be removed
+     * @return boolean, true on success
+     */
+    bool jarr_remove_dirty_meta(const uint64_t& lba);
+
+    /**
+     * @brief API to add dirty meta range onto
+     *        jarr_dirty_meta_ (judy array)
+     * @param lba, input lba to be added
+     * @param num_blocks, total blocks beginning from lba
+     * @return boolean, true on success
+     */
+    bool jarr_insert_dirty_meta(
+            const uint64_t& lba,
+            const uint64_t& num_blocks);
+
+    /**
+     * @brief - API to check and remove next dirty meta range
+     *          on jarr_dirty_meta_ (judy array)
+     *        - Next dirty range is removed if mergable
+     * @param lba, input lba to be checked for merging
+     * @param num_blocks, total blocks beginning from lba
+     */
+    void check_next_dirty_merge(
+            const uint64_t& lba,
+            uint64_t& num_blocks);
+
+    /**
+     * @brief - API to check and remove previous dirty meta range
+     *          on jarr_dirty_meta_ (judy array)
+     *        - Previous dirty range is removed if mergable
+     * @param lba, input lba to be checked for merging
+     * @param num_blocks, total blocks beginning from lba
+     */
+    void check_prev_dirty_merge(
+            uint64_t& lba,
+            uint64_t& num_blocks);
+
+    /**
+     * @brief - API to check and remove current dirty meta range
+     *          on jarr_dirty_meta_ (judy array)
+     *        - Current dirty range is removed if mergable
+     * @param lba, input lba to be checked for merging
+     * @param num_blocks, total blocks beginning from lba
+     * @return boolean, true on mergable 
+     */
+    bool check_current_dirty_merge(
+            uint64_t& lba,
+            uint64_t& num_blocks);
+
+    /**
+     * @brief API to check and merge dirty meta ranges on
+     *        jarr_dirty_meta_ (judy array)
+     * @param lba, input lba to be checked for merging
+     * @param num_blocks, total blocks beginning from lba
+     */
+    void merge_dirty_meta(
+            const uint64_t& lba,
+            const uint64_t& num_blocks);
 
     /**
      * @brief API to populate IO ranges associated with an IO task
@@ -645,9 +710,8 @@ private:
     uint64_t drive_smallest_block_size_;
     uint64_t max_dirty_segments_;
     dss_device_t *io_device_;
-    std::vector<std::pair<uint64_t, uint64_t>> dirty_meta_data_;
+    void *jarr_dirty_meta_;
     std::vector<std::pair<uint64_t, uint64_t>> io_ranges_;
-    uint64_t dirty_counter_;
     void *jarr_io_dev_guard_;
     std::vector<dss_io_task_t *> io_dev_guard_q_;
 };

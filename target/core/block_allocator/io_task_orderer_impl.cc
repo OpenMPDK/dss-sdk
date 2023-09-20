@@ -43,13 +43,20 @@ void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
     void *tmp_it_ctx = NULL;
     dss_io_op_user_param_t op_params;
 
-    is_completion?(op_state_filter = DSS_IO_OP_COMPLETED):(op_state_filter = DSS_IO_OP_FOR_SUBMISSION);
+    is_completion?
+        (op_state_filter = DSS_IO_OP_COMPLETED):
+            (op_state_filter = DSS_IO_OP_FOR_SUBMISSION);
     num_ranges = 0;
 
 #ifndef DSS_BUILD_CUNIT_WO_IO_TASK
     do {
-        rc = dss_io_task_get_op_ranges(io_task, DSS_IO_OP_OWNER_BA, op_state_filter, &tmp_it_ctx, &op_params);
-        DSS_ASSERT((rc == DSS_IO_TASK_STATUS_SUCCESS) || (rc == DSS_IO_TASK_STATUS_IT_END));
+        rc = dss_io_task_get_op_ranges(
+                io_task, DSS_IO_OP_OWNER_BA,
+                op_state_filter,
+                &tmp_it_ctx,
+                &op_params);
+        DSS_ASSERT((rc == DSS_IO_TASK_STATUS_SUCCESS) 
+                || (rc == DSS_IO_TASK_STATUS_IT_END));
         if(op_params.is_params_valid) {
             io_ranges[num_ranges].first = op_params.lba;
             io_ranges[num_ranges].second = op_params.num_blocks;
@@ -61,7 +68,9 @@ void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
 #endif
             }
             num_ranges++;
-            DSS_ASSERT(num_ranges <= 100);//Vector capacity is now 100
+            DSS_ASSERT(
+                    num_ranges <= this->max_dirty_segments_);
+            //Vector capacity is now equal to max dirty segments
         }
     } while(rc == DSS_IO_TASK_STATUS_SUCCESS);
     //TODO: Handle if any ops failed
@@ -75,24 +84,212 @@ void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
 
 }
 
+bool IoTaskOrderer::jarr_remove_dirty_meta(const uint64_t& lba) {
+
+    int rc = 0;
+    // Remove lba from jarr_dirty_meta_
+    rc = JudyLDel(
+            &jarr_dirty_meta_, (Word_t)lba, PJE0);
+    // rc can not be anything but 1
+    if(rc != 1) {
+        std::cout<<"Remove from jarr_dirty_meta_ failed"<<std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool IoTaskOrderer::jarr_insert_dirty_meta(
+        const uint64_t& lba,
+        const uint64_t& num_blocks) {
+
+    Word_t *ptr_j_entry = nullptr;
+
+    ptr_j_entry = (Word_t *)JudyLIns(
+            &jarr_dirty_meta_, (Word_t)lba, PJE0);
+    if (ptr_j_entry == PJERR) {
+        std::cout<<"malloc error on insert io range"<<std::endl;
+        assert(("ERROR", false));
+    }
+
+    // It is possible the entry can be already there
+    if (*(Word_t *)ptr_j_entry != 0) {
+        // This is a logic bug
+        return false;
+    } else {
+        // Assign value to the location pointed by ptr_j_entry
+        *ptr_j_entry = (Word_t)num_blocks;
+        return true;
+    }
+}
+
+void IoTaskOrderer::check_next_dirty_merge(
+        const uint64_t& lba,
+        uint64_t& num_blocks) {
+
+    Word_t *ptr_j_entry_next = nullptr;
+    uint64_t next_num_blocks = 0;
+    uint64_t diff = 0;
+    uint64_t next_lba = lba;
+    bool status = false;
+
+    // Get previous dirty meta
+    ptr_j_entry_next = (Word_t *)JudyLNext(
+            jarr_dirty_meta_, &next_lba, PJE0);
+    if (ptr_j_entry_next == nullptr) {
+        return;
+    } else {
+        // Check if mergable
+        next_num_blocks = *(uint64_t *)ptr_j_entry_next;
+        if (lba + num_blocks < next_lba) {
+            return;
+        } else {
+            if (lba + num_blocks == next_lba) {
+                num_blocks = num_blocks + next_num_blocks;
+            }
+
+            if (lba + num_blocks > next_lba) {
+                if (lba + num_blocks <= next_lba + next_num_blocks) {
+                    diff =
+                        (next_lba + next_num_blocks) - (lba + num_blocks);
+                    num_blocks = num_blocks + diff;
+
+                    // if lba + num_blocks > next_lba + next_num_blocks
+                    // just proceed to remove the next_lba
+                }
+            }
+            // Remove from jarr here, since next dirty meta on it
+            // is mergable with the dirty chunk trying to be added
+            status = jarr_remove_dirty_meta(next_lba);
+            if (!status) {
+                assert(("ERROR", false));
+            }
+            return;
+        }
+    }
+}
+
+void IoTaskOrderer::check_prev_dirty_merge(
+        uint64_t& lba, uint64_t& num_blocks) {
+
+    Word_t *ptr_j_entry_prev = nullptr;
+    Word_t prev_lba = lba;
+    uint64_t prev_num_blocks = 0;
+    uint64_t diff = 0;
+    bool status = false;
+
+    // Get previous dirty meta
+    ptr_j_entry_prev = (Word_t *)JudyLPrev(
+            jarr_dirty_meta_, &prev_lba, PJE0);
+    if (ptr_j_entry_prev == nullptr) {
+        return;
+    } else {
+        // Check if mergable
+        prev_num_blocks = *(uint64_t *)ptr_j_entry_prev;
+        if (prev_lba + prev_num_blocks < lba) {
+            return;
+        } else {
+            if (prev_lba + prev_num_blocks == lba) {
+                lba = prev_lba;
+                num_blocks = prev_num_blocks + num_blocks;
+            }
+
+            if (prev_lba + prev_num_blocks > lba) {
+                if (prev_lba + prev_num_blocks >= lba + num_blocks ) {
+                    lba = prev_lba;
+                    num_blocks = prev_num_blocks;
+                } else {
+                    diff = (lba + num_blocks) - (prev_lba + prev_num_blocks);
+                    lba = prev_lba;
+                    num_blocks = prev_num_blocks + diff;
+                }
+            }
+
+            // Remove from jarr here, since prev dirty meta on it
+            // is mergable with the dirty chunk trying to be added
+            status = jarr_remove_dirty_meta(prev_lba);
+            if (!status) {
+                assert(("ERROR", false));
+            }
+            return;
+        }
+    }
+}
+
+bool IoTaskOrderer::check_current_dirty_merge(
+        uint64_t& lba, uint64_t& num_blocks) {
+
+    Word_t *ptr_j_entry = nullptr;
+    uint64_t curr_num_blocks = 0;
+    bool status = false;
+
+    // Try to add dirty meta
+    ptr_j_entry = (Word_t *)JudyLGet(
+            jarr_dirty_meta_, (Word_t)lba, PJE0);
+    if (ptr_j_entry == nullptr) {
+        // There is nothing to merge with
+        return true;
+    } else {
+        if(ptr_j_entry == PJERR) {
+            std::cout<<"PJERR on get"<<std::endl;
+            assert(("ERROR", false));
+        }
+        
+        curr_num_blocks = *(uint64_t *)ptr_j_entry;
+
+        if (curr_num_blocks >= num_blocks) {
+            num_blocks = curr_num_blocks;
+
+            return false;
+        } else {
+            // Remove from jarr here, since the dirty meta on it
+            // is smaller than the one we are trying to add
+            status = jarr_remove_dirty_meta(lba);
+            if (!status) {
+                assert(("ERROR", false));
+            }
+            return true;
+        }
+    }
+}
+
+void IoTaskOrderer::merge_dirty_meta(
+        const uint64_t& lba,
+        const uint64_t& num_blocks) {
+
+    uint64_t merged_lba = lba;
+    uint64_t merged_num_blocks = num_blocks;
+    bool is_curr_mergable = false;
+    bool is_jarr_modified = false;
+    bool status = false;
+
+    // Check to see if there is already an entry present
+    // Check if current can be merged and merge
+    is_curr_mergable = check_current_dirty_merge(
+            merged_lba, merged_num_blocks);
+    if (is_curr_mergable) {
+        is_jarr_modified = true;
+
+        // Continue to check if previous is mergable
+        check_prev_dirty_merge(merged_lba, merged_num_blocks);
+
+        // Continue to check if next is mergable
+        check_next_dirty_merge(merged_lba, merged_num_blocks);
+    }
+    
+    // Add the merged dirty meta to judy array is modified
+    if (is_jarr_modified) {
+        status = jarr_insert_dirty_meta(merged_lba, merged_num_blocks);
+    }
+
+    return;
+}
+
 dss_blk_allocator_status_t IoTaskOrderer::mark_dirty_meta(
         uint64_t lba, uint64_t num_blocks) {
 
-    // If there are more dirty segments per IO request than
-    // the specified max_dirty_segments for IoTaskOrderer
-    // assert for now.
-    if (this->dirty_counter_ > this->max_dirty_segments_) {
-        assert(("ERROR", false));
-        //return BLK_ALLOCATOR_STATUS_ERROR;
-    }
-
-    // Add dirty data into `diry_meta` container at the position
-    // of dirty_counter_
-    this->dirty_meta_data_[dirty_counter_].first = lba;
-    this->dirty_meta_data_[dirty_counter_].second = num_blocks;
-
-    // Increase the dirty_counter_
-    this->dirty_counter_++;
+    // Try to merge, no issue if can not be merged
+    // But this needs to be accounted on jarr_dirty_meta_
+    this->merge_dirty_meta(lba, num_blocks);
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
@@ -212,19 +409,16 @@ bool IoTaskOrderer::mark_in_flight(
             assert(("ERROR", false));
         }
 
-        //TODO: It is possible the entry can be already there
-        //          Handle overlaps
-
-        // if (*(Word_t *)ptr_j_entry != 0) {
-        //     //CXX: Add debug `Failed to insert at jarr_io_dev_guard_`
-        //     // Assert for now
-        //     assert(("ERROR", false));
-        //     //return false;
-        // } else {
-        //     // Assign value to the location pointer by ptr_j_entry
-        //     *ptr_j_entry = (Word_t)io_ranges[i].second;
-        // }
-        *ptr_j_entry = (Word_t)io_ranges[i].second;
+        //TODO: It is not possible the entry can be already there
+        if (*(Word_t *)ptr_j_entry != 0) {
+             //CXX: Add debug `Failed to insert at jarr_io_dev_guard_`
+             // Assert for now
+             assert(("ERROR", false));
+             return false;
+         } else {
+             // Assign value to the location pointer by ptr_j_entry
+             *ptr_j_entry = (Word_t)io_ranges[i].second;
+         }
         ptr_j_entry = nullptr;
     }
 
@@ -270,15 +464,18 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     this->drive_smallest_block_size_ = 4096;
     dss_blk_allocator_status_t blk_status = BLK_ALLOCATOR_STATUS_ERROR;
     dss_io_task_status_t io_status = DSS_IO_TASK_STATUS_ERROR;
-
+    Word_t *ptr_j_entry = nullptr;
+    Word_t jarr_index = 0;
+    Word_t free_bytes = 0;
     
     // Get dirty data  and add to io_task
-    for (size_t i=0; i<dirty_counter_; i++) {
+    ptr_j_entry = (Word_t *)JudyLFirst(
+            jarr_dirty_meta_, &jarr_index, PJE0);
 
-        // Get translated meta to drive data, (specific to allocator)
+    while (ptr_j_entry != nullptr) {
         blk_status = this->translate_meta_to_drive_data(
-                dirty_meta_data_[i].first,
-                dirty_meta_data_[i].second,
+                jarr_index,
+                *ptr_j_entry,
                 this->drive_smallest_block_size_,
                 logical_block_size,
                 drive_blk_addr,
@@ -292,6 +489,7 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
             //return status;
         }
 
+
         // Add block allocator dirty meta data to the io_task
         if (io_task == nullptr && *this->get_io_device() == nullptr) {
             // CXX: STUB for testing until the IO module API is ready
@@ -299,7 +497,8 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
                 "IO module stub for testing IO ordering"<<std::endl;
         } else {
             #ifndef DSS_BUILD_CUNIT_WO_IO_TASK
-            dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_BA, .is_blocking = false};
+            dss_io_opts_t io_opts = 
+            {.mod_id = DSS_IO_OP_OWNER_BA, .is_blocking = false};
             io_status = dss_io_task_add_blk_write(
                   io_task,
                   *this->get_io_device(),
@@ -314,17 +513,21 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
             }
             #endif
         }
+        ptr_j_entry = (Word_t *)JudyLNext(
+                jarr_dirty_meta_, &jarr_index, PJE0);
+
     }
 
-    // Reset dirty_counter_ to 0, since we have add all pending
+
+    // Reset jarr_dirty_meta_, since we have added all pending
     // dirty meta data relevant to the IO
-    dirty_counter_ = 0;
+    free_bytes = JudyLFreeArray(&jarr_dirty_meta_, PJE0);
+    // CXX: Log free bytes for examination
 
     // Insert into IO device guard queue
     io_dev_guard_q_.push_back(io_task);
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
-
 }
 
 dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
