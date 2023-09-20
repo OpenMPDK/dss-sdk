@@ -204,7 +204,7 @@ void reset_blk_ctx(blk_ctx_t *blk_ctx) {
     if (blk) {
         memset(blk, 0, sizeof(ondisk_meta_t));
     }
-    memset(blk_ctx, 0, sizeof(blk_ctx));
+    memset(blk_ctx, 0, sizeof(blk_ctx_t));
     blk_ctx->blk = blk;
 
     return;
@@ -978,6 +978,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
         blk_ctx->kreq = kreq;
     }
     
+    
     if (!req) {
         DSS_ERRLOG("req is null.\n");
         goto failure_handle;
@@ -1049,13 +1050,16 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
 
     if(kreq) {
         b1 = TAILQ_FIRST(&kreq->meta_chain);
+        DSS_ASSERT(TAILQ_NEXT(b1, blk_link) == NULL);
         reset_blk_ctx(b1);
+        b1->kreq = kreq;
         kreq->ba_meta_updated = false;
         kreq->dreq = NULL;
         kreq->id = -1;
         kreq->io_to_queue = false;
         kreq->kvtrans_ctx = NULL;
         kreq->initialized = false;
+        kreq->num_meta_blk = 0;
     }
 
     return;
