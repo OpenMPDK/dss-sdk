@@ -194,18 +194,29 @@ dss_kvtrans_get_free_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t **blk_ctx)
     return KVTRANS_STATUS_SUCCESS;
 }
 
+void reset_blk_ctx(blk_ctx_t *blk_ctx) {
+    if (!blk_ctx)
+    {
+        DSS_DEBUGLOG(DSS_KVTRANS, "Blk_ctx is none.\n");
+        return;
+    }
+    ondisk_meta_t *blk = blk_ctx->blk;
+    if (blk) {
+        memset(blk, 0, sizeof(ondisk_meta_t));
+    }
+    memset(blk_ctx, 0, sizeof(blk_ctx));
+    blk_ctx->blk = blk;
+
+    return;
+}
+
 dss_kvtrans_status_t
 dss_kvtrans_put_free_blk_ctx(kvtrans_ctx_t *ctx,
                             blk_ctx_t *blk_ctx)
 {
     dss_mallocator_status_t rc;
     
-    ondisk_meta_t *tmp = blk_ctx->blk;
-    memset(blk_ctx, 0, sizeof(blk_ctx_t));
-    blk_ctx->blk = tmp;
-    if (blk_ctx->blk) {
-        memset(blk_ctx->blk, 0, sizeof(ondisk_meta_t));
-    }
+    reset_blk_ctx(blk_ctx);
     if (blk_ctx==NULL){
         DSS_ERRLOG("blk_ctx to put is NULL\n");
         DSS_ASSERT(0);
@@ -1037,6 +1048,8 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
     }
 
     if(kreq) {
+        b1 = TAILQ_FIRST(&kreq->meta_chain);
+        reset_blk_ctx(b1);
         kreq->ba_meta_updated = false;
         kreq->dreq = NULL;
         kreq->id = -1;
