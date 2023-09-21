@@ -418,7 +418,7 @@ def mountpt_to_nqn_addr_map():
     mountpts_to_nqn_addr_map = defaultdict(dict)
     for i in range(0, len(subsystems), 2):
         nqn = subsystems[i]["NQN"]
-        for path in subsystems[i+1]["Paths"]:
+        for path in subsystems[i + 1]["Paths"]:
             mount_point = '/dev/' + path["Name"] + 'n1'
             addr = re.search(r"traddr=(\S+)", path["Address"]).group(1)
             mountpts_to_nqn_addr_map[mount_point]["nqn"] = nqn
