@@ -40,6 +40,7 @@ from __future__ import print_function
 # Standard libraries
 import argparse
 import ast
+from collections import defaultdict
 import json
 import os
 import re
@@ -406,6 +407,25 @@ def drive_to_addr_map():
     return drives_to_addrs_map
 
 
+def mountpt_to_nqn_addr_map():
+    ret, out, err = exec_cmd("nvme list-subsys -o json")
+    subsystems = json.loads(out)
+    try:
+        subsystems = subsystems["Subsystems"]
+    except KeyError:
+        print("Error in finding Subsystems in nvme list-subsys output")
+        sys.exit(1)
+    mountpts_to_nqn_addr_map = defaultdict(dict)
+    for i in range(0, len(subsystems), 2):
+        nqn = subsystems[i]["NQN"]
+        for path in subsystems[i + 1]["Paths"]:
+            mount_point = '/dev/' + path["Name"] + 'n1'
+            addr = re.search(r"traddr=(\S+)", path["Address"]).group(1)
+            mountpts_to_nqn_addr_map[mount_point]["nqn"] = nqn
+            mountpts_to_nqn_addr_map[mount_point]["addr"] = addr
+    return mountpts_to_nqn_addr_map
+
+
 def subnet_drive_map():
     '''
     Get given subnet to device/numa map
@@ -446,7 +466,8 @@ def subnet_drive_map():
     return subnet_device_map
 
 
-def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_conf_file="../conf/nkv_config.json"):
+def create_config_file(disc_proto, disc_addrs, nkv_kv_pair,
+                       drives_list, nkv_conf_file="../conf/nkv_config.json"):
     '''
     Update nkv_config.json file in conf directory
     '''
@@ -472,7 +493,8 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
         addr_nqn_map = {}
         for addr in disc_addrs:
             if addr.count(":") != 1:
-                raise ValueError("Error: malformed address " + addr + " expected ip:port.")
+                raise ValueError("Error: malformed address "
+                                 + addr + " expected ip:port.")
             disc_ip, disc_port = addr.split(":")
             try:
                 nqn_infos += nvme_discover(disc_proto, disc_ip, int(disc_port))
@@ -484,38 +506,40 @@ def create_config_file(disc_proto, disc_addrs, nkv_kv_pair, drives_list, nkv_con
             trtype, trsvcid, subnqn, traddr = nqn
             addr_nqn_map[traddr] = trtype, trsvcid, subnqn, traddr
 
-        drive_addr_mapping = drive_to_addr_map()
-
         if gen2_flag:
             # map backend ips to front end ips
             back_front_ip_mapping = {}
             for mapping in vlan_ip_map[0]:
                 if set(['tcp', 'rocev2']).issubset(mapping.keys()):
                     if len(mapping['tcp']) != len(mapping['rocev2']):
-                        raise ValueError("Unequal number of front end vs back end ips, verify combined_vlan_ip_map")
+                        raise ValueError(
+                            "Unequal number of front end vs back end ips,"
+                            + " verify combined_vlan_ip_map")
                     for i in range(len(mapping['rocev2'])):
-                        back_front_ip_mapping[mapping['rocev2'][i]] = socket.gethostbyname(mapping['tcp'][i])
+                        back_front_ip_mapping[mapping['rocev2'][i]] = (
+                            socket.gethostbyname(mapping['tcp'][i]))
 
+            mountpt_metadata = mountpt_to_nqn_addr_map()
             for drive in drives_list:
-
-                if drive not in drive_addr_mapping:
+                if drive not in mountpt_metadata.keys():
                     continue
 
-                traddr = drive_addr_mapping[drive]
-                trtype, trsvcid, subnqn, traddr = addr_nqn_map[traddr]
-
+                # get front end port from back end port
                 # TODO: add flag if frontend or backend ip is desired
                 # for now we will assume frontend ips are always desired
-                traddr = back_front_ip_mapping[traddr]
+                backend_addr = mountpt_metadata[drive]['addr']
+                traddr = back_front_ip_mapping[backend_addr]
+                nqn_name = mountpt_metadata[drive]['nqn']
 
                 y = {
                     "mount_point": drive,
                     "nqn_transport_address": traddr,
                     "nqn_transport_port": rdd_port,
-                    "nqn_name": subnqn
+                    "nqn_name": nqn_name
                 }
 
                 data['nkv_local_mounts'].append(y)
+
         else:
             for drive in drives_list:
                 y = {"mount_point": drive}
