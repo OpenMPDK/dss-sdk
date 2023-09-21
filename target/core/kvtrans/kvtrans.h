@@ -57,6 +57,7 @@ extern "C" {
 #include "apis/dss_io_task_apis.h"
 #include "dss.h"
 #include "utils/dss_mallocator.h"
+#include "kvtrans_utils.h"
 #include "dragonfly.h"
 
 #ifdef MEM_BACKEND
@@ -384,10 +385,7 @@ typedef struct kvtrans_ctx_s {
     // the digit number of hex number of allocable blocks
     uint16_t hash_bit_in_use;   
 
-    Pvoid_t dc_tbl;
-    uint64_t dc_size;
-    // TODO: pool size should be dynamic
-    dc_item_t *dc_pool;
+    cache_tbl_t *dc_cache_tbl;
 
     dss_mallocator_ctx_t *blk_ctx_mallocator;
 

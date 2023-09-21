@@ -229,45 +229,54 @@ dss_kvtrans_put_free_blk_ctx(kvtrans_ctx_t *ctx,
     return KVTRANS_STATUS_SUCCESS;
 }
 
-dss_kvtrans_status_t dss_kvtrans_dc_table_exist(kvtrans_ctx_t *ctx, const uint64_t index) {
-    Word_t *entry;
-    entry = (Word_t *) JudyLGet(ctx->dc_tbl, (Word_t) index, PJE0);
-    if (entry) {
+dss_kvtrans_status_t
+dss_kvtrans_dc_table_exist(kvtrans_ctx_t *ctx, 
+                            const uint64_t index) {
+    if (find_elm(ctx->dc_cache_tbl, index)) {
         return KVTRANS_STATUS_SUCCESS;
     }
     return KVTRANS_STATUS_ERROR;
 }
 
-dss_kvtrans_status_t dss_kvtrans_dc_table_lookup(kvtrans_ctx_t *ctx, const uint64_t dc_index, uint64_t *mdc_index) {
-    Word_t *entry;
+dss_kvtrans_status_t
+dss_kvtrans_dc_table_lookup(kvtrans_ctx_t *ctx,
+                            const uint64_t dc_index,
+                            uint64_t *mdc_index) {
     dc_item_t *it;
 
-    entry = (Word_t *) JudyLGet(ctx->dc_tbl, (Word_t) dc_index, PJE0);
-    if (entry) {
-        it = (dc_item_t *) *entry;
-        memcpy(mdc_index, &it->mdc_index, sizeof(uint64_t));
+    it = (dc_item_t *) get_elm(ctx->dc_cache_tbl, dc_index);
+    if (it) {
+        *mdc_index = it->mdc_index;
         return KVTRANS_STATUS_SUCCESS;
     }
     return KVTRANS_STATUS_ERROR;
 }
 
-dss_kvtrans_status_t dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx, const uint64_t dc_index, blk_state_t ori_state) {
-    Word_t *entry;
+dss_kvtrans_status_t
+dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
+                            const uint64_t dc_index,
+                            blk_state_t ori_state) {
     dc_item_t *it;
 
     DSS_ASSERT(ori_state==DATA || ori_state==COLLISION_EXTENSION || ori_state==EMPTY);
-    entry = (Word_t *) JudyLGet(ctx->dc_tbl, (Word_t) dc_index, PJE0);
-    if (entry) {
-        it = (dc_item_t *) *entry;
+    it = (dc_item_t *) get_elm(ctx->dc_cache_tbl, dc_index);
+    if (it) {
         it->ori_state = ori_state;
-        return KVTRANS_STATUS_SUCCESS;
+        if (!store_elm(ctx->dc_cache_tbl, dc_index, (void *)it)) {
+            return KVTRANS_STATUS_SUCCESS;
+        }
     }
     return KVTRANS_STATUS_ERROR;
 }
 
 
-dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index, const uint64_t mdc_index, blk_state_t ori_state) {
-    dss_kvtrans_status_t rc;
+dss_kvtrans_status_t
+dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
+                            blk_ctx_t *blk_ctx,
+                            const uint64_t dc_index,
+                            const uint64_t mdc_index,
+                            blk_state_t ori_state) {
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     Word_t *entry;
     dc_item_t *it;
 
@@ -276,10 +285,6 @@ dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, blk_ctx_t *
         return KVTRANS_STATUS_ERROR;
     }
     DSS_ASSERT(ori_state==DATA || ori_state==COLLISION_EXTENSION);
-    if (ctx->dc_size == MAX_DC_NUM - 1) {
-        // TODO: add error handling
-        return KVTRANS_STATUS_ERROR;
-    }
 
     rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, DATA_COLLISION);
     if (!rc) {
@@ -293,39 +298,43 @@ dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, blk_ctx_t *
         }
     }
 
-    it = &ctx->dc_pool[ctx->dc_size];
+    it = malloc(sizeof(dc_item_t));
     it->mdc_index = mdc_index;
     it->ori_state = ori_state;
 
-    entry = (Word_t *) JudyLIns(&ctx->dc_tbl, (Word_t) dc_index, PJE0);
-    *entry = (Word_t) it;
-    ctx->dc_size++;
+    if(!store_elm(ctx->dc_cache_tbl, dc_index, (void *)it)) {
+        return rc;
+    }
 
-    return rc;
+    return KVTRANS_STATUS_ERROR;
 }
 
-dss_kvtrans_status_t dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index, const uint64_t mdc_index) {
-    dss_kvtrans_status_t rc;
+dss_kvtrans_status_t
+dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx,
+                            blk_ctx_t *blk_ctx, 
+                            const uint64_t dc_index, 
+                            const uint64_t mdc_index) {
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     Word_t *entry;
     dc_item_t *it;
     int cleaned_bytes;
 
-    entry = (Word_t *) JudyLGet(ctx->dc_tbl, (Word_t) dc_index, PJE0);
-    if (!entry) {
+    it = (dc_item_t *) get_elm(ctx->dc_cache_tbl, dc_index);
+    if (!it) {
         return KVTRANS_STATUS_NOT_FOUND;
     }
 
-    it = (dc_item_t *) *entry;
     if (it->mdc_index!=mdc_index) {
         return KVTRANS_STATUS_NOT_FOUND;
     }
     rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, it->ori_state);
 
-    cleaned_bytes = JudyLDel(&ctx->dc_tbl, (Word_t) dc_index, PJE0);
-    DSS_ASSERT(cleaned_bytes!=0);
-    ctx->dc_size--;
-    ctx->stat.dc--;
-    return rc;
+    if (!delete_elm(ctx->dc_cache_tbl, dc_index)) {
+        ctx->stat.dc--;
+        return rc;
+    }
+
+    return KVTRANS_STATUS_ERROR;
 }
 
 dss_kvtrans_status_t
@@ -764,19 +773,18 @@ void free_hash_fn_ctx(hash_fn_ctx_t *hash_fn_ctx) {
 }
 
 void init_dc_table(kvtrans_ctx_t *ctx) {
-    ctx->dc_pool = (dc_item_t*) malloc (sizeof(dc_item_t) * MAX_DC_NUM);
-    if (!ctx->dc_pool) {
-        printf("ERROR: malloc dc_pool failed.\n");
+    char name[32] = {"DATA_COL_TBL"};
+    ctx->dc_cache_tbl = init_cache_tbl(name, MAX_DC_NUM, sizeof(dc_item_t), 1);
+    if (!ctx->dc_cache_tbl ) {
+        printf("ERROR: malloc data collision table failed. \n");
         return;
     }
-    memset(ctx->dc_pool, 0, sizeof(dc_item_t) * MAX_DC_NUM);
 }
 
 void free_dc_table(kvtrans_ctx_t  *ctx) {
-    if(!ctx || !ctx->dc_pool) 
+    if(!ctx || !ctx->dc_cache_tbl) 
         return;
-    JudyLFreeArray(&ctx->dc_tbl, PJE0);
-    free(ctx->dc_pool);
+    free_cache_tbl(ctx->dc_cache_tbl);
 }
 
 kvtrans_params_t set_default_params() {
@@ -900,7 +908,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     DSS_ASSERT(ctx->blk_ctx_mallocator);
 
     init_dc_table(ctx);
-    if (!ctx->dc_pool) {
+    if (!ctx->dc_cache_tbl) {
         printf("ERROR: dc_table init failed\n");
         goto failure_handle;
     }

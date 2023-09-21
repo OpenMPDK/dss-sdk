@@ -1,5 +1,5 @@
 #ifndef KVTRANS_UTILS_H
-#define KVTANS_UTILS_H
+#define KVTRANS_UTILS_H
 
 #include <stdio.h>
 #include <stdint.h>
