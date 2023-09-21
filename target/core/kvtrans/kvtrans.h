@@ -234,7 +234,6 @@ typedef struct blk_val_ctx_s {
 struct blk_ctx {
     uint64_t index;
     blk_state_t state;
-    ondisk_meta_t *blk;
     blk_key_ctx_t kctx;
     blk_val_ctx_t vctx;
     kvtrans_req_t *kreq;
@@ -244,8 +243,11 @@ struct blk_ctx {
     // track the first insertable blk if a blk chain exists
     blk_ctx_t *first_insert_blk_ctx;
 
-    // the number of meta in chain
+    ondisk_meta_t *blk;
+
+    // should always be the last variable
     TAILQ_ENTRY(blk_ctx) blk_link;
+
 } ;
 
 

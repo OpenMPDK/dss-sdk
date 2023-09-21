@@ -1,7 +1,7 @@
 #include "kvtrans_utils.h"
 
 cache_tbl_t *init_cache_tbl(char *name, uint64_t init_elm_num, size_t elm_size, bool dynamic) {
-    cache_tbl_t *cache_tbl = (cache_tbl_t *) malloc (sizeof(cache_tbl_t));
+    cache_tbl_t *cache_tbl = (cache_tbl_t *) calloc (1, sizeof(cache_tbl_t));
     if (!cache_tbl) {
         printf("ERROR: cache_tbl init fails\n");
         exit(1);

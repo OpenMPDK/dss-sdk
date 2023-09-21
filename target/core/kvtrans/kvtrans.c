@@ -208,7 +208,7 @@ void reset_blk_ctx(blk_ctx_t *blk_ctx) {
     if (blk) {
         memset(blk, 0, sizeof(ondisk_meta_t));
     }
-    memset(blk_ctx, 0, sizeof(blk_ctx_t));
+    memset(blk_ctx, 0, sizeof(blk_ctx_t) - sizeof(blk_ctx->blk_link));
     blk_ctx->blk = blk;
 
     return;
@@ -1159,9 +1159,6 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
-    if (blk_ctx->index==157256540) {
-        printf("b1\n");
-    }
     switch (blk_ctx->state) {
     case EMPTY:
         // no need to load blk
@@ -1860,9 +1857,7 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
     uint64_t col_index;
     int i;
-    if (blk_ctx->index==157256540) {
-        printf("b2\n");
-    }
+
     DSS_ASSERT(blk->num_valid_col_entry>0 || blk->collision_extension_index>0);
     DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == COLLISION);
     if (!blk->isvalid && blk_ctx->kctx.flag!=to_delete) {
