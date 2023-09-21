@@ -152,6 +152,9 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
     }
     if (rc) {
         // TODO: error handling
+        DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]",
+                    blk_num, index, blk_ctx->state, state);
+
         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
     }
     if(blk_ctx) blk_ctx->kreq->ba_meta_updated = true;
@@ -169,6 +172,7 @@ dss_kvtrans_get_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx)
                                             &blk_state);
     if (rc) {
         // TODO: error handling
+        DSS_ERRLOG("Fail to get blk [%d] state\n", blk_ctx->index);
         return KVTRANS_STATUS_ERROR;
     }
     blk_ctx->state = (blk_state_t) blk_state;
@@ -266,6 +270,7 @@ dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
             return KVTRANS_STATUS_SUCCESS;
         }
     }
+    DSS_ERRLOG("update dc tbl failed for blk [%zu] with original state [%d]\n", dc_index, ori_state);
     return KVTRANS_STATUS_ERROR;
 }
 
@@ -306,6 +311,8 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
         return rc;
     }
 
+    DSS_ERRLOG("insert dc tbl failed for data blk [%zu] to [%zu] with original state [%d]\n", dc_index, mdc_index, ori_state);
+
     return KVTRANS_STATUS_ERROR;
 }
 
@@ -333,6 +340,7 @@ dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx,
         ctx->stat.dc--;
         return rc;
     }
+    DSS_ERRLOG("delete dc tbl failed for data blk [%zu]\n", dc_index);
 
     return KVTRANS_STATUS_ERROR;
 }
@@ -1067,7 +1075,7 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
         kreq->io_to_queue = false;
         kreq->kvtrans_ctx = NULL;
         kreq->initialized = false;
-        kreq->num_meta_blk = 0;
+        kreq->num_meta_blk = 1; // we keep one blk_ctx
     }
 
     return;
@@ -1151,6 +1159,9 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
+    if (blk_ctx->index==157256540) {
+        printf("b1\n");
+    }
     switch (blk_ctx->state) {
     case EMPTY:
         // no need to load blk
@@ -1362,6 +1373,7 @@ dss_kvtrans_status_t _blk_del_value(void *ctx) {
                     }
                     // the ori_state of e_idx is EMPTY
                     rc = dss_kvtrans_dc_table_update(kvtrans_ctx, e_idx, EMPTY);
+                    // TODO: error handling
                     s_idx = e_idx + 1;
                 } else if (e_idx == s_idx && e_idx == (index+blk_num-1)) {
                     // if the last blk is not a data collision
@@ -1400,14 +1412,20 @@ dss_kvtrans_status_t _blk_update_value(void *ctx) {
     // } else {
     // TODO: consider transaction cost
     rc = _blk_del_value(ctx);
-    if (rc) return rc;
+    if (rc) {
+        DSS_ERRLOG("update blk [%zu] failed in value deletion\n", blk_ctx->index);
+        return rc;
+    }
 
     blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
     blk_ctx->vctx.iscontig = false;
     blk_ctx->vctx.remote_val_blocks = 0;
 
     rc = _blk_init_value(ctx);
-    
+    if (rc) {
+        // TODO: error handling
+        DSS_ERRLOG("update blk [%zu] failed in value init\n", blk_ctx->index);
+    }
     return rc;
 }
 
@@ -1842,7 +1860,9 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
     uint64_t col_index;
     int i;
-
+    if (blk_ctx->index==157256540) {
+        printf("b2\n");
+    }
     DSS_ASSERT(blk->num_valid_col_entry>0 || blk->collision_extension_index>0);
     DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == COLLISION);
     if (!blk->isvalid && blk_ctx->kctx.flag!=to_delete) {
@@ -1911,7 +1931,6 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
                 rc = dss_kvtrans_get_blk_state(kvtrans_ctx, col_blk_ctx);
                 if (rc) return rc;
                 rc = dss_kvtrans_load_ondisk_blk(col_blk_ctx, kreq, true);
-                if (rc) return rc;
                 rc = _update_kreq_stat_after_io(kreq, rc, COL_LOADING_DONE, QUEUE_TO_LOAD_COL);
                 return rc;
             }
@@ -2028,7 +2047,10 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
                 blk_ctx->kctx.flag = to_delete;
             }
             rc = _alloc_entry_block(ctx, kreq, blk_ctx);
-            if (rc) return rc;
+            if (rc) {
+                DSS_ERRLOG("Failed to locate entry index for kreq [%p].\n", kreq);
+                return rc;
+            }
 #ifndef DSS_BUILD_CUNIT_TEST
             if (kreq->state == QUEUE_TO_LOAD_ENTRY) {
                 dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_ENTRY, 0, 0, 0, (uintptr_t)kreq->dreq);
@@ -2057,7 +2079,10 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
                 rc = blk_ctx->kctx.ops.update_blk((void *)blk_ctx);
             }
             
-            if (rc) goto req_terminate;
+            if (rc) {
+                DSS_ERRLOG("rc [%d]: Failed to process blk [%zu] with state [%d] for kreq [%p].\n", rc, blk_ctx->index, blk_ctx->state, kreq);
+                goto req_terminate;
+            }
 
             if (kreq->state==ENTRY_LOADING_DONE) {
                 // dss_blk_allocator_get_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
@@ -2072,12 +2097,12 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             break;
         case COL_LOADING_DONE:
 #ifndef DSS_BUILD_CUNIT_TEST
-            dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_LOAD_COL, 0, 0, 0, (uintptr_t)kreq->dreq);
+            dss_trace_record(TRACE_KVTRANS_WRITE_COL_LOADING_DONE, 0, 0, 0, (uintptr_t)kreq->dreq);
 #endif
             col_ctx = TAILQ_LAST(&kreq->meta_chain, blk_elm);
-            DSS_ASSERT(col_ctx!=NULL && col_ctx!=blk_ctx);
+            DSS_ASSERT(col_ctx!=NULL);
             blk_ctx = TAILQ_PREV(col_ctx, blk_elm, blk_link);
-            DSS_ASSERT(blk_ctx->blk!=NULL);
+            DSS_ASSERT(blk_ctx->blk!=NULL && col_ctx!=blk_ctx);
             col_ctx->kreq = kreq;
             col_ctx->kctx.pindex = blk_ctx->index;
             col_ctx->kctx.flag = blk_ctx->kctx.flag;
@@ -2097,11 +2122,16 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->kctx.ops = g_blk_register[col_ctx->state];
 
             rc = col_ctx->kctx.ops.update_blk((void *)col_ctx);
-            if (rc) goto req_terminate;
-
+            if (rc) {
+                DSS_ERRLOG("Failed to process collision blk [%zu] with state [%d] for kreq [%p].\n", blk_ctx->index, blk_ctx->state, kreq);
+                goto req_terminate;
+            }
             if (blk_ctx->kctx.flag==to_delete) {
                 rc = _delete_collision_entry(blk_ctx, col_ctx, kreq);
-                if (rc) return rc;
+                if (rc) {
+                    DSS_ERRLOG("Failed to delete collision entry [%d] for blk [%zu] with state [%d] for kreq [%p].\n", col_ctx->index, blk_ctx->index, blk_ctx->state, kreq);
+                    return rc;
+                }
             }
             
             // states of col_ctx has been updated in kctx.ops
@@ -2147,8 +2177,17 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             rc = col_ctx->kctx.ops.update_blk((void *)col_ctx);
             if (rc == KVTRANS_STATUS_NOT_FOUND && col_ctx->first_insert_blk_ctx!=NULL) {
                 rc = _new_write_ops(col_ctx->first_insert_blk_ctx, kreq);
-                if (rc) goto req_terminate;
-            } else if (rc) goto req_terminate;
+                if (rc) {
+                    DSS_ERRLOG("Failed to write new blk [%zu] with state [%d] for kreq [%p].\n", 
+                                col_ctx->first_insert_blk_ctx->index, col_ctx->state, kreq);
+
+                    goto req_terminate;
+                }
+            } else if (rc) {
+                DSS_ERRLOG("Failed to process collision extension blk [%zu] with state [%d] for kreq [%p].\n", 
+                                col_ctx->index, col_ctx->state, kreq);
+                goto req_terminate;
+            }
             if (kreq->state == COL_EXT_LOADING_DONE) {
                 if (TAILQ_NEXT(col_ctx, blk_link)!=NULL) {
                     // continue to load next col extension
