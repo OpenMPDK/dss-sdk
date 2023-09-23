@@ -282,6 +282,8 @@ static inline dss_io_task_status_t _dss_io_task_add_blk_op(dss_io_task_t *task, 
     task->num_total_ops++;
     TAILQ_INSERT_TAIL(&task->op_todo_list, io_op, op_next);
 
+    DSS_DEBUGLOG(DSS_IO_TASK, "task[%p] op[%d] lba[%x] nblocks[%x]\n", task, io_op->opc, io_op->blk_rw.lba, io_op->blk_rw.nblocks);
+
     return DSS_IO_TASK_STATUS_SUCCESS;
 
 }
@@ -349,6 +351,7 @@ dss_io_task_status_t dss_io_task_get_op_ranges(dss_io_task_t *task, dss_io_op_ow
                     op_params->data = op->blk_rw.data;
                 }
                 op_params->is_params_valid = true;
+                DSS_DEBUGLOG(DSS_IO_TASK, "type[%d] lba [%x] nblocks [%x]\n", op_state, op_params->lba, op_params->num_blocks);
                 found = true;
             } else {
                 //OP to start processing on next iteration
