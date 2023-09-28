@@ -1010,6 +1010,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     STAILQ_INSERT_TAIL(&kvtrans_ctx->req_head, kreq, req_link);
 #endif
     kreq->ba_meta_updated = false;
+    kreq->io_to_queue = false;
     kreq->state = REQ_INITIALIZED;
     kreq->initialized = true;
 
@@ -1472,10 +1473,13 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx)
 
     rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
     if (rc == KVTRANS_STATUS_IO_ERROR) goto roll_back;
+    DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+
     rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq, false);
     if (rc == KVTRANS_STATUS_IO_ERROR) {
         goto roll_back;
     }
+    DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
     rc = KVTRANS_STATUS_SUCCESS;
 
     // rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx->index, 1, state);
@@ -1622,6 +1626,7 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
             // update meta blk only
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
             rc = KVTRANS_STATUS_SUCCESS;
             break;
         case update:
@@ -1640,8 +1645,11 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
             if (rc) return rc;
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+
             rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
             rc = KVTRANS_STATUS_SUCCESS;
             break;
         case to_delete:
@@ -1695,9 +1703,15 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
         rc = _blk_init_value((void *)blk_ctx);
         if (rc) return rc;
         rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
-        if (rc != KVTRANS_STATUS_IO_ERROR) rc = KVTRANS_STATUS_SUCCESS;
+        if (rc != KVTRANS_STATUS_IO_ERROR) {
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+            rc = KVTRANS_STATUS_SUCCESS;
+        }
         rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq, false);
-        if (rc != KVTRANS_STATUS_IO_ERROR) rc = KVTRANS_STATUS_SUCCESS;
+        if (rc != KVTRANS_STATUS_IO_ERROR) {
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+            rc = KVTRANS_STATUS_SUCCESS;
+        }
         return rc;
     } else {
         first_empty_index = _col_tbl_get_first_entry(blk, false);
@@ -1723,6 +1737,7 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
         // only need to update meta blk
         rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
         if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+        DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
         rc = KVTRANS_STATUS_SUCCESS;
         return rc;
     }
@@ -1870,8 +1885,11 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
             rc = _blk_update_value(ctx);
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+
             rc = dss_kvtrans_write_ondisk_data(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
             rc = KVTRANS_STATUS_SUCCESS;
             break;
         case to_delete:
@@ -1901,6 +1919,8 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
             }
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+            DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
+            rc = KVTRANS_STATUS_SUCCESS;
             break;
         default:
             DSS_ASSERT(0);
@@ -2135,6 +2155,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             if (blk_ctx->state!=EMPTY) {
                 rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
                 if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
+                DSS_ASSERT(rc == KVTRANS_IO_QUEUED || rc == KVTRANS_IO_SUBMITTED || rc == KVTRANS_STATUS_SUCCESS);
                 rc = KVTRANS_STATUS_SUCCESS;
             }
 
