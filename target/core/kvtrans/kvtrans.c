@@ -139,6 +139,28 @@ void update_ticks(tick_t *tp) {
     *tp = (tick_t) get_time();
 }
 
+dss_kvtrans_status_t
+dss_kvtrans_alloc_contig(kvtrans_ctx_t *ctx,
+                        kvtrans_req_t *kreq,
+                        uint64_t state,
+                        uint64_t hint_block_index,
+                        uint64_t num_blocks,
+                        uint64_t *allocated_start_block)
+{
+    dss_blk_allocator_status_t rc;
+    rc = dss_blk_allocator_alloc_blocks_contig(ctx->blk_alloc_ctx, state, 
+                hint_block_index, num_blocks, allocated_start_block);
+    if (rc) {
+        // TODO: error handling
+        DSS_ERRLOG("Alloc contig [%d] blks for blk_ctx [%zu] failed\n",
+                    num_blocks, hint_block_index);
+
+        return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
+    }
+    kreq->ba_meta_updated = true;
+    return KVTRANS_STATUS_SUCCESS;
+}
+
 dss_kvtrans_status_t 
 dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index,
                             uint64_t blk_num, blk_state_t state)
@@ -1237,37 +1259,40 @@ uint64_t _get_num_blocks_required_for_value(req_t *req) {
 }
 
 /* find a contiguous or scatter of DATA blocks */
-dss_kvtrans_status_t find_data_blocks(blk_ctx_t *ctx, dss_blk_allocator_context_t *blk_alloc, uint64_t num_blocks) {
+dss_kvtrans_status_t
+find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     if (num_blocks==0) {
-        return KVTRANS_STATUS_SUCCESS;
+        return rc;
     } 
     uint64_t allocated_start_block = 0;
 
-    if(dss_blk_allocator_alloc_blocks_contig(blk_alloc, DATA, 
-        ctx->index+1, num_blocks, &allocated_start_block)==BLK_ALLOCATOR_STATUS_SUCCESS) {
+    rc = dss_kvtrans_alloc_contig(ctx, blk_ctx->kreq, DATA, 
+        blk_ctx->index+1, num_blocks, &allocated_start_block);
+    if(rc == KVTRANS_STATUS_SUCCESS) {
         DSS_ASSERT(allocated_start_block>0 && allocated_start_block<BLK_NUM);
-        ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
-        ctx->blk->place_value[ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
+        blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
+        blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
 
-        if (allocated_start_block!=ctx->index+1) {
-            ctx->vctx.remote_val_blocks++;
+        if (allocated_start_block!=blk_ctx->index+1) {
+            blk_ctx->vctx.remote_val_blocks++;
         }
-        ctx->blk->num_valid_place_value_entry++;
+        blk_ctx->blk->num_valid_place_value_entry++;
         //TODO: handle this case
-        DSS_ASSERT(ctx->blk->num_valid_place_value_entry!=MAX_DATA_COL_TBL_SIZE);
-        return KVTRANS_STATUS_SUCCESS;
+        DSS_ASSERT(blk_ctx->blk->num_valid_place_value_entry!=MAX_DATA_COL_TBL_SIZE);
+        return rc;
     }
 
     uint64_t lb = num_blocks/2;
     uint64_t rb = num_blocks - lb;
 
     if (lb+rb==1 && num_blocks==1) {
-        printf("ERROR: failed to find 1 block at index %zu\n", ctx->index+1);
+        printf("ERROR: failed to find 1 block at index %zu\n", blk_ctx->index+1);
         return KVTRANS_STATUS_ERROR;
     }
 
-    if(find_data_blocks(ctx, blk_alloc, lb)==KVTRANS_STATUS_SUCCESS &&
-       find_data_blocks(ctx, blk_alloc, rb)==KVTRANS_STATUS_SUCCESS) {
+    if(find_data_blocks(blk_ctx, ctx, lb)==KVTRANS_STATUS_SUCCESS &&
+       find_data_blocks(blk_ctx, ctx, rb)==KVTRANS_STATUS_SUCCESS) {
         return KVTRANS_STATUS_SUCCESS;
     }
     return KVTRANS_STATUS_ERROR;
@@ -1301,7 +1326,7 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
         }
         blk->num_valid_place_value_entry = 0;
         blk_ctx->vctx.remote_val_blocks = 0;
-        rc = find_data_blocks(blk_ctx, blk_alloc, blk_ctx->vctx.value_blocks);
+        rc = find_data_blocks(blk_ctx, kvtrans_ctx, blk_ctx->vctx.value_blocks);
         if (rc!=KVTRANS_STATUS_SUCCESS) {
             return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
         }
@@ -1457,10 +1482,9 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx)
         // META blk is located by hashing. We need to alloc value blocks seperately.
         blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
         // TODO: change allocated_start_lba to NULL
-        if (dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, state, 
-                blk_ctx->index, 1, &allocated_start_lba)) {
-            return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
-        }
+        rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, state, 
+                blk_ctx->index, 1, &allocated_start_lba);
+        if (rc) return rc;
         DSS_ASSERT(allocated_start_lba==blk_ctx->index);
     }
     
@@ -1511,7 +1535,7 @@ roll_back:
 
 // lookup an EMPTY block and init the block as META/META_DATA_COLLISION
 static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
-    dss_kvtrans_status_t rc;
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     blk_ctx_t *blk_ctx, *col_blk;
     kvtrans_ctx_t *kvtrans_ctx; 
     kvtrans_req_t *kreq;
@@ -1527,23 +1551,18 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
 
     memset(&col_blk->vctx, 0, sizeof(blk_val_ctx_t));
     col_blk->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+    rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, DATA, blk_ctx->index + 1,
+        col_blk->vctx.value_blocks + 1, &col_blk->index);
 
-    // if(dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, EMPTY, blk_ctx->index + 1,
-    //     col_blk->vctx.value_blocks + 1, &col_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
-    //     // TODO: handle error
-    //     return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
-    // }
-    
-    if(dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, DATA, blk_ctx->index + 1,
-        col_blk->vctx.value_blocks + 1, &col_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
+    if(rc) {
         // allocate any EMPTY block for META
-        if (dss_blk_allocator_alloc_blocks_contig(kvtrans_ctx->blk_alloc_ctx, META, blk_ctx->index + 1,
-        1, &col_blk->index) == BLK_ALLOCATOR_STATUS_ERROR) {
-            printf("Error: out of spaces");
-            exit(1);
+        rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, DATA, blk_ctx->index + 1,
+                col_blk->vctx.value_blocks + 1, &col_blk->index);
+        if (rc) {
+            DSS_ERRLOG("Error: Out of spaces. Cannot find a single free blk.\n");
         }
     } else {
-        // get 4 blocks as DATA
+        // get contig blks
         col_blk->vctx.iscontig = true;
         if(dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, col_blk->index, 1, META)) {
             // falied
