@@ -74,7 +74,7 @@ def init_kv_df():
 
 
 def parse_general_dss_df(lines: list):
-    df = pd.DataFrame([parse_line_to_words(l) for line in lines],
+    df = pd.DataFrame([parse_line_to_words(line) for line in lines],
                       columns=["lcore", "tsc_us", "state", "dreq_ptr", "dum1", "id", "dum2", "time"])
     df.tsc_us = df.tsc_us.astype(float)
     df.dreq_ptr = df.dreq_ptr.apply(lambda x: x.split("0x")[1])
@@ -153,6 +153,12 @@ def generate_breakdown_latency_tbl(df, init_state: str, end_state: str):
     for req in req_ids:
         req_df = df[df.dreq_ptr == req]
         req_df = req_df.reset_index(drop=True)
+        if init_state not in req_df.state:
+            raise Warning("{} not in trace for dss_req {}.".format(init_state, req))
+
+        if end_state not in req_df.state:
+            raise Warning("{} not in trace for dss_req {}.".format(init_state, req))
+
         for index in req_df.index:
             if req_df.loc[index, "state"] == init_state:
                 s_idx = index
@@ -183,13 +189,19 @@ def generate_breakdown_latency_tbl(df, init_state: str, end_state: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='post_process_spdk_trace',
-        description='Support post process of spdk traces. Generate statistics/plots for latency')
+        description="This script is used to support post process of spdk traces, which generates runtime and boxplot of latency.\n \
+                     To add new trace groups, please define new parse functions (parse_new_trace_df)\n \
+                    and add new parser (p) with \n \
+                     e.g., \n \
+                     p = spdk_trace_parser(NEW_TRACE, trace_path, parse_new_trace_df) ")
     parser.add_argument('filename')
+    parser.add_argument('outfolder')
 
     args = parser.parse_args()
 
     # trace_path = Path("/home/dan.jia/dss-sdk/9207_read.txt")
     trace_path = Path(args.filename)
+    out_folder = Path(args.outfolder).absolute()
 
     kvtp = spdk_trace_parser("KVT", trace_path, parse_kv_df)
 
@@ -203,7 +215,7 @@ if __name__ == "__main__":
         full_df, 'NET_ENQUEUE_KREQ', 'NET_DEQUEUE_KREQ')
 
     axs = bl_df.plot.area(figsize=(36, 24), subplots=True)
-    plt.savefig("latency_{}.pdf".format(trace_path.stem))
+    plt.savefig(out_folder / ("latency_{}.pdf".format(trace_path.stem)))
 
     plt.clf()
     axs = bl_df.plot.box(figsize=(24, 16))
@@ -212,7 +224,7 @@ if __name__ == "__main__":
     axs.set_ylabel("latency (us)")
     plt.xticks(rotation=30, ha='right')
     plt.tight_layout()
-    plt.savefig("box_{}.pdf".format(trace_path.stem))
+    plt.savefig(out_folder / ("box_{}.pdf".format(trace_path.stem)))
 
     print("The ave. time (us) for each state :")
     print(bl_df.mean(axis=0))
