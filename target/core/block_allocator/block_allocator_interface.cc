@@ -75,23 +75,35 @@ dss_blk_allocator_context_t* block_allocator_init(
     return &c->ctx_blk_alloc;
 }
 
-uint64_t get_physical_size(dss_blk_allocator_context_t *ctx) {
+uint64_t get_physical_size(dss_blk_allocator_opts_t *config) {
 
-    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
+    // Perform pseudo block allocator init to get the actual size
 
-    dss_blk_alloc_impresario_ctx_t *c =
-        (dss_blk_alloc_impresario_ctx_t *)ctx;
+    uint64_t physical_size_bytes = 0;
 
-    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    BlockAlloc::BlockAllocator *ba_i = new BlockAlloc::BlockAllocator();
+
     if (ba_i == NULL) {
-        DSS_ERRLOG("Incorrect usage before block allocator init");
+        DSS_ERRLOG(
+                "Unable to allocate memory for block impresario instance");
+        return 0;
+    }
+
+    if (!ba_i->init(nullptr, config)) {
+        DSS_ERRLOG("Pseudo Block Impresario init failed");
         return 0;
     }
 
     // Invoke respective allocator to return its specific persistence
     // size requirements
 
-    return ba_i->allocator->get_physical_size();
+    physical_size_bytes = ba_i->allocator->get_physical_size();
+
+    // Free up pseudo instance
+    ba_i->allocator->destroy();
+    delete ba_i;
+
+    return physical_size_bytes;
 }
 
 void block_allocator_destroy(dss_blk_allocator_context_t *ctx)

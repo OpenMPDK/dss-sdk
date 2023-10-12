@@ -187,6 +187,26 @@ add_custom_command ( OUTPUT dfly_config.h
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/version.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/spdk/include)
 
+add_library(dss_formatter_impl STATIC ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/parser_impl.cc
+                             ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/formatter_impl.cc
+                             ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/formatter_interface_impl.cc)
+
+target_include_directories(dss_formatter_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter)
+
+target_link_libraries(dss_formatter_impl -L${CMAKE_BINARY_DIR})
+target_compile_options(dss_formatter_impl PRIVATE -Wall -g -I${CMAKE_SOURCE_DIR}/include/ -std=gnu++11)
+add_custom_command(
+        TARGET dss_formatter_impl PRE_BUILD
+        COMMENT ${CMAKE_SOURCE_DIR}
+)
+
+ADD_CUSTOM_TARGET(dss_formatter
+    COMMENT "Building dss format utility"
+    WORKING_DIRECTORY core/kvtrans/formatter
+    COMMAND make
+    DEPENDS spdk_tcp_configure dss_formatter_impl
+)
+
 # DFLY flags
 set(DFLY_LIBS ${DFLY_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
 set(DFLY_CFLAGS -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native -include include/dfly_config.h)
@@ -416,6 +436,7 @@ include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/app/nvmf_tgt)
 include_directories (${CMAKE_SOURCE_DIR}/stats)
 include_directories (${CMAKE_SOURCE_DIR}/core/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/kvtrans)
+include_directories (${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/)
 include_directories (${CMAKE_SOURCE_DIR}/core/wal/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)

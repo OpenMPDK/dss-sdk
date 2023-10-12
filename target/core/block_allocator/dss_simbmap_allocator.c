@@ -303,11 +303,12 @@ found_range:
 
 //On-disk implementations return Success always. No need to sync anything for in-memory implementation
 
-uint64_t dss_blk_allocator_simbmap_get_physical_size(dss_blk_allocator_context_t *ctx)
+uint64_t dss_blk_allocator_simbmap_get_physical_size(dss_blk_allocator_opts_t *config)
 {
-    dss_blk_alloc_simbmap_ctx_t *c = (dss_blk_alloc_simbmap_ctx_t *) ctx;
+    //dss_blk_alloc_simbmap_ctx_t *c = (dss_blk_alloc_simbmap_ctx_t *) ctx;
+    // CXX TODO!: Stub
 
-    return c->bmap_sz;
+    return 0;
 
 }
 

@@ -302,11 +302,28 @@ dss_blk_allocator_status_t dss_blk_allocator_print_stats(dss_blk_allocator_conte
     }
 }
 
-uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx) {
+uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_opts_t *config) {
+    dss_blk_allocator_context_t *c = NULL;
+    dss_blk_alloc_module_t *m;
 
-    DSS_ASSERT(ctx->m->disk.blk_alloc_get_physical_size);
+    if(!config->blk_allocator_type) {
+        DSS_ERRLOG("Block allocator type name not provided\n");
+        return NULL;
+    }
 
-    return ctx->m->disk.blk_alloc_get_physical_size(ctx);
+    m = dss_block_allocator_find_module(config->blk_allocator_type);
+    if(!m) {
+        DSS_ERRLOG("Block allocator type --[%s]-- not found\n", config->blk_allocator_type);
+        return NULL;
+    }
+
+    //TODO: Validate Config
+    //TODO: Use *device
+
+
+    DSS_ASSERT(m->disk.blk_alloc_get_physical_size);
+
+    return m->disk.blk_alloc_get_physical_size(config);
 
 }
 

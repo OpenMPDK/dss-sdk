@@ -210,10 +210,10 @@ dss_blk_allocator_status_t dss_blk_allocator_print_stats();
  *        This is the on-disk size of all persistent data-structures used by block allocator.
  *        Ideally invoked after setting up block allocator (init) and required for persistence.
  * 
- * @param ctx Block allocator context
+ * @param config Options struct with input configuration options set
  * @return physical size in bytes, required to be persisted
  */
-uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_context_t *ctx);
+uint64_t dss_blk_allocator_get_physical_size(dss_blk_allocator_opts_t *config);
 
 
 /**

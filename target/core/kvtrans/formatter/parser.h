@@ -16,7 +16,7 @@
  *  	* Neither the name of Samsung Electronics Co., Ltd. nor the names of its
  *  	  contributors may be used to endorse or promote products derived from
  *  	  this software without specific prior written permission.
- *
+
  *  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
  *  BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
  *  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
@@ -31,37 +31,64 @@
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DSS_SUPERBLOCK_APIS
-#define DSS_SUPERBLOCK_APIS
+#pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <memory>
+#include <string>
 
-#include <stdint.h>
-
-// Physical block address of super block set to block `0`
-#define SUPER_BLOCK_START 0
-
-/**
- * @brief super block ondisk data structure
+/** 
+ * This namespace includes all Allocator implementations
  */
-typedef struct __attribute__((__packed__)) dss_super_block_s {
-    uint32_t phy_blk_size_in_bytes; //4
-    uint32_t logi_blk_size_in_bytes; //4
-    uint64_t phy_usable_blk_start_addr; //8
-    uint64_t phy_usable_blk_end_addr; //8
-    uint64_t phy_blk_alloc_meta_start_blk; //8
-    uint64_t phy_blk_alloc_meta_end_blk; //8
-    uint16_t is_blk_alloc_meta_load_needed; //2
-    uint64_t phy_super_blk_start_addr; //8
-    // padding to fill a 4K range
-    char resv[4046];
-} dss_super_block_t;
 
+namespace Parser {
 
-#ifdef __cplusplus
-}
-#endif
+enum class ParserType{
+    TEXT,
+    JSON
+};
 
-#endif
+class ParsedPayload {
+public:
+    ParsedPayload()
+        : device_name(),
+          logical_block_size(0),
+          num_block_states(0),
+          block_allocator_type(),
+          is_debug(true),
+          status(false)
+    {}
+    std::string device_name;
+    uint64_t logical_block_size;
+    uint64_t num_block_states;
+    std::string block_allocator_type;
+    bool is_debug;
+    bool status;
+};
+
+// NB: This field needs to be modified for error checking on parsing
+#define PARSER_EXPECTED_FIELDS 5
+
+using ParsedPayloadSharedPtr = std::shared_ptr<ParsedPayload>;
+
+class ParserInterface {
+public:
+
+    virtual ~ParserInterface() = default;
+
+    virtual ParsedPayloadSharedPtr parse_payload(
+            ParserType type, std::string& filename) const =0;
+
+};
+
+using ParserInterfaceSharedPtr = std::shared_ptr<ParserInterface>;
+
+class TextParser : public ParserInterface {
+public:
+    virtual ~TextParser() = default;
+
+    // ParserInterface specifc concrete definitions
+    ParsedPayloadSharedPtr parse_payload(
+            ParserType type, std::string& filename) const override;
+};
+
+} // end Parser Namespace
