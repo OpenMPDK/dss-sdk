@@ -81,6 +81,8 @@ void IoTaskOrdererTest::setUp() {
 
     // Variables for io task orderer initialization
     uint64_t drive_smallest_block_size = 4096;
+    uint64_t drive_start_block_offset = 0;
+    uint64_t logical_block_size = 4096;
     uint64_t max_dirty_segments = 3;
 
     // jso is created during block allocator init
@@ -90,34 +92,56 @@ void IoTaskOrdererTest::setUp() {
 
     io_task_orderer_ =
         std::make_shared<BlockAlloc::IoTaskOrderer>(
-                drive_smallest_block_size, max_dirty_segments, nullptr);
+                drive_smallest_block_size,
+                drive_start_block_offset,
+                logical_block_size,
+                max_dirty_segments,
+                nullptr);
 
     bmap_ = std::make_shared<AllocatorType::QwordVector64Cell>(
         jso, io_task_orderer_, total_cells, bits_per_cell,
         num_block_states, logical_start_block_offset);
 
 
-    io_task_orderer_->translate_meta_to_drive_data =
-        [&](uint64_t meta_lba, uint64_t meta_num_blocks,
-                uint64_t drive_smallest_block_size,
-                uint64_t logical_block_size,
+    io_task_orderer_->translate_meta_to_drive_addr =
+        [&](const uint64_t& meta_lba,
+                const uint64_t& meta_num_blocks,
+                const uint64_t& drive_smallest_block_size,
+                const uint64_t& logical_block_size,
                 uint64_t& drive_blk_addr,
-                uint64_t& drive_num_blocks,
-                void** serialized_drive_data,
-                uint64_t& serialized_len) {
+                uint64_t& drive_num_blocks) {
 
                      return std::dynamic_pointer_cast
                                 <AllocatorType::QwordVector64Cell>
-                                (bmap_)->translate_meta_to_drive_data(
-                             meta_lba, meta_num_blocks,
+                                (bmap_)->translate_meta_to_drive_addr(
+                             meta_lba,
+                             meta_num_blocks,
                              drive_smallest_block_size,
                              logical_block_size,
                              drive_blk_addr,
-                             drive_num_blocks,
-                             serialized_drive_data,
-                             serialized_len
+                             drive_num_blocks
                              );
-                 };
+    };
+
+    io_task_orderer_->serialize_drive_data =
+        [&](const uint64_t& drive_blk_addr,
+                const uint64_t& drive_num_blocks,
+                const uint64_t& drive_start_block_offset,
+                const uint64_t& drive_smallest_block_size,
+                void** serialized_drive_data,
+                uint64_t& serialized_len) {
+            
+            return std::dynamic_pointer_cast
+                <AllocatorType::QwordVector64Cell>
+                (bmap_)->serialize_drive_data(
+                        drive_blk_addr,
+                        drive_num_blocks,
+                        drive_start_block_offset,
+                        drive_smallest_block_size,
+                        serialized_drive_data,
+                        serialized_len
+                        );
+    };
 }
 
 void IoTaskOrdererTest::tearDown() {
@@ -136,15 +160,15 @@ void IoTaskOrdererTest::test_integrity() {
     dss_blk_allocator_status_t status = BLK_ALLOCATOR_STATUS_ERROR;
     void *serialized_drive_data = nullptr;
     uint64_t serialized_len = 0;
+    bool serialize = true;
 
-    status = io_task_orderer_->translate_meta_to_drive_data(
-            meta_lba, meta_num_blocks,
+    status = io_task_orderer_->translate_meta_to_drive_addr(
+            meta_lba,
+            meta_num_blocks,
             drive_smallest_block_size,
             logical_block_size,
             drive_blk_addr,
-            drive_num_blocks,
-            &serialized_drive_data,
-            serialized_len
+            drive_num_blocks
             );
 
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);

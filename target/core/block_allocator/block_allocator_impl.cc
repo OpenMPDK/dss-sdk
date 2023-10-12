@@ -42,11 +42,15 @@ bool BlockAllocator::init(
 
     uint64_t total_blocks = 0;
     uint64_t logical_start_block_offset = 0;
+    uint64_t drive_start_block_offset = 0;
     uint64_t optimum_write_size = 0;
     uint64_t num_block_states = 0;
     uint64_t num_bits_per_block = 0;
 
-    uint64_t drive_smallest_block_size = 0;
+    // CXX TODO: These are either procured from super block or
+    // from a target drive lib
+    uint64_t drive_smallest_block_size = 4096;
+    uint64_t logical_block_size = 4096;
     // CXX TODO: This needs to be tuned appropriately
     // This represents the total number of disjoint ranges
     // that can be flushed to the disk in one io_task
@@ -61,11 +65,6 @@ bool BlockAllocator::init(
     optimum_write_size = config->shard_size;
     num_block_states = config->num_block_states;
     logical_start_block_offset = config->logical_start_block_offset;
-
-    //DSS_ASSERT(!device);//Persistence not supported by allocator
-    //if(device) {
-    //    return false;
-    //}
 
     if(config->num_block_states == 0) {
         return false;
@@ -92,7 +91,10 @@ bool BlockAllocator::init(
         // Associate an io task ordering instance for disk operations
         this->io_task_orderer =
             std::make_shared<BlockAlloc::IoTaskOrderer>(
-                    drive_smallest_block_size, max_dirty_segments, device);
+                    drive_smallest_block_size,
+                    drive_start_block_offset,
+                    logical_block_size, 
+                    max_dirty_segments, device);
         if (io_task_orderer == nullptr)
         {
             return false;
@@ -113,25 +115,43 @@ bool BlockAllocator::init(
     if(config->enable_ba_meta_sync == true) {
         // Bind the translator logic specific to each implementation of the
         // allocator
-        this->io_task_orderer->translate_meta_to_drive_data =
-            [&](uint64_t meta_lba, uint64_t meta_num_blocks,
-                uint64_t drive_smallest_block_size,
-                uint64_t logical_block_size,
-                uint64_t &drive_blk_addr,
-                uint64_t &drive_num_blocks,
-                void **serialized_drive_data,
-                uint64_t &serialized_len)
+        this->io_task_orderer->translate_meta_to_drive_addr =
+            [&](const uint64_t& meta_lba,
+                const uint64_t& meta_num_blocks,
+                const uint64_t& drive_smallest_block_size,
+                const uint64_t& logical_block_size,
+                uint64_t& drive_blk_addr,
+                uint64_t& drive_num_blocks)
         {
-            return this->allocator->translate_meta_to_drive_data(
-                meta_lba, meta_num_blocks,
+            return this->allocator->translate_meta_to_drive_addr(
+                meta_lba,
+                meta_num_blocks,
                 drive_smallest_block_size,
                 logical_block_size,
                 drive_blk_addr,
+                drive_num_blocks);
+        };
+        DSS_ASSERT(this->io_task_orderer->translate_meta_to_drive_addr);
+
+        // Bind the translator logic specific to each implementation of the
+        // allocator
+        this->io_task_orderer->serialize_drive_data =
+            [&](const uint64_t& drive_blk_addr,
+                const uint64_t& drive_num_blocks,
+                const uint64_t& drive_start_block_offset,
+                const uint64_t& drive_smallest_block_size,
+                void **serialized_drive_data,
+                uint64_t& serialized_len)
+        {
+            return this->allocator->serialize_drive_data(
+                drive_blk_addr,
                 drive_num_blocks,
+                drive_start_block_offset,
+                drive_smallest_block_size,
                 serialized_drive_data,
                 serialized_len);
         };
-        DSS_ASSERT(io_task_orderer->translate_meta_to_drive_data);
+        DSS_ASSERT(this->io_task_orderer->serialize_drive_data);
     }
     return true;
 }

@@ -446,7 +446,7 @@ public:
             uint64_t num_blocks,
             uint64_t *allocated_start_block)=0;
     /**
-     * @brief Translate allocated meta lba to drive data for block
+     * @brief Translate allocated meta lba to drive data lba for block
      *        allocator meta-data
      *
      * @param meta_lba lba allocated by block allocator, which is associated
@@ -466,13 +466,36 @@ public:
      * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS 
      *         on success or error code otherwise
      */
-    virtual dss_blk_allocator_status_t translate_meta_to_drive_data(
+    virtual dss_blk_allocator_status_t translate_meta_to_drive_addr(
             uint64_t meta_lba,
             uint64_t meta_num_blocks,
             uint64_t drive_smallest_block_size,
             uint64_t logical_block_size,
             uint64_t& drive_blk_lba,
-            uint64_t& drive_num_blocks,
+            uint64_t& drive_num_blocks)=0;
+
+    /**
+     * @brief Serialize bitmap region associated with drive_blk_addr
+     *        and drive_num_blocks
+     *
+     * @param drive_blk_addr translated dirty meta data lba on bitmap
+     *        mapped to the drive bitmap region
+     * @param drive_num_blocks, actual range on drive representing
+     *        dirty bitmap region
+     * @param drive_start_block_offset, offset accounting the start of
+     *        bitmap region on the drive
+     * @param drive_smallest_block_size, smallest drive size in bytes
+     *        for writing on the drive
+     * @param[out] serialized_drive_data, serialized bitmap region
+     * @param[out] serialized_len, serialized len
+     * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS 
+     *         on success or error code otherwise
+     */
+    virtual dss_blk_allocator_status_t serialize_drive_data(
+            uint64_t drive_blk_addr,
+            uint64_t drive_num_blocks,
+            uint64_t drive_start_block_offset,
+            uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len)=0;
     /**
@@ -491,10 +514,15 @@ public:
     // Constructor of the class
     explicit IoTaskOrderer(
             uint64_t drive_smallest_block_size,
+            uint64_t drive_start_block_offset,
+            uint64_t logical_block_size,
             uint64_t max_dirty_segments,
             dss_device_t *device)
-        : translate_meta_to_drive_data(nullptr),
+        : translate_meta_to_drive_addr(nullptr),
+          serialize_drive_data(nullptr),
           drive_smallest_block_size_(drive_smallest_block_size),
+          drive_start_block_offset_(drive_start_block_offset),
+          logical_block_size_(logical_block_size),
           max_dirty_segments_(max_dirty_segments),
           io_device_(device),
           jarr_dirty_meta_(nullptr),
@@ -550,10 +578,20 @@ public:
             uint64_t drive_smallest_block_size,
             uint64_t logical_block_size,
             uint64_t& drive_blk_lba,
-            uint64_t& drive_num_blocks,
+            uint64_t& drive_num_blocks)>
+        translate_meta_to_drive_addr;
+
+    /**
+     * Allocator specific serialization implementation
+     */
+    std::function<dss_blk_allocator_status_t(
+            uint64_t drive_blk_addr,
+            uint64_t drive_num_blocks,
+            uint64_t drive_start_block_offset,
+            uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
-            uint64_t& serialized_len)> 
-        translate_meta_to_drive_data;
+            uint64_t& serialized_len)>
+        serialize_drive_data;
 
 private:
 
@@ -708,6 +746,8 @@ private:
 
     // Class specific variables
     uint64_t drive_smallest_block_size_;
+    uint64_t drive_start_block_offset_;
+    uint64_t logical_block_size_;
     uint64_t max_dirty_segments_;
     dss_device_t *io_device_;
     void *jarr_dirty_meta_;

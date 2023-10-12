@@ -279,6 +279,9 @@ void IoTaskOrderer::merge_dirty_meta(
     // Add the merged dirty meta to judy array is modified
     if (is_jarr_modified) {
         status = jarr_insert_dirty_meta(merged_lba, merged_num_blocks);
+        if (!status) {
+            assert(("ERROR", false));
+        }
     }
 
     return;
@@ -287,9 +290,29 @@ void IoTaskOrderer::merge_dirty_meta(
 dss_blk_allocator_status_t IoTaskOrderer::mark_dirty_meta(
         uint64_t lba, uint64_t num_blocks) {
 
+    dss_blk_allocator_status_t blk_status = BLK_ALLOCATOR_STATUS_ERROR;
+    uint64_t drive_blk_addr = 0;
+    uint64_t drive_num_blocks = 0;
+
+    // We want to de-duplicate the IOs issued to drive
+    // Thus translate meta_lba to bitmap drive lba
+    blk_status = this->translate_meta_to_drive_addr(
+            lba,
+            num_blocks,
+            this->drive_smallest_block_size_,
+            this->logical_block_size_,
+            drive_blk_addr,
+            drive_num_blocks
+            );
+
+    if (blk_status != BLK_ALLOCATOR_STATUS_SUCCESS) {
+        assert(("ERROR", false));
+        //return status;
+    }
+
     // Try to merge, no issue if can not be merged
     // But this needs to be accounted on jarr_dirty_meta_
-    this->merge_dirty_meta(lba, num_blocks);
+    this->merge_dirty_meta(drive_blk_addr, drive_num_blocks);
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
@@ -438,12 +461,12 @@ bool IoTaskOrderer::mark_completed(
 
         // rc can not be anything but 1
         //TODO: Handle
-        // if(rc != 1) {
-        //     std::cout<<"Remove from jarr_io_dev_guard_ failed"<<std::endl;
-        //     // Assert for now
-        //     assert(("ERROR", false));
-        //     // retun false;
-        // }
+        if(rc != 1) {
+             std::cout<<"Remove from jarr_io_dev_guard_ failed"<<std::endl;
+             // Assert for now
+             assert(("ERROR", false));
+             // retun false;
+        }
     }
 
     return true;
@@ -456,11 +479,12 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     uint64_t drive_num_blocks = 0;
     void* serialized_drive_data = nullptr;
     uint64_t serialized_len = 0;
-    uint64_t logical_block_size = 4096;
     // CXX TODO: Remove hack
     // Drive smallest block size needs to be populated from init
     // while reading the super block ? or some library dealing with
     // disk like IO task ?
+    // Same is true for logical_block_size
+    this->logical_block_size_ = 4096;
     this->drive_smallest_block_size_ = 4096;
     dss_blk_allocator_status_t blk_status = BLK_ALLOCATOR_STATUS_ERROR;
     dss_io_task_status_t io_status = DSS_IO_TASK_STATUS_ERROR;
@@ -468,18 +492,20 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     Word_t jarr_index = 0;
     Word_t free_bytes = 0;
     
-    // Get dirty data  and add to io_task
+    // Get dirty serialized data and add to io_task
     ptr_j_entry = (Word_t *)JudyLFirst(
             jarr_dirty_meta_, &jarr_index, PJE0);
 
     while (ptr_j_entry != nullptr) {
-        blk_status = this->translate_meta_to_drive_data(
-                jarr_index,
-                *ptr_j_entry,
-                this->drive_smallest_block_size_,
-                logical_block_size,
+
+        drive_blk_addr = jarr_index;
+        drive_num_blocks = *ptr_j_entry;
+
+        blk_status = this->serialize_drive_data(
                 drive_blk_addr,
                 drive_num_blocks,
+                this->drive_start_block_offset_,
+                this->drive_smallest_block_size_,
                 &serialized_drive_data,
                 serialized_len
                 );
@@ -488,7 +514,6 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
             assert(("ERROR", false));
             //return status;
         }
-
 
         // Add block allocator dirty meta data to the io_task
         if (io_task == nullptr && *this->get_io_device() == nullptr) {

@@ -62,7 +62,7 @@ public:
         // Dummy io task orderer for bitmap constructor
         io_task_orderer_ =
         std::make_shared<BlockAlloc::
-        IoTaskOrderer>(0, 0, nullptr);
+        IoTaskOrderer>(0, 0, 0, 0, nullptr);
 
         // jso is created during block allocator init
         BlockAlloc::JudySeekOptimizerSharedPtr jso =

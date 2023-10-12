@@ -151,13 +151,18 @@ public:
             uint64_t hint_block_index,
             uint64_t num_blocks,
             uint64_t *allocated_start_block) override;
-    dss_blk_allocator_status_t translate_meta_to_drive_data(
+    dss_blk_allocator_status_t translate_meta_to_drive_addr(
             uint64_t meta_lba,
             uint64_t meta_num_blocks,
             uint64_t drive_smallest_block_size,
             uint64_t logical_block_size,
             uint64_t& drive_blk_addr,
-            uint64_t& drive_num_blocks,
+            uint64_t& drive_num_blocks) override;
+    dss_blk_allocator_status_t serialize_drive_data(
+            uint64_t drive_blk_addr,
+            uint64_t drive_num_blocks,
+            uint64_t drive_start_block_offset,
+            uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len) override;
     dss_blk_allocator_status_t print_stats() override;

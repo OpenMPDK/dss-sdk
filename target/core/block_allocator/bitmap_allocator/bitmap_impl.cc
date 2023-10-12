@@ -417,21 +417,65 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
 
-dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
+dss_blk_allocator_status_t QwordVector64Cell::serialize_drive_data(
+        uint64_t drive_blk_addr,
+        uint64_t drive_num_blocks,
+        uint64_t drive_start_block_offset,
+        uint64_t drive_smallest_block_size,
+        void** serialized_drive_data,
+        uint64_t& serialized_len
+        ) {
+
+    void *serial_buf = nullptr;
+    uint64_t total_indices = 0;
+    uint64_t meta_bitmap_pos = 0;
+    uint64_t vector_start_index = 0;
+
+    if (drive_blk_addr < drive_start_block_offset) {
+        assert(("ERROR", false));
+    }
+
+    meta_bitmap_pos = (drive_blk_addr - drive_start_block_offset) *
+        (drive_smallest_block_size * BITS_PER_BYTE);
+    vector_start_index = meta_bitmap_pos / BITS_PER_WORD;
+
+    serialized_len = drive_num_blocks * 
+        (drive_smallest_block_size * BITS_PER_BYTE);
+
+    total_indices = serialized_len / sizeof(uint64_t);
+
+    // 1. Vector start index and total_indices will be used for
+    //    serialization
+
+#ifndef DSS_BUILD_CUNIT_TEST
+    serial_buf = dss_dma_zmalloc(serialized_len, drive_smallest_block_size);
+#else
+    serial_buf = malloc(serialized_len);
+#endif
+    DSS_ASSERT(serial_buf != NULL);
+
+    this->serialize_range(
+            vector_start_index, total_indices,
+            serial_buf, serialized_len);
+
+    *serialized_drive_data = serial_buf;
+
+    if (*serialized_drive_data == nullptr) {
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_addr(
         uint64_t meta_lba,
         uint64_t meta_num_blocks,
         uint64_t drive_smallest_block_size,
         uint64_t logical_block_size,
         uint64_t& drive_blk_lba,
-        uint64_t& drive_num_blocks,
-        void** serialized_drive_data,
-        uint64_t& serialized_len) {
+        uint64_t& drive_num_blocks) {
 
-    // std::cout<<"Qword translate meta"<<std::endl;
-
-    /**
-     * Represents the logical block where bitmap begins
-     */
+    // Represents the logical block where bitmap begins
     uint64_t logical_start_block_offset =
         this->logical_start_block_offset_;
 
@@ -445,7 +489,8 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     uint64_t meta_bitmap_num_blks = 0;
     uint64_t total_indices = 0;
     uint64_t total_indices_mod = 0;
-    void *serial_buf = nullptr;
+    uint64_t meta_lba_read = 0;
+    uint64_t serialized_len = 0;
 
     if (logical_block_size == drive_smallest_block_size) {
 
@@ -461,11 +506,12 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     // 1. Each lba on bitmap is represented by 4 bits
     //    Determine which 64-bit integer index does lba
     //    land on
-    if ((logical_start_block_offset != 0) && (meta_lba < logical_start_block_offset)) {
+    if ((logical_start_block_offset != 0) &&
+            (meta_lba < logical_start_block_offset)) {
         assert(("ERROR", false));
     }
-    meta_lba = meta_lba - logical_start_block_offset;
-    meta_bitmap_pos = bits_per_cell_* meta_lba;
+    meta_lba_read = meta_lba - logical_start_block_offset;
+    meta_bitmap_pos = bits_per_cell_* meta_lba_read;
     vector_start_index = meta_bitmap_pos / BITS_PER_WORD;
     drive_blk_lba = drive_start_block_offset +
             meta_bitmap_pos / 
@@ -509,26 +555,6 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_data(
     if (serialized_len % 
             (drive_smallest_block_size * BITS_PER_BYTE) != 0) {
         drive_num_blocks = drive_num_blocks + 1;
-    }
-
-    // 4. Vector start index and total_indices will be used for
-    //    serialization
-
-#ifndef DSS_BUILD_CUNIT_TEST
-    serial_buf = dss_dma_zmalloc(serialized_len, drive_smallest_block_size);
-#else
-    serial_buf = malloc(serialized_len);
-#endif
-    DSS_ASSERT(serial_buf != NULL);
-
-    this->serialize_range(
-            vector_start_index, total_indices,
-            serial_buf, serialized_len);
-
-    *serialized_drive_data = serial_buf;
-
-    if (*serialized_drive_data == nullptr) {
-        return BLK_ALLOCATOR_STATUS_ERROR;
     }
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
