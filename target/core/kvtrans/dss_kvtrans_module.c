@@ -301,7 +301,14 @@ void dss_kvtrans_net_request_complete(dss_request_t *req, dss_kvtrans_status_t r
         dss_net_setup_nvmf_resp(req, req->status, kreq->req.req_value.length);
         //Send back to net module
         dss_trace_record(TRACE_KVS_PUSH_CPL, 0, 0, 0, (uintptr_t)req);
-        dss_module_post_to_instance(DSS_MODULE_NET, req->module_ctx[DSS_MODULE_NET].module_instance, req);
+
+
+        if(g_list_conf.list_enabled == true) {
+            ((struct dfly_request *)req)->state = DFLY_REQ_IO_LIST_FORWARD;
+            dfly_module_post_request(dss_module_get_subsys_ctx(DSS_MODULE_LIST, req->ss), req);
+        } else {
+            dss_module_post_to_instance(DSS_MODULE_NET, req->module_ctx[DSS_MODULE_NET].module_instance, req);
+        }
 }
 
 void dss_kvtrans_process_internal_io(dss_request_t *req)

@@ -108,6 +108,10 @@ int dfly_list_req_process(void *ctx, struct dfly_request *req)
 	//list_log("dfly_list_req_process req %p io_rc %x pe_cnt_tbd %x, state %x, next_action %x\n",
 	//	 req, io_rc, list_data->pe_cnt_tbd, req->state, req->next_action);
 
+	if(dss_subsystem_kv_mode_enabled((dss_subsystem_t *) req->req_dfly_ss)) {
+		dss_module_post_to_instance(DSS_MODULE_NET, req->common_req.module_ctx[DSS_MODULE_NET].module_instance, req);
+		return DFLY_MODULE_REQUEST_QUEUED;//Request already posted to network module queue
+	}
 	return DFLY_MODULE_REQUEST_PROCESSED;
 }
 
@@ -258,6 +262,10 @@ void *list_get_module_ctx_on_change(struct dfly_request *req)
 	if (m_inst) {
 		req->state = DFLY_REQ_IO_LIST_FORWARD;
 	} else {
+		if(dss_subsystem_kv_mode_enabled((dss_subsystem_t *) req->req_dfly_ss)) {
+			dss_module_post_to_instance(DSS_MODULE_NET, req->common_req.module_ctx[DSS_MODULE_NET].module_instance, req);
+			return NULL;
+		}
 		req->next_action = DFLY_REQ_IO_LIST_DONE;
 		req->state = DFLY_REQ_IO_NVMF_DONE;
 		dfly_handle_request(req);
@@ -360,13 +368,19 @@ struct list_started_cb_event_s {
 } list_cb_event;
 
 void list_module_started_cb(struct dfly_subsystem *pool, void *arg);
+void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/);
+
 void list_module_started_cb(struct dfly_subsystem *pool, void *arg)
 {
     if(g_dragonfly->blk_map){
-        list_init_load_by_blk_iter(pool);
-    }else{
-	    list_init_load_by_iter(pool);
+        list_init_load_by_blk_iter(pool);//Rocksdb loading
+    } else if (dss_subsystem_kv_mode_enabled((dss_subsystem_t *)pool)) {
+        //TODO: load keys from KVTrans
+        list_module_load_done_cb(pool, NULL);//Complete without loading keys
+    } else {
+        list_init_load_by_iter(pool);//KVdrive loading
     }
+    return;
 }
 
 void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)

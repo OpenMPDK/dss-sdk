@@ -69,6 +69,8 @@ dss_request_opc_t dss_nvmf_get_dss_opc(void *req)
             return DSS_NVMF_BLK_IO_OPC_READ;
         case SPDK_NVME_OPC_WRITE:
             return DSS_NVMF_BLK_IO_OPC_WRITE;
+        case SPDK_NVME_OPC_SAMSUNG_KV_LIST_READ:
+            return DSS_NVMF_KV_IO_OPC_LIST_READ;
         default:
             return DSS_NVMF_IO_PT;
     }

@@ -144,6 +144,11 @@ void dss_net_request_process(dss_request_t *req)
                 dss_nvmf_process_as_no_op(req);
                 req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;
             } else if (dss_subsystem_kv_mode_enabled(req->ss)) {
+                if(g_list_conf.list_enabled && req->opc == DSS_NVMF_KV_IO_OPC_LIST_READ) {
+                    req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_SUBMITTED;
+                    dfly_module_post_request(dss_module_get_subsys_ctx(DSS_MODULE_LIST, req->ss), req);
+                    return;
+                }
                 if(req->opc == DSS_NVMF_BLK_IO_OPC_READ) {
                     dss_nvmf_process_as_no_op(req);
                     req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.state = DSS_NET_REQUEST_COMPLETE;

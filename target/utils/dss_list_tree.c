@@ -384,9 +384,10 @@ int dss_hsl_insert(dss_hsl_ctx_t *hctx, const char *key)
 	}
 
 	//Evict if more than limit
-	if(hctx->mem_usage > hctx->mem_limit) {
-		dss_hsl_evict_cache_threshold(hctx);
-	}
+	//Note: Eviction disabled
+//	if(hctx->mem_usage > hctx->mem_limit) {
+//		dss_hsl_evict_cache_threshold(hctx);
+//	}
 
 	while(tok) {
 

@@ -303,8 +303,6 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 				module_initializers[DSS_MODULE_WAL].mod_enabled = false;
 				module_initializers[DSS_MODULE_FUSE].mod_enabled = false;
 				module_initializers[DSS_MODULE_LOCK].mod_enabled = false;
-				// TODO: Listing from memory support
-				module_initializers[DSS_MODULE_LIST].mod_enabled = false;
 			}
 			else
 			{
