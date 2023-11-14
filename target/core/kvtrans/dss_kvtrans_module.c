@@ -54,9 +54,12 @@ void set_default_kvtrans_params(kvtrans_params_t *params) {
     params->hash_type = spooky;
     params->blk_alloc_name = DEFAULT_BLK_ALLOC_NAME;
     params->meta_blk_num = DEFAULT_META_NUM;
-    params->total_blk_num = BLK_NUM;
+    params->logi_blk_num = BLK_NUM;
     params->hash_size = 32;
     params->dev = NULL;
+    params->blk_offset = 1;
+    params->state_num = DEFAULT_BLOCK_STATE_NUM;
+    params->logi_blk_size = BLOCK_SIZE;
 
     return;
 }
@@ -359,10 +362,10 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 // Procure total number of usable blocks
                 usable_start_block = super_block->logi_usable_blk_start_addr;
                 usable_end_block = super_block->logi_usable_blk_end_addr;
-                params.total_blk_num =
+                params.logi_blk_num =
                     usable_end_block - usable_start_block + 1;
                 // Procure logical start addr or the offset
-                params.logi_blk_start_addr = usable_start_block;
+                params.blk_offset = usable_start_block;
 
                 //TODO: init path if not loading from superblock
                 //TODO: Setup device specific kvtrans params

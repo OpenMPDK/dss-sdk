@@ -273,16 +273,15 @@ typedef struct kvtrans_params_s {
     enum hash_type_e hash_type;
     uint16_t hash_size;
     uint64_t meta_blk_num;
-    uint64_t total_blk_num;
-    uint64_t logi_blk_size;
-    uint64_t num_block_states;
-    uint64_t logi_blk_start_addr;
+    uint64_t logi_blk_num;
     dss_device_t *dev;
     dss_io_task_module_t *iotm;
 
     // The allocatable block number offset
     // excluding superblock and bitmap meta
     uint64_t blk_offset;
+    uint64_t logi_blk_size;
+    uint8_t state_num;
 } kvtrans_params_t;
 
 /**
@@ -408,6 +407,12 @@ typedef struct kvtrans_ctx_s {
     bool is_ba_meta_sync_enabled;
 
     uint64_t blk_offset;
+
+    uint64_t blk_size;
+
+    uint8_t state_num;
+
+    uint64_t blk_num;
 
     dstat_t stat;
 } kvtrans_ctx_t;

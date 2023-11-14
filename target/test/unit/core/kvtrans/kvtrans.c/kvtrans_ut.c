@@ -133,11 +133,14 @@ void init_params(kvtrans_params_t *params) {
     params->name = "kvtrans_ut";
     params->hash_type = spooky;
     params->hash_size = 0;
-    params->total_blk_num = BLK_NUM;
+    params->logi_blk_num = BLK_NUM;
     params->meta_blk_num = KEY_NUM;
     params->blk_alloc_name = "block_impresario";
     params->dev = DEFAULT_DEV;
     params->iotm = DEFAULT_IOTM;
+    params->blk_offset = 1;
+    params->logi_blk_size = 4096;
+    params->state_num = 7;
 }
 
 void init_test_ctx() {

@@ -483,7 +483,7 @@ dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx,
         if (g_disk_as_data_store == true) {
             DSS_DEBUGLOG(DSS_KVTRANS, "Key [%s] LBA [%x] nBlks [%x] value [%p] offset [%x] blk_sz [%d] io_index [%d]\n", \
                             kreq->req.req_key.key, blk->place_value[i].value_index, blk->place_value[i].num_chunks, \
-                            kreq->req.req_value.value, offset, BLOCK_SIZE,  i);
+                            kreq->req.req_value.value, offset, kreq->kvtrans_ctx->blk_size,  i);
             iot_rc = dss_io_task_add_blk_read(kreq->io_tasks, \
                                         kvtrans_ctx->target_dev, \
                                         blk->place_value[i].value_index, \
@@ -502,7 +502,7 @@ dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx,
                     break;
             }
             rc = KVTRANS_STATUS_SUCCESS;
-        offset += blk->place_value[i].num_chunks * BLOCK_SIZE;
+        offset += blk->place_value[i].num_chunks * kreq->kvtrans_ctx->blk_size;
     }
 #ifndef DSS_BUILD_CUNIT_TEST
     if(submit_for_disk_io == true) {
@@ -526,10 +526,10 @@ dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx,
         index = blk->place_value[i].value_index;
         blk_num = blk->place_value[i].num_chunks;
         if(dss_io_task_add_blk_read(kreq->io_tasks, kvtrans_ctx->target_dev,
-            index, blk_num, kreq->req->req_value.value, blk_num*BLOCK_SIZE, offset, false)) {
+            index, blk_num, kreq->req->req_value.value, blk_num * kreq->kvtrans_ctx->blk_size, offset, false)) {
                 return KVTRANS_STATUS_ERROR;
             }
-        offset += blk_num*BLOCK_SIZE;
+        offset += blk_num * kreq->kvtrans_ctx->blk_size;
     }
     kreq->req->req_value.length = offset;
     kreq->req->req_value.offset = 0;
@@ -547,7 +547,6 @@ dss_kvtrans_queue_write_ondisk_blk(blk_ctx_t *blk_ctx,
 {
     dss_io_task_status_t iot_rc;
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
-    // void *dma_buff = spdk_dma_malloc(sizeof(blk_ctx->blk), BLOCK_SIZE, NULL);
     iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, 
                                     kvtrans_ctx->target_dev,
                                     blk_ctx->index,
@@ -656,7 +655,7 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
             if (g_disk_as_data_store == true) {
                 DSS_DEBUGLOG(DSS_KVTRANS, "Key [%s] LBA [%x] nBlks [%x] value [%p] offset [%x] blk_sz [%d] io_index [%d]\n", \
                             kreq->req.req_key.key, blk->place_value[i].value_index, blk->place_value[i].num_chunks, \
-                            kreq->req.req_value.value, offset, BLOCK_SIZE,  i);
+                            kreq->req.req_value.value, offset, kreq->kvtrans_ctx->blk_size,  i);
                 iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, \
                                         kreq->kvtrans_ctx->target_dev, \
                                         blk->place_value[i].value_index, \
@@ -674,7 +673,7 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
                        rc = KVTRANS_STATUS_IO_ERROR;
                 }
             rc = KVTRANS_STATUS_SUCCESS;
-            offset += blk_ctx->blk->place_value[i].num_chunks * BLOCK_SIZE;
+            offset += blk_ctx->blk->place_value[i].num_chunks * kreq->kvtrans_ctx->blk_size;
         }
     }
 #ifndef DSS_BUILD_CUNIT_TEST
@@ -771,7 +770,7 @@ static void kv_assign_block(uint64_t *index, kvtrans_ctx_t *ctx) {
     blk_offset = ctx->blk_offset;
     
     // avoid allocating index less than blk_offset
-    *index = ((*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - blk_offset)) + blk_offset;
+    *index = ((*index >> bit_shift) % (ctx->kvtrans_params.logi_blk_num - blk_offset)) + blk_offset;
 }
 
 hash_fn_ctx_t *init_hash_fn_ctx(kvtrans_params_t *params) 
@@ -856,8 +855,11 @@ kvtrans_params_t set_default_params() {
     params.name = "dss_kvtrans";
     params.thread_num = 1;
     params.meta_blk_num = 1024;
-    params.total_blk_num = BLK_NUM;
+    params.logi_blk_num = BLK_NUM;
     params.blk_alloc_name = "simbmap_allocator";
+    params.blk_offset = 1;
+    params.logi_blk_size = BLOCK_SIZE;
+    params.state_num = DEFAULT_BLOCK_STATE_NUM;
     return params;    
 }
 
@@ -870,9 +872,9 @@ void dss_kvtrans_blk_ctx_ctor(void *ctx, void *item)
 
     //TODO: BLOCK_SIZE and BLK_ALIGN should be replaced from kvtrans ctx
 #ifndef DSS_BUILD_CUNIT_TEST
-    blk_ctx->blk = (ondisk_meta_t *)spdk_dma_zmalloc(BLOCK_SIZE, BLK_ALIGN, NULL);
+    blk_ctx->blk = (ondisk_meta_t *)spdk_dma_zmalloc(kvt_ctx->blk_size, BLK_ALIGN, NULL);
 #else
-    blk_ctx->blk = (ondisk_meta_t *) calloc(1, BLOCK_SIZE);
+    blk_ctx->blk = (ondisk_meta_t *) calloc(1, kvt_ctx->blk_size);
 #endif
 
     return;
@@ -912,11 +914,17 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         ctx->kvtrans_params = *params;
         ctx->target_dev = params->dev;
         ctx->kvt_iotm = params->iotm;
+        ctx->blk_size = params->logi_blk_size;
+        ctx->blk_offset = params->blk_offset;
+        ctx->state_num = params->state_num;
+        DSS_ASSERT(ctx->state_num>0);
+        ctx->blk_num = params->logi_blk_num;
     } else {
         ctx->kvtrans_params = set_default_params();
     }
 
     ctx->is_ba_meta_sync_enabled = g_ba_enable_meta_sync;
+
 
     dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
     //dss_blk_allocator_set_default_config(NULL, &config);
@@ -926,9 +934,9 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
     //TODO: Check for valid block alloc name and set
     config.blk_allocator_type = ctx->kvtrans_params.blk_alloc_name;
-    config.num_total_blocks = ctx->kvtrans_params.total_blk_num;
+    config.num_total_blocks = ctx->kvtrans_params.logi_blk_num;
     // exclude empty state
-    config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
+    config.num_block_states = ctx->state_num - 1;
 
     config.enable_ba_meta_sync = ctx->is_ba_meta_sync_enabled;
 
@@ -939,9 +947,9 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
          goto failure_handle;
     }
 
-    ctx->blk_offset = 1;
-    if (ctx->is_ba_meta_sync_enabled) {
-        ctx->blk_offset = dss_blk_allocator_get_physical_size(&config) / BLOCK_SIZE + 1;
+    // calcualte block offset if it's not specified in params
+    if (ctx->is_ba_meta_sync_enabled && ctx->blk_offset<=1) {
+        ctx->blk_offset = dss_blk_allocator_get_physical_size(&config) / ctx->blk_size + 1;
     }
 
     if(dss_kvtrans_set_blks_state(ctx, NULL, 0, ctx->blk_offset, DATA)) {
@@ -981,7 +989,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
 
 #ifdef MEM_BACKEND
-    init_mem_backend(ctx, ctx->kvtrans_params.meta_blk_num, ctx->kvtrans_params.total_blk_num);
+    init_mem_backend(ctx, ctx->kvtrans_params.meta_blk_num, ctx->kvtrans_params.logi_blk_num);
     if ((!g_disk_as_meta_store && !ctx->meta_ctx) || (!g_disk_as_data_store && !ctx->data_ctx)) {
         printf("ERROR: mem_backend init failed\n");
         goto failure_handle;
@@ -1216,7 +1224,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     // ensure index is within [1, blk_alloc_opts.num_total_blocks - 1]
     ctx->kv_assign_block(&blk_ctx->index, ctx);
 
-    DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
+    DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<ctx->blk_num);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
     DSS_DEBUGLOG(DSS_KVTRANS, "Allocate block at index [%u] with state [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, req->req_key.key);
@@ -1237,7 +1245,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
         blk_ctx->kctx.dc_index = blk_ctx->index;
         rc = dss_kvtrans_dc_table_lookup(ctx, blk_ctx->kctx.dc_index, &blk_ctx->index);
         DSS_ASSERT(rc==KVTRANS_STATUS_SUCCESS);
-        DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
+        DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<ctx->blk_num);
         blk_ctx->state = META_DATA_COLLISION;
         // continue to load ondisk blk
     case META:
@@ -1289,8 +1297,7 @@ blk_ctx_t *_get_next_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx) {
     return col_blk_ctx;
 }
 
-uint64_t _get_num_blocks_required_for_value(req_t *req) {
-    uint64_t block_size = BLOCK_SIZE;
+uint64_t _get_num_blocks_required_for_value(req_t *req, uint64_t block_size) {
     if (req->req_value.length < MAX_INLINE_VALUE) {
         return 0;
     }
@@ -1309,7 +1316,7 @@ find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
     rc = dss_kvtrans_alloc_contig(ctx, blk_ctx->kreq, DATA, 
         blk_ctx->index+1, num_blocks, &allocated_start_block);
     if(rc == KVTRANS_STATUS_SUCCESS) {
-        DSS_ASSERT(allocated_start_block>0 && allocated_start_block<BLK_NUM);
+        DSS_ASSERT(allocated_start_block>0 && allocated_start_block<ctx->blk_num);
         blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
         blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
 
@@ -1479,7 +1486,7 @@ dss_kvtrans_status_t _blk_update_value(void *ctx) {
         return rc;
     }
 
-    blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+    blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req, kreq->kvtrans_ctx->blk_size);
     blk_ctx->vctx.iscontig = false;
     blk_ctx->vctx.remote_val_blocks = 0;
 
@@ -1521,7 +1528,7 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx)
 
     if (!blk_ctx->nothash) {
         // META blk is located by hashing. We need to alloc value blocks seperately.
-        blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+        blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req, kvtrans_ctx->blk_size);
         // TODO: change allocated_start_lba to NULL
         rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, state, 
                 blk_ctx->index, 1, &allocated_start_lba);
@@ -1591,7 +1598,7 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
     DSS_ASSERT(col_blk);
 
     memset(&col_blk->vctx, 0, sizeof(blk_val_ctx_t));
-    col_blk->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+    col_blk->vctx.value_blocks = _get_num_blocks_required_for_value(req, kvtrans_ctx->blk_size);
     rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, DATA, blk_ctx->index + 1,
         col_blk->vctx.value_blocks + 1, &col_blk->index);
 
@@ -1763,7 +1770,7 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
             blk->data_collision_index = blk_ctx->kctx.dc_index;
         }
                     
-        blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
+        blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req, kreq->kvtrans_ctx->blk_size);
         
         rc = _blk_init_value((void *)blk_ctx);
         if (rc) return rc;
