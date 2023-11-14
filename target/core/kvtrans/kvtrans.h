@@ -276,6 +276,10 @@ typedef struct kvtrans_params_s {
     uint64_t total_blk_num;
     dss_device_t *dev;
     dss_io_task_module_t *iotm;
+
+    // The allocatable block number offset
+    // excluding superblock and bitmap meta
+    uint64_t blk_offset;
 } kvtrans_params_t;
 
 /**
@@ -399,6 +403,8 @@ typedef struct kvtrans_ctx_s {
 #endif
 
     bool is_ba_meta_sync_enabled;
+
+    uint64_t blk_offset;
 
     dstat_t stat;
 } kvtrans_ctx_t;

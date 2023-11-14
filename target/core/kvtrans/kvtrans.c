@@ -184,6 +184,32 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
 }
 
 dss_kvtrans_status_t 
+dss_kvtrans_set_blks_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index,
+                            uint64_t blk_num, blk_state_t state)
+{
+    dss_blk_allocator_status_t rc;
+    uint64_t offset; 
+
+    if (state==EMPTY || blk_num==1) {
+       return dss_kvtrans_set_blk_state(ctx, blk_ctx, index, blk_num, state);
+    } else {
+        for (offset=0; offset<blk_num; offset++) {
+            rc = dss_blk_allocator_set_blocks_state(ctx->blk_alloc_ctx, index + offset, 1, state);
+            if (rc) {
+                // TODO: error handling
+                DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]",
+                            blk_num, index, blk_ctx->state, state);
+
+                return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
+            }
+        }
+    }
+
+    if(blk_ctx) blk_ctx->kreq->ba_meta_updated = true;
+    return KVTRANS_STATUS_SUCCESS;
+}
+
+dss_kvtrans_status_t 
 dss_kvtrans_get_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx)
 {
     dss_blk_allocator_status_t rc;
@@ -736,11 +762,16 @@ uint32_t dec_2_bit(uint32_t dec_num) {
 /* make sure index is less than the number of blocks */
 static void kv_assign_block(uint64_t *index, kvtrans_ctx_t *ctx) {
     uint16_t bit_shift;
+    uint64_t blk_offset;
 
+    // calculate the useless bit number
     bit_shift = ctx->hash_fn_ctx->hash_size - ctx->hash_bit_in_use;
+
+    // the index of first allocable blk
+    blk_offset = ctx->blk_offset;
     
-    // avoid index 0
-    *index = ((*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - 1)) + 1;
+    // avoid allocating index less than blk_offset
+    *index = ((*index >> bit_shift) % (ctx->kvtrans_params.total_blk_num - blk_offset)) + blk_offset;
 }
 
 hash_fn_ctx_t *init_hash_fn_ctx(kvtrans_params_t *params) 
@@ -907,7 +938,13 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         printf("ERROR: blk_allocator init failed\n");
          goto failure_handle;
     }
-    if(dss_kvtrans_set_blk_state(ctx, NULL, 0, 1, META)) {
+
+    ctx->blk_offset = 1;
+    if (ctx->is_ba_meta_sync_enabled) {
+        ctx->blk_offset = dss_blk_allocator_get_physical_size(&config) / BLOCK_SIZE + 1;
+    }
+
+    if(dss_kvtrans_set_blks_state(ctx, NULL, 0, ctx->blk_offset, DATA)) {
         // index 0 is regared as invalid index
         printf("ERROR: set index 0 to meta failed\n");
         goto failure_handle;
@@ -1182,6 +1219,8 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<BLK_NUM);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
+    DSS_DEBUGLOG(DSS_KVTRANS, "Allocate block at index [%u] with state [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, req->req_key.key);
+
     switch (blk_ctx->state) {
     case EMPTY:
         // no need to load blk
@@ -1241,7 +1280,7 @@ blk_ctx_t *_get_next_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx) {
     dss_kvtrans_status_t rc;
     blk_ctx_t *col_blk_ctx = TAILQ_NEXT(blk_ctx, blk_link);
     if (col_blk_ctx == NULL) {
-        DSS_DEBUGLOG(DSS_KVTRANS, "allocating blk_ctx for kreq %p\n", blk_ctx->kreq);
+        DSS_DEBUGLOG(DSS_KVTRANS, "allocating blk_ctx for kreq [%p]\n", blk_ctx->kreq);
         rc = dss_kvtrans_get_free_blk_ctx(ctx, &col_blk_ctx);
         blk_ctx->kreq->num_meta_blk++;
         if (rc) return NULL;
@@ -1478,6 +1517,8 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx)
         state = META;
     }
     
+    DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, state, req->req_key.key);
+
     if (!blk_ctx->nothash) {
         // META blk is located by hashing. We need to alloc value blocks seperately.
         blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req);
@@ -1615,6 +1656,7 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
     req_t *req = &kreq->req;
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
     uint64_t col_index;
+    blk_state_t state;
 
     DSS_ASSERT(blk->isvalid && blk->num_valid_col_entry==0);
 
@@ -1631,17 +1673,21 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
 
             if (blk_ctx->kctx.dc_index > 0) {
                 // no need to set state to META_DATA_COLLISION
+                state = META_DATA_COLLISION;
                 DSS_ASSERT(blk_ctx->state==META_DATA_COLLISION);
                 blk->collision_tbl[0].state = DATA_COL_ENTRY;
                 blk->num_valid_dc_col_entry++;
             } else {
                 if (blk_ctx->state==META) {
-                    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, blk_ctx->index, 1, COLLISION);
+                    state = COLLISION;
+                    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, blk_ctx->index, 1, state);
                     if (rc) return rc;
                     kvtrans_ctx->stat.meta--;
                     kvtrans_ctx->stat.mc++;
                 }
             }
+
+            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, state, req->req_key.key);
             // update meta blk only
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
@@ -1739,6 +1785,9 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
         if (first_empty_index==-1) {
             DSS_ASSERT(blk->collision_extension_index == 0);
             blk->collision_extension_index = col_index;
+
+            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, COLLISION_EXTENSION, req->req_key.key);
+
             rc = dss_kvtrans_set_blk_state(kreq->kvtrans_ctx, blk_ctx, col_index, 1, COLLISION_EXTENSION);
             kreq->kvtrans_ctx->stat.ce ++;
             if (rc) return rc;
@@ -2065,7 +2114,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     dss_blk_allocator_status_t ba_rc;
 
     do {
-        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d]\n", kreq, prev_state, kreq->state);
+        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d] for key [%s]\n", kreq, prev_state, kreq->state, req->req_key.key);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
@@ -2344,7 +2393,7 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
     enum kvtrans_req_e prev_state = -1;
 
     do {
-        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d]\n", kreq, prev_state, kreq->state);
+        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d] for key [%s]\n", kreq, prev_state, kreq->state, req->req_key.key);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
