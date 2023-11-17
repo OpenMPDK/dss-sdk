@@ -34,6 +34,8 @@
 #include "dragonfly.h"
 #include "dss_kvtrans_module.h"
 #include "dss_spdk_wrapper.h"
+#include "apis/dss_superblock_apis.h"
+#include "dss_block_allocator.h"
 
 #define TRACE_KVS_GET_NEW            SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x1)
 #define TRACE_KVS_PUSH_CPL           SPDK_TPOINT_ID(TRACE_GROUP_DSS_KVTRANS, 0x2)
@@ -316,31 +318,156 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
     kvtrans_params_t params;
     dss_kvt_init_ctx_t *kv_init_ctx = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt_init;
     dss_kvt_state_t prev_state;
-
+    dss_super_block_t *super_block = NULL;
+    dss_io_task_status_t iot_rc = DSS_IO_TASK_STATUS_ERROR;
+    dss_blk_allocator_context_t *blk_alloc_ctx = NULL;
+    uint64_t usable_start_block = 0;
+    uint64_t usable_end_block = 0;
 
     DSS_ASSERT(req->opc == DSS_INTERNAL_IO);
     do {
         prev_state = kv_init_ctx->state;
         switch(kv_init_ctx->state) {
             case DSS_KVT_LOADING_SUPERBLOCK:
+                // Initialize BA-Meta specific variables
+                kv_init_ctx->ba_meta_start_block = 0;
+                kv_init_ctx->ba_meta_end_block = 0;
+                kv_init_ctx->ba_meta_size = 0;
+                kv_init_ctx->ba_meta_num_blks = 0;
+                kv_init_ctx->ba_disk_read_it = 0;
+                kv_init_ctx->ba_disk_read_total_it = 0;
+                kv_init_ctx->ba_meta_num_blks_per_iter = 0;
+                kv_init_ctx->logical_block_size = 0;
+                kv_init_ctx->ba_meta_start_block_per_iter = 0;
+
                 set_default_kvtrans_params(&params);
                 params.dev = kv_init_ctx->dev;
                 DSS_ASSERT(params.dev != NULL);
                 params.iotm = kv_init_ctx->iotm;
                 DSS_ASSERT(params.iotm != NULL);
                 //TODO: Process super block
+                super_block = (dss_super_block_t *)kv_init_ctx->data;
+                printf("phy_sz : %d\n",super_block->phy_blk_size_in_bytes);
+                kv_init_ctx->logical_block_size =
+                    super_block->logi_blk_size_in_bytes;
+                /* TODO!: Super block provides physical addresses and we
+                          need logical block address.
+                   This translation is done temporarily here and needs to be
+                   refactored
+                */
+                params.logi_blk_size = super_block->logi_blk_size_in_bytes;
+                // Procure total number of usable blocks
+                usable_start_block = super_block->logi_usable_blk_start_addr;
+                usable_end_block = super_block->logi_usable_blk_end_addr;
+                params.total_blk_num =
+                    usable_end_block - usable_start_block + 1;
+                // Procure logical start addr or the offset
+                params.logi_blk_start_addr = usable_start_block;
+
                 //TODO: init path if not loading from superblock
                 //TODO: Setup device specific kvtrans params
                 DSS_ASSERT(*kv_init_ctx->kvt_ctx == NULL);
                 DSS_NOTICELOG("Read kv trans superblock from device %p\n", params.dev);
                 *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
-                dss_module_dec_async_pending_task(req->module_ctx[DSS_MODULE_KVTRANS].module);//TODO: This need to be moved to after all loading is completed
-                //TODO: Continue to load block allocator meta
-                kv_init_ctx->state = DSS_KVT_INITIALIZED;
+
+                // Figure out the first and last logical block to read from
+                kv_init_ctx->ba_meta_start_block =
+                    super_block->logi_blk_alloc_meta_start_blk;
+                kv_init_ctx->ba_meta_end_block =
+                    super_block->logi_blk_alloc_meta_end_blk;
+                kv_init_ctx->ba_meta_num_blks =
+                    kv_init_ctx->ba_meta_end_block -
+                    kv_init_ctx->ba_meta_start_block + 1;
+                kv_init_ctx->ba_meta_size =
+                    kv_init_ctx->ba_meta_num_blks *
+                    super_block->logi_blk_size_in_bytes;
+                // BA meta read multiple times instead in a single shot
+                kv_init_ctx->ba_disk_read_total_it =
+                    kv_init_ctx->ba_meta_size / BA_META_DISK_READ_SZ_MB;
+                kv_init_ctx->ba_meta_num_blks_per_iter =
+                    BA_META_DISK_READ_SZ_MB /
+                    kv_init_ctx->logical_block_size;
+
+                spdk_dma_free(kv_init_ctx->data);
+                // Free and assign memory appropriately
+                kv_init_ctx->data =
+                    spdk_dma_zmalloc(BA_META_DISK_READ_SZ_MB, 4096, NULL);
+                DSS_ASSERT(kv_init_ctx->data != NULL);
+                kv_init_ctx->data_len = BA_META_DISK_READ_SZ_MB;
+                // Reset current IO task, since super block has been read
+                iot_rc = dss_io_task_reset_ops(req->io_task);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                DSS_ASSERT(req->io_task != NULL);
+                DSS_ASSERT(kv_init_ctx->data_len >=
+                        dss_io_dev_get_user_blk_sz(kv_init_ctx->dev)
+                            * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
+                // Complete reading super-block
+                kv_init_ctx->state = DSS_KVT_LOAD_SUPERBLOCK_COMPLETE;
+                break;
+            case DSS_KVT_LOAD_SUPERBLOCK_COMPLETE:
+                // Issue read IO operation for block allocator meta-block
+                //kv_init_ctx->state = DSS_KVT_LOADING_BA_META;
+                iot_rc = dss_io_task_add_blk_read(
+                        req->io_task,
+                        kv_init_ctx->dev,
+                        kv_init_ctx->ba_meta_start_block,
+                        kv_init_ctx->ba_meta_num_blks_per_iter, 
+                        kv_init_ctx->data,
+                        NULL);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                iot_rc = dss_io_task_submit(req->io_task);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                kv_init_ctx->ba_meta_start_block_per_iter =
+                    kv_init_ctx->ba_meta_start_block +
+                    kv_init_ctx->ba_meta_num_blks_per_iter;
                 break;
             case DSS_KVT_LOADING_BA_META:
-                DSS_ASSERT(0);
-                //TODO: Add state and continue to load dc table
+                kv_init_ctx->ba_disk_read_it++;
+                // Read into BA thru
+                // dss_blk_allocator_load_meta_from_disk_data
+                blk_alloc_ctx = (*kv_init_ctx->kvt_ctx)->blk_alloc_ctx;
+                DSS_ASSERT(blk_alloc_ctx != NULL);
+                dss_blk_allocator_load_meta_from_disk_data(
+                        blk_alloc_ctx,
+                        kv_init_ctx->data,
+                        BA_META_DISK_READ_SZ_MB,
+                        kv_init_ctx->ba_disk_read_it * BA_META_DISK_READ_SZ_MB);
+                if (kv_init_ctx->ba_disk_read_it == 
+                        kv_init_ctx->ba_disk_read_total_it + 1) {
+                    // Initialize reading DC hash table, proceed to next
+                    // phase
+                    kv_init_ctx->state = DSS_KVT_LOADING_DC_HT;
+                    break;
+                }
+                // Reset current IO task, since super block has been read
+                iot_rc = dss_io_task_reset_ops(req->io_task);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                DSS_ASSERT(req->io_task != NULL);
+                DSS_ASSERT(kv_init_ctx->data_len >=
+                        dss_io_dev_get_user_blk_sz(kv_init_ctx->dev)
+                            * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
+                // Issue read IO operation for block allocator meta-block
+                //kv_init_ctx->state = DSS_KVT_LOADING_BA_META;
+                iot_rc = dss_io_task_add_blk_read(
+                        req->io_task,
+                        kv_init_ctx->dev,
+                        kv_init_ctx->ba_meta_start_block_per_iter,
+                        kv_init_ctx->ba_meta_num_blks_per_iter, 
+                        kv_init_ctx->data,
+                        NULL);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                iot_rc = dss_io_task_submit(req->io_task);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                kv_init_ctx->ba_meta_start_block_per_iter =
+                    kv_init_ctx->ba_meta_start_block_per_iter +
+                    kv_init_ctx->ba_meta_num_blks_per_iter;
+                break;
+            case DSS_KVT_LOADING_DC_HT:
+                // TODO
+                dss_module_dec_async_pending_task(
+                        req->module_ctx[DSS_MODULE_KVTRANS].module);
+                kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                //DSS_ASSERT(0);
                 break;
             case DSS_KVT_INITIALIZED:
                 dss_kvtrans_free_init_request(req);
@@ -361,6 +488,20 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
     dss_kvtrans_status_t rc;
 
     if(dss_unlikely(req->opc == DSS_INTERNAL_IO)) {
+
+        //Exclusive handling of DSS_KVT_LOADING_BA_META state
+        dss_kvt_init_ctx_t *kv_init_ctx =
+            &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt_init;
+        if (kv_init_ctx->state == DSS_KVT_LOAD_SUPERBLOCK_COMPLETE) {
+            /* There will be only 1 since IO issue with the same state
+             * indicating that the super block has been loaded.
+             * When The IO is completed, its payload will contain the
+             * first chunk of BA meta-data, thus we switch the state
+             * here
+             */
+            kv_init_ctx->state = DSS_KVT_LOADING_BA_META;
+        }
+
         dss_kvtrans_process_internal_io(req);
         return DFLY_MODULE_REQUEST_QUEUED;
     }

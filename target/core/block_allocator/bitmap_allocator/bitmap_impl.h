@@ -165,6 +165,11 @@ public:
             uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len) override;
+    dss_blk_allocator_status_t load_meta_from_disk_data(
+            uint8_t *serialized_data,
+            uint64_t serialized_data_len,
+            uint64_t byte_offset
+            ) override;
     dss_blk_allocator_status_t print_stats() override;
 
 private:

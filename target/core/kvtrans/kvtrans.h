@@ -274,6 +274,9 @@ typedef struct kvtrans_params_s {
     uint16_t hash_size;
     uint64_t meta_blk_num;
     uint64_t total_blk_num;
+    uint64_t logi_blk_size;
+    uint64_t num_block_states;
+    uint64_t logi_blk_start_addr;
     dss_device_t *dev;
     dss_io_task_module_t *iotm;
 

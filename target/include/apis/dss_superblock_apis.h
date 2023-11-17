@@ -49,12 +49,12 @@ extern "C" {
 typedef struct __attribute__((__packed__)) dss_super_block_s {
     uint32_t phy_blk_size_in_bytes; //4
     uint32_t logi_blk_size_in_bytes; //4
-    uint64_t phy_usable_blk_start_addr; //8
-    uint64_t phy_usable_blk_end_addr; //8
-    uint64_t phy_blk_alloc_meta_start_blk; //8
-    uint64_t phy_blk_alloc_meta_end_blk; //8
+    uint64_t logi_usable_blk_start_addr; //8
+    uint64_t logi_usable_blk_end_addr; //8
+    uint64_t logi_blk_alloc_meta_start_blk; //8
+    uint64_t logi_blk_alloc_meta_end_blk; //8
     uint16_t is_blk_alloc_meta_load_needed; //2
-    uint64_t phy_super_blk_start_addr; //8
+    uint64_t logi_super_blk_start_addr; //8
     // padding to fill a 4K range
     char resv[4046];
 } dss_super_block_t;

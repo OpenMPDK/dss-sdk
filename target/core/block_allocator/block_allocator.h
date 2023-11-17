@@ -498,6 +498,21 @@ public:
             uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len)=0;
+
+    /**
+     * @brief Load block allocator meta-data from disk iteratively
+     *
+     * @param ctx block allocator context
+     * @param serialized_data, serial data read from bdev
+     * @param serialized_data_len, length of serial data
+     * @param byte_offset, offset in bytes from beginning of meta-data
+     *                     (this may also be used as a hint)
+     */
+    virtual dss_blk_allocator_status_t load_meta_from_disk_data(
+            uint8_t *serialized_data,
+            uint64_t serialized_data_len,
+            uint64_t byte_offset
+            )=0;
     /**
      * @brief print block allocator stats to standard out
      */
@@ -788,7 +803,7 @@ public:
             dss_blk_allocator_opts_t *opts);
 
     /**
-     * @brief load data from disk
+     * @brief load block allocator options from disk
      *
      */
     dss_blk_allocator_status_t load_opts_from_disk_data(
@@ -825,7 +840,6 @@ public:
     dss_blk_allocator_status_t queue_sync_meta_io_tasks(
             dss_blk_allocator_context_t *ctx,
             dss_io_task_t *io_task);
-
 
     /**
      * @brief - Get IO tasks to be submitted that can be scheduled to IO

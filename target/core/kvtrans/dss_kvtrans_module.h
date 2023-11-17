@@ -38,6 +38,11 @@
 extern "C" {
 #endif
 
+#define BA_META_DISK_READ_SZ_MB 2097152 // Read disk size for block allocator
+                                        // meta-data default set to 2 MB.
+                                        // Value represented in bytes, and
+                                        // aligned to 4096.
+
 #include "dragonfly.h"
 #include "kvtrans.h"
 

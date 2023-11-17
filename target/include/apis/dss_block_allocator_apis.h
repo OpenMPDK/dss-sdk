@@ -128,6 +128,17 @@ void dss_blk_allocator_destroy(dss_blk_allocator_context_t *ctx);
  */
 dss_blk_allocator_status_t dss_blk_allocator_load_opts_from_disk_data(uint8_t *serialized_data, uint64_t serialized_data_len, dss_blk_allocator_opts_t *opts);
 
+/**
+ * @brief Update the block allocator meta from serialized data read from disk
+ *
+ * @param serialized_data Data buffer read from the disk containing block allocator options
+ * @param serialized_data_len length of valid serialized data
+ * @param byte_offset offset in bytes of the serialized data beginning from the start of the meta-data
+ * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
+ */
+dss_blk_allocator_status_t dss_blk_allocator_load_meta_from_disk_data(
+        dss_blk_allocator_context_t* ctx, uint8_t *serialized_data, uint64_t serialized_data_len, uint64_t byte_offset);
+
 //In-Memory APIs
 
 /**

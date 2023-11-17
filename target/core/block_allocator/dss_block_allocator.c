@@ -91,6 +91,7 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
     DSS_ASSERT(m->disk.blk_alloc_get_physical_size);
     DSS_ASSERT(m->disk.blk_alloc_queue_sync_meta_io_tasks);
     //Optional to implement: DSS_ASSERT(m->disk.blk_alloc_get_next_submit_meta_io_tasks);
+    //Optional to implement: DSS_ASSERT(m->disk.blk_alloc_load_meta_from_disk_data);
     DSS_ASSERT(m->disk.blk_alloc_complete_meta_sync);
 
     TAILQ_INSERT_TAIL(&g_blk_alloc_mgr.blk_alloc_modules, m, module_list_link);
@@ -188,7 +189,19 @@ void dss_blk_allocator_destroy(dss_blk_allocator_context_t *ctx)
 
 dss_blk_allocator_status_t dss_blk_allocator_load_opts_from_disk_data(uint8_t *serialized_data, uint64_t serialized_data_len, dss_blk_allocator_opts_t *opts)
 {
+
     return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
+dss_blk_allocator_status_t dss_blk_allocator_load_meta_from_disk_data(
+        dss_blk_allocator_context_t *ctx,
+        uint8_t *serialized_data,
+        uint64_t serialized_data_len,
+        uint64_t byte_offset) {
+
+    DSS_ASSERT(ctx->m->disk.blk_alloc_load_meta_from_disk_data);
+    return ctx->m->disk.blk_alloc_load_meta_from_disk_data(
+            ctx, serialized_data, serialized_data_len, byte_offset);
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_is_block_free(dss_blk_allocator_context_t* ctx, uint64_t block_index, bool *is_free)

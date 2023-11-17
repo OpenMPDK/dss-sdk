@@ -560,6 +560,27 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_addr(
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
 
+dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
+        uint8_t *serialized_data,
+        uint64_t serialized_data_len,
+        uint64_t byte_offset
+        ) {
+
+    // byte_offset indicates the word alignment
+    uint64_t begin_word = byte_offset / BITS_PER_WORD;
+    uint64_t num_words = serialized_data_len / BITS_PER_WORD;
+    
+    // Acquire the allocator type and deserialize range
+    this->deserialize_range(
+            begin_word,
+            num_words,
+            serialized_data,
+            serialized_data_len);
+
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+    
+}
+
 dss_blk_allocator_status_t QwordVector64Cell::print_stats() {
 
     if (jso_ != NULL) {

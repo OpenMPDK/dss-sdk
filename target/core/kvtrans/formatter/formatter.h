@@ -76,16 +76,23 @@ public:
         : bdev_physical_block_size_(0),
         bdev_logical_block_size_(0),
         bdev_user_physical_start_block_(0),
+        bdev_user_logical_start_block_(0),
         bdev_user_physical_end_block_(0),
+        bdev_user_logical_end_block_(0),
         bdev_block_alloc_meta_physical_start_block_(0),
+        bdev_block_alloc_meta_logical_start_block_(0),
         bdev_block_alloc_meta_physical_end_block_(0),
+        bdev_block_alloc_meta_logical_end_block_(0),
         bdev_super_block_physical_start_block_(SUPER_BLOCK_START),
+        bdev_super_block_logical_start_block_(SUPER_BLOCK_START),
         bdev_super_block_physical_end_block_(0),
+        bdev_super_block_logical_end_block_(0),
         bdev_state_(DeviceState::CLOSED),
         bdev_optimal_io_boundary_(0),
         bdev_total_num_logical_blocks_(0),
         bdev_total_num_physical_blocks_(0),
-        block_allocator_meta_num_blocks_(0)
+        block_allocator_meta_physical_num_blocks_(0),
+        block_allocator_meta_logical_num_blocks_(0)
     {}
     virtual ~Formatter() = default;
     static void format_bdev_open_cb(
@@ -121,22 +128,33 @@ public:
 
 private:
     uint32_t bdev_physical_block_size_; //block size in bytes
-    uint64_t bdev_logical_block_size_; //block size in kilo-bytes
+    uint64_t bdev_logical_block_size_; //block size in bytes
     uint64_t bdev_user_physical_start_block_; // start block for user data
+    uint64_t bdev_user_logical_start_block_; // start block for user data
     uint64_t bdev_user_physical_end_block_; // end block for user data
-    uint64_t bdev_block_alloc_meta_physical_start_block_; // logical start
+    uint64_t bdev_user_logical_end_block_; // end block for user data
+    uint64_t bdev_block_alloc_meta_physical_start_block_; // Physical start
                                                         // for block alloc
                                                         // meta-data
-    uint64_t bdev_block_alloc_meta_physical_end_block_; // logical end for
+    uint64_t bdev_block_alloc_meta_logical_start_block_; // logical start
+                                                        // for block alloc
+                                                        // meta-data
+    uint64_t bdev_block_alloc_meta_physical_end_block_; // physical end for
+                                                       // block allocator
+                                                       // meta-data
+    uint64_t bdev_block_alloc_meta_logical_end_block_; // logical end for
                                                        // block allocator
                                                        // meta-data
     uint64_t bdev_super_block_physical_start_block_;
+    uint64_t bdev_super_block_logical_start_block_;
     uint64_t bdev_super_block_physical_end_block_;
+    uint64_t bdev_super_block_logical_end_block_;
     DeviceState bdev_state_;
     uint32_t bdev_optimal_io_boundary_;
     uint64_t bdev_total_num_logical_blocks_;
     uint64_t bdev_total_num_physical_blocks_;
-    uint64_t block_allocator_meta_num_blocks_;
+    uint64_t block_allocator_meta_physical_num_blocks_;
+    uint64_t block_allocator_meta_logical_num_blocks_;
 };
 
 using FormatterSharedPtr = std::shared_ptr<Formatter>;

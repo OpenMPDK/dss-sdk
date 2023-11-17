@@ -128,7 +128,9 @@ typedef struct kvtrans_req kvtrans_req_t;
 
 typedef enum dss_kvt_state_e {
     DSS_KVT_LOADING_SUPERBLOCK = 0,
+    DSS_KVT_LOAD_SUPERBLOCK_COMPLETE,
     DSS_KVT_LOADING_BA_META,
+    DSS_KVT_LOADING_DC_HT,
     DSS_KVT_INITIALIZED
 } dss_kvt_state_t;
 
@@ -139,6 +141,17 @@ typedef struct dss_kvt_init_ctx_s {
     void *data;
     uint64_t data_len;
     dss_kvt_state_t state;
+    // Block allocator specific variables
+    uint64_t ba_meta_start_block;
+    uint64_t ba_meta_end_block;
+    uint64_t ba_meta_size;
+    uint64_t ba_meta_num_blks;
+    uint64_t ba_disk_read_it;
+    uint64_t ba_disk_read_total_it;
+    uint64_t ba_meta_num_blks_per_iter;
+    uint64_t logical_block_size;
+    uint64_t ba_meta_start_block_per_iter;
+
 } dss_kvt_init_ctx_t;
 
 typedef double tick_t;

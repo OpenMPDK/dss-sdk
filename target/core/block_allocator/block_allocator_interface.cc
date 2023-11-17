@@ -307,6 +307,28 @@ dss_blk_allocator_status_t complete_meta_sync(
     return ba_i->complete_meta_sync(ctx, io_task);
 }
 
+dss_blk_allocator_status_t load_meta_from_disk_data(
+        dss_blk_allocator_context_t *ctx,
+        uint8_t *serialized_data,
+        uint64_t serialized_data_len,
+        uint64_t byte_offset
+        ) {
+
+    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
+
+    dss_blk_alloc_impresario_ctx_t *c =
+        (dss_blk_alloc_impresario_ctx_t *)ctx;
+
+    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    if (ba_i == NULL) {
+        DSS_ERRLOG("Incorrect usage before block allocator init");
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    return ba_i->allocator->load_meta_from_disk_data(
+            serialized_data, serialized_data_len, byte_offset);
+}
+
 } // End namespace BlockInterface
 
 /**
@@ -333,6 +355,8 @@ struct dss_blk_alloc_module_s dss_block_impresario = {
         .blk_alloc_get_next_submit_meta_io_tasks =
             BlockInterface::get_next_submit_meta_io_tasks,
         .blk_alloc_complete_meta_sync =
-            BlockInterface::complete_meta_sync
+            BlockInterface::complete_meta_sync,
+        .blk_alloc_load_meta_from_disk_data =
+            BlockInterface::load_meta_from_disk_data
     }
 };

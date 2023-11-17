@@ -71,7 +71,8 @@ bool Formatter::open_device(Parser::ParsedPayloadSharedPtr& payload) {
     bool is_dev_writable = true;
     int status = 1;
     uint64_t block_allocator_meta_size = 0;
-    uint64_t num_blocks = 0;
+    uint64_t num_physical_blocks = 0;
+    uint64_t num_logical_blocks = 0;
     uint64_t sblock_size_in_bytes = 0;
     dss_blk_allocator_opts_t *ba_config = nullptr;
 
@@ -143,41 +144,78 @@ bool Formatter::open_device(Parser::ParsedPayloadSharedPtr& payload) {
     // Free the pseudo config
     free(ba_config);
 
-    this->block_allocator_meta_num_blocks_ =
+    this->block_allocator_meta_physical_num_blocks_ =
         block_allocator_meta_size / this->bdev_physical_block_size_;
 
     if (block_allocator_meta_size % this->bdev_physical_block_size_ != 0) {
-        this->block_allocator_meta_num_blocks_++;
+        this->block_allocator_meta_physical_num_blocks_++;
+    }
+
+    this->block_allocator_meta_logical_num_blocks_ =
+        block_allocator_meta_size / this->bdev_logical_block_size_;
+
+    if (block_allocator_meta_size % this->bdev_logical_block_size_ != 0) {
+        this->block_allocator_meta_logical_num_blocks_++;
     }
 
     // bdev_super_block_physical_end_block_ is deduced as follows
     
     // Gather super block size in bdev blocks
     sblock_size_in_bytes = sizeof(dss_super_block_t);
-    num_blocks = sblock_size_in_bytes / this->bdev_physical_block_size_;
+    num_physical_blocks =
+        sblock_size_in_bytes / this->bdev_physical_block_size_;
     if (sblock_size_in_bytes % this->bdev_physical_block_size_ != 0) {
-        num_blocks++;
+        num_physical_blocks++;
+    }
+
+    // Gather number of logical blocks required to represent super-block
+    num_logical_blocks =
+        sblock_size_in_bytes / this->bdev_logical_block_size_;
+    if (sblock_size_in_bytes % this->bdev_logical_block_size_ != 0) {
+        num_logical_blocks++;
     }
     
     this->bdev_super_block_physical_end_block_ =
-        (this->bdev_super_block_physical_start_block_ + num_blocks) - 1;
+        (this->bdev_super_block_physical_start_block_ +
+            num_physical_blocks) - 1;
 
-    // bdev_block_alloc_meta_logical_start_block_ is deduced as follows
+    this->bdev_super_block_logical_end_block_ =
+        (this->bdev_super_block_logical_start_block_ +
+            num_logical_blocks) - 1;
+
+    // bdev_block_alloc_meta_physical_start_block_ is deduced as follows
     this->bdev_block_alloc_meta_physical_start_block_ =
         this->bdev_super_block_physical_end_block_ + 1;
 
-    // bdev_block_alloc_meta_logical_end_block_ is deduced as follows
+    // bdev_block_alloc_meta_logical_start_block_ is deduced as follows
+    this->bdev_block_alloc_meta_logical_start_block_ =
+        this->bdev_super_block_logical_end_block_ + 1;
+
+    // bdev_block_alloc_meta_physical_end_block_ is deduced as follows
     this->bdev_block_alloc_meta_physical_end_block_ =
         (this->bdev_block_alloc_meta_physical_start_block_ +
-            this->block_allocator_meta_num_blocks_) - 1;
+            this->block_allocator_meta_physical_num_blocks_) - 1;
+
+    // bdev_block_alloc_meta_logical_end_block_ is deduced as follows
+    this->bdev_block_alloc_meta_logical_end_block_ =
+        (this->bdev_block_alloc_meta_logical_start_block_ +
+            this->block_allocator_meta_logical_num_blocks_) - 1;
     
     // bdev_user_physical_start_block_ is deduced from the following formula
     this->bdev_user_physical_start_block_ =
         this->bdev_block_alloc_meta_physical_end_block_ + 1;
 
+    // bdev_user_logical_start_block_ is deduced from the following formula
+    this->bdev_user_logical_start_block_ =
+        this->bdev_block_alloc_meta_logical_end_block_ + 1;
+
     // bdev_user_physical_end_block_ is deduced from the following formula
     this->bdev_user_physical_end_block_ =
         this->bdev_total_num_physical_blocks_ - 1;
+
+    // bdev_user_logical_end_block_ is deduced from the following formula
+    this->bdev_user_logical_end_block_ =
+        this->bdev_total_num_logical_blocks_ - 1;
 
     this->bdev_state_ = Format::DeviceState::OPEN;
 
@@ -209,27 +247,27 @@ void Formatter::format_bdev_read_super_complete_cb(
             <<read_sb->logi_blk_size_in_bytes<<std::endl;
         assert(read_sb->logi_blk_size_in_bytes ==
                 Formatter::written_super_block->logi_blk_size_in_bytes);
-        std::cout<<"super_block->phy_usable_blk_start_addr = "
-            <<read_sb->phy_usable_blk_start_addr<<std::endl;
-        assert(read_sb->phy_usable_blk_start_addr ==
-                Formatter::written_super_block->phy_usable_blk_start_addr);
-        std::cout<<"super_block->phy_usable_blk_end_addr = "
-            <<read_sb->phy_usable_blk_end_addr<<std::endl;
-        assert(read_sb->phy_usable_blk_end_addr ==
-                Formatter::written_super_block->phy_usable_blk_end_addr);
-        std::cout<<"super_block->phy_blk_alloc_meta_start_blk = "
-            <<read_sb->phy_blk_alloc_meta_start_blk<<std::endl;
-        assert(read_sb->phy_blk_alloc_meta_start_blk ==
+        std::cout<<"super_block->logi_usable_blk_start_addr = "
+            <<read_sb->logi_usable_blk_start_addr<<std::endl;
+        assert(read_sb->logi_usable_blk_start_addr ==
+                Formatter::written_super_block->logi_usable_blk_start_addr);
+        std::cout<<"super_block->logi_usable_blk_end_addr = "
+            <<read_sb->logi_usable_blk_end_addr<<std::endl;
+        assert(read_sb->logi_usable_blk_end_addr ==
+                Formatter::written_super_block->logi_usable_blk_end_addr);
+        std::cout<<"super_block->logi_blk_alloc_meta_start_blk = "
+            <<read_sb->logi_blk_alloc_meta_start_blk<<std::endl;
+        assert(read_sb->logi_blk_alloc_meta_start_blk ==
                 Formatter::written_super_block->
-                    phy_blk_alloc_meta_start_blk);
-        std::cout<<"super_block->phy_blk_alloc_meta_end_blk = "
-            <<read_sb->phy_blk_alloc_meta_end_blk<<std::endl;
-        assert(read_sb->phy_blk_alloc_meta_end_blk == 
-                Formatter::written_super_block->phy_blk_alloc_meta_end_blk);
-        std::cout<<"super_block->phy_super_blk_start_addr = "
-            <<read_sb->phy_super_blk_start_addr<<std::endl;
-        assert(read_sb->phy_super_blk_start_addr ==
-                Formatter::written_super_block->phy_super_blk_start_addr);
+                    logi_blk_alloc_meta_start_blk);
+        std::cout<<"super_block->logi_blk_alloc_meta_end_blk = "
+            <<read_sb->logi_blk_alloc_meta_end_blk<<std::endl;
+        assert(read_sb->logi_blk_alloc_meta_end_blk == 
+                Formatter::written_super_block->logi_blk_alloc_meta_end_blk);
+        std::cout<<"super_block->logi_super_blk_start_addr = "
+            <<read_sb->logi_super_blk_start_addr<<std::endl;
+        assert(read_sb->logi_super_blk_start_addr ==
+                Formatter::written_super_block->logi_super_blk_start_addr);
         std::cout<<"super_block->is_blk_alloc_meta_load_needed = "
             <<read_sb->is_blk_alloc_meta_load_needed<<std::endl;
         assert(read_sb->is_blk_alloc_meta_load_needed ==
@@ -385,17 +423,17 @@ bool Formatter::format_device(bool is_debug) {
         this->bdev_physical_block_size_;
     super_block->logi_blk_size_in_bytes =
         this->bdev_logical_block_size_;
-    super_block->phy_usable_blk_start_addr =
-        this->bdev_user_physical_start_block_;
-    super_block->phy_usable_blk_end_addr =
-        this->bdev_user_physical_end_block_;
-    super_block->phy_blk_alloc_meta_start_blk =
-        this->bdev_block_alloc_meta_physical_start_block_;
-    super_block->phy_blk_alloc_meta_end_blk =
-        this->bdev_block_alloc_meta_physical_end_block_;
+    super_block->logi_usable_blk_start_addr =
+        this->bdev_user_logical_start_block_;
+    super_block->logi_usable_blk_end_addr =
+        this->bdev_user_logical_end_block_;
+    super_block->logi_blk_alloc_meta_start_blk =
+        this->bdev_block_alloc_meta_logical_start_block_;
+    super_block->logi_blk_alloc_meta_end_blk =
+        this->bdev_block_alloc_meta_logical_end_block_;
     super_block->is_blk_alloc_meta_load_needed = 0;
-    super_block->phy_super_blk_start_addr =
-        this->bdev_super_block_physical_start_block_;
+    super_block->logi_super_blk_start_addr =
+        this->bdev_super_block_logical_start_block_;
 
     num_blocks = sizeof(dss_super_block_t)/this->bdev_physical_block_size_;
     Formatter::total_super_write_blocks = num_blocks;
