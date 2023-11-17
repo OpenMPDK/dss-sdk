@@ -174,7 +174,7 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
     }
     if (rc) {
         // TODO: error handling
-        DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]",
+        DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]\n",
                     blk_num, index, blk_ctx->state, state);
 
         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
@@ -306,11 +306,37 @@ dss_kvtrans_dc_table_lookup(kvtrans_ctx_t *ctx,
 
 dss_kvtrans_status_t
 dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
+                            blk_ctx_t *blk_ctx,
                             const uint64_t dc_index,
                             blk_state_t ori_state) {
+
+    dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     dc_item_t *it;
+    blk_state_t state;
 
     DSS_ASSERT(ori_state==DATA || ori_state==COLLISION_EXTENSION || ori_state==EMPTY);
+
+    switch (ori_state)
+    {
+    case DATA:
+        state = DATA_COLLISION;
+        break;
+    case COLLISION_EXTENSION:
+        state = DATA_COLLISION_CE;
+        break;
+    case EMPTY:
+        state = DATA_COLLISION_EMPTY;
+        break;
+    default:
+        assert(0);
+    }
+
+    rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, state);
+    if (rc) {
+        DSS_ERRLOG("Failed to update blk state for [%u] from state [%d] to [%d]\n", dc_index, blk_ctx->state, state);
+        return rc;
+    }
+
     it = (dc_item_t *) get_elm(ctx->dc_cache_tbl, dc_index);
     if (it) {
         it->ori_state = ori_state;
@@ -332,6 +358,7 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     Word_t *entry;
     dc_item_t *it;
+    blk_state_t state;
 
     if (dss_kvtrans_dc_table_exist(ctx, dc_index)==KVTRANS_STATUS_SUCCESS) {
         printf("ERROR: dc %zu is existent\n", dc_index);
@@ -339,9 +366,13 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
     }
     DSS_ASSERT(ori_state==DATA || ori_state==COLLISION_EXTENSION);
 
-    rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, DATA_COLLISION);
+    state = ori_state==DATA ? DATA_COLLISION : DATA_COLLISION_CE;
+
+    rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, state);
     if (!rc) {
-        rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, mdc_index, 1, META_DATA_COLLISION);
+        // the first mdc in the dc chain should be marked as
+        // META_DATA_COLLISION_ENTRY for dc_tbl construction in a reboot.
+        rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, mdc_index, 1, META_DATA_COLLISION_ENTRY);
         if (rc) {
             // roll back to DATA
             rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, DATA);
@@ -1233,8 +1264,12 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     // ensure index is within [1, blk_alloc_opts.num_total_blocks - 1]
     ctx->kv_assign_block(&blk_ctx->index, ctx);
 
-    DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<ctx->blk_num);
+    DSS_ASSERT(blk_ctx->index >= ctx->blk_offset && blk_ctx->index<ctx->blk_num);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
+
+    if (blk_ctx->index == 202505 ) {
+        printf("b1\n");
+    }
 
     DSS_DEBUGLOG(DSS_KVTRANS, "Allocate block at index [%u] with state [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, req->req_key.key);
 
@@ -1249,17 +1284,20 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
         blk_ctx->kctx.dc_index = blk_ctx->index;
         kreq->state = ENTRY_LOADING_DONE;
         break;
+    case DATA_COLLISION_CE:
+    case DATA_COLLISION_EMPTY:
     case DATA_COLLISION:
         // find MDC at index
         blk_ctx->kctx.dc_index = blk_ctx->index;
         rc = dss_kvtrans_dc_table_lookup(ctx, blk_ctx->kctx.dc_index, &blk_ctx->index);
         DSS_ASSERT(rc==KVTRANS_STATUS_SUCCESS);
         DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<ctx->blk_num);
-        blk_ctx->state = META_DATA_COLLISION;
+        blk_ctx->state = META_DATA_COLLISION_ENTRY;
         // continue to load ondisk blk
     case META:
     case COLLISION:
     case META_DATA_COLLISION:
+    case META_DATA_COLLISION_ENTRY:
         rc = dss_kvtrans_load_ondisk_blk(blk_ctx, kreq, true);
         rc = _update_kreq_stat_after_io(kreq, rc, ENTRY_LOADING_DONE, QUEUE_TO_LOAD_ENTRY);
         break;
@@ -1450,7 +1488,7 @@ dss_kvtrans_status_t _blk_del_value(void *ctx) {
                         if(rc) return rc;
                     }
                     // the ori_state of e_idx is EMPTY
-                    rc = dss_kvtrans_dc_table_update(kvtrans_ctx, e_idx, EMPTY);
+                    rc = dss_kvtrans_dc_table_update(kvtrans_ctx, blk_ctx, e_idx, EMPTY);
                     // TODO: error handling
                     s_idx = e_idx + 1;
                 } else if (e_idx == s_idx && e_idx == (index+blk_num-1)) {
@@ -1637,6 +1675,10 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
     col_blk->nothash = true;
     col_blk->first_insert_blk_ctx = blk_ctx->first_insert_blk_ctx;
 
+    if (blk_ctx->index == 202505 ) {
+        printf("b2\n");
+    }
+
     rc = init_meta_blk((void *)col_blk);
 
     *col_index = col_blk->index;
@@ -1654,9 +1696,11 @@ static dss_kvtrans_status_t init_meta_data_collision_blk(void *ctx) {
     DSS_ASSERT(blk_ctx->state==DATA || blk_ctx->state==COLLISION_EXTENSION);
     DSS_ASSERT(blk_ctx->kctx.dc_index > 0);
 
+    // blk state will be marked as META_DATA_COLLISION
     rc = open_free_blk(ctx, &col_index);
     if (rc) return rc;
 
+    // blk state will be marked as META_DATA_COLLISION_ENTRY
     rc = dss_kvtrans_dc_table_insert(kvtrans_ctx, blk_ctx, blk_ctx->kctx.dc_index, col_index, blk_ctx->state);
 
     kvtrans_ctx->stat.dc++;
@@ -1689,8 +1733,8 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
 
             if (blk_ctx->kctx.dc_index > 0) {
                 // no need to set state to META_DATA_COLLISION
-                state = META_DATA_COLLISION;
-                DSS_ASSERT(blk_ctx->state==META_DATA_COLLISION);
+                state = blk_ctx->state;
+                DSS_ASSERT(blk_ctx->state==META_DATA_COLLISION || blk_ctx->state==META_DATA_COLLISION_ENTRY);
                 blk->collision_tbl[0].state = DATA_COL_ENTRY;
                 blk->num_valid_dc_col_entry++;
             } else {
@@ -1734,7 +1778,7 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
             rc = KVTRANS_STATUS_SUCCESS;
             break;
         case to_delete:
-            if (blk_ctx->state==META_DATA_COLLISION) {
+            if (blk_ctx->state==META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY) {
                 // META DATA COLLISION
                 DSS_ASSERT(blk_ctx->kctx.dc_index==blk->data_collision_index);
                 rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, blk->data_collision_index, blk_ctx->index);
@@ -1870,7 +1914,7 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
             } 
         } else {
             // no key, no col entries, no collision_extension
-            if (blk_ctx->state == META_DATA_COLLISION) {
+            if (blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY) {
                 rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, blk->data_collision_index, blk_ctx->index);
                 if (rc==KVTRANS_STATUS_NOT_FOUND) {
                     // The dc_tbl entry has been deleted while deleting the parent blk->
@@ -1890,7 +1934,7 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
         if (rc) return rc;
     }
     
-    if (col_ctx->state==META_DATA_COLLISION && blk_ctx->blk->num_valid_col_entry>1) {
+    if ((col_ctx->state==META_DATA_COLLISION || col_ctx->state==META_DATA_COLLISION_ENTRY) && blk_ctx->blk->num_valid_col_entry>1) {
         blk_ctx->blk->num_valid_dc_col_entry--;
         if (blk_ctx->blk->num_valid_dc_col_entry==0) {
             rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, col_ctx->blk->data_collision_index, col_ctx->index);
@@ -1958,7 +2002,7 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
     int i;
 
     DSS_ASSERT(blk->num_valid_col_entry>0 || blk->collision_extension_index>0);
-    DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == COLLISION);
+    DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY || blk_ctx->state == COLLISION);
     if (!blk->isvalid && blk_ctx->kctx.flag!=to_delete) {
         blk_ctx->first_insert_blk_ctx = blk_ctx;
     } 
@@ -1986,7 +2030,7 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
             // Collision after delete
             //       -> has key col only    ->-> keep the same state
             //       -> has data col        ->-> false
-            if (blk_ctx->state==META_DATA_COLLISION &&
+            if ((blk_ctx->state==META_DATA_COLLISION || blk_ctx->state==META_DATA_COLLISION_ENTRY) &&
                     blk->num_valid_dc_col_entry==0 && 
                     blk->collision_extension_index==0) {
                 // no deletion if this is a collision entry
@@ -2086,7 +2130,7 @@ dss_kvtrans_status_t clean_blk(void *ctx) {
     
     rc = dss_kvtrans_dc_table_exist(kvtrans_ctx, blk_ctx->index);
     if (rc == KVTRANS_STATUS_SUCCESS) {
-        rc = dss_kvtrans_dc_table_update(kvtrans_ctx, blk_ctx->index, EMPTY);
+        rc = dss_kvtrans_dc_table_update(kvtrans_ctx, blk_ctx, blk_ctx->index, EMPTY);
     } else {
         rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, blk_ctx->index, 1, EMPTY);
     }
@@ -2115,8 +2159,14 @@ static blk_key_ops_t g_blk_register[DEFAULT_BLOCK_STATE_NUM] = {
     { NULL, &update_meta_data_collision_blk, NULL},
     // META_DATA_COLLISION
     { NULL, &update_meta_data_collision_blk, &clean_blk},
+    // META_DATA_COLLISION_ENTRY
+    { NULL, &update_meta_data_collision_blk, &clean_blk},
     // COLLISION_EXTENSION
     { &init_meta_data_collision_blk, NULL, NULL},
+    // DATA_COLLISION_EMPTY,
+    { NULL, &update_meta_data_collision_blk, NULL},
+    // DATA_COLLISION_CE
+    { NULL, &update_meta_data_collision_blk, NULL},
 };
 
 dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
@@ -2211,6 +2261,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->vctx.remote_val_blocks = 0;
             col_ctx->kctx.dc_index = blk_ctx->kctx.dc_index;
 
+            DSS_ASSERT(col_ctx->state!=META_DATA_COLLISION_ENTRY);
             if (col_ctx->state==META_DATA_COLLISION) {
                 DSS_ASSERT(col_ctx->kctx.dc_index = col_ctx->blk->data_collision_index);
             } else if (col_ctx->state == META) {
@@ -2264,6 +2315,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->vctx.remote_val_blocks = 0;
             col_ctx->kctx.dc_index = blk_ctx->kctx.dc_index;
 
+            DSS_ASSERT(col_ctx->state!=META_DATA_COLLISION_ENTRY);
             if (col_ctx->blk->data_collision_index>0) {
                 col_ctx->kctx.dc_index = col_ctx->blk->data_collision_index;
                 col_ctx->state = META_DATA_COLLISION;
@@ -2451,11 +2503,14 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
                         kreq->state = REQ_CMPL;
                     }
                     break;
+                case DATA_COLLISION_EMPTY:
+                case DATA_COLLISION_CE:
                 case DATA_COLLISION:
                     DSS_ASSERT(0); // will be mdc
                     break;
                 case COLLISION:
                 case META_DATA_COLLISION:
+                case META_DATA_COLLISION_ENTRY:
                     if (blk_ctx->blk->isvalid && 
                         iskeysame(blk_ctx->blk->key, blk_ctx->blk->key_len, req->req_key.key, req->req_key.length)) {
                         rc = KVTRANS_STATUS_SUCCESS;

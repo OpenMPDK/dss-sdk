@@ -72,7 +72,7 @@ extern "C" {
 // make sure blk_ctx is 4096 Byte
 #define MAX_INLINE_VALUE (1024 - 248)
 #define MIN_HASH_SIZE (8)
-#define DEFAULT_BLOCK_STATE_NUM (7)
+#define DEFAULT_BLOCK_STATE_NUM (9)
 #define DEFAULT_BLK_ALLOC_NAME "block_impresario"
 #define DEFAULT_META_NUM (1000000)
 // A 64 bit value to indicate if meta blk valid
@@ -127,9 +127,18 @@ typedef enum blk_state_e {
     META,
     DATA,
     COLLISION,
+    // hash to a data block
     DATA_COLLISION,
+    // refered by data collision
     META_DATA_COLLISION,
-    COLLISION_EXTENSION
+    // The first enrty of a data collision chain
+    META_DATA_COLLISION_ENTRY,
+    // caused by full collision table
+    COLLISION_EXTENSION,
+    // data block be deleted in DC
+    DATA_COLLISION_EMPTY,
+    // hash to a CE block
+    DATA_COLLISION_CE
 } blk_state_t;
 
 typedef struct dc_item_s {
@@ -440,7 +449,7 @@ kvtrans_params_t set_default_params();
 dss_kvtrans_status_t dss_kvtrans_dc_table_exist(kvtrans_ctx_t *ctx, const uint64_t index);
 dss_kvtrans_status_t dss_kvtrans_dc_table_lookup(kvtrans_ctx_t *ctx, const uint64_t dc_index, uint64_t *mdc_index);
 dss_kvtrans_status_t dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index, const uint64_t mdc_index, blk_state_t ori_stat);
-dss_kvtrans_status_t dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx, const uint64_t dc_index, blk_state_t ori_state);
+dss_kvtrans_status_t dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index, blk_state_t ori_state);
 dss_kvtrans_status_t dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx, blk_ctx_t *blk_ctx, const uint64_t dc_index,  const uint64_t mdc_index);
 
 

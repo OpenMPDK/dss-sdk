@@ -151,7 +151,8 @@ typedef struct dss_kvt_init_ctx_s {
     uint64_t ba_meta_num_blks_per_iter;
     uint64_t logical_block_size;
     uint64_t ba_meta_start_block_per_iter;
-
+    // DC table specific variables
+    uint64_t dss_dc_idx;
 } dss_kvt_init_ctx_t;
 
 typedef double tick_t;

@@ -319,10 +319,66 @@ void dss_kvtrans_net_request_complete(dss_request_t *req, dss_kvtrans_status_t r
         }
 }
 
+int boot_dc_get_next_dmc_blk(dss_kvt_init_ctx_t *kv_init_ctx) {
+
+    dss_blk_allocator_status_t rc;
+    kvtrans_ctx_t *kvt_ctx = *kv_init_ctx->kvt_ctx;
+    blk_state_t state;
+    
+    while (kv_init_ctx->dss_dc_idx < kvt_ctx->blk_offset + kvt_ctx->blk_num - 1)
+    {
+        // starts from kvt_ctx->blk_offset - 1;
+        kv_init_ctx->dss_dc_idx ++;
+        rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, kv_init_ctx->dss_dc_idx, &state);
+        if (rc) {
+            // TODO: error handling
+            DSS_ERRLOG("Fail to get blk [%d] state\n", kv_init_ctx->dss_dc_idx);
+            return 1;
+        }
+        if (state==META_DATA_COLLISION_ENTRY) {
+            break;
+        }
+    }
+
+    return 0;
+}
+
+int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, uint64_t mdc_idx, void *data) {
+
+    dss_blk_allocator_status_t rc;
+    dc_item_t *it;
+    uint64_t dc_idx;
+
+    ondisk_meta_t *blk = (ondisk_meta_t *)data;
+
+    it = malloc(sizeof(dc_item_t));
+    it->mdc_index = mdc_idx;
+
+    dc_idx = blk->data_collision_index;
+
+    if (find_elm(kvt_ctx->dc_cache_tbl, dc_idx)) {
+        // handle duplicated elm
+    }
+
+    rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, it->mdc_index, &it->ori_state);
+    if (rc) {
+        // TODO: error handling
+        DSS_ERRLOG("Fail to get blk [%d] state\n", it->mdc_index);
+        return 1;
+    }
+
+    if(store_elm(kvt_ctx->dc_cache_tbl, dc_idx, (void *)it)) {
+        DSS_ERRLOG("Insert element failed in dc boot\n");
+        return 1;
+    }
+    return 0;
+}
+
 void dss_kvtrans_process_internal_io(dss_request_t *req)
 {
     kvtrans_params_t params;
     dss_kvt_init_ctx_t *kv_init_ctx = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt_init;
+    kvtrans_ctx_t *kvt_ctx = *kv_init_ctx->kvt_ctx;
     dss_kvt_state_t prev_state;
     dss_super_block_t *super_block = NULL;
     dss_io_task_status_t iot_rc = DSS_IO_TASK_STATUS_ERROR;
@@ -457,6 +513,7 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     // Initialize reading DC hash table, proceed to next
                     // phase
                     kv_init_ctx->state = DSS_KVT_LOADING_DC_HT;
+                    DSS_ASSERT(kv_init_ctx->dss_dc_idx == 0);
                     break;
                 }
                 // Reset current IO task, since super block has been read
@@ -482,13 +539,45 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     kv_init_ctx->ba_meta_start_block_per_iter +
                     kv_init_ctx->ba_meta_num_blks_per_iter;
                 break;
-            case DSS_KVT_LOADING_DC_HT:
-                // TODO
-                dss_module_dec_async_pending_task(
+             case DSS_KVT_LOADING_DC_HT:
+                if (kv_init_ctx->dss_dc_idx == 0) {
+                    kv_init_ctx->data = spdk_dma_zmalloc(kvt_ctx->blk_size, 4096, NULL);
+                    kv_init_ctx->dss_dc_idx = kvt_ctx->blk_offset - 1;
+                    iot_rc = dss_io_task_reset_ops(req->io_task);
+                    DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                } else {
+                    if(boot_dc_insert_elm(kvt_ctx, kv_init_ctx->dss_dc_idx, kv_init_ctx->data)) {
+                        DSS_ERRLOG("Insert element to dc table in boot failed for index [%u]\n", kv_init_ctx->dss_dc_idx);
+                        assert(0);
+                    }
+                    iot_rc = dss_io_task_reset_ops(req->io_task);
+                    DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                }
+
+                if (boot_dc_get_next_dmc_blk(kv_init_ctx)) {
+                    DSS_ERRLOG("DC Construction failed\n");
+                    assert(0);
+                }
+                
+                if (kv_init_ctx->dss_dc_idx == kvt_ctx->blk_offset + kvt_ctx->blk_num - 1) {
+                    // reach to the last blk
+                    dss_module_dec_async_pending_task(
                         req->module_ctx[DSS_MODULE_KVTRANS].module);
-                kv_init_ctx->state = DSS_KVT_INITIALIZED;
-                //DSS_ASSERT(0);
+                    DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
+                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                    break;
+                }
+                iot_rc = dss_io_task_add_blk_read(
+                                        req->io_task,
+                                        kv_init_ctx->dev,
+                                        kv_init_ctx->dss_dc_idx,
+                                        1, 
+                                        kv_init_ctx->data,
+                                        NULL);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                iot_rc = dss_io_task_submit(req->io_task);
                 break;
+                
             case DSS_KVT_INITIALIZED:
                 dss_kvtrans_free_init_request(req);
                 return;
