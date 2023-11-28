@@ -398,7 +398,7 @@ dss_kvtrans_queue_load_ondisk_blk(blk_ctx_t *blk_ctx,
                                     kvtrans_req_t *kreq)
 {
     dss_io_task_status_t iot_rc;
-    dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_NONE, .is_blocking = true};
+    dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_KVTRANS, .is_blocking = true};
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
     iot_rc = dss_io_task_add_blk_read(kreq->io_tasks, 
                                     kvtrans_ctx->target_dev,
@@ -547,12 +547,15 @@ dss_kvtrans_queue_write_ondisk_blk(blk_ctx_t *blk_ctx,
 {
     dss_io_task_status_t iot_rc;
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
+    dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_KVTRANS,
+                             .is_blocking = false};
+
     iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, 
                                     kvtrans_ctx->target_dev,
                                     blk_ctx->index,
                                     1, 
                                     (void *) blk_ctx->blk, 
-                                    NULL);
+                                    &io_opts);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
     kreq->io_to_queue = true;
     return KVTRANS_IO_QUEUED;
@@ -643,6 +646,8 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
     dss_kvtrans_status_t rc;
     ondisk_meta_t *blk = blk_ctx->blk;
     req_t *req = &kreq->req;
+    dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_KVTRANS,
+                             .is_blocking = false};
 
     int i;
     int offset = 0;
@@ -661,7 +666,7 @@ dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx,
                                         blk->place_value[i].value_index, \
                                         blk->place_value[i].num_chunks, \
                                         (void *)((uint64_t )kreq->req.req_value.value + offset), \
-                                        NULL);
+                                        &io_opts);
                 DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 kreq->io_to_queue = true;
             } else

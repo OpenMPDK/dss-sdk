@@ -69,6 +69,7 @@ typedef enum dss_io_task_status_e {
 typedef enum dss_io_op_owner_e {
     DSS_IO_OP_OWNER_NONE = 0,
     DSS_IO_OP_OWNER_BA,//Belongs to block allocator
+    DSS_IO_OP_OWNER_KVTRANS,//Belongs to kvtrans module
 } dss_io_op_owner_t;
 
 typedef enum dss_io_op_exec_state_e {
