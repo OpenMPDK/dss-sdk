@@ -131,7 +131,6 @@ void testSetAllBlockState(void)
     dss_blk_allocator_status_t rc;
     dss_blk_allocator_context_t *c = g_ba_ut.ctx;
     uint64_t state_to_set = DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
-    uint64_t state_to_check = (DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE);
 
     // Make sure block_index is offset adjusted
     uint64_t logical_first_blk_index = DSS_BA_UT_FIRST_BLOCK + g_ba_ut.opts.logical_start_block_offset;
@@ -390,8 +389,12 @@ void testIoOrdering(void)
     rc = dss_blk_allocator_alloc_blocks_contig(c, DSS_BA_UT_NEXT_STATE(DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE), block_index, 1, NULL);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
+    // Queue dirty data
+    rc = dss_blk_allocator_queue_sync_meta_io_tasks(c, io_task);
+    CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
     // Since some allocation has taken place, we can procure the IO submitted to drive
-    rc = dss_blk_allocator_get_next_submit_meta_io_tasks(c, io_task);
+    rc = dss_blk_allocator_get_next_submit_meta_io_tasks(c, &io_task);
     CU_ASSERT(rc == BLK_ALLOCATOR_STATUS_SUCCESS);
 
     return;

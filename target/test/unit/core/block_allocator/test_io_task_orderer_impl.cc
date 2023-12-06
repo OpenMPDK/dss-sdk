@@ -56,12 +56,16 @@ public:
     void tearDown();
 
     void test_integrity();
+    void test_translate_integrity();
+    void test_serialize_integrity();
     void test_queue_sync_meta_io_tasks();
     void test_get_next_submit_meta_io_tasks();
     void test_complete_meta_sync();
 
     CPPUNIT_TEST_SUITE(IoTaskOrdererTest);
     CPPUNIT_TEST(test_integrity);
+    CPPUNIT_TEST(test_translate_integrity);
+    CPPUNIT_TEST(test_serialize_integrity);
     CPPUNIT_TEST(test_queue_sync_meta_io_tasks);
     CPPUNIT_TEST(test_get_next_submit_meta_io_tasks);
     CPPUNIT_TEST(test_complete_meta_sync);
@@ -69,6 +73,8 @@ public:
 private:
     BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer_;
     AllocatorType::BitMapSharedPtr bmap_;
+    BlockAlloc::IoTaskOrdererSharedPtr tsi_io_task_orderer_;
+    AllocatorType::BitMapSharedPtr tsi_bmap_;
 };
 
 void IoTaskOrdererTest::setUp() {
@@ -78,30 +84,36 @@ void IoTaskOrdererTest::setUp() {
     uint64_t bits_per_cell = 4;
     uint64_t num_block_states = 5;
     uint64_t logical_start_block_offset = 0;
+    uint64_t block_alloc_meta_start_offset = 0;
 
     // Variables for io task orderer initialization
     uint64_t drive_smallest_block_size = 4096;
-    uint64_t drive_start_block_offset = 0;
     uint64_t logical_block_size = 4096;
     uint64_t max_dirty_segments = 3;
 
     // jso is created during block allocator init
     BlockAlloc::JudySeekOptimizerSharedPtr jso =
         std::make_shared<BlockAlloc::
-        JudySeekOptimizer>(total_cells, logical_start_block_offset, 128);
+        JudySeekOptimizer>(
+                total_cells,
+                logical_start_block_offset,
+                128);
 
     io_task_orderer_ =
         std::make_shared<BlockAlloc::IoTaskOrderer>(
                 drive_smallest_block_size,
-                drive_start_block_offset,
                 logical_block_size,
                 max_dirty_segments,
                 nullptr);
 
     bmap_ = std::make_shared<AllocatorType::QwordVector64Cell>(
-        jso, io_task_orderer_, total_cells, bits_per_cell,
-        num_block_states, logical_start_block_offset);
-
+        jso,
+        io_task_orderer_,
+        total_cells,
+        bits_per_cell,
+        num_block_states,
+        block_alloc_meta_start_offset,
+        logical_start_block_offset);
 
     io_task_orderer_->translate_meta_to_drive_addr =
         [&](const uint64_t& meta_lba,
@@ -126,7 +138,6 @@ void IoTaskOrdererTest::setUp() {
     io_task_orderer_->serialize_drive_data =
         [&](const uint64_t& drive_blk_addr,
                 const uint64_t& drive_num_blocks,
-                const uint64_t& drive_start_block_offset,
                 const uint64_t& drive_smallest_block_size,
                 void** serialized_drive_data,
                 uint64_t& serialized_len) {
@@ -136,12 +147,96 @@ void IoTaskOrdererTest::setUp() {
                 (bmap_)->serialize_drive_data(
                         drive_blk_addr,
                         drive_num_blocks,
-                        drive_start_block_offset,
                         drive_smallest_block_size,
                         serialized_drive_data,
                         serialized_len
                         );
     };
+
+    // Variables for testing integrity for translate and serialize API
+    uint64_t tsi_bits_per_cell = 1;
+    uint64_t tsi_num_block_states = 1;
+    uint64_t tsi_logical_start_block_offset = 4;
+    uint64_t tsi_block_alloc_meta_start_offset = 1;
+
+    // Variables for io task orderer initialization
+    uint64_t tsi_drive_smallest_block_size = 4096;
+    uint64_t tsi_logical_block_size = 4096;
+    uint64_t tsi_max_dirty_segments = 3;
+
+    uint64_t tsi_total_cells =
+        tsi_logical_block_size * 3 * 8; // lbsize_in_bits * BA meta 
+                                        // blk num
+                                        // -Since offset 4 and 1
+                                        //  Block allc meta range is
+                                        //  lb 1 - lb 3 (1, 2, 3) = 3
+                                        // - 8 bits per byte
+                                        // 4096 * 8 * 3 = 98304
+
+    // tsi_jso is created during block allocator init
+    BlockAlloc::JudySeekOptimizerSharedPtr tsi_jso =
+        std::make_shared<BlockAlloc::
+        JudySeekOptimizer>(
+                tsi_total_cells,
+                tsi_logical_start_block_offset,
+                128);
+
+    tsi_io_task_orderer_ =
+        std::make_shared<BlockAlloc::IoTaskOrderer>(
+                tsi_drive_smallest_block_size,
+                tsi_logical_block_size,
+                tsi_max_dirty_segments,
+                nullptr);
+
+    tsi_bmap_ = std::make_shared<AllocatorType::QwordVector64Cell>(
+        tsi_jso,
+        tsi_io_task_orderer_,
+        tsi_total_cells,
+        tsi_bits_per_cell,
+        tsi_num_block_states,
+        tsi_block_alloc_meta_start_offset,
+        tsi_logical_start_block_offset);
+
+    tsi_io_task_orderer_->translate_meta_to_drive_addr =
+        [&](const uint64_t& meta_lba,
+                const uint64_t& meta_num_blocks,
+                const uint64_t& drive_smallest_block_size,
+                const uint64_t& logical_block_size,
+                uint64_t& drive_blk_addr,
+                uint64_t& drive_num_blocks) {
+
+                     return std::dynamic_pointer_cast
+                                <AllocatorType::QwordVector64Cell>
+                                (tsi_bmap_)->
+                                translate_meta_to_drive_addr(
+                                 meta_lba,
+                                meta_num_blocks,
+                                drive_smallest_block_size,
+                                logical_block_size,
+                                drive_blk_addr,
+                                drive_num_blocks
+                                );
+    };
+
+    tsi_io_task_orderer_->serialize_drive_data =
+        [&](const uint64_t& drive_blk_addr,
+                const uint64_t& drive_num_blocks,
+                const uint64_t& drive_smallest_block_size,
+                void** serialized_drive_data,
+                uint64_t& serialized_len) {
+            
+            return std::dynamic_pointer_cast
+                <AllocatorType::QwordVector64Cell>
+                (tsi_bmap_)->serialize_drive_data(
+                        drive_blk_addr,
+                        drive_num_blocks,
+                        drive_smallest_block_size,
+                        serialized_drive_data,
+                        serialized_len
+                        );
+    };
+
+
 }
 
 void IoTaskOrdererTest::tearDown() {
@@ -158,9 +253,6 @@ void IoTaskOrdererTest::test_integrity() {
     uint64_t drive_blk_addr = 0;
     uint64_t drive_num_blocks = 0;
     dss_blk_allocator_status_t status = BLK_ALLOCATOR_STATUS_ERROR;
-    void *serialized_drive_data = nullptr;
-    uint64_t serialized_len = 0;
-    bool serialize = true;
 
     status = io_task_orderer_->translate_meta_to_drive_addr(
             meta_lba,
@@ -177,6 +269,121 @@ void IoTaskOrdererTest::test_integrity() {
 
     CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
 
+}
+
+void IoTaskOrdererTest::test_translate_integrity() {
+
+    // Testing with tsi (translate-serialize-integrity) variables
+    uint64_t meta_lba = 4;
+    uint64_t meta_num_blocks = 1;
+    uint64_t drive_smallest_block_size = 4096;
+    uint64_t logical_block_size = 4096;
+    uint64_t drive_blk_addr = 0;
+    uint64_t drive_num_blocks = 0;
+    uint64_t bits_per_cell = 1;
+    uint64_t bits_per_byte = 8;
+    dss_blk_allocator_status_t status = BLK_ALLOCATOR_STATUS_ERROR;
+
+    status = tsi_io_task_orderer_->translate_meta_to_drive_addr(
+            meta_lba,
+            meta_num_blocks,
+            drive_smallest_block_size,
+            logical_block_size,
+            drive_blk_addr,
+            drive_num_blocks
+            );
+
+    CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+    // Since tsi variables are predefined, the drive_blk_addr and
+    // drive_num_blocks are predicatable
+    // Case 1: Meta-lba at the beginning of the drive block
+    CPPUNIT_ASSERT(drive_blk_addr == 1);
+    CPPUNIT_ASSERT(drive_num_blocks == 1);
+
+    // Case 2: Meta-lba at the beginning, drive_num_blocks crosses
+    //         1 drive lba region
+    meta_lba = 4;
+    meta_num_blocks =
+        (logical_block_size * bits_per_cell * bits_per_byte) + 1;
+
+    status = tsi_io_task_orderer_->translate_meta_to_drive_addr(
+            meta_lba,
+            meta_num_blocks,
+            drive_smallest_block_size,
+            logical_block_size,
+            drive_blk_addr,
+            drive_num_blocks
+            );
+
+    CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
+    CPPUNIT_ASSERT(drive_blk_addr == 1);
+    CPPUNIT_ASSERT(drive_num_blocks == 2);
+
+    // Case 3: Meta-lba at the beginning, drive_num_blocks crosses
+    //         2 drive lba regions
+    meta_lba = 4;
+    meta_num_blocks =
+        (2 * logical_block_size * bits_per_cell * bits_per_byte) +
+            logical_block_size/2;
+
+    status = tsi_io_task_orderer_->translate_meta_to_drive_addr(
+            meta_lba,
+            meta_num_blocks,
+            drive_smallest_block_size,
+            logical_block_size,
+            drive_blk_addr,
+            drive_num_blocks
+            );
+
+    CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
+    CPPUNIT_ASSERT(drive_blk_addr == 1);
+    CPPUNIT_ASSERT(drive_num_blocks == 3);
+
+    // Case 4: Meta-lba last bit of  drive lba region, drive_num_blocks
+    //         crosses 2 drive lba regions
+    meta_lba = logical_block_size - 1;
+    meta_num_blocks =
+        (2 * logical_block_size * bits_per_cell * bits_per_byte) +
+            logical_block_size/2;
+
+    status = tsi_io_task_orderer_->translate_meta_to_drive_addr(
+            meta_lba,
+            meta_num_blocks,
+            drive_smallest_block_size,
+            logical_block_size,
+            drive_blk_addr,
+            drive_num_blocks
+            );
+
+    CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
+    CPPUNIT_ASSERT(drive_blk_addr == 1);
+    CPPUNIT_ASSERT(drive_num_blocks == 3);
+}
+
+void IoTaskOrdererTest::test_serialize_integrity() {
+
+    // Testing with tsi (translate-serialize-integrity) variables
+    uint64_t drive_smallest_block_size = 4096;
+    uint64_t drive_blk_addr = 1; // BA meta starts from 1
+    uint64_t drive_num_blocks = 1;
+    void *serialized_drive_data = nullptr;
+    uint64_t serialized_len = 0;
+    dss_blk_allocator_status_t status = BLK_ALLOCATOR_STATUS_ERROR;
+
+    status = tsi_io_task_orderer_->serialize_drive_data(
+            drive_blk_addr,
+            drive_num_blocks,
+            drive_smallest_block_size,
+            &serialized_drive_data,
+            serialized_len
+            );
+
+    CPPUNIT_ASSERT(status == BLK_ALLOCATOR_STATUS_SUCCESS);
+    CPPUNIT_ASSERT(serialized_len == drive_smallest_block_size);
+
+    // NB: Serializng/De-serializing the meta-data is tested in
+    //     bitmap test suite (test_bitmap_impl)
 }
 
 void IoTaskOrdererTest::test_queue_sync_meta_io_tasks() {

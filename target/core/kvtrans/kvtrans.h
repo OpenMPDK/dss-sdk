@@ -277,6 +277,7 @@ typedef struct kvtrans_params_s {
     dss_device_t *dev;
     dss_io_task_module_t *iotm;
 
+    uint64_t blk_alloc_meta_start_offset;
     // The allocatable block number offset
     // excluding superblock and bitmap meta
     uint64_t blk_offset;

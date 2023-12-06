@@ -420,7 +420,6 @@ dss_blk_allocator_status_t QwordVector64Cell::alloc_blocks_contig(
 dss_blk_allocator_status_t QwordVector64Cell::serialize_drive_data(
         uint64_t drive_blk_addr,
         uint64_t drive_num_blocks,
-        uint64_t drive_start_block_offset,
         uint64_t drive_smallest_block_size,
         void** serialized_drive_data,
         uint64_t& serialized_len
@@ -428,24 +427,62 @@ dss_blk_allocator_status_t QwordVector64Cell::serialize_drive_data(
 
     void *serial_buf = nullptr;
     uint64_t total_indices = 0;
-    uint64_t meta_bitmap_pos = 0;
     uint64_t vector_start_index = 0;
+    uint64_t block_size_bits = 0;
+    uint64_t dlba_with_offset = 0;
+    // Represents the logical block where bitmap begins
+    uint64_t block_alloc_meta_offset =
+        this->block_alloc_meta_start_offset_;
 
-    if (drive_blk_addr < drive_start_block_offset) {
+#ifndef DSS_BUILD_CUNIT_TEST
+    // Represents the logical block where bitmap ends
+    uint64_t logical_start_block_offset =
+        this->logical_start_block_offset_;
+    // Make sure range within block allocator meta region
+    if (drive_blk_addr < block_alloc_meta_offset) {
         assert(("ERROR", false));
     }
 
-    meta_bitmap_pos = (drive_blk_addr - drive_start_block_offset) *
-        (drive_smallest_block_size * BITS_PER_BYTE);
-    vector_start_index = meta_bitmap_pos / BITS_PER_WORD;
+    if ((drive_blk_addr + drive_num_blocks) - 1 >=
+            logical_start_block_offset) {
+        assert(("ERROR", false));
+    }
+#endif
 
-    serialized_len = drive_num_blocks * 
-        (drive_smallest_block_size * BITS_PER_BYTE);
+    /* NB: drive_smallest_block_size is same as logical_block_size
+     *     However, this hook is in place for tuning this value in the
+     *     future
+     */
 
-    total_indices = serialized_len / sizeof(uint64_t);
+    // 0. Account for the block allocator meta offset before using
+    //    drive_blk_addr
+    dlba_with_offset = drive_blk_addr - block_alloc_meta_offset;
 
-    // 1. Vector start index and total_indices will be used for
-    //    serialization
+    // 1. Compute vector start index based on drive lba
+    block_size_bits = drive_smallest_block_size * BITS_PER_BYTE;
+
+    // dlba_with_offset lies within the bitmap region, need to align to
+    // BITS_PER_WORD
+    vector_start_index =
+        (block_size_bits * dlba_with_offset) / BITS_PER_WORD;
+
+    if ((block_size_bits * dlba_with_offset) % BITS_PER_WORD !=0) {
+        // Remainder here will never be not 0, it will only occur
+        // when drive_smallest_block_size is not a multiple of 4096
+        assert(("ERROR", false));
+    }
+
+    // 2. Compute the size of serial buffer to accomodate change
+    // serialized_len is accounted in bytes
+    serialized_len = drive_num_blocks * drive_smallest_block_size;
+
+    total_indices = (serialized_len * BITS_PER_BYTE) / BITS_PER_WORD;
+    if ((serialized_len * BITS_PER_BYTE) % BITS_PER_WORD != 0) {
+        // Remainder here will never be not 0, it will only occur
+        // when drive_smallest_block_size is not a multiple of 4096
+        assert(("ERROR", false));
+    }
+
 
 #ifndef DSS_BUILD_CUNIT_TEST
     serial_buf = dss_dma_zmalloc(serialized_len, drive_smallest_block_size);
@@ -455,8 +492,10 @@ dss_blk_allocator_status_t QwordVector64Cell::serialize_drive_data(
     DSS_ASSERT(serial_buf != NULL);
 
     this->serialize_range(
-            vector_start_index, total_indices,
-            serial_buf, serialized_len);
+            vector_start_index,
+            total_indices,
+            serial_buf,
+            serialized_len);
 
     *serialized_drive_data = serial_buf;
 
@@ -467,6 +506,60 @@ dss_blk_allocator_status_t QwordVector64Cell::serialize_drive_data(
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }
 
+bool QwordVector64Cell::translate_meta_to_drive_lba(
+        const uint64_t meta_lba,
+        const uint64_t lb_size_in_bits,
+        uint64_t& drive_blk_lba) {
+
+    // Represents the logical block where bitmap ends
+    uint64_t logical_start_block_offset =
+        this->logical_start_block_offset_;
+    uint64_t meta_lba_read = 0;
+    // Represents the logical block where bitmap begins
+    // Block allocator meta starts after super-block
+    // super-block lba is `0`
+    uint64_t block_alloc_meta_offset =
+        this->block_alloc_meta_start_offset_;
+    uint64_t lba_per_block = 0;
+
+    // Initialize drive_lba to 0
+    drive_blk_lba = 0;
+
+    // 1. Each lba on bitmap is represented by 4 bits
+    //    Determine which 64-bit integer index does lba
+    //    land on.
+    //    Each lba is of size logical block size in bytes
+    if ((logical_start_block_offset != 0) &&
+            (meta_lba < logical_start_block_offset)) {
+        assert(("ERROR", false));
+        return false;
+    }
+    lba_per_block = lb_size_in_bits / this->bits_per_cell_;
+
+    // Make sure meta_lba is accounted for offset
+    meta_lba_read = meta_lba - logical_start_block_offset;
+    meta_lba_read = meta_lba_read / lba_per_block;
+
+    // Assign drive_blk_lba
+    drive_blk_lba = block_alloc_meta_offset + meta_lba_read;
+
+#ifndef DSS_BUILD_CUNIT_TEST
+    // Ignore check when there is no logical block offset
+    // To catch any lba outside the block allocator meta-region
+    if (drive_blk_lba >= logical_start_block_offset) {
+        assert(("ERROR", false));
+        return false;
+    }
+
+    if (drive_blk_lba < block_alloc_meta_offset) {
+        assert(("ERROR", false));
+        return false;
+    }
+#endif
+
+    return true;
+}
+
 dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_addr(
         uint64_t meta_lba,
         uint64_t meta_num_blocks,
@@ -475,87 +568,45 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_addr(
         uint64_t& drive_blk_lba,
         uint64_t& drive_num_blocks) {
 
-    // Represents the logical block where bitmap begins
-    uint64_t logical_start_block_offset =
-        this->logical_start_block_offset_;
+    uint64_t lb_size_in_bits = logical_block_size * BITS_PER_BYTE;
+    uint64_t dlba_start = 0;
+    uint64_t dlba_end = 0;
+    uint64_t meta_lba_end = 0;
+    // Initialize output variables
+    drive_blk_lba = 0;
+    drive_num_blocks = 0;
 
-    uint64_t drive_start_block_offset = 0;
-    uint64_t drive_vector_start_pos = 0;
-    uint64_t drive_vector_start_pos_mod = 0;
-    uint64_t offset_vector = 0;
-    uint64_t offset_vector_mod = 0;
-    uint64_t meta_bitmap_pos = 0;
-    uint64_t vector_start_index = 0;
-    uint64_t meta_bitmap_num_blks = 0;
-    uint64_t total_indices = 0;
-    uint64_t total_indices_mod = 0;
-    uint64_t meta_lba_read = 0;
-    uint64_t serialized_len = 0;
+    if (logical_block_size != drive_smallest_block_size) {
 
-    if (logical_block_size == drive_smallest_block_size) {
-
-        drive_start_block_offset = logical_start_block_offset;
         // CXX: Assumption that drive_smallest_block_size is equal
         //      to logical_block_size will be consistent for 
         //      immediate release
+        assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+
+    // 1. Compute the start drive lba for range
+    if (this->translate_meta_to_drive_lba(
+                meta_lba, lb_size_in_bits, dlba_start)) {
+        // Translation successful
+        drive_blk_lba = dlba_start;
     } else {
-        // CXX TODO!: Handle adjusting drive start block offset
         assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_ERROR;
     }
-
-    // 1. Each lba on bitmap is represented by 4 bits
-    //    Determine which 64-bit integer index does lba
-    //    land on
-    if ((logical_start_block_offset != 0) &&
-            (meta_lba < logical_start_block_offset)) {
+    
+    // 2. Compute total number of drive num_blocks to represent change
+    // 2.1. First compute the end drive lba for range
+    // Get the last meta_lba
+    meta_lba_end = (meta_lba + meta_num_blocks) - 1;
+    // Translate meta_lba_end to drive_lba_end (dlba_end)
+    if (!this->translate_meta_to_drive_lba(
+                meta_lba_end, lb_size_in_bits, dlba_end)) {
         assert(("ERROR", false));
+        return BLK_ALLOCATOR_STATUS_ERROR;
     }
-    meta_lba_read = meta_lba - logical_start_block_offset;
-    meta_bitmap_pos = bits_per_cell_* meta_lba_read;
-    vector_start_index = meta_bitmap_pos / BITS_PER_WORD;
-    drive_blk_lba = drive_start_block_offset +
-            meta_bitmap_pos / 
-                (drive_smallest_block_size * BITS_PER_BYTE);
-
-    // 1.1. Compute the vector start index aligned to drive_start_lba
-    drive_vector_start_pos = vector_start_index * BITS_PER_WORD;
-    // 1.2. Check the offset of vector start index
-    drive_vector_start_pos_mod =
-        drive_vector_start_pos % 
-            (drive_smallest_block_size * BITS_PER_BYTE);
-    if (drive_vector_start_pos_mod != 0) {
-        // Account vector start pos to be the drive lba start
-        offset_vector = drive_vector_start_pos_mod / BITS_PER_WORD;
-        offset_vector_mod =
-            drive_vector_start_pos_mod % BITS_PER_WORD;
-        if (offset_vector_mod != 0) {
-            assert(("ERROR", false));
-        }
-
-        if (vector_start_index <= offset_vector) {
-            vector_start_index = 0;
-        } else {
-            vector_start_index =
-                vector_start_index - offset_vector;
-        }
-    }
-    // 2. Compute the end vector index based on num_blocks
-    meta_bitmap_num_blks = meta_num_blocks * bits_per_cell_;
-    total_indices = meta_bitmap_num_blks / BITS_PER_WORD;
-    total_indices_mod = meta_bitmap_num_blks % BITS_PER_WORD;
-    if (total_indices_mod != 0) {
-        total_indices = total_indices + 1;
-    }
-
-    serialized_len = total_indices * sizeof(uint64_t);
-
-    // 3. Update the total number of drive lbas required
-    drive_num_blocks =
-        serialized_len / (drive_smallest_block_size * BITS_PER_BYTE);
-    if (serialized_len % 
-            (drive_smallest_block_size * BITS_PER_BYTE) != 0) {
-        drive_num_blocks = drive_num_blocks + 1;
-    }
+    // 2.2. Get drive_num_blks
+    drive_num_blocks = (dlba_end - dlba_start) + 1;
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
 }

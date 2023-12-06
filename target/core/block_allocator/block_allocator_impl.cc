@@ -42,15 +42,15 @@ bool BlockAllocator::init(
 
     uint64_t total_blocks = 0;
     uint64_t logical_start_block_offset = 0;
-    uint64_t drive_start_block_offset = 0;
     uint64_t optimum_write_size = 0;
     uint64_t num_block_states = 0;
     uint64_t num_bits_per_block = 0;
 
     // CXX TODO: These are either procured from super block or
     // from a target drive lib
-    uint64_t drive_smallest_block_size = 4096;
-    uint64_t logical_block_size = 4096;
+    uint64_t drive_smallest_block_size = 0;
+    uint64_t logical_block_size = 0;
+    uint64_t block_alloc_meta_start_offset = 0;
     // CXX TODO: This needs to be tuned appropriately
     // This represents the total number of disjoint ranges
     // that can be flushed to the disk in one io_task
@@ -65,6 +65,17 @@ bool BlockAllocator::init(
     optimum_write_size = config->shard_size;
     num_block_states = config->num_block_states;
     logical_start_block_offset = config->logical_start_block_offset;
+    block_alloc_meta_start_offset = config->block_alloc_meta_start_offset;
+    logical_block_size = config->allocator_block_size;
+
+#ifdef DSS_BUILD_CUNIT_TEST
+    // In case, we are running unit tests without formatting
+    logical_block_size = 4096;
+#endif
+    
+    // Drive block size is same as the logical block size
+    // CXX: Hook for adjusting this variable for future
+    drive_smallest_block_size = logical_block_size;
 
     if(config->num_block_states == 0) {
         return false;
@@ -92,9 +103,9 @@ bool BlockAllocator::init(
         this->io_task_orderer =
             std::make_shared<BlockAlloc::IoTaskOrderer>(
                     drive_smallest_block_size,
-                    drive_start_block_offset,
                     logical_block_size, 
-                    max_dirty_segments, device);
+                    max_dirty_segments,
+                    device);
         if (io_task_orderer == nullptr)
         {
             return false;
@@ -106,8 +117,13 @@ bool BlockAllocator::init(
     //           allocator type. However, only 1 type of allocator
     //           is supported for now.
     this->allocator = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, this->io_task_orderer, total_blocks, num_bits_per_block,
-            num_block_states + 1, logical_start_block_offset);
+            jso,
+            this->io_task_orderer,
+            total_blocks,
+            num_bits_per_block,
+            num_block_states + 1,
+            block_alloc_meta_start_offset,
+            logical_start_block_offset);
     if (allocator == NULL) {
         return false;
     }
@@ -138,7 +154,6 @@ bool BlockAllocator::init(
         this->io_task_orderer->serialize_drive_data =
             [&](const uint64_t& drive_blk_addr,
                 const uint64_t& drive_num_blocks,
-                const uint64_t& drive_start_block_offset,
                 const uint64_t& drive_smallest_block_size,
                 void **serialized_drive_data,
                 uint64_t& serialized_len)
@@ -146,7 +161,6 @@ bool BlockAllocator::init(
             return this->allocator->serialize_drive_data(
                 drive_blk_addr,
                 drive_num_blocks,
-                drive_start_block_offset,
                 drive_smallest_block_size,
                 serialized_drive_data,
                 serialized_len);

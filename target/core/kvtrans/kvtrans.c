@@ -935,6 +935,10 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     //TODO: Check for valid block alloc name and set
     config.blk_allocator_type = ctx->kvtrans_params.blk_alloc_name;
     config.num_total_blocks = ctx->kvtrans_params.logi_blk_num;
+    config.block_alloc_meta_start_offset =
+        ctx->kvtrans_params.blk_alloc_meta_start_offset;
+    config.logical_start_block_offset = ctx->kvtrans_params.blk_offset;
+    config.allocator_block_size = ctx->blk_size;
     // exclude empty state
     config.num_block_states = ctx->state_num - 1;
 
@@ -952,12 +956,6 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         ctx->blk_offset = dss_blk_allocator_get_physical_size(&config) / ctx->blk_size + 1;
     }
 
-    if(dss_kvtrans_set_blks_state(ctx, NULL, 0, ctx->blk_offset, DATA)) {
-        // index 0 is regared as invalid index
-        printf("ERROR: set index 0 to meta failed\n");
-        goto failure_handle;
-    }
-    
     if (ctx->kvtrans_params.hash_size==0) {
         ctx->kvtrans_params.hash_size = _find_min_hash_size_for_device(config.num_total_blocks);
     }

@@ -482,8 +482,6 @@ public:
      *        mapped to the drive bitmap region
      * @param drive_num_blocks, actual range on drive representing
      *        dirty bitmap region
-     * @param drive_start_block_offset, offset accounting the start of
-     *        bitmap region on the drive
      * @param drive_smallest_block_size, smallest drive size in bytes
      *        for writing on the drive
      * @param[out] serialized_drive_data, serialized bitmap region
@@ -494,7 +492,6 @@ public:
     virtual dss_blk_allocator_status_t serialize_drive_data(
             uint64_t drive_blk_addr,
             uint64_t drive_num_blocks,
-            uint64_t drive_start_block_offset,
             uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len)=0;
@@ -529,14 +526,12 @@ public:
     // Constructor of the class
     explicit IoTaskOrderer(
             uint64_t drive_smallest_block_size,
-            uint64_t drive_start_block_offset,
             uint64_t logical_block_size,
             uint64_t max_dirty_segments,
             dss_device_t *device)
         : translate_meta_to_drive_addr(nullptr),
           serialize_drive_data(nullptr),
           drive_smallest_block_size_(drive_smallest_block_size),
-          drive_start_block_offset_(drive_start_block_offset),
           logical_block_size_(logical_block_size),
           max_dirty_segments_(max_dirty_segments),
           io_device_(device),
@@ -602,7 +597,6 @@ public:
     std::function<dss_blk_allocator_status_t(
             uint64_t drive_blk_addr,
             uint64_t drive_num_blocks,
-            uint64_t drive_start_block_offset,
             uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len)>
@@ -761,7 +755,6 @@ private:
 
     // Class specific variables
     uint64_t drive_smallest_block_size_;
-    uint64_t drive_start_block_offset_;
     uint64_t logical_block_size_;
     uint64_t max_dirty_segments_;
     dss_device_t *io_device_;

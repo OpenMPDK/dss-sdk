@@ -358,12 +358,17 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                    This translation is done temporarily here and needs to be
                    refactored
                 */
-                params.logi_blk_size = super_block->logi_blk_size_in_bytes;
+                params.logi_blk_size =
+                    super_block->logi_blk_size_in_bytes;
                 // Procure total number of usable blocks
-                usable_start_block = super_block->logi_usable_blk_start_addr;
+                usable_start_block =
+                    super_block->logi_usable_blk_start_addr;
                 usable_end_block = super_block->logi_usable_blk_end_addr;
                 params.logi_blk_num =
                     usable_end_block - usable_start_block + 1;
+                // Procure block allocator meta start block offset
+                params.blk_alloc_meta_start_offset =
+                    super_block->logi_blk_alloc_meta_start_blk;
                 // Procure logical start addr or the offset
                 params.blk_offset = usable_start_block;
 

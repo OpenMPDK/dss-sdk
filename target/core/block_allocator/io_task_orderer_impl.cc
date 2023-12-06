@@ -38,10 +38,7 @@ namespace BlockAlloc {
 void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
         std::vector<std::pair<uint64_t, uint64_t>>& io_ranges,
         uint64_t& num_ranges, bool is_completion) {
-    dss_io_task_status_t rc;
     dss_io_op_exec_state_t op_state_filter;
-    void *tmp_it_ctx = NULL;
-    dss_io_op_user_param_t op_params;
 
     is_completion?
         (op_state_filter = DSS_IO_OP_COMPLETED):
@@ -49,6 +46,9 @@ void IoTaskOrderer::populate_io_ranges(dss_io_task_t* io_task,
     num_ranges = 0;
 
 #ifndef DSS_BUILD_CUNIT_WO_IO_TASK
+    dss_io_task_status_t rc;
+    void *tmp_it_ctx = NULL;
+    dss_io_op_user_param_t op_params;
     do {
         rc = dss_io_task_get_op_ranges(
                 io_task, DSS_IO_OP_OWNER_BA,
@@ -485,9 +485,8 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     // disk like IO task ?
     // Same is true for logical_block_size
     this->logical_block_size_ = 4096;
-    this->drive_smallest_block_size_ = 4096;
+    //this->drive_smallest_block_size_ = 4096;
     dss_blk_allocator_status_t blk_status = BLK_ALLOCATOR_STATUS_ERROR;
-    dss_io_task_status_t io_status = DSS_IO_TASK_STATUS_ERROR;
     Word_t *ptr_j_entry = nullptr;
     Word_t jarr_index = 0;
     Word_t free_bytes = 0;
@@ -504,7 +503,6 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
         blk_status = this->serialize_drive_data(
                 drive_blk_addr,
                 drive_num_blocks,
-                this->drive_start_block_offset_,
                 this->drive_smallest_block_size_,
                 &serialized_drive_data,
                 serialized_len
@@ -522,6 +520,7 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
                 "IO module stub for testing IO ordering"<<std::endl;
         } else {
             #ifndef DSS_BUILD_CUNIT_WO_IO_TASK
+            dss_io_task_status_t io_status = DSS_IO_TASK_STATUS_ERROR;
             dss_io_opts_t io_opts = 
             {.mod_id = DSS_IO_OP_OWNER_BA, .is_blocking = false};
             io_status = dss_io_task_add_blk_write(
@@ -547,6 +546,9 @@ dss_blk_allocator_status_t IoTaskOrderer::queue_sync_meta_io_tasks(
     // Reset jarr_dirty_meta_, since we have added all pending
     // dirty meta data relevant to the IO
     free_bytes = JudyLFreeArray(&jarr_dirty_meta_, PJE0);
+    if (free_bytes == 0) {
+        assert(("ERROR", false));
+    }
     // CXX: Log free bytes for examination
 
     // Insert into IO device guard queue
@@ -565,8 +567,6 @@ dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
     if (io_dev_guard_q_.size() == 0) {
         return BLK_ALLOCATOR_STATUS_ITERATION_END;
     }
-
-    uint64_t num_ranges = 0;
 
     std::vector<dss_io_task_t *>::iterator it = io_dev_guard_q_.begin();
     /*while (it != io_dev_guard_q_.end()) {
@@ -587,6 +587,9 @@ dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
 
     // CXX: Currently only the top item is checked, this can be iterated
     // through in a loop as demonstrated above
+#ifndef DSS_IO_ORDER_CPPUNIT_TEST
+    uint64_t num_ranges = 0;
+
     populate_io_ranges(*it, io_ranges_, num_ranges, false);
     if (is_dev_guard_overlap(io_ranges_, num_ranges)) {
         return BLK_ALLOCATOR_STATUS_ITERATION_END;
@@ -597,6 +600,9 @@ dss_blk_allocator_status_t IoTaskOrderer::get_next_submit_meta_io_tasks(
 
         return BLK_ALLOCATOR_STATUS_SUCCESS;
     }
+#else
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+#endif
 }
 
 dss_blk_allocator_status_t IoTaskOrderer::complete_meta_sync(

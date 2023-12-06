@@ -59,8 +59,11 @@ public:
     explicit QwordVector64Cell(
             BlockAlloc::JudySeekOptimizerSharedPtr jso,
             BlockAlloc::IoTaskOrdererSharedPtr io_task_orderer,
-            uint64_t total_cells, uint8_t bits_per_cell,
-            uint64_t num_block_states, uint64_t logical_start_block_offset)
+            uint64_t total_cells,
+            uint8_t bits_per_cell,
+            uint64_t num_block_states,
+            uint64_t block_alloc_meta_start_offset,
+            uint64_t logical_start_block_offset)
         : jso_(std::move(jso)),
           io_task_orderer_(io_task_orderer),
           cells_(total_cells),
@@ -68,6 +71,7 @@ public:
             ((bits_per_cell > BITS_PER_WORD) || (bits_per_cell == 0))?
             BITS_PER_WORD : bits_per_cell),
           num_block_states_(num_block_states),
+          block_alloc_meta_start_offset_(block_alloc_meta_start_offset),
           logical_start_block_offset_(logical_start_block_offset),
           cells_per_qword_(BITS_PER_WORD/bits_per_cell_),
           data_(
@@ -161,15 +165,13 @@ public:
     dss_blk_allocator_status_t serialize_drive_data(
             uint64_t drive_blk_addr,
             uint64_t drive_num_blocks,
-            uint64_t drive_start_block_offset,
             uint64_t drive_smallest_block_size,
             void** serialized_drive_data,
             uint64_t& serialized_len) override;
     dss_blk_allocator_status_t load_meta_from_disk_data(
             uint8_t *serialized_data,
             uint64_t serialized_data_len,
-            uint64_t byte_offset
-            ) override;
+            uint64_t byte_offset) override;
     dss_blk_allocator_status_t print_stats() override;
 
 private:
@@ -178,10 +180,26 @@ private:
     uint64_t cells_;
     uint8_t bits_per_cell_;
     uint64_t num_block_states_;
+    uint64_t block_alloc_meta_start_offset_;
     uint64_t logical_start_block_offset_;
     int cells_per_qword_;
     std::vector<uint64_t> data_;
     uint64_t read_cell_flag_;
+    /**
+     * @brief Helper function for translate_meta_to_drive_addr
+     * 
+     * @param meta_lba, actual allocated lba, outside
+     *        block allocator meta lba range.
+     * @param lb_size_in_bits, logical block size in bits
+     * @param[OUT] drive_lba, lba on the drive corresponding
+     *             to meta_lba within the block allocator
+     *             meta lba range
+     * @return boolean, true on successful translation 
+     */
+    bool translate_meta_to_drive_lba(
+            const uint64_t meta_lba,
+            const uint64_t lb_size_in_bits,
+            uint64_t& drive_blk_lba);
 };
 
 } // End AllocatorType namespace

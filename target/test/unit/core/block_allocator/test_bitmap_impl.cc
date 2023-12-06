@@ -57,41 +57,65 @@ public:
         perf_total_cells = 65536;
         bits_per_cell = 4;
         num_block_states = 5;
+        block_alloc_meta_start_offset = 0;
         logical_start_block_offset = 0;
 
         // Dummy io task orderer for bitmap constructor
         io_task_orderer_ =
         std::make_shared<BlockAlloc::
-        IoTaskOrderer>(0, 0, 0, 0, nullptr);
+        IoTaskOrderer>(0, 0, 0, nullptr);
 
         // jso is created during block allocator init
         BlockAlloc::JudySeekOptimizerSharedPtr jso =
             std::make_shared<BlockAlloc::
-            JudySeekOptimizer>(total_cells, logical_start_block_offset, 128);
+            JudySeekOptimizer>(
+                    total_cells,
+                    logical_start_block_offset,
+                    128);
 
         bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            jso, io_task_orderer_, total_cells, bits_per_cell,
-            num_block_states, logical_start_block_offset); 
+            jso,
+            io_task_orderer_,
+            total_cells,
+            bits_per_cell,
+            num_block_states,
+            block_alloc_meta_start_offset,
+            logical_start_block_offset); 
 
         BlockAlloc::JudySeekOptimizerSharedPtr perf_jso =
             std::make_shared<BlockAlloc::
             JudySeekOptimizer>(
-                    perf_total_cells, logical_start_block_offset, 128);
+                    perf_total_cells,
+                    logical_start_block_offset,
+                    128);
         perf_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            perf_jso, io_task_orderer_, perf_total_cells, bits_per_cell,
-            num_block_states, logical_start_block_offset);
+            perf_jso,
+            io_task_orderer_,
+            perf_total_cells,
+            bits_per_cell,
+            num_block_states,
+            block_alloc_meta_start_offset,
+            logical_start_block_offset);
 
         // Test bitmap handling with logical start block offset
         logical_start_block_offset = TEST_LOGICAL_BLOCK_OFFSET;
+        block_alloc_meta_start_offset = 1;
         uint64_t total_offset_cells = 2 * logical_start_block_offset;
         BlockAlloc::JudySeekOptimizerSharedPtr offset_jso =
             std::make_shared<BlockAlloc::
             JudySeekOptimizer>(
-                    total_offset_cells, logical_start_block_offset, 128);
+                    total_offset_cells,
+                    logical_start_block_offset,
+                    128);
 
         offset_bmap = std::make_shared<AllocatorType::QwordVector64Cell>(
-            offset_jso, io_task_orderer_, total_offset_cells, bits_per_cell,
-            num_block_states, logical_start_block_offset); 
+            offset_jso,
+            io_task_orderer_,
+            total_offset_cells,
+            bits_per_cell,
+            num_block_states,
+            block_alloc_meta_start_offset,
+            logical_start_block_offset); 
 
     }
 
@@ -127,6 +151,7 @@ private:
     uint64_t perf_total_cells;
     int bits_per_cell;
     uint64_t num_block_states;
+    uint64_t block_alloc_meta_start_offset;
     uint64_t logical_start_block_offset;
 
 };

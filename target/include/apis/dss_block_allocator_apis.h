@@ -85,13 +85,25 @@ struct dss_blk_allocator_opts_s {
                                // - This will correspond to the number of bit required for each block
     uint64_t shard_size; // Optimal write size for high throughput
     uint64_t allocator_block_size;// Size of each block allocated in bytes
-    uint64_t logical_start_block_offset; // - Logical block number from which the block_allocator
-                                         //   needs to manage `num_total_blocks`
-                                         // - This offset will include the size for superblock
-                                         //   and size for persistent block allocator data in blocks
-                                         //   at the minimum
-    dss_blk_allocator_disk_config_t d; // On disk configuration for block allocator
-    bool enable_ba_meta_sync; //Enable or disable block allocation meta sync interface to disk
+    uint64_t block_alloc_meta_start_offset; // - Logical block number from
+                                            //   which block allocator
+                                            //   manages meta-region
+    uint64_t logical_start_block_offset; // - Logical block number from
+                                         //   which the block_allocator
+                                         //   needs to manage 
+                                         //   `num_total_blocks`
+                                         // - This offset will include the 
+                                         //   size for superblock
+                                         //   and size for persistent block 
+                                         //   allocator data in blocks at
+                                         //   the minimum
+                                         // - This is also the last but 1
+                                         //   block at which block allocator
+                                         //   manages it's meta-region
+    dss_blk_allocator_disk_config_t d; // On disk configuration for block 
+                                       // allocator
+    bool enable_ba_meta_sync; // Enable or disable block allocation meta 
+                              // sync interface to disk
 };
 
 /**

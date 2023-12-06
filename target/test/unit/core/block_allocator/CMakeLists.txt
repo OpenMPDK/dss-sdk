@@ -136,6 +136,7 @@ target_include_directories(test_block_allocator_ut PRIVATE ${CMAKE_SOURCE_DIR}/c
                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator
                                                            ${CMAKE_SOURCE_DIR}/core/block_allocator/utils
                                                            ${CMAKE_SOURCE_DIR}/include/apis)
+target_compile_definitions(test_block_allocator_ut PRIVATE -DDSS_IO_ORDER_CPPUNIT_TEST)
 target_link_libraries(test_block_allocator_ut -L${CMAKE_BINARY_DIR} -ljudy_hashmap -ljudyL ${UNIT_LIBS})
 target_compile_options(test_block_allocator_ut PRIVATE -Wall -g -std=gnu++11)
 add_dependencies(test_block_allocator_ut judy_hashmap)
