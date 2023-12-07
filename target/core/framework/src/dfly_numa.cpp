@@ -638,7 +638,11 @@ uint32_t dfly_put_conn_core(char *conn, uint32_t core, char *peer_addr)
 
 uint32_t dfly_get_next_core(char *conn, int num_cpu, char *ip, char *peer_addr)
 {
-	int numa_node = dfly_spdk_get_ifaddr_numa_node(ip);
+	int numa_node = -1;
+
+	if(ip) {
+		numa_node = dfly_spdk_get_ifaddr_numa_node(ip);
+	}
 	assert(g_dfly_numa_ctx.initialized == true);
 
 	return dfly_get_next_conn_core(conn, num_cpu, numa_node, peer_addr);
