@@ -267,9 +267,9 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e)
         //TODO: do callback with error code
         free(net_ss_node);
         dss_net_module_free_config(e->cfg);
+        df_ss_cb_event_complete(e->cb_event);
         free(e->cfg);
         free(e);
-        df_ss_cb_event_complete(e->cb_event);
         return rc;
     }
 
@@ -318,6 +318,7 @@ dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, 
         e->cb_event = net_init_event;
         if(!net_init_event) {
             DSS_ERRLOG("Failed to allocate net event\v");
+            free(e);
             goto err_out;
         }
         TAILQ_INIT(&nm_ss->module_list);
@@ -336,11 +337,11 @@ dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, 
         }
     } else {
         DSS_ERRLOG("Failed to allocated memory\n");
+        if(e) free(e);
         goto err_out;
     }
 err_out:
     //TODO: Destroy initialized NICs before destory
-    if(e) free(e);
     if(nm_ss) free(nm_ss);
 
     return DSS_MODULE_STATUS_ERROR;
