@@ -356,7 +356,7 @@ struct dfly_module_ops list_module_ops = {
 
 extern dfly_io_module_handler_t g_list_io_handlers;
 
-int list_init_load_by_iter(struct dfly_subsystem *pool);
+int list_init_load_by_iter(struct df_ss_cb_event_s *e);
 int list_init_load_by_blk_iter(struct dfly_subsystem *pool);
 
 //Assumes subsystems are initialized one by one
@@ -367,30 +367,32 @@ struct list_started_cb_event_s {
 	uint64_t start_tick;
 } list_cb_event;
 
-void list_module_started_cb(struct dfly_subsystem *pool, void *arg);
-void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/);
+void list_module_started_cb(struct df_ss_cb_event_s *e);
+void list_module_load_done_cb(struct df_ss_cb_event_s *e);
 
-void list_module_started_cb(struct dfly_subsystem *pool, void *arg)
+void list_module_started_cb(struct df_ss_cb_event_s *e)
 {
+    struct dfly_subsystem *pool = e->ss;
     if(g_dragonfly->blk_map){
+        pool->list_init_event = e;
         list_init_load_by_blk_iter(pool);//Rocksdb loading
     } else if (dss_subsystem_kv_mode_enabled((dss_subsystem_t *)pool)) {
         //TODO: load keys from KVTrans
-        list_module_load_done_cb(pool, NULL);//Complete without loading keys
+        list_module_load_done_cb(e);//Complete without loading keys
     } else {
-        list_init_load_by_iter(pool);//KVdrive loading
+        list_init_load_by_iter(e);//KVdrive loading
     }
     return;
 }
 
-void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
+void list_module_load_done_cb(struct df_ss_cb_event_s *e)
 {
-	uint32_t icore = spdk_env_get_current_core();
-	struct spdk_event *event;
+    struct dfly_subsystem *pool = e->ss;
 
-	uint64_t load_time;
+	uint64_t start_tick, load_time;
 
 	dss_hsl_ctx_t *hsl_ctx =  dss_get_hsl_context(pool);
+    start_tick = (uint64_t)e->df_ss_private;
 
 
 #ifndef DSS_OPEN_SOURCE_RELEASE
@@ -403,34 +405,23 @@ void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/
 	}
 #endif
 
-	load_time = ((spdk_get_ticks() - list_cb_event.start_tick) * SPDK_SEC_TO_USEC )/ spdk_get_ticks_hz();
+	load_time = ((spdk_get_ticks() - start_tick) * SPDK_SEC_TO_USEC )/ spdk_get_ticks_hz();
 
-
-	//list_cb event to be populated before start
-	DFLY_ASSERT(list_cb_event.df_ss_cb);
-	DFLY_ASSERT(list_cb_event.df_ss_cb_arg);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "List load for pool %s, completed in %d micro seconds\n", pool->name, load_time);
-	//Call cb started event;
-	if (icore == list_cb_event.src_core) {
-		list_cb_event.df_ss_cb(list_cb_event.df_ss_cb_arg, NULL);
-	} else {
-		event = spdk_event_allocate(list_cb_event.src_core, list_cb_event.df_ss_cb,
-					    list_cb_event.df_ss_cb_arg, NULL);
-		spdk_event_call(event);
-	}
 
-	//Reset list cb event
-	list_cb_event.df_ss_cb = NULL;
-	list_cb_event.df_ss_cb_arg = NULL;
+    df_ss_cb_event_complete(e);
 }
 
-void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
+void list_module_load_done_blk_cb(struct df_ss_cb_event_s *e)
 {
+    struct dfly_subsystem *pool = e->ss;
+    int rc = e->status;
+
     if(rc == LIST_INIT_DONE){
         if(++pool->list_initialized_nbdev == pool->num_io_devices){
             pool->list_init_status = LIST_INIT_DONE;
-            list_module_load_done_cb(pool, nullptr);
+            list_module_load_done_cb(e);
         }
     }
 }
@@ -442,6 +433,7 @@ int dfly_list_module_init(struct dfly_subsystem *pool, void *dummy, void *cb, vo
 	int nr_zones;
 	int i;
 	dss_module_config_t c;
+    struct df_ss_cb_event_s *list_mod_event;
 
 	dss_module_set_default_config(&c);
 	c.id = pool->id;
@@ -494,13 +486,10 @@ DFLY_ASSERT(0);
 	list_mctx->nr_zones = nr_zones;
 
 	//Initialize subsystem call backs
-	list_cb_event.df_ss_cb = (df_module_event_complete_cb)cb;
-	list_cb_event.df_ss_cb_arg = cb_arg;
-	list_cb_event.src_core = spdk_env_get_current_core();
-	list_cb_event.start_tick = spdk_get_ticks();
+    list_mod_event = df_ss_cb_event_allocate(pool ,cb, cb_arg, (void *)spdk_get_ticks());
 
 	pool->mlist.dfly_list_module = dfly_module_start("list", DSS_MODULE_LIST, &c, &list_module_ops,
-				       list_mctx, (df_module_event_complete_cb)list_module_started_cb, pool);
+				       list_mctx, (df_module_event_complete_cb)list_module_started_cb, list_mod_event);
 
 	DFLY_DEBUGLOG(DFLY_LOG_LIST, "dfly_list_module_init ss %p ssid %d\n", pool, pool->id);
 	assert(pool->mlist.dfly_list_module);
@@ -529,7 +518,7 @@ void dfly_list_module_destroy(struct dfly_subsystem *pool, void *args, void *cb,
 
 	struct df_ss_cb_event_s *list_cb_event = df_ss_cb_event_allocate(pool, (df_module_event_complete_cb)cb, cb_arg, args);
 
-	dfly_module_stop(pool->mlist.dfly_list_module, dfly_list_module_destroy_compelete, list_cb_event, NULL);
+	dfly_module_stop(pool->mlist.dfly_list_module, dfly_list_module_destroy_compelete, list_cb_event);
 
 	return;
 }

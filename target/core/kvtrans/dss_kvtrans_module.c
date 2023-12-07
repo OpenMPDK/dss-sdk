@@ -123,6 +123,9 @@ dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, ds
     DSS_ASSERT(init_req_ctx->data != NULL);
     init_req_ctx->data_len = BLOCK_SIZE;
 
+    //TODO: This cannot be hard coded.
+    // But for this to work the logical block size
+    // should be read from the first drive LBA and reload super block
     dss_io_dev_set_user_blk_sz(p->dev, BLOCK_SIZE);
 
     iot_rc = dss_io_task_get_new(init_req_ctx->iotm, &iot);
@@ -635,6 +638,6 @@ int dss_kvtrans_module_subsystem_start(struct dfly_subsystem *subsystem,
 
 void dss_kvtrans_module_subsystem_stop(struct dfly_subsystem *subsystem, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg)
 {
-    dfly_module_stop(subsystem->mlist.dss_kv_trans_module, cb, cb_arg, NULL);
+    dfly_module_stop(subsystem->mlist.dss_kv_trans_module, cb, cb_arg);
     return;
 }

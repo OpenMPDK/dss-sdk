@@ -104,19 +104,18 @@ struct dfly_module_poller_instance_s {
 typedef int (*req_poller_fn)(void *ctx, struct dfly_request *req);
 typedef int (*gen_poller_fn)(void *ctx);
 
-typedef void (*df_module_event_complete_cb)(void *cb_event, void *dummy_arg);
+typedef void (*df_module_event_complete_cb)(void *cb_event);
 
 struct df_module_event_complete_s {
-	uint32_t src_core;
 	df_module_event_complete_cb cb_fn;
-	void *arg1;
-	void *arg2;
+	void *arg;
+    struct spdk_thread *src_thread;
 };
 
 struct dfly_module_s *dfly_module_start(const char *name, dss_module_type_t mtype, dss_module_config_t *cfg, struct dfly_module_ops *mops,
 					void *ctx,
 					df_module_event_complete_cb cb, void *cb_arg);
-void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg, void *cb_private);
+void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_module_post_request(struct dfly_module_s *module, struct dfly_request *req);
 void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_request *req);
 void *dfly_module_get_ctx(struct dfly_module_s *module);

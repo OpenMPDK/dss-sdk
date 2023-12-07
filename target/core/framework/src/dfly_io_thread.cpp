@@ -600,7 +600,7 @@ void _dev_init(void *device, void *cb_event)
 
 }
 
-void _dfly_rdb_init_devices( void *ctx, void * dummy) {
+void _dfly_rdb_init_devices( void *ctx) {
 	struct init_multi_dev_s *event_ctx = (struct init_multi_dev_s *)ctx;;
 	struct spdk_event *event;
 	int i;
@@ -681,6 +681,8 @@ void _dfly_io_module_stop(void *event, void *dummy)
 	dfly_io_module_deinit_spdk_devices(subsystem);
 
 	df_ss_cb_event_complete(io_mod_cb_event);
+    free(io_mod_cb_event);
+
 	return;
 }
 
@@ -689,6 +691,6 @@ void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/
 {
 
 	struct df_ss_cb_event_s *io_mod_cb_event = df_ss_cb_event_allocate(subsystem, cb, cb_arg, args);
-	dfly_module_stop(subsystem->mlist.dfly_io_module, _dfly_io_module_stop, io_mod_cb_event, NULL);
+	dfly_module_stop(subsystem->mlist.dfly_io_module, _dfly_io_module_stop, io_mod_cb_event);
 
 }

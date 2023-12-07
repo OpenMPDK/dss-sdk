@@ -184,8 +184,6 @@ int  dfly_module_get_instance_icore(void *inst)
 void dfly_module_event_processed(struct df_module_event_complete_s *cb_event, char *mname)
 {
 	//Callback function after module started
-	struct spdk_event *event;
-	uint32_t icore = spdk_env_get_current_core();
 
 	if (!cb_event->cb_fn) {
 		DFLY_INFOLOG(DFLY_LOG_MODULE, "No callback for module %s\n", mname);
@@ -194,12 +192,7 @@ void dfly_module_event_processed(struct df_module_event_complete_s *cb_event, ch
 		return;
 	}
 
-	if (icore != cb_event->src_core) {
-		event = spdk_event_allocate(cb_event->src_core, cb_event->cb_fn, cb_event->arg1, cb_event->arg2);
-		spdk_event_call(event);
-	} else {
-		cb_event->cb_fn(cb_event->arg1, cb_event->arg2);
-	}
+    spdk_thread_send_msg(cb_event->src_thread, cb_event->cb_fn, cb_event->arg);
 
 	free(mname);
 	free(cb_event);
@@ -347,9 +340,9 @@ struct dfly_module_s *dfly_module_start(const char *name, dss_module_type_t mtyp
 		return NULL;
 	}
 
-	cb_event->src_core = spdk_env_get_current_core();
 	cb_event->cb_fn = cb;
-	cb_event->arg1 = cb_arg;
+	cb_event->arg = cb_arg;
+	cb_event->src_thread = spdk_get_thread();
 
 	//TODO: Return pending
 	//Last init instance will give module
@@ -427,7 +420,7 @@ void dfly_module_thread_stop(void *ctx, void *cb_event)
 
 }
 
-void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg, void *cb_private)
+void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg)
 {
 	struct dfly_module_poller_instance_s *m_inst;
 	struct spdk_event *event;
@@ -445,10 +438,9 @@ void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb 
 		return;
 	}
 
-	cb_event->src_core = spdk_env_get_current_core();
 	cb_event->cb_fn = cb;
-	cb_event->arg1 = cb_arg;
-	cb_event->arg2 = cb_private;
+	cb_event->arg = cb_arg;
+	cb_event->src_thread = spdk_get_thread();
 
 	if(module->async_load.async_load_enabled) {
 		DSS_ASSERT(module->async_load.state == module->async_load.DSS_MODULE_LOADED);

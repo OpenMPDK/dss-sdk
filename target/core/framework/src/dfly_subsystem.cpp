@@ -36,11 +36,11 @@
 
 #include "apis/dss_net_module.h"
 
-typedef void (*df_ss_init_next_fn)(void *event, void *arg);
+typedef void (*df_ss_init_next_fn)(void *event);
 
 struct df_subsys_process_event_s {
 	struct dfly_subsystem *subsys;
-	uint32_t src_core;
+    struct spdk_thread *src_thread;
 	bool initialize;
 	dss_module_type_t curr_module;
 	df_subsystem_event_processed_cb cb;
@@ -61,23 +61,17 @@ struct df_ss_cb_event_s * df_ss_cb_event_allocate(struct dfly_subsystem *ss, df_
 	ss_cb_event->df_ss_cb = cb;
 	ss_cb_event->df_ss_cb_arg = cb_arg;
 	ss_cb_event->df_ss_private = event_private;
-	ss_cb_event->src_core = spdk_env_get_current_core();
+	ss_cb_event->src_thread = spdk_get_thread();
 
 	return ss_cb_event;
 }
 
 void df_ss_cb_event_complete(struct df_ss_cb_event_s *ss_cb_event)
 {
-	uint32_t icore = spdk_env_get_current_core();
-
 	DFLY_ASSERT(ss_cb_event && ss_cb_event->df_ss_cb);
-	if(icore == ss_cb_event->src_core) {
-		ss_cb_event->df_ss_cb(ss_cb_event->df_ss_cb_arg, NULL);
-	} else {
-		struct spdk_event *event = spdk_event_allocate(ss_cb_event->src_core, ss_cb_event->df_ss_cb, ss_cb_event->df_ss_cb_arg, NULL);
-		spdk_event_call(event);
-	}
-	free(ss_cb_event);
+
+    spdk_thread_send_msg(ss_cb_event->src_thread, ss_cb_event->df_ss_cb, ss_cb_event->df_ss_cb_arg);
+
 	return;
 }
 
@@ -215,7 +209,7 @@ uint32_t df_subsystem_enabled(uint32_t ssid)
 
 }
 
-void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/);
+void _dfly_subsystem_process_next(void *vctx);
 
 //Array indices should match enum for module
 static struct df_ss_mod_init_s module_initializers[DSS_MODULE_END + 1] = {
@@ -260,13 +254,13 @@ int dss_fill_dss_net_dev_info(void *spdk_subsys, dss_net_mod_dev_info_t *net_dev
 	return fill_count;
 }
 
-void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
+void _dfly_subsystem_process_next(void *vctx)
 {
 	struct df_subsys_process_event_s *ss_event = (struct df_subsys_process_event_s *)vctx;
 	dss_module_t **ss_module_p;
 	int mod_index = 0;
 
-	DFLY_ASSERT(ss_event->src_core == spdk_env_get_current_core());
+	DFLY_ASSERT(ss_event->src_thread == spdk_get_thread());
 
 	if(ss_event->curr_module == DSS_MODULE_START_INIT) {
 		if (ss_event->initialize)
@@ -357,8 +351,6 @@ void _dfly_subsystem_process_next(void *vctx, void *arg /*Not used*/)
 	return;
 }
 
-
-
 int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 			df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status)
 {
@@ -399,13 +391,13 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 	}
 
 	ss_mod_init_next->subsys = dfly_subsystem;
-	ss_mod_init_next->src_core = spdk_env_get_current_core();
 	ss_mod_init_next->initialize = true;
 	DFLY_ASSERT(cb);
 	ss_mod_init_next->cb = cb;
 	ss_mod_init_next->cb_arg = cb_arg;
 	ss_mod_init_next->cb_status = cb_status;
 	ss_mod_init_next->curr_module = DSS_MODULE_START_INIT;
+    ss_mod_init_next->src_thread = spdk_get_thread();
 
 	module_initializers[DSS_MODULE_IO].arg = io_ops;
 
@@ -446,7 +438,7 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 		module_initializers[DSS_MODULE_WAL].arg = &g_wal_conf;
 	}
 
-	_dfly_subsystem_process_next(ss_mod_init_next, NULL);
+	_dfly_subsystem_process_next(ss_mod_init_next);
 
 	return DFLY_INIT_PENDING;
 }
@@ -484,13 +476,13 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 	}
 
 	ss_mod_deinit_next->subsys = dfly_subsystem;
-	ss_mod_deinit_next->src_core = spdk_env_get_current_core();
 	ss_mod_deinit_next->initialize = false;
 	DFLY_ASSERT(cb);
 	ss_mod_deinit_next->cb = cb;
 	ss_mod_deinit_next->cb_arg = cb_arg;
 	ss_mod_deinit_next->cb_status = cb_status;
 	ss_mod_deinit_next->curr_module = DSS_MODULE_START_INIT;
+    ss_mod_deinit_next->src_thread = spdk_get_thread();
 
 	//TODO: Deinit FUSE
 	//TODO: Deinit WAL
@@ -500,7 +492,7 @@ int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void 
 
 	//dfly_io_module_subsystem_stop(dfly_subsystem);
 
-	_dfly_subsystem_process_next(ss_mod_deinit_next, NULL);
+	_dfly_subsystem_process_next(ss_mod_deinit_next);
 	return DFLY_DEINIT_PENDING;
 	//dfly_subsystem->initialized = false;
 }

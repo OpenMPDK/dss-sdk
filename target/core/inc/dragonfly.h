@@ -228,6 +228,7 @@ struct dfly_subsystem {
     bool iomem_dev_numa_aligned;
 	int wal_init_status;
 	int list_init_status;
+    void *list_init_event;
 	int list_initialized_nbdev;
 	void (*wal_init_cb)(void *subsystem, int status);
 	void (*list_init_cb)(void *subsystem, int status);
@@ -240,8 +241,9 @@ struct df_ss_cb_event_s {
 	struct dfly_subsystem *ss;
 	df_module_event_complete_cb df_ss_cb;
 	void *df_ss_cb_arg;
-	uint32_t src_core;
 	void *df_ss_private;
+    uint64_t status;
+    struct spdk_thread *src_thread;
 };
 
 typedef void (*df_exec_on_core)(void *arg1, void *arg2);

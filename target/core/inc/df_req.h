@@ -259,6 +259,7 @@ typedef struct dfly_request {
 		uint32_t iter_option; //iter_open command cdw11
 		void *dev_iter_info;
 		void *internal_cb;
+        void *load_event;
 	} iter_data;
 	struct {
 		struct rdd_rdma_queue_s *q;

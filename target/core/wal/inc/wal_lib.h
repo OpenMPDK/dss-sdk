@@ -109,6 +109,7 @@ typedef struct wal_log_device_init_ctx_s {
 	wal_sb_t **sb;
 	struct dfly_subsystem *pool;
 	long long nr_record_recovered;
+    void *init_cb_event;
 } wal_log_device_init_ctx_t;
 
 // On disk data struct

@@ -31,6 +31,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "dragonfly.h"
+
 #include "dss.h"
 #include "apis/dss_module_apis.h"
 #include "apis/dss_net_module.h"
@@ -132,12 +134,14 @@ dss_module_status_t dss_net_module_init(char *net_dev_name, char *ip, dss_net_mo
     if(!nm) {
         nm = (dss_net_module_t *)calloc(1, sizeof(dss_net_module_t));
         if(!nm) {
+            DSS_ERRLOG("Net module init failed\n");
             pthread_mutex_unlock(&g_net_mod_mgr.net_module_mgr_lock);
             return DSS_MODULE_STATUS_ERROR;
         }
 
         nm->dev_name = strdup(net_dev_name);
         if(!nm->dev_name) {
+            DSS_ERRLOG("Net module init failed\n");
             free(nm);
             pthread_mutex_unlock(&g_net_mod_mgr.net_module_mgr_lock);
             return DSS_MODULE_STATUS_ERROR;
@@ -145,6 +149,7 @@ dss_module_status_t dss_net_module_init(char *net_dev_name, char *ip, dss_net_mo
 
         nm->ip = strdup(ip);
         if(!nm->ip) {
+            DSS_ERRLOG("Net module init failed\n");
             free(nm->dev_name);
             free(nm);
             pthread_mutex_unlock(&g_net_mod_mgr.net_module_mgr_lock);
@@ -153,6 +158,7 @@ dss_module_status_t dss_net_module_init(char *net_dev_name, char *ip, dss_net_mo
 
         rc = pthread_mutex_init(&nm->net_module_lock, NULL);
         if(rc != 0) {
+            DSS_ERRLOG("Net module init failed\n");
             free(nm);
             nm = NULL;
             return DSS_MODULE_STATUS_ERROR;
@@ -204,9 +210,8 @@ typedef struct dss_net_module_init_event_s {
     dss_subsystem_t *ss;
     dss_net_module_config_t *cfg;
     int current_index;
-    df_module_event_complete_cb final_cb;
-    void *final_cb_arg;
     dss_net_module_subsys_t *nm_subsys;
+    struct df_ss_cb_event_s *cb_event;
 } dss_net_module_init_event_t;
 
 #define DSS_DEFAULT_NET_MODULE_ID (1)
@@ -220,7 +225,7 @@ void dss_net_module_free_config(dss_net_module_config_t *c)
     }
 }
 
-dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, void *dummy)
+dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e)
 {
     dss_net_module_t *net_module;
     dss_module_status_t rc = DSS_MODULE_STATUS_SUCCESS;
@@ -234,8 +239,9 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
     //TODO: lock ??
     if(current_index == e->cfg->count) {
         dss_module_set_subsys_ctx(DSS_MODULE_NET, (void*)e->ss ,(void *)e->nm_subsys);
-        e->final_cb(e->final_cb_arg, NULL);
+        df_ss_cb_event_complete(e->cb_event);
         dss_net_module_free_config(e->cfg);
+        free(e->cb_event);
         free(e->cfg);
         free(e);
         return DSS_MODULE_STATUS_INITIALIZED;
@@ -263,6 +269,7 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
         dss_net_module_free_config(e->cfg);
         free(e->cfg);
         free(e);
+        df_ss_cb_event_complete(e->cb_event);
         return rc;
     }
 
@@ -270,6 +277,7 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
         c.id = DSS_DEFAULT_NET_MODULE_ID;
 	    c.num_cores = e->cfg->dev_list[current_index].num_nw_threads;
         c.numa_node = nic_numa_node;
+        c.async_load_enabled = true;
         /*TODO: Change ip to device name e->cfg->dev_list[current_index].dev_name*/
         net_module->module = dfly_module_start(e->cfg->dev_list[current_index].ip,
                           DSS_MODULE_NET, &c, &g_net_module_ops, net_module,
@@ -282,7 +290,7 @@ dss_module_status_t dss_net_module_init_next(dss_net_module_init_event_t *e, voi
     TAILQ_INSERT_TAIL(&e->nm_subsys->module_list, net_ss_node, subsys_mlist);
 
     if(rc == DSS_MODULE_STATUS_SUCCESS) {//Sync init for module not created
-        rc = dss_net_module_init_next(e, NULL);
+        rc = dss_net_module_init_next(e);
     } else if (rc == DSS_MODULE_STATUS_MOD_CREATED) {
         //Handle created as success. Only pass thorough other errors
         rc = DSS_MODULE_STATUS_SUCCESS;
@@ -298,6 +306,7 @@ dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, 
 {
     dss_module_status_t rc = DSS_MODULE_STATUS_SUCCESS;
     dss_net_module_config_t *cfg = (dss_net_module_config_t *)arg;
+    struct df_ss_cb_event_s *net_init_event;
 
     dss_net_module_init_event_t *e = calloc(1, sizeof(dss_net_module_init_event_t));
     dss_net_module_subsys_t *nm_ss = calloc(1, sizeof(dss_net_module_subsys_t));
@@ -305,26 +314,33 @@ dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, 
     DSS_ASSERT(cfg != NULL);
 
     if(e && nm_ss) {
+        net_init_event =  df_ss_cb_event_allocate(ss, cb, cb_arg, NULL);
+        e->cb_event = net_init_event;
+        if(!net_init_event) {
+            DSS_ERRLOG("Failed to allocate net event\v");
+            goto err_out;
+        }
         TAILQ_INIT(&nm_ss->module_list);
         e->nm_subsys = nm_ss;
         e->ss = ss;
-        e->final_cb = cb;
-        e->final_cb_arg = cb_arg;
         e->current_index = 0;
         e->cfg = cfg;
 
-        rc = dss_net_module_init_next(e, NULL);
+        rc = dss_net_module_init_next(e);
         if (rc == DSS_MODULE_STATUS_SUCCESS ||
             rc == DSS_MODULE_STATUS_INITIALIZED) {
             return DSS_MODULE_STATUS_SUCCESS;
         } else {
+            DSS_ERRLOG("Failed to initialize net module");
             goto err_out;
         }
     } else {
-        if(e) free(e);
+        DSS_ERRLOG("Failed to allocated memory\n");
+        goto err_out;
     }
 err_out:
     //TODO: Destroy initialized NICs before destory
+    if(e) free(e);
     if(nm_ss) free(nm_ss);
 
     return DSS_MODULE_STATUS_ERROR;
@@ -332,11 +348,10 @@ err_out:
 
 typedef struct dss_net_module_destroy_event_s {
     dss_net_module_subsys_t *nm_subsys;
-    df_module_event_complete_cb final_cb;
-    void *final_cb_arg;
+    struct df_ss_cb_event_s *cb_event;
 } dss_net_module_destroy_event_t;
 
-dss_module_status_t dss_net_module_destroy_next(dss_net_module_destroy_event_t *e, void *dummy)
+dss_module_status_t dss_net_module_destroy_next(dss_net_module_destroy_event_t *e)
 {
     dss_module_status_t rc;
     struct dss_net_module_ss_node_s *net_ss_node;
@@ -346,9 +361,7 @@ dss_module_status_t dss_net_module_destroy_next(dss_net_module_destroy_event_t *
     net_ss_node = TAILQ_FIRST(&e->nm_subsys->module_list);
 
     if(net_ss_node == NULL) {
-        e->final_cb(e->final_cb_arg, NULL);
-        e->final_cb = NULL;
-        e->final_cb_arg = -1;
+        df_ss_cb_event_complete(e->cb_event);
         free(e->nm_subsys);
         e->nm_subsys = NULL;
         free(e);
@@ -363,12 +376,12 @@ dss_module_status_t dss_net_module_destroy_next(dss_net_module_destroy_event_t *
     rc = dss_net_module_destroy(nm);
     if(rc == DSS_MODULE_STATUS_MOD_DESTROYED) {
         //Stop module
-        dfly_module_stop(m, (df_module_event_complete_cb)dss_net_module_destroy_next, e, NULL);
+        dfly_module_stop(m, (df_module_event_complete_cb)dss_net_module_destroy_next, e);
         return DSS_MODULE_STATUS_MOD_DESTROY_PENDING;
     }
 
     if(rc == DSS_MODULE_STATUS_SUCCESS) {
-        rc = dss_net_module_destroy_next(e, dummy);
+        rc = dss_net_module_destroy_next(e);
     }
 
     return rc;
@@ -377,18 +390,22 @@ dss_module_status_t dss_net_module_destroy_next(dss_net_module_destroy_event_t *
 void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg)
 {
     dss_module_status_t rc;
+    struct df_ss_cb_event_s *net_destroy_event;
     dss_net_module_destroy_event_t *e = calloc(1, sizeof(dss_net_module_destroy_event_t));
-
     if(!e) {
         DSS_ASSERT(0);
         return;
     }
-
-    e->final_cb = cb;
-    e->final_cb_arg = cb_arg;
+    net_destroy_event =  df_ss_cb_event_allocate(ss, cb, cb_arg, NULL);
+    e->cb_event = net_destroy_event;
+    if(!net_destroy_event) {
+        DSS_ERRLOG("Failed to allocate net event\v");
+        DSS_ASSERT(0);
+        return;
+    }
     e->nm_subsys = (dss_net_module_subsys_t *)dss_module_get_subsys_ctx(DSS_MODULE_NET, (void *)ss);
 
-    rc = dss_net_module_destroy_next(e, NULL);
+    rc = dss_net_module_destroy_next(e);
     if(rc != DSS_MODULE_STATUS_SUCCESS && rc != DSS_MODULE_STATUS_MOD_DESTROY_PENDING) {
         DSS_ERRLOG("Subsys %p module stop failed with error code %d", ss, rc);
     }

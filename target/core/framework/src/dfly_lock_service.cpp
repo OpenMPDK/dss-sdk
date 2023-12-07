@@ -607,7 +607,7 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 void _dfly_lock_service_subsystem_stop(void *event, void *ctx)
 {
 	struct df_ss_cb_event_s *lock_cb_event = (struct df_ss_cb_event_s *)event;
-	struct lock_service_subsys_s *ls_ss_ctx = (struct lock_service_subsys_s *)ctx;
+	struct lock_service_subsys_s *ls_ss_ctx = (struct lock_service_subsys_s *)lock_cb_event->df_ss_private;
 
 	dfly_mempool_destroy(ls_ss_ctx->lobj_mp, LOBJ_MPOOL_COUNT);
 	ls_ss_ctx->active_locks = NULL;
@@ -616,6 +616,7 @@ void _dfly_lock_service_subsystem_stop(void *event, void *ctx)
 
 	free(ls_ss_ctx);
 	df_ss_cb_event_complete(lock_cb_event);
+    free(lock_cb_event);
 
 	return;
 }
@@ -626,11 +627,11 @@ void dfly_lock_service_subsystem_stop(struct dfly_subsystem *subsys, void *arg/*
 	struct df_ss_cb_event_s *lock_cb_event;
 
 	ls_ss_ctx = (struct lock_service_subsys_s *)subsys->mlist.lock_service->ctx;
-	lock_cb_event = df_ss_cb_event_allocate(subsys, cb, cb_arg, arg);
 
 	DFLY_ASSERT(ls_ss_ctx);
 
-	dfly_module_stop(subsys->mlist.lock_service, _dfly_lock_service_subsystem_stop, lock_cb_event, ls_ss_ctx);
+	lock_cb_event = df_ss_cb_event_allocate(subsys, cb, cb_arg, ls_ss_ctx);
+	dfly_module_stop(subsys->mlist.lock_service, _dfly_lock_service_subsystem_stop, lock_cb_event);
 
 
 	return;

@@ -676,10 +676,11 @@ int list_io(void *ctx, struct dfly_request *req, int list_op_flags)
 	return io_rc;
 }
 
-void list_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/);
+void list_module_load_done_cb(struct df_ss_cb_event_s *e);
 int list_init_load_done(struct dfly_request *req)
 {
 	struct dfly_subsystem *subsystem = req->req_dfly_ss;
+    struct df_ss_cb_event_s *e = req->iter_data.load_event;
 	//clean up the resource
 	if (req->req_value.value) {
 		free(req->req_value.value);
@@ -688,7 +689,10 @@ int list_init_load_done(struct dfly_request *req)
 	printf("list_init_load_done!!!");
 	//cb to continue the starup init
 	subsystem->list_init_status = LIST_INIT_DONE;
-	list_module_load_done_cb(subsystem, NULL);
+
+    req->iter_data.load_event = NULL;
+    e->status = subsystem->list_init_status;
+	list_module_load_done_cb(e);
 }
 
 int list_send_iter_cmd(struct dfly_request *req, int opc, dfly_iterator_info *iter_info)
@@ -951,8 +955,9 @@ void list_init_load_cb(struct df_dev_response_s resp, void *args,
 }
 
 extern struct dfly_request_ops df_req_ops_inst;
-int list_init_load_by_iter(struct dfly_subsystem *pool)
+int list_init_load_by_iter(struct df_ss_cb_event_s * e)
 {
+    struct dfly_subsystem *pool = e->ss;
 	int rc = LIST_INIT_PENDING; //LIST_INIT_PENDING
 	struct dfly_request *req = dfly_io_get_req(NULL);
 	assert(req);
@@ -962,6 +967,7 @@ int list_init_load_by_iter(struct dfly_subsystem *pool)
 	req->req_value.offset = 0;
 	req->req_value.length = 2048 * 1024;
 	req->req_value.value = malloc(req->req_value.length);
+    req->iter_data.load_event = e;
 
 	rc = list_send_iter_cmd(req, KVS_ITERATOR_OPEN, NULL);
 	if (rc == DFLY_ITER_IO_PENDING)
@@ -972,7 +978,19 @@ int list_init_load_by_iter(struct dfly_subsystem *pool)
 
 
 #ifdef DSS_ENABLE_ROCKSDB_KV
-void list_module_load_done_blk_cb(struct dfly_subsystem *pool, int rc);
+void list_module_load_done_blk_cb(struct df_ss_cb_event_s *e);
+
+void list_module_rdb_load_done_blk_cb(struct dfly_subsystem *pool, int rc)
+{
+    struct df_ss_cb_event_s *e;
+
+    e = pool->list_init_event;
+    e->status = rc;
+
+    list_module_load_done_blk_cb(e);
+    return;
+}
+
 typedef void (*list_done_cb)(void * ctx, int rc);
 int dss_rocksdb_list_key(void *ctx, void * pool, void * prefix, size_t prefix_size, list_done_cb list_cb);
 #endif//#ifdef DSS_ENABLE_ROCKSDB_KV
@@ -989,7 +1007,7 @@ int list_init_load_by_blk_iter(struct dfly_subsystem *pool)
     for(int i = 0; i< pool->num_io_devices; i++){
      //printf("list_init_load_by_blk_iter: nr_dev %d dev %p\n", pool->num_io_devices, &pool->devices[i]);
 #ifdef DSS_ENABLE_ROCKSDB_KV
-     rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, (list_done_cb)list_module_load_done_blk_cb);
+     rc = dss_rocksdb_list_key(&pool->devices[i], prefix, prefix_size, (list_done_cb)list_module_rdb_load_done_blk_cb);
 #else
 	DFLY_ASSERT(0);
 #endif//#ifdef DSS_ENABLE_ROCKSDB_KV
