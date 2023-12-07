@@ -433,7 +433,6 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     kv_init_ctx->ba_meta_num_blks_per_iter;
                 break;
             case DSS_KVT_LOADING_BA_META:
-                kv_init_ctx->ba_disk_read_it++;
                 // Read into BA thru
                 // dss_blk_allocator_load_meta_from_disk_data
                 blk_alloc_ctx = (*kv_init_ctx->kvt_ctx)->blk_alloc_ctx;
@@ -443,6 +442,7 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                         kv_init_ctx->data,
                         BA_META_DISK_READ_SZ_MB,
                         kv_init_ctx->ba_disk_read_it * BA_META_DISK_READ_SZ_MB);
+                kv_init_ctx->ba_disk_read_it++;
                 if (kv_init_ctx->ba_disk_read_it == 
                         kv_init_ctx->ba_disk_read_total_it + 1) {
                     // Initialize reading DC hash table, proceed to next
