@@ -618,6 +618,14 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
         uint64_t byte_offset
         ) {
 
+    // Load JSO state on reboot variables
+    uint64_t begin_cell = 0;
+    uint64_t last_cell = 0;
+    uint64_t num_cells = 0;
+    int cell_value = 0;
+    bool is_jso_allocable = false;
+    uint64_t actual_allocated_lb = 0;
+
     // byte_offset indicates the word alignment
     uint64_t begin_word = byte_offset / BITS_PER_WORD;
     uint64_t num_words = serialized_data_len / BITS_PER_WORD;
@@ -629,8 +637,42 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
             serialized_data,
             serialized_data_len);
 
+    // Load JSO state on reboot
+    if (jso_ != NULL) {
+        // 1. Compute the first cell based on `begin_word`
+        begin_cell = byte_offset * (BITS_PER_WORD / bits_per_cell_);
+        num_cells = num_words * (BITS_PER_WORD / bits_per_cell_);
+
+        // 2. Account for offset before setting, offset is removed
+        //    in `set_cell` API (offset is only needed for JSO) to actually
+        //    represent the allocated and unallocated blocks
+        begin_cell = begin_cell + logical_start_block_offset_;
+        last_cell = begin_cell + num_cells - 1 ;
+
+        // 3. Iterate over cells and convey to JSO if allocated
+        for (uint64_t i=begin_cell; i<=last_cell; i++) {
+            cell_value = QwordVector64Cell::get_cell_value(i);
+            if (cell_value != DSS_BLOCK_ALLOCATOR_BLOCK_STATE_FREE) {
+                // This means block is allocated, convey this to JSO
+                is_jso_allocable = jso_->allocate_lb(
+                        i, 1, actual_allocated_lb);
+
+                if (!is_jso_allocable) {
+                    // This API is called on reboot and failing to do so
+                    // can not occur
+                    assert(("ERROR", false));
+                    return BLK_ALLOCATOR_STATUS_ERROR;
+                }
+
+                if (i != actual_allocated_lb) {
+                    assert(("ERROR", false));
+                    return BLK_ALLOCATOR_STATUS_ERROR;
+                }
+            }
+        }
+    }
+
     return BLK_ALLOCATOR_STATUS_SUCCESS;
-    
 }
 
 void QwordVector64Cell::write_bitmap_to_file() {
