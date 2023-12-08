@@ -165,7 +165,7 @@ exit 0
 %defattr(-,root,root,-)
 %dir /usr/dss/nkv-target
 /usr/dss/nkv-target/bin/nvmf_tgt
-/usr/dss/nkv-target/bin/mkfs_blobfs
+/usr/dss/nkv-target/bin/${DSS_FORMAT_TOOL}
 /usr/dss/nkv-target/bin/dss_target.py
 /usr/dss/nkv-target/bin/ustat
 /usr/dss/nkv-target/scripts/setup.sh
@@ -295,6 +295,13 @@ then
     rm -rf "${build_dir}"
 fi
 
+if [[ 'true' =  "${BUILD_WITH_ROCKSDB_KV}" ]]
+then
+    DSS_FORMAT_TOOL="mkfs_blobfs"
+else
+    DSS_FORMAT_TOOL="dss_formatter"
+fi
+
 mkdir -p "${build_dir}"
 mkdir -p "${rpm_build_dir}"
 
@@ -337,11 +344,10 @@ pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
     if $BUILD_ROCKSDB;then
         make rocksdb
     else
-        make spdk_tcp
+        make
     fi
 
     if ${RUN_TESTS};then
-        make
         make test
         if ${BUILD_WITH_COVERAGE};then
             echo "Generating sonarqube coverage report"

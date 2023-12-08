@@ -200,11 +200,11 @@ add_custom_command(
         COMMENT ${CMAKE_SOURCE_DIR}
 )
 
-ADD_CUSTOM_TARGET(dss_formatter
+ADD_CUSTOM_TARGET(dss_formatter ALL
     COMMENT "Building dss format utility"
     WORKING_DIRECTORY core/kvtrans/formatter
     COMMAND make
-    DEPENDS spdk_tcp_configure dss_formatter_impl
+    DEPENDS spdk_tcp dss_formatter_impl
 )
 
 # DFLY flags
@@ -619,7 +619,6 @@ add_custom_command(
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
@@ -629,8 +628,27 @@ add_custom_command(
         COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
 )
+
+if(WITH_ROCKSDB_KV)
+
+ADD_CUSTOM_TARGET(package_tgt_tgz ALL
+  COMMENT "Creating dss target package"
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
+  COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
+  DEPENDS spdk_tcp
+)
+
+else(WITH_ROCKSDB_KV)
+
+ADD_CUSTOM_TARGET(package_tgt_tgz ALL
+  COMMENT "Creating dss target package"
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/core/kvtrans/formatter/dss_formatter ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+  COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
+  DEPENDS dss_formatter
+)
+
+endif(WITH_ROCKSDB_KV)
 
 if(WITH_ROCKSDB_KV)
 ADD_CUSTOM_TARGET(rocksdb
