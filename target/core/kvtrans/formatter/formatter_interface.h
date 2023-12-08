@@ -37,12 +37,24 @@
 extern "C" {
 #endif
 
+#include "stdint.h"
+typedef struct dss_formatter_config_opts_s {
+    uint32_t blk_size;
+    uint32_t nblk_states;
+    char *ba_type;
+    bool debug;
+    char *dev_name;
+} dss_formatter_config_opts_t;
+
 typedef struct formatter_conf_s {
     int argc;
     char **argv;
 
 } formatter_conf_t;
+
 void formatter_init(formatter_conf_t *conf);
+void formatter_run_cmdline(dss_formatter_config_opts_t *opts);
+
 #ifdef __cplusplus
 }
 #endif

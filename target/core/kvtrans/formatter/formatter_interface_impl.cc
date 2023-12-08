@@ -1,5 +1,40 @@
 #include "formatter_interface.h"
 #include "formatter.h"
+#include "parser.h"
+
+void dss_do_format(Parser::ParsedPayloadSharedPtr payload)
+{
+    // Initialize a formatter instance
+    Format::FormatterSharedPtr f = std::make_shared<Format::Formatter>();
+
+    // Open device and build formatter state
+    if (!f->open_device(payload)) {
+        assert(("ERROR", false));
+    }
+
+    // Format the device
+    if (!f->format_device(payload->is_debug)) {
+        assert(("ERROR", false));
+    }
+}
+
+void formatter_run_cmdline(dss_formatter_config_opts_t *opts)
+{
+    // Allocate memory for ParsedPayload
+    Parser::ParsedPayloadSharedPtr payload =
+        std::make_shared<Parser::ParsedPayload>();
+
+    payload->block_allocator_type = opts->ba_type;
+    payload->device_name = opts->dev_name;
+    payload->is_debug = opts->debug;
+    payload->logical_block_size = opts->blk_size;
+    payload->num_block_states = opts->nblk_states;
+    payload->status = true;
+
+    dss_do_format(payload);
+
+    return;
+}
 
 void formatter_init(formatter_conf_t *conf) {
 
@@ -36,18 +71,7 @@ void formatter_init(formatter_conf_t *conf) {
         assert(("ERROR, false"));
     }
 
-    // Initialize a formatter instance
-    Format::FormatterSharedPtr f = std::make_shared<Format::Formatter>();
-
-    // Open device and build formatter state
-    if (!f->open_device(payload)) {
-        assert(("ERROR", false));
-    }
-
-    // Format the device
-    if (!f->format_device(payload->is_debug)) {
-        assert(("ERROR", false));
-    }
+    dss_do_format(payload);
 
     std::cout<<"Formatter Init (open and format) completed"<<std::endl;
 
