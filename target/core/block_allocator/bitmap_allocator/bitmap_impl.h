@@ -82,6 +82,7 @@ public:
           {}
 
     ~QwordVector64Cell() {
+        write_bitmap_to_file();
         data_.clear();
         data_.shrink_to_fit();
     }    
@@ -200,6 +201,12 @@ private:
             const uint64_t meta_lba,
             const uint64_t lb_size_in_bits,
             uint64_t& drive_blk_lba);
+
+    /**
+     * @brief Debug function for saving bitmap to file
+     *        /var/log/dss_bmap.data
+     */
+    void write_bitmap_to_file();
 };
 
 } // End AllocatorType namespace

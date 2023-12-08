@@ -33,6 +33,7 @@
 
 #include "bitmap_impl.h"
 #include <stdint.h>
+#include <fstream>
 
 namespace AllocatorType {
 
@@ -630,6 +631,18 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
 
     return BLK_ALLOCATOR_STATUS_SUCCESS;
     
+}
+
+void QwordVector64Cell::write_bitmap_to_file() {
+    // Currently written to /var/log/dss_bmap.data
+    std::ofstream dump_file;
+    dump_file.open ("/var/log/dss_bmap.data");
+    for(uint64_t i=0; i<data_.size(); i++) {
+        dump_file<<data_[i];
+    }
+    dump_file.close();
+    std::cout<<"Completed writing bmap data to file"<<std::endl;
+
 }
 
 dss_blk_allocator_status_t QwordVector64Cell::print_stats() {
