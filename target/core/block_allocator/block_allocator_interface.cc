@@ -311,7 +311,7 @@ dss_blk_allocator_status_t load_meta_from_disk_data(
         dss_blk_allocator_context_t *ctx,
         uint8_t *serialized_data,
         uint64_t serialized_data_len,
-        uint64_t byte_offset
+        uint64_t disk_read_offset
         ) {
 
     DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
@@ -326,7 +326,7 @@ dss_blk_allocator_status_t load_meta_from_disk_data(
     }
 
     return ba_i->allocator->load_meta_from_disk_data(
-            serialized_data, serialized_data_len, byte_offset);
+            serialized_data, serialized_data_len, disk_read_offset);
 }
 
 } // End namespace BlockInterface

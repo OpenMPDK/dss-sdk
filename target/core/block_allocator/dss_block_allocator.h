@@ -75,7 +75,7 @@ typedef dss_blk_allocator_status_t (*blk_alloc_get_next_submit_meta_io_tasks_fn)
 typedef dss_blk_allocator_status_t (*blk_alloc_complete_meta_sync_fn)(dss_blk_allocator_context_t *ctx, dss_io_task_t *io_task);
 typedef uint64_t (*blk_alloc_get_physical_size_fn)(dss_blk_allocator_opts_t *config);
 typedef dss_blk_allocator_status_t (*blk_alloc_load_meta_from_disk_data_fn)(
-        dss_blk_allocator_context_t *ctx, uint8_t *serial_data, uint64_t serial_len, uint64_t byte_offset);
+        dss_blk_allocator_context_t *ctx, uint8_t *serial_data, uint64_t serial_len, uint64_t disk_read_offset);
 
 /**
  * @brief disk operation implementaions needed to support persisting block allocator state

@@ -615,7 +615,7 @@ dss_blk_allocator_status_t QwordVector64Cell::translate_meta_to_drive_addr(
 dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
         uint8_t *serialized_data,
         uint64_t serialized_data_len,
-        uint64_t byte_offset
+        uint64_t disk_read_offset
         ) {
 
     // Load JSO state on reboot variables
@@ -626,11 +626,41 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
     bool is_jso_allocable = false;
     uint64_t actual_allocated_lb = 0;
 
-    // byte_offset indicates the word alignment
-    uint64_t begin_word = byte_offset / BITS_PER_WORD;
-    uint64_t num_words = serialized_data_len / BITS_PER_WORD;
+    // disk_read_offset indicates the word alignment
+    uint64_t begin_word =
+        (disk_read_offset * BITS_PER_BYTE) / BITS_PER_WORD;
+    uint64_t num_words =
+        (serialized_data_len * BITS_PER_BYTE)/ BITS_PER_WORD;
+
+    // Integrity check, since bitmap region could lie
+    // on a block partially. During that case, though
+    // the entire block is read, we only deserialize
+    // portion of the range
+    // 1. Compute the first cell based on `begin_word`
+    begin_cell = begin_word * (BITS_PER_WORD / bits_per_cell_);
+    num_cells = num_words * (BITS_PER_WORD / bits_per_cell_);
+
+    if (begin_cell > cells_ - 1) {
+        // Which means the region is out of bounds, do nothing
+        return BLK_ALLOCATOR_STATUS_SUCCESS;
+    }
+
+    // 2. Account for offset before setting, offset is removed
+    //    in `set_cell` API (offset is only needed for JSO) to actually
+    //    represent the allocated and unallocated blocks
+    begin_cell = begin_cell + logical_start_block_offset_;
+    last_cell = begin_cell + num_cells - 1 ;
+
+    if (last_cell > logical_start_block_offset_ + cells_ - 1) {
+        last_cell = logical_start_block_offset_ + cells_ - 1;
+    }
+    
     
     // Acquire the allocator type and deserialize range
+    // Make sure range is within the bitmap
+    if (begin_word + num_words >= data_.size()) {
+        num_words = data_.size() - begin_word + 1;
+    }
     this->deserialize_range(
             begin_word,
             num_words,
@@ -639,15 +669,6 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
 
     // Load JSO state on reboot
     if (jso_ != NULL) {
-        // 1. Compute the first cell based on `begin_word`
-        begin_cell = byte_offset * (BITS_PER_WORD / bits_per_cell_);
-        num_cells = num_words * (BITS_PER_WORD / bits_per_cell_);
-
-        // 2. Account for offset before setting, offset is removed
-        //    in `set_cell` API (offset is only needed for JSO) to actually
-        //    represent the allocated and unallocated blocks
-        begin_cell = begin_cell + logical_start_block_offset_;
-        last_cell = begin_cell + num_cells - 1 ;
 
         // 3. Iterate over cells and convey to JSO if allocated
         for (uint64_t i=begin_cell; i<=last_cell; i++) {
@@ -678,9 +699,11 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
 void QwordVector64Cell::write_bitmap_to_file() {
     // Currently written to /var/log/dss_bmap.data
     std::ofstream dump_file;
+    uint64_t out = 0;
     dump_file.open ("/var/log/dss_bmap.data");
     for(uint64_t i=0; i<data_.size(); i++) {
-        dump_file<<data_[i];
+        out = data_[i];
+        dump_file<<out;
     }
     dump_file.close();
     std::cout<<"Completed writing bmap data to file"<<std::endl;
