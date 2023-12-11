@@ -173,6 +173,7 @@ public:
             uint8_t *serialized_data,
             uint64_t serialized_data_len,
             uint64_t byte_offset) override;
+    dss_blk_allocator_status_t write_meta_to_file() override;
     dss_blk_allocator_status_t print_stats() override;
 
 private:

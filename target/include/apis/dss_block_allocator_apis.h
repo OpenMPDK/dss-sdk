@@ -226,6 +226,13 @@ dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocat
  */
 dss_blk_allocator_status_t dss_blk_allocator_print_stats();
 
+/**
+ * @brief Write block allocator meta-data to file (/var/log/dss_bmap.data)
+ *
+ * @return dss_blk_allocator_status_t BLK_ALLOCATOR_STATUS_SUCCESS on success or error code otherwise
+ */
+dss_blk_allocator_status_t dss_blk_allocator_write_meta_to_file();
+
 //On-Disk APIs
 
 /**

@@ -84,6 +84,7 @@ void dss_block_allocator_add_module(dss_blk_alloc_module_t *m)
     //Optional to implement: m->core.check_blocks_state
     DSS_ASSERT(m->core.set_blocks_state);
     DSS_ASSERT(m->core.alloc_blocks_contig);
+    //Optional to implement: m->core.write_meta_to_file
     //Optional to implement: m->core.print_stats
     DSS_ASSERT(m->core.clear_blocks);
 
@@ -303,6 +304,15 @@ dss_blk_allocator_status_t dss_blk_allocator_alloc_blocks_contig(dss_blk_allocat
     }
 
     return ctx->m->core.alloc_blocks_contig(ctx, state, hint_block_index, num_blocks, allocated_start_block);
+}
+
+dss_blk_allocator_status_t dss_blk_allocator_write_meta_to_file(dss_blk_allocator_context_t *ctx) {
+    // This could be optional
+    if (ctx->m->core.write_meta_to_file != NULL) {
+        return ctx->m->core.write_meta_to_file(ctx);
+    } else {
+        return BLK_ALLOCATOR_STATUS_ERROR; 
+    }
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_print_stats(dss_blk_allocator_context_t *ctx)

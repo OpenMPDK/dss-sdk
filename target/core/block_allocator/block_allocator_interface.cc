@@ -238,6 +238,22 @@ dss_blk_allocator_status_t alloc_blocks_contig(
             state, hint_block_index, num_blocks, allocated_start_block);
 }
 
+dss_blk_allocator_status_t write_meta_to_file(
+        dss_blk_allocator_context_t *ctx) {
+
+    DSS_ASSERT(!strcmp(ctx->m->name, block_allocator_name));
+    dss_blk_alloc_impresario_ctx_t *c =
+        (dss_blk_alloc_impresario_ctx_t *)ctx;
+
+    BlockAlloc::BlockAllocator *ba_i = c->impresario_instance;
+    if (ba_i == NULL) {
+        DSS_ERRLOG("Incorrect usage before block allocator init");
+        return BLK_ALLOCATOR_STATUS_ERROR;
+    }
+    return ba_i->allocator->write_meta_to_file();
+}
+
+
 dss_blk_allocator_status_t print_stats(
         dss_blk_allocator_context_t *ctx) {
 
@@ -345,6 +361,7 @@ struct dss_blk_alloc_module_s dss_block_impresario = {
         .set_blocks_state = BlockInterface::set_blocks_state,
         .clear_blocks = BlockInterface::clear_blocks,
         .alloc_blocks_contig = BlockInterface::alloc_blocks_contig,
+        .write_meta_to_file = BlockInterface::write_meta_to_file,
         .print_stats = BlockInterface::print_stats
     },
     .disk = {

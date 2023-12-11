@@ -51,6 +51,7 @@ typedef dss_blk_allocator_status_t (*check_blocks_state_fn)(dss_blk_allocator_co
 typedef dss_blk_allocator_status_t (*set_blocks_state_fn)(dss_blk_allocator_context_t* ctx, uint64_t block_index, uint64_t num_blocks,  uint64_t state);
 typedef dss_blk_allocator_status_t (*clear_blocks_fn)(dss_blk_allocator_context_t *ctx, uint64_t block_index, uint64_t num_blocks);
 typedef dss_blk_allocator_status_t (*alloc_blocks_contig_fn)(dss_blk_allocator_context_t *ctx, uint64_t state, uint64_t hint_block_index, uint64_t num_blocks, uint64_t *allocated_start_block);
+typedef dss_blk_allocator_status_t (*write_meta_to_file_fn)(dss_blk_allocator_context_t *ctx);
 typedef dss_blk_allocator_status_t (*print_stats_fn)(dss_blk_allocator_context_t *ctx);
 typedef void (*blk_alloc_destroy_fn)(dss_blk_allocator_context_t *ctx);
 
@@ -67,6 +68,7 @@ typedef struct dss_blk_alloc_core_ops_s {
         set_blocks_state_fn set_blocks_state;
         clear_blocks_fn clear_blocks;
         alloc_blocks_contig_fn alloc_blocks_contig;
+        write_meta_to_file_fn write_meta_to_file; //Debug API
         print_stats_fn print_stats;
 } dss_blk_alloc_core_ops_t;
 

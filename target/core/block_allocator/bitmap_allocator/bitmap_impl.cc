@@ -687,6 +687,13 @@ void QwordVector64Cell::write_bitmap_to_file() {
 
 }
 
+dss_blk_allocator_status_t QwordVector64Cell::write_meta_to_file() {
+
+    // Use helper function to write to file
+    write_bitmap_to_file();
+    return BLK_ALLOCATOR_STATUS_SUCCESS;
+}
+
 dss_blk_allocator_status_t QwordVector64Cell::print_stats() {
 
     if (jso_ != NULL) {

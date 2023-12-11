@@ -510,6 +510,11 @@ public:
             uint64_t serialized_data_len,
             uint64_t byte_offset
             )=0;
+
+    /**
+     * @brief write block allocator meta-data to file for debug
+     */
+    virtual dss_blk_allocator_status_t write_meta_to_file()=0;
     /**
      * @brief print block allocator stats to standard out
      */
