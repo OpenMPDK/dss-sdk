@@ -502,13 +502,13 @@ public:
      * @param ctx block allocator context
      * @param serialized_data, serial data read from bdev
      * @param serialized_data_len, length of serial data
-     * @param byte_offset, offset in bytes from beginning of meta-data
-     *                     (this may also be used as a hint)
+     * @param disk_read_offset, offset in bytes from beginning of
+     *                          meta-data (this may also be used as a hint)
      */
     virtual dss_blk_allocator_status_t load_meta_from_disk_data(
             uint8_t *serialized_data,
             uint64_t serialized_data_len,
-            uint64_t byte_offset
+            uint64_t disk_read_offset
             )=0;
 
     /**

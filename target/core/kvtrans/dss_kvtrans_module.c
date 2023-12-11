@@ -395,6 +395,10 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 // BA meta read multiple times instead in a single shot
                 kv_init_ctx->ba_disk_read_total_it =
                     kv_init_ctx->ba_meta_size / BA_META_DISK_READ_SZ_MB;
+                if (kv_init_ctx->ba_meta_size %
+                        BA_META_DISK_READ_SZ_MB != 0) {
+                    kv_init_ctx->ba_disk_read_total_it++;
+                }
                 kv_init_ctx->ba_meta_num_blks_per_iter =
                     BA_META_DISK_READ_SZ_MB /
                     kv_init_ctx->logical_block_size;
@@ -402,7 +406,8 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 spdk_dma_free(kv_init_ctx->data);
                 // Free and assign memory appropriately
                 kv_init_ctx->data =
-                    spdk_dma_zmalloc(BA_META_DISK_READ_SZ_MB, 4096, NULL);
+                    spdk_dma_zmalloc(
+                            BA_META_DISK_READ_SZ_MB, 4096, NULL);
                 DSS_ASSERT(kv_init_ctx->data != NULL);
                 kv_init_ctx->data_len = BA_META_DISK_READ_SZ_MB;
                 // Reset current IO task, since super block has been read

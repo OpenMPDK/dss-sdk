@@ -198,11 +198,11 @@ dss_blk_allocator_status_t dss_blk_allocator_load_meta_from_disk_data(
         dss_blk_allocator_context_t *ctx,
         uint8_t *serialized_data,
         uint64_t serialized_data_len,
-        uint64_t byte_offset) {
+        uint64_t disk_read_offset) {
 
     DSS_ASSERT(ctx->m->disk.blk_alloc_load_meta_from_disk_data);
     return ctx->m->disk.blk_alloc_load_meta_from_disk_data(
-            ctx, serialized_data, serialized_data_len, byte_offset);
+            ctx, serialized_data, serialized_data_len, disk_read_offset);
 }
 
 dss_blk_allocator_status_t dss_blk_allocator_is_block_free(dss_blk_allocator_context_t* ctx, uint64_t block_index, bool *is_free)
