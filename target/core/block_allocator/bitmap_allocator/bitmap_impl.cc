@@ -703,7 +703,7 @@ void QwordVector64Cell::write_bitmap_to_file() {
     dump_file.open ("/var/log/dss_bmap.data");
     for(uint64_t i=0; i<data_.size(); i++) {
         out = data_[i];
-        dump_file<<out;
+        dump_file<<i<<" "<<out<<"\n";
     }
     dump_file.close();
     std::cout<<"Completed writing bmap data to file"<<std::endl;
