@@ -1044,7 +1044,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     } else {
         kreq = (kvtrans_req_t *) calloc(1, sizeof(kvtrans_req_t));
         if (!kreq) {
-            printf("ERROR: malloc kreq failed.\n");
+            DSS_ERRLOG("malloc kreq failed.\n");
             goto failure_handle;
         }
         kreq->req_allocated = true;
@@ -1088,6 +1088,7 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
 
 failure_handle:
     free_kvtrans_req(kreq);
+    DSS_ASSERT(0);//TODO: This case is not handled
     return NULL;
 }
 
@@ -2327,7 +2328,6 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
 #ifndef DSS_BUILD_CUNIT_TEST
             dss_trace_record(TRACE_KVTRANS_WRITE_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
 #endif
-            free_kvtrans_req(kreq);
             ctx->task_done++;
             return rc;
         default:
@@ -2341,7 +2341,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     return rc;
 
 req_terminate:
-    free_kvtrans_req(kreq);
+    kreq->state = REQ_CMPL;
     ctx->task_failed++;
     return rc;
 }
@@ -2520,7 +2520,6 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
 #ifndef DSS_BUILD_CUNIT_TEST
             dss_trace_record(TRACE_KVTRANS_READ_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
 #endif
-            free_kvtrans_req(kreq);
             ctx->task_done++;
             return rc;
         default:

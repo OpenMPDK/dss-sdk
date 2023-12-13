@@ -558,6 +558,7 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
         DSS_DEBUGLOG(DSS_KVTRANS, "[KVTRANS]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n",
             kvt_ctx->stat.meta, kvt_ctx->stat.mc,
             kvt_ctx->stat.dc, kvt_ctx->stat.mdc);
+        free_kvtrans_req(kreq);
         dss_kvtrans_net_request_complete(req, rc);
     }
 
