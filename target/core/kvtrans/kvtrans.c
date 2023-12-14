@@ -2299,14 +2299,13 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
         case QUEUE_TO_START_IO:
 #ifndef DSS_BUILD_CUNIT_TEST
             dss_trace_record(TRACE_KVTRANS_WRITE_QUEUE_TO_START_IO, 0, 0, (uintptr_t)kreq->id, (uintptr_t)kreq);
-            if (kreq->io_to_queue) {
-                if(ctx->is_ba_meta_sync_enabled == true && kreq->ba_meta_updated == true) {
-                    ba_rc = dss_blk_allocator_queue_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
-                    DSS_ASSERT(ba_rc == BLK_ALLOCATOR_STATUS_SUCCESS);
-                } else {
-                    iot_rc = dss_io_task_submit(kreq->io_tasks);
-                    DSS_ASSERT(iot_rc==DSS_IO_TASK_STATUS_SUCCESS);
-                }
+            if(ctx->is_ba_meta_sync_enabled == true && kreq->ba_meta_updated == true) {
+                ba_rc = dss_blk_allocator_queue_sync_meta_io_tasks(ctx->blk_alloc_ctx, kreq->io_tasks);
+                DSS_ASSERT(ba_rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+                break;
+            } else if (kreq->io_to_queue) {
+                iot_rc = dss_io_task_submit(kreq->io_tasks);
+                DSS_ASSERT(iot_rc==DSS_IO_TASK_STATUS_SUCCESS);
                 break;
             }
 #endif
