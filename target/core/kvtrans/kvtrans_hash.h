@@ -47,16 +47,16 @@ extern "C" {
 
 /* 256 bit hash */
 void SHA256_init(hash_fn_ctx_t *hash_fn_ctx);
-void SHA256_update_take_bit(const char *key, hash_fn_ctx_t *hash_fn_ctx);
-void SHA256_update_take_byte(const char *key, hash_fn_ctx_t *hash_fn_ctx);
+void SHA256_update_take_bit(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx);
+void SHA256_update_take_byte(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx);
 void SHA256_clean(hash_fn_ctx_t *hash_fn_ctx);
 
 /* 32 bit hash */
 void XXHASH_init(hash_fn_ctx_t *hash_fn_ctx);
-void XXHASH_update(const char *key, hash_fn_ctx_t *hash_fn_ctx);
+void XXHASH_update(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx);
 void XXHASH_clean(hash_fn_ctx_t *hash_fn_ctx);
 void SPOOKY_init(hash_fn_ctx_t *hash_fn_ctx);
-void SPOOKY_update(const char *key, hash_fn_ctx_t *hash_fn_ctx);
+void SPOOKY_update(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx);
 void SPOOKY_clean(hash_fn_ctx_t *hash_fn_ctx);
 
 #ifdef __cplusplus

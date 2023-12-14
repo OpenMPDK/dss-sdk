@@ -558,7 +558,7 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
         // TODO: error log
     }
 
-    if(kreq->state == REQ_CMPL) {
+    if (kreq->state == REQ_CMPL) {
         DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n",
             kvt_ctx,
             kvt_ctx->stat.meta, kvt_ctx->stat.mc,

@@ -305,7 +305,7 @@ typedef struct hash_fn_ctx_s {
     void *sha256_ctx;
 
     void (*init)(struct hash_fn_ctx_s *hash_fn_ctx);
-    void (*update)(const char *key, struct hash_fn_ctx_s *hash_fn_ctx);
+    void (*update)(const char *key, const uint32_t klen, struct hash_fn_ctx_s *hash_fn_ctx);
     void (*clean)(struct hash_fn_ctx_s *hash_fn_ctx);
 } hash_fn_ctx_t;
 
@@ -416,6 +416,7 @@ typedef struct kvtrans_ctx_s {
     uint64_t blk_num;
 
     dstat_t stat;
+
 } kvtrans_ctx_t;
 
 

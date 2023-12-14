@@ -1071,6 +1071,11 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
     }
 
     kreq->req.req_key = req->req_key;
+    // In case we need this later
+    // if (kreq->req.req_key.length < KEY_LEN) {
+    //     // memset junk bytes to 0
+    //     memset(&kreq->req.req_key.key[kreq->req.req_key.length], 0, KEY_LEN - kreq->req.req_key.length);
+    // }
     kreq->req.req_value = req->req_value;
     kreq->req.opc = req->opc;
     kreq->req.req_ts = req->req_ts;
@@ -1223,7 +1228,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     // TODO: it's possbile key is all zero.
     DSS_ASSERT(!iskeynull(req->req_key.key));
     hash_fn_ctx->clean(hash_fn_ctx);
-    hash_fn_ctx->update(req->req_key.key, hash_fn_ctx);
+    hash_fn_ctx->update(req->req_key.key, req->req_key.length, hash_fn_ctx);
     blk_ctx->index = hash_fn_ctx->hashcode;
     // ensure index is within [1, blk_alloc_opts.num_total_blocks - 1]
     ctx->kv_assign_block(&blk_ctx->index, ctx);
@@ -2125,7 +2130,8 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
     dss_blk_allocator_status_t ba_rc;
 
     do {
-        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d] for key [%s]\n", kreq, prev_state, kreq->state, req->req_key.key);
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Req[%p] with opc [%d] prev state [%d] current_state [%d] for key [%s]\n",
+                        kreq->kvtrans_ctx, kreq, kreq->req.opc, prev_state, kreq->state, req->req_key.key);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
@@ -2402,7 +2408,8 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
     enum kvtrans_req_e prev_state = -1;
 
     do {
-        DSS_DEBUGLOG(DSS_KVTRANS, "Req[%p] prev state [%d] current_state [%d] for key [%s]\n", kreq, prev_state, kreq->state, req->req_key.key);
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Req[%p] with opc [%d] prev state [%d] current_state [%d] for key [%s]\n", 
+                            kreq->kvtrans_ctx, kreq, kreq->req.opc, prev_state, kreq->state, req->req_key.key);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:

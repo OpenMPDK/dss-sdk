@@ -86,26 +86,26 @@ void SHA256_init(hash_fn_ctx_t *hash_fn_ctx)
     hash_fn_ctx->initialized = 1;
 }
 
-void SHA256_update_take_bit(const char *key, hash_fn_ctx_t *hash_fn_ctx)
+void SHA256_update_take_bit(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx)
 {
     if (!hash_fn_ctx->initialized)
         SHA256_init(hash_fn_ctx);
     if (first_call(hash_fn_ctx)) {
         BYTE* text = (unsigned char*) key;
-        sha256_update((SHA256_CTX*)hash_fn_ctx->sha256_ctx, text, KEY_LEN);
+        sha256_update((SHA256_CTX*)hash_fn_ctx->sha256_ctx, text, klen);
         sha256_final((SHA256_CTX*)hash_fn_ctx->sha256_ctx, (BYTE*)hash_fn_ctx->buf);
     }
     hash_fn_ctx->hashcode = take_bit((BYTE*)hash_fn_ctx->buf, 1<<hash_fn_ctx->tryout);
     hash_fn_ctx->tryout++;
 }
 
-void SHA256_update_take_byte(const char *key, hash_fn_ctx_t *hash_fn_ctx)
+void SHA256_update_take_byte(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx)
 {
     if (!hash_fn_ctx->initialized)
         SHA256_init(hash_fn_ctx);
     if (first_call(hash_fn_ctx)) {
         BYTE* text = (unsigned char*) key;
-        sha256_update((SHA256_CTX*)hash_fn_ctx->sha256_ctx, text, KEY_LEN);
+        sha256_update((SHA256_CTX*)hash_fn_ctx->sha256_ctx, text, klen);
         sha256_final((SHA256_CTX*)hash_fn_ctx->sha256_ctx, (BYTE*)hash_fn_ctx->buf);
     }
     hash_fn_ctx->hashcode = take_byte((BYTE*)hash_fn_ctx->buf, hash_fn_ctx->tryout, hash_fn_ctx->hash_size);
@@ -126,11 +126,11 @@ void XXHASH_init(hash_fn_ctx_t *hash_fn_ctx)
     hash_fn_ctx->initialized = 1;
 }
 
-void XXHASH_update(const char *key, hash_fn_ctx_t *hash_fn_ctx)
+void XXHASH_update(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx)
 {   
     int bit_shift = hash_fn_ctx->tryout;
     if (first_call(hash_fn_ctx)) {
-        hash_fn_ctx->hash_buf = (uint32_t) XXH32(key, KEY_LEN, hash_fn_ctx->seed);
+        hash_fn_ctx->hash_buf = (uint32_t) XXH32(key, klen, hash_fn_ctx->seed);
     }
     hash_fn_ctx->hashcode = (uint32_t) (hash_fn_ctx->hash_buf << bit_shift)
                         | (hash_fn_ctx->hash_buf >> (hash_fn_ctx->hash_size - bit_shift));
@@ -149,11 +149,11 @@ void SPOOKY_init(hash_fn_ctx_t *hash_fn_ctx) {
     hash_fn_ctx->initialized = 1;
 }
 
-void SPOOKY_update(const char *key, hash_fn_ctx_t *hash_fn_ctx)
+void SPOOKY_update(const char *key, const uint32_t klen, hash_fn_ctx_t *hash_fn_ctx)
 {   
     int bit_shift = hash_fn_ctx->tryout;
     if (first_call(hash_fn_ctx)) {
-        hash_fn_ctx->hash_buf = (uint32_t) spooky_hash32(key, KEY_LEN, hash_fn_ctx->seed);
+        hash_fn_ctx->hash_buf = (uint32_t) spooky_hash32(key, klen, hash_fn_ctx->seed);
     }
     hash_fn_ctx->hashcode = (uint32_t) (hash_fn_ctx->hash_buf << bit_shift) 
                         | (hash_fn_ctx->hash_buf >> (hash_fn_ctx->hash_size - bit_shift));
