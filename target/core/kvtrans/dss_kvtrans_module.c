@@ -380,7 +380,11 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 DSS_ASSERT(*kv_init_ctx->kvt_ctx == NULL);
                 DSS_NOTICELOG("Read kv trans superblock from device %p\n", params.dev);
                 *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
-
+                if ((*kv_init_ctx->kvt_ctx)->is_ba_meta_sync_enabled == false) {
+                    //Skip loading bitmap when ba_meta_sync is disabled
+                    kv_init_ctx->state = DSS_KVT_LOADING_DC_HT;
+                    break;
+                }
                 // Figure out the first and last logical block to read from
                 kv_init_ctx->ba_meta_start_block =
                     super_block->logi_blk_alloc_meta_start_blk;
@@ -555,7 +559,8 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
     }
 
     if(kreq->state == REQ_CMPL) {
-        DSS_DEBUGLOG(DSS_KVTRANS, "[KVTRANS]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n",
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: meta blks [%zu], collision blks[%zu], meta data collision blks [%zu]\n",
+            kvt_ctx,
             kvt_ctx->stat.meta, kvt_ctx->stat.mc,
             kvt_ctx->stat.dc, kvt_ctx->stat.mdc);
         free_kvtrans_req(kreq);
