@@ -329,3 +329,25 @@ int delete_elm(cache_tbl_t *cache_tbl, uint64_t kidx) {
     rc = _put_free_index(cache_tbl, freed_index);
     return rc;
 }
+
+/**
+ * @brief call function on each element in the cache table
+ * @param cache_tbl the cache table to iterate.
+ * @param cb_fn the key index specified by user.
+ * @param cb_args the call back arguments.
+ * @return number of elements in cache_tbl
+*/
+int for_each_elm_fn(cache_tbl_t *cache_tbl, void (*cb_fn)(uint64_t, void *, void *), void* cb_args) {
+    uint64_t *new_entry;
+    uint64_t kidx = 0;
+    uint64_t count = 0;
+    new_entry = (uint64_t *)JudyLFirst(cache_tbl->mem_array, &kidx, PJE0);
+    while (new_entry!=NULL) {
+        count ++;
+        if (cb_fn) {
+            cb_fn(kidx,  get_elm_addr(cache_tbl, *new_entry), cb_args);
+        }
+        new_entry = (uint64_t *)JudyLNext(cache_tbl->mem_array, &kidx, PJE0);
+    }
+    return count;
+}

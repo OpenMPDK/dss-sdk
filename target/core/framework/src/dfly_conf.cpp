@@ -369,6 +369,9 @@ dfly_config_read(struct spdk_conf_section *sp)
 	val = spdk_conf_section_get_boolval(sp, "kvtrans_ba_meta_sync", false);
 	set_kvtrans_ba_meta_sync_enabled(val);
 
+	val = spdk_conf_section_get_boolval(sp, "kvtrans_dump_mem_meta", false);
+	set_kvtrans_dump_mem_meta_enabled(val);
+
     return;
 }
 

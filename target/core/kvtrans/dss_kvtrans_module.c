@@ -202,7 +202,21 @@ void *dss_kvtrans_thread_instance_init(void *mctx, void *inst_ctx, int inst_inde
 }
 
 void *dss_kvtrans_thread_instance_destroy(void *mctx, void *inst_ctx) {
-    //TODO: Handle syncing dirty data and shutdown gracefully
+    dss_module_status_t m_rc;
+    dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = (dss_kvtrans_module_ctx_t *)mctx;
+    int i;
+    kvtrans_ctx_t *kvt_ctx;
+
+    for(i=0; i < dss_kvtrans_mctx->num_kvts; i++) {
+        kvt_ctx = dss_kvtrans_mctx->kvt_ctx_arr[i];
+        DSS_ASSERT(kvt_ctx->blk_alloc_ctx);
+        if (kvt_ctx->dump_mem_meta) {
+            dss_kvtrans_dump_in_memory_meta(kvt_ctx);
+        }
+        DSS_NOTICELOG("Destructor bitmap dumping\n");
+        free_kvtrans_ctx(kvt_ctx);
+    }
+
     return NULL;
 }
 
@@ -348,6 +362,7 @@ int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, uint64_t mdc_idx, void *data) {
     dss_blk_allocator_status_t rc;
     dc_item_t *it;
     uint64_t dc_idx;
+    blk_state_t dc_state;
 
     ondisk_meta_t *blk = (ondisk_meta_t *)data;
 
@@ -360,11 +375,25 @@ int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, uint64_t mdc_idx, void *data) {
         // handle duplicated elm
     }
 
-    rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, it->mdc_index, &it->ori_state);
+    rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, dc_idx, &dc_state);
     if (rc) {
         // TODO: error handling
         DSS_ERRLOG("Fail to get blk [%d] state\n", it->mdc_index);
         return 1;
+    }
+
+    switch(dc_state) {
+        case DATA_COLLISION:
+            it->ori_state = DATA;
+            break;
+        case DATA_COLLISION_EMPTY:
+            it->ori_state = EMPTY;
+            break;
+        case DATA_COLLISION_CE:
+            it->ori_state = COLLISION_EXTENSION;
+            break;
+        default:
+            assert(0);
     }
 
     if(store_elm(kvt_ctx->dc_cache_tbl, dc_idx, (void *)it)) {
@@ -561,11 +590,15 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 
                 if (kv_init_ctx->dss_dc_idx == kvt_ctx->blk_offset + kvt_ctx->blk_num - 1) {
                     // reach to the last blk
+                    DSS_NOTICELOG("Read ba bitmap from device %p\n", params.dev);
+                    if ((*kv_init_ctx->kvt_ctx)->dump_mem_meta) {
+                        dss_kvtrans_dump_in_memory_meta(*kv_init_ctx->kvt_ctx);
+                    }
                     dss_module_dec_async_pending_task(
-                        req->module_ctx[DSS_MODULE_KVTRANS].module);
-                    DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
-                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
-                    break;
+                            req->module_ctx[DSS_MODULE_KVTRANS].module);
+                        DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
+                        kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                        break;
                 }
                 iot_rc = dss_io_task_add_blk_read(
                                         req->io_task,

@@ -91,6 +91,14 @@ void testDelete(void) {
     CU_ASSERT( g_cache_tbl.ctx->free_num == g_cache_tbl.ctx->elm_num);
 }
 
+void testIterate(void) {
+    CU_ASSERT(g_cache_tbl.ctx!=NULL);
+    int rc;
+
+    rc = for_each_elm_fn(g_cache_tbl.ctx, NULL, NULL);
+    CU_ASSERT(rc==TEST_ELM_NUM);
+}
+
 int main (int argc, char **argv) {
     CU_pSuite pSuite = NULL;
 
@@ -111,6 +119,7 @@ int main (int argc, char **argv) {
         NULL == CU_add_test(pSuite, "testExpand" ,  testExpand)
         || NULL == CU_add_test(pSuite, "testShrink" ,  testShrink)
         || NULL == CU_add_test(pSuite, "testStore" ,  testStore)
+        || NULL == CU_add_test(pSuite, "testIterate" ,  testIterate)
         || NULL == CU_add_test(pSuite, "testGet" ,  testGet)
         || NULL == CU_add_test(pSuite, "testDelete" ,  testDelete)
     ) {

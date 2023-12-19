@@ -416,6 +416,8 @@ typedef struct kvtrans_ctx_s {
 
     bool is_ba_meta_sync_enabled;
 
+    bool dump_mem_meta;
+
     uint64_t blk_offset;
 
     uint64_t blk_size;
@@ -458,6 +460,7 @@ dss_kvtrans_status_t dss_kvtrans_load_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_re
 dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
 dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
 
+void dss_kvtrans_dump_in_memory_meta(kvtrans_ctx_t *kvt_ctx);
 
 typedef dss_kvtrans_status_t (async_kvtrans_fn)(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq);
 

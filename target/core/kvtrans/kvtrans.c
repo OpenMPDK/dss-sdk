@@ -99,6 +99,7 @@ bool g_disk_as_meta_store = false;
 #endif
 
 bool g_ba_enable_meta_sync = false;
+bool g_dump_mem_meta = false;
 
 #include "kvtrans_mem_backend.h"
 
@@ -112,6 +113,10 @@ void set_kvtrans_disk_meta_store(bool val) {
 
 void set_kvtrans_ba_meta_sync_enabled(bool val) {
     g_ba_enable_meta_sync = val;
+}
+
+void set_kvtrans_dump_mem_meta_enabled(bool val) {
+    g_dump_mem_meta = val;
 }
 #else
 void set_kvtrans_disk_data_store(bool val) {
@@ -423,6 +428,27 @@ dss_kvtrans_dc_table_delete(kvtrans_ctx_t  *ctx,
 
     return KVTRANS_STATUS_ERROR;
 }
+
+static void write_line(uint64_t dc_idx, void * item, void *file) {
+    FILE *out_file = (FILE *) file;
+    dc_item_t *dc_item = (dc_item_t *) item;
+    fprintf(file, "%zu %zu %d\n",dc_idx, dc_item->mdc_index, dc_item->ori_state);
+    return;
+}
+
+int
+dss_kvtrans_dump_dc_tbl(kvtrans_ctx_t  *ctx, const char* file_path) {
+    int rc;
+
+    FILE *out_file = fopen(file_path, "w");
+    if (out_file == NULL) {
+        assert(0);
+    }
+    rc = for_each_elm_fn(ctx->dc_cache_tbl, write_line, (void *)out_file);
+    fclose(out_file);
+    return rc;
+}
+
 
 dss_kvtrans_status_t
 dss_kvtrans_queue_load_ondisk_blk(blk_ctx_t *blk_ctx,
@@ -960,6 +986,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     }
 
     ctx->is_ba_meta_sync_enabled = g_ba_enable_meta_sync;
+    ctx->dump_mem_meta = g_dump_mem_meta;
 
 
     dss_blk_allocator_set_default_config(ctx->kvtrans_params.dev, &config);
@@ -1266,10 +1293,6 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
 
     DSS_ASSERT(blk_ctx->index >= ctx->blk_offset && blk_ctx->index<ctx->blk_num);
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
-
-    if (blk_ctx->index == 202505 ) {
-        printf("b1\n");
-    }
 
     DSS_DEBUGLOG(DSS_KVTRANS, "Allocate block at index [%u] with state [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, req->req_key.key);
 
@@ -1674,10 +1697,6 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
     col_blk->kreq = blk_ctx->kreq;
     col_blk->nothash = true;
     col_blk->first_insert_blk_ctx = blk_ctx->first_insert_blk_ctx;
-
-    if (blk_ctx->index == 202505 ) {
-        printf("b2\n");
-    }
 
     rc = init_meta_blk((void *)col_blk);
 
@@ -2378,7 +2397,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
 #endif
             kreq->state = REQ_CMPL;
             if(ctx->is_ba_meta_sync_enabled && kreq->ba_meta_updated) {
-                dss_blk_allocator_complete_meta_sync(ctx->blk_alloc_ctx, kreq->io_tasks);
+                ba_rc = dss_blk_allocator_complete_meta_sync(ctx->blk_alloc_ctx, kreq->io_tasks);
+                DSS_ASSERT(ba_rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+                DSS_DEBUGLOG(DSS_KVTRANS, "kreq [%p] completes BA meta sync with iotask [%p]\n", kreq, kreq->io_tasks);
             }
             break;
         case REQ_CMPL:
@@ -2706,6 +2727,18 @@ void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     
 }
 
+void dss_kvtrans_dump_in_memory_meta(kvtrans_ctx_t *kvt_ctx) {
+    dss_blk_allocator_status_t ba_rc;
+    int rc;
+    char dc_path[256];
+
+    ba_rc = dss_blk_allocator_write_meta_to_file(kvt_ctx->blk_alloc_ctx);
+    DSS_ASSERT(ba_rc == BLK_ALLOCATOR_STATUS_SUCCESS);
+
+    snprintf(dc_path, 255, "/var/log/dss_bitmap.%s.txt", kvt_ctx->kvtrans_params.name);
+    rc = dss_kvtrans_dump_dc_tbl(kvt_ctx, dc_path);
+    DSS_DEBUGLOG(DSS_KVTRANS, "write %d entries to %s\n", rc, dc_path);
+}
 
 #ifdef MEM_BACKEND
 

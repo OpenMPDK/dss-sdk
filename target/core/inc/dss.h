@@ -53,6 +53,7 @@
 void set_kvtrans_disk_data_store(bool val);
 void set_kvtrans_disk_meta_store(bool val);
 void set_kvtrans_ba_meta_sync_enabled(bool val);
+void set_kvtrans_dump_mem_meta_enabled(bool val);
 
 #ifndef DSS_BUILD_CUNIT_TEST
 
