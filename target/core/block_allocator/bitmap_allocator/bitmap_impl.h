@@ -82,7 +82,6 @@ public:
           {}
 
     ~QwordVector64Cell() {
-        write_bitmap_to_file();
         data_.clear();
         data_.shrink_to_fit();
     }    

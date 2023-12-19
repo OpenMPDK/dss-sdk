@@ -107,7 +107,7 @@ void QwordVector64Cell::deserialize_range(
 
     char *copy_ptr = (char *)serialized_buf;
 
-    for (uint64_t i=qword_begin; i<num_words; i++) {
+    for (uint64_t i=qword_begin; i<(qword_begin + num_words); i++) {
         std::memcpy(&data_[i], copy_ptr, sizeof(uint64_t));
         copy_ptr = copy_ptr + sizeof(uint64_t);
     }
