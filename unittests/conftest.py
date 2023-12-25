@@ -223,7 +223,7 @@ def get_sample_lshw_output():
             "link" : "no",
             "multicast" : "yes",
             "port" : "fibre",
-            "ip": "192.168.1.2"
+            "ip": "192.168.1.x"
         },
         "capabilities" : {
             "pciexpress" : "PCI Express",
@@ -255,7 +255,7 @@ def get_sample_nvme_list_subsys():
         {
           "Name" : "nvme0",
           "Transport" : "rdma",
-          "Address" : "traddr=192.168.1.2 trsvcid=1024",
+          "Address" : "traddr=192.168.1.x trsvcid=1024",
           "State" : "live"
         }
       ]
@@ -269,7 +269,7 @@ def get_sample_nvme_list_subsys():
         {
           "Name" : "nvme1",
           "Transport" : "rdma",
-          "Address" : "traddr=192.168.1.2 trsvcid=1024",
+          "Address" : "traddr=192.168.1.x trsvcid=1024",
           "State" : "live"
         }
       ]
@@ -283,7 +283,7 @@ def get_sample_nvme_list_subsys():
         {
           "Name" : "nvme2",
           "Transport" : "rdma",
-          "Address" : "traddr=192.168.1.2 trsvcid=1024",
+          "Address" : "traddr=192.168.1.x trsvcid=1024",
           "State" : "live"
         }
       ]
@@ -297,7 +297,7 @@ def get_sample_nvme_list_subsys():
         {
           "Name" : "nvme3",
           "Transport" : "rdma",
-          "Address" : "traddr=192.168.1.2 trsvcid=1024",
+          "Address" : "traddr=192.168.1.x trsvcid=1024",
           "State" : "live"
         }
       ]
@@ -313,7 +313,7 @@ def mock_exec_cmd(cmd):
     elif cmd.startswith("nvme list-subsys -o json"):
         return 0, get_sample_nvme_list_subsys(), ""
     elif cmd.startswith("ip -4 addr | grep"):
-        return 0, "192.168.1.2/24", ""
+        return 0, "192.168.1.x/24", ""
     elif cmd.startswith("ls /sys/class/pci_bus/") \
             and cmd.endswith("firmware_rev"):
         return 0, "/sys/class/pci_bus/0000:17/" +\
@@ -357,13 +357,13 @@ def mock_interfaces():
 
 
 def mock_ifaddresses(interface):
-    return [[{'addr': '1.2.3.4'}]]
+    return [[{'addr': '1.x.x.x'}]]
 
 
 class MockArgs():
 
     def __init__(self, *args, **kwargs):
-        self.addrs = ['1.2.3.4']
+        self.addrs = ['1.x.x.x']
         self.ports = [1234]
         self.command = "config_host"
         self.gen2 = False

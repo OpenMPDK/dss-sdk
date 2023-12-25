@@ -48,6 +48,20 @@ from conftest import (
 )
 
 
+def mock_functions(mocker, *args):
+    for arg in args:
+        if arg == "host.scripts.dss_host.exec_cmd":
+            mocker.patch(arg, mock_exec_cmd)
+        elif arg == "os.path.dirname":
+            mocker.patch(arg, mock_os_dirname_host)
+        elif arg == "host.scripts.dss_host.exec_cmd_remote":
+            mocker.patch(arg, mock_exec_cmd_remote)
+        elif arg == "argparse.ArgumentParser":
+            mocker.patch(arg, MockArgParser)
+        else:
+            mocker.patch(arg)
+
+
 @pytest.mark.usefixtures(
     "get_sample_ipv4_addr",
     "get_sample_ipv6_addr",
@@ -76,29 +90,27 @@ class TestDSSHost():
         assert isinstance(decode(bytes), str)
 
     def test_build_driver(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
-        mocker.patch("os.path.dirname", mock_os_dirname_host)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
+                       "os.path.dirname")
         build_driver()
 
     def test_install_kernel_driver(self, mocker):
-        cwd = os.getcwd()
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
-        mocker.patch("os.path.dirname", mock_os_dirname_host)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
+                       "os.path.dirname")
         install_kernel_driver(512)
 
     def test_get_ips_for_vlan(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd_remote",
-                     mock_exec_cmd_remote)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd_remote")
         res = get_ips_for_vlan("1234", "host", ["pw"])
         assert len(res) > 0
 
     def test_drive_to_addr_map(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
         res = drive_to_addr_map()
         assert len(res) == 4
 
     def test_mountpt_to_nqn_addr_map(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
         res = mountpt_to_nqn_addr_map()
         assert len(res) == 4
         for dev in res.keys():
@@ -106,35 +118,28 @@ class TestDSSHost():
             assert "addr" in res[dev]
 
     def test_subnet_drive_map(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
         res = subnet_drive_map()
         assert len(res) > 0
 
     def test_discover_dist(self, mocker):
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
-        mocker.patch("host.scripts.dss_host.exec_cmd_remote",
-                     mock_exec_cmd_remote)
+        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
+                       "host.scripts.dss_host.exec_cmd_remote")
         res = discover_dist(1234, ["1234"], ["1234"], "pw")
         assert len(res) > 0
 
     def test_config_minio_dist(self, mocker):
-        mocker.patch("builtins.open")
-        mocker.patch("os.chmod")
+        mock_functions(mocker, "builtins.open", "os.chmod")
         config_minio_dist(["ip", "port", "dev_start", "dev"], 1)
 
     def test_config_minio_sa(self, mocker):
-        mocker.patch("builtins.open")
+        mock_functions(mocker, "builtins.open")
         config_minio_sa(["ip", "port", "dev_start", "dev"], 1)
 
     def test_dss_host_args_config_host(self, mocker):
-        mocker.patch("argparse.ArgumentParser", MockArgParser)
-        mocker.patch("host.scripts.dss_host.exec_cmd", mock_exec_cmd)
-        mocker.patch("host.scripts.dss_host.exec_cmd_remote",
-                     mock_exec_cmd_remote)
-        mocker.patch("builtins.open")
-        mocker.patch("os.chmod")
-        mocker.patch("os.chdir")
-        mocker.patch("os.path.exists")
-        mocker.patch("json.load")
-        mocker.patch("json.dump")
+        mock_functions(mocker, "argparse.ArgumentParser",
+                       "host.scripts.dss_host.exec_cmd",
+                       "host.scripts.dss_host.exec_cmd_remote",
+                       "builtins.open", "os.chmod", "os.chdir",
+                       "os.path.exists", "json.load", "json.dump")
         d = dss_host_args()

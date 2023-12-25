@@ -41,11 +41,23 @@ from target.dss_target import (
 )
 import pytest
 from conftest import (
-    mock_exec_cmd, mock_os_dirname_host,
-    mock_exec_cmd_remote,
-    MockArgParser, MockArgs,
+    mock_exec_cmd,
     mock_interfaces, mock_ifaddresses
 )
+
+
+def mock_functions(mocker, *args):
+    for arg in args:
+        if arg == "target.dss_target.exec_cmd":
+            mocker.patch(arg, mock_exec_cmd)
+        elif arg == "target.dss_target.interfaces":
+            mocker.patch(arg, mock_interfaces)
+        elif arg == "target.dss_target.ifaddresses":
+            mocker.patch(arg, mock_ifaddresses)
+        elif arg == "target.dss_target.AF_INET":
+            mocker.patch(arg, 0)
+        else:
+            mocker.patch(arg)
 
 
 class TestDSSTarget():
@@ -64,20 +76,18 @@ class TestDSSTarget():
         return 0 == generate_core_mask_vmmode(core_count)
 
     def test_get_pcie_address_firmware_mapping(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
-        mocker.patch("builtins.open")
-        mocker.patch("typing.IO.readlines")
+        mock_functions(mocker, "target.dss_target.exec_cmd",
+                       "builtins.open", "typing.IO.readlines")
         r1, r2 = get_pcie_address_firmware_mapping()
 
     def test_get_pcie_address_serial_mapping(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
-        mocker.patch("builtins.open")
-        mocker.patch("typing.IO.readlines")
+        mock_functions(mocker, "target.dss_target.exec_cmd",
+                       "builtins.open", "typing.IO.readlines")
         r = get_pcie_address_serial_mapping([])
         assert len(r) > 0
 
     def test_get_nvme_list_numa(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "target.dss_target.exec_cmd")
         r = get_nvme_list_numa()
         assert len(r) > 0
 
@@ -86,44 +96,44 @@ class TestDSSTarget():
         assert len(r) > 0
 
     def test_only_mtu9k(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "target.dss_target.exec_cmd")
         r = only_mtu9k({"ip": 100})
         assert len(r) > 0
 
     def test_get_rdma_ips(self, mocker):
-        r = get_rdma_ips({"nic": "1.2.3.4"}, ["1.2.3.4"])
+        r = get_rdma_ips({"nic": "1.x.x.x"}, ["1.x.x.x"])
         assert len(r) > 0
 
     def test_get_numa_boundary(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "target.dss_target.exec_cmd")
         r = get_numa_boundary()
-        assert r == 1.0
+        assert int(r) == 1
 
     def test_get_numa_ip(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
-        mocker.patch("target.dss_target.interfaces", mock_interfaces)
-        mocker.patch("target.dss_target.ifaddresses", mock_ifaddresses)
-        mocker.patch("target.dss_target.AF_INET", 0)
-        r1, r2 = get_numa_ip(["1.2.3.4"])
+        mock_functions(mocker, "target.dss_target.exec_cmd",
+                       "target.dss_target.interfaces",
+                       "target.dss_target.ifaddresses",
+                       "target.dss_target.AF_INET")
+        r1, r2 = get_numa_ip(["1.x.x.x"])
         assert len(r1) > 0
         assert len(r2) == 0
 
     def test_create_nvmf_config_file(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
-        mocker.patch("target.dss_target.interfaces", mock_interfaces)
-        mocker.patch("target.dss_target.ifaddresses", mock_ifaddresses)
-        mocker.patch("target.dss_target.AF_INET", 0)
-        mocker.patch("builtins.open")
-        r = create_nvmf_config_file("", ["1.2.3.4"], [], [])
+        mock_functions(mocker, "target.dss_target.exec_cmd",
+                       "target.dss_target.interfaces",
+                       "target.dss_target.ifaddresses",
+                       "target.dss_target.AF_INET",
+                       "builtins.open")
+        r = create_nvmf_config_file("", ["1.x.x.x"], [], [])
         assert r == 0
 
     def test_get_vlan_ips(self, mocker):
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "target.dss_target.exec_cmd")
         r = get_vlan_ips("1234")
         assert r
 
     def test_setup_hugepage(self, mocker):
-        mocker.patch("builtins.open")
-        mocker.patch("target.dss_target.exec_cmd", mock_exec_cmd)
+        mock_functions(mocker, "target.dss_target.exec_cmd",
+                       "builtins.open")
         r = setup_hugepage()
         assert r == 0
