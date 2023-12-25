@@ -356,7 +356,7 @@ def mock_exec_cmd(cmd):
     elif cmd.startswith(ip_d):
         res = "vlanid 1234"
 
-    return 0 ,res, ""
+    return 0, res, ""
 
 
 def mock_os_dirname_host(name):
