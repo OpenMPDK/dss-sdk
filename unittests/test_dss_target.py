@@ -41,20 +41,28 @@ from target.dss_target import (
 )
 import pytest
 from conftest import (
-    mock_exec_cmd,
+    mock_exec_cmd, default_mock_ip,
     mock_interfaces, mock_ifaddresses
 )
 
 
+EXEC = "target.dss_target.exec_cmd"
+INTERFACE = "target.dss_target.interfaces"
+IFADDRESS = "target.dss_target.ifaddresses"
+AFINET = "target.dss_target.AF_INET"
+OPEN = "builtins.open"
+READLINES = "typing.IO.readlines"
+
+
 def mock_functions(mocker, *args):
     for arg in args:
-        if arg == "target.dss_target.exec_cmd":
+        if arg == EXEC:
             mocker.patch(arg, mock_exec_cmd)
-        elif arg == "target.dss_target.interfaces":
+        elif arg == INTERFACE:
             mocker.patch(arg, mock_interfaces)
-        elif arg == "target.dss_target.ifaddresses":
+        elif arg == IFADDRESS:
             mocker.patch(arg, mock_ifaddresses)
-        elif arg == "target.dss_target.AF_INET":
+        elif arg == AFINET:
             mocker.patch(arg, 0)
         else:
             mocker.patch(arg)
@@ -76,18 +84,16 @@ class TestDSSTarget():
         return 0 == generate_core_mask_vmmode(core_count)
 
     def test_get_pcie_address_firmware_mapping(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd",
-                       "builtins.open", "typing.IO.readlines")
+        mock_functions(mocker, EXEC, OPEN, READLINES)
         r1, r2 = get_pcie_address_firmware_mapping()
 
     def test_get_pcie_address_serial_mapping(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd",
-                       "builtins.open", "typing.IO.readlines")
+        mock_functions(mocker, EXEC, OPEN, READLINES)
         r = get_pcie_address_serial_mapping([])
         assert len(r) > 0
 
     def test_get_nvme_list_numa(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd")
+        mock_functions(mocker, EXEC)
         r = get_nvme_list_numa()
         assert len(r) > 0
 
@@ -96,44 +102,38 @@ class TestDSSTarget():
         assert len(r) > 0
 
     def test_only_mtu9k(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd")
+        mock_functions(mocker, EXEC)
         r = only_mtu9k({"ip": 100})
         assert len(r) > 0
 
     def test_get_rdma_ips(self, mocker):
-        r = get_rdma_ips({"nic": "1.x.x.x"}, ["1.x.x.x"])
+        r = get_rdma_ips({"nic": default_mock_ip}, [default_mock_ip])
         assert len(r) > 0
 
     def test_get_numa_boundary(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd")
+        mock_functions(mocker, EXEC)
         r = get_numa_boundary()
         assert int(r) == 1
 
     def test_get_numa_ip(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd",
-                       "target.dss_target.interfaces",
-                       "target.dss_target.ifaddresses",
-                       "target.dss_target.AF_INET")
-        r1, r2 = get_numa_ip(["1.x.x.x"])
+        mock_functions(mocker, EXEC, INTERFACE,
+                       IFADDRESS, AFINET)
+        r1, r2 = get_numa_ip([default_mock_ip])
         assert len(r1) > 0
         assert len(r2) == 0
 
     def test_create_nvmf_config_file(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd",
-                       "target.dss_target.interfaces",
-                       "target.dss_target.ifaddresses",
-                       "target.dss_target.AF_INET",
-                       "builtins.open")
-        r = create_nvmf_config_file("", ["1.x.x.x"], [], [])
+        mock_functions(mocker, EXEC, INTERFACE,
+                       IFADDRESS, AFINET, OPEN)
+        r = create_nvmf_config_file("", [default_mock_ip], [], [])
         assert r == 0
 
     def test_get_vlan_ips(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd")
+        mock_functions(mocker, EXEC)
         r = get_vlan_ips("1234")
         assert r
 
     def test_setup_hugepage(self, mocker):
-        mock_functions(mocker, "target.dss_target.exec_cmd",
-                       "builtins.open")
+        mock_functions(mocker, EXEC, OPEN)
         r = setup_hugepage()
         assert r == 0

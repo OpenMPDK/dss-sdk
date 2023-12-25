@@ -37,6 +37,9 @@ import pytest
 import secrets
 
 
+default_mock_ip = '1.x.x.x'
+
+
 @pytest.fixture(scope="session")
 def get_sample_nvme_devices():
     sample_nvme_list_output = """\
@@ -307,36 +310,53 @@ def get_sample_nvme_list_subsys():
         """
 
 
-def mock_exec_cmd(cmd):
-    if cmd == "uname -r":
-        return 0, "5.1.0", ""
-    elif cmd.startswith("nvme list-subsys -o json"):
-        return 0, get_sample_nvme_list_subsys(), ""
-    elif cmd.startswith("ip -4 addr | grep"):
-        return 0, "192.168.1.x/24", ""
-    elif cmd.startswith("ls /sys/class/pci_bus/") \
-            and cmd.endswith("firmware_rev"):
-        return 0, "/sys/class/pci_bus/0000:17/" +\
-            "device/0000:17:00.0/nvme/nvme1/firmware_rev", ""
-    elif cmd.startswith("ls /sys/class/pci_bus") and cmd.endswith("serial"):
-        return 0, "/sys/class/pci_bus/0000:17/" +\
-            "device/0000:17:00.0/nvme/nvme1/serial", ""
-    elif cmd.startswith("lspci -mm -n -D | grep 0108 "):
-        return 0, "0000:17:00.0", ""
-    elif cmd.startswith("cat /sys/class/net/") and cmd.endswith("mtu"):
-        return 0, "9000", ""
-    elif cmd == "lscpu":
-        return 0, get_sample_lscpu_output(), ""
-    elif cmd.startswith("cat /sys/class/net/") and cmd.endswith("numa_node"):
-        return 0, "0", ""
-    elif cmd == "nproc":
-        return 0, "128", ""
-    elif cmd == "lshw -c network -json":
-        return 0, get_sample_lshw_output(), ""
-    elif cmd.startswith("ip -d link show dev"):
-        return 0, "vlanid 1234", ""
+def get_ls_pci_bus(cmd):
+    begin = "/sys/class/pci_bus/0000:17/" +\
+            "device/0000:17:00.0/nvme/nvme1/"
+    if cmd.endswith("firmware_rev"):
+        return begin + "firmware_rev"
     else:
-        return 0, "", ""
+        return begin + "serial"
+
+
+def get_cat_sys_class_net(cmd):
+    if cmd.endswith("mtu"):
+        return "9000"
+    else:
+        return "0"
+
+
+def mock_exec_cmd(cmd):
+    ls_pci_bus = "ls /sys/class/pci_bus/"
+    cat_sys_class_net = "cat /sys/class/net/"
+    nvme_list_subsys = "nvme list-subsys -o json"
+    lspci_mm_n_D = "lspci -mm -n -D | grep 0108 "
+    lshw = "lshw -c network -json"
+    ip_d = "ip -d link show dev"
+    res = ""
+
+    if cmd == "uname -r":
+        res = "5.1.0"
+    elif cmd.startswith(nvme_list_subsys):
+        res = get_sample_nvme_list_subsys()
+    elif cmd.startswith("ip -4 addr | grep"):
+        res = "192.168.1.x/24"
+    elif cmd.startswith(ls_pci_bus):
+        res = get_ls_pci_bus(cmd)
+    elif cmd.startswith(lspci_mm_n_D):
+        res = "0000:17:00.0"
+    elif cmd.startswith(cat_sys_class_net):
+        res = get_cat_sys_class_net(cmd)
+    elif cmd == "lscpu":
+        res = get_sample_lscpu_output()
+    elif cmd == "nproc":
+        res = "128"
+    elif cmd == lshw:
+        res = get_sample_lshw_output()
+    elif cmd.startswith(ip_d):
+        res = "vlanid 1234"
+
+    return 0 ,res, ""
 
 
 def mock_os_dirname_host(name):
@@ -357,13 +377,13 @@ def mock_interfaces():
 
 
 def mock_ifaddresses(interface):
-    return [[{'addr': '1.x.x.x'}]]
+    return [[{'addr': default_mock_ip}]]
 
 
 class MockArgs():
 
     def __init__(self, *args, **kwargs):
-        self.addrs = ['1.x.x.x']
+        self.addrs = [default_mock_ip]
         self.ports = [1234]
         self.command = "config_host"
         self.gen2 = False
@@ -378,10 +398,12 @@ class MockArgs():
 class MockArgParser():
 
     def __init__(self, *args, **kwargs):
+        # mock function, do nothing
         pass
 
     def parse_args(self, *args, **kwargs):
         return MockArgs()
 
     def add_argument(self, *args, **kwargs):
+        # mock function, do nothing
         pass

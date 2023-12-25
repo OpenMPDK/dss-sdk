@@ -48,15 +48,23 @@ from conftest import (
 )
 
 
+EXEC = "host.scripts.dss_host.exec_cmd"
+DIRNAME = "os.path.dirname"
+EXEC_REMOTE = "host.scripts.dss_host.exec_cmd_remote"
+ARG_PARSER = "argparse.ArgumentParser"
+OPEN = "builtins.open"
+CHMOD = "os.chmod"
+
+
 def mock_functions(mocker, *args):
     for arg in args:
-        if arg == "host.scripts.dss_host.exec_cmd":
+        if arg == EXEC:
             mocker.patch(arg, mock_exec_cmd)
-        elif arg == "os.path.dirname":
+        elif arg == DIRNAME:
             mocker.patch(arg, mock_os_dirname_host)
-        elif arg == "host.scripts.dss_host.exec_cmd_remote":
+        elif arg == EXEC_REMOTE:
             mocker.patch(arg, mock_exec_cmd_remote)
-        elif arg == "argparse.ArgumentParser":
+        elif arg == ARG_PARSER:
             mocker.patch(arg, MockArgParser)
         else:
             mocker.patch(arg)
@@ -90,27 +98,25 @@ class TestDSSHost():
         assert isinstance(decode(bytes), str)
 
     def test_build_driver(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
-                       "os.path.dirname")
+        mock_functions(mocker, EXEC, DIRNAME)
         build_driver()
 
     def test_install_kernel_driver(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
-                       "os.path.dirname")
+        mock_functions(mocker, EXEC, DIRNAME)
         install_kernel_driver(512)
 
     def test_get_ips_for_vlan(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd_remote")
+        mock_functions(mocker, EXEC_REMOTE)
         res = get_ips_for_vlan("1234", "host", ["pw"])
         assert len(res) > 0
 
     def test_drive_to_addr_map(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
+        mock_functions(mocker, EXEC)
         res = drive_to_addr_map()
         assert len(res) == 4
 
     def test_mountpt_to_nqn_addr_map(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
+        mock_functions(mocker, EXEC)
         res = mountpt_to_nqn_addr_map()
         assert len(res) == 4
         for dev in res.keys():
@@ -118,28 +124,25 @@ class TestDSSHost():
             assert "addr" in res[dev]
 
     def test_subnet_drive_map(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd")
+        mock_functions(mocker, EXEC)
         res = subnet_drive_map()
         assert len(res) > 0
 
     def test_discover_dist(self, mocker):
-        mock_functions(mocker, "host.scripts.dss_host.exec_cmd",
-                       "host.scripts.dss_host.exec_cmd_remote")
+        mock_functions(mocker, EXEC, EXEC_REMOTE)
         res = discover_dist(1234, ["1234"], ["1234"], "pw")
         assert len(res) > 0
 
     def test_config_minio_dist(self, mocker):
-        mock_functions(mocker, "builtins.open", "os.chmod")
+        mock_functions(mocker, OPEN, CHMOD)
         config_minio_dist(["ip", "port", "dev_start", "dev"], 1)
 
     def test_config_minio_sa(self, mocker):
-        mock_functions(mocker, "builtins.open")
+        mock_functions(mocker, OPEN)
         config_minio_sa(["ip", "port", "dev_start", "dev"], 1)
 
     def test_dss_host_args_config_host(self, mocker):
-        mock_functions(mocker, "argparse.ArgumentParser",
-                       "host.scripts.dss_host.exec_cmd",
-                       "host.scripts.dss_host.exec_cmd_remote",
-                       "builtins.open", "os.chmod", "os.chdir",
+        mock_functions(mocker, ARG_PARSER, EXEC,
+                       EXEC_REMOTE, OPEN, CHMOD, "os.chdir",
                        "os.path.exists", "json.load", "json.dump")
-        d = dss_host_args()
+        dss_host_args()
