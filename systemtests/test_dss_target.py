@@ -61,6 +61,6 @@ class TestDSSTarget():
         test_content = comp_content = ""
         with open(output_path, "r") as test_file:
             test_content = test_file.read()
-        with open(output_path+".bak", "r") as comp_file:
+        with open(output_path + ".bak", "r") as comp_file:
             comp_content = comp_file.read()
         assert test_content == comp_content
