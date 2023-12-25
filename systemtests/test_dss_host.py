@@ -60,11 +60,11 @@ class TestDSSHost():
         os.chdir("/usr/dss/nkv-sdk/conf")
         assert os.path.exists("nkv_config.json")
         test_dict = comp_dict = {}
-        with open("/usr/dss/nkv-sdk" +
-                  "/conf/nkv_config.json", "r") as test_file:
+        with open("/usr/dss/nkv-sdk/conf/nkv_config.json",
+                  "r") as test_file:
             test_dict = json.load(test_file)
-        with open("/usr/dss/nkv-sdk" +
-                  "/conf.bak/nkv_config.json", "r") as comp_file:
+        with open("/usr/dss/nkv-sdk/conf.bak/nkv_config.json",
+                  "r") as comp_file:
             comp_dict = json.load(comp_file)
         for key in comp_dict.keys():
             assert key in test_dict.keys()
