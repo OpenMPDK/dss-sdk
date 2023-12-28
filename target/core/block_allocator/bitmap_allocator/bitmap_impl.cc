@@ -699,11 +699,30 @@ dss_blk_allocator_status_t QwordVector64Cell::load_meta_from_disk_data(
 void QwordVector64Cell::write_bitmap_to_file() {
     // Currently written to /var/log/dss_bmap.data
     std::ofstream dump_file;
-    uint64_t out = 0;
+    uint64_t data_out = 0;
+    uint64_t cell_id = logical_start_block_offset_;
+    int cell_out = 0;
+    uint64_t iter = 0;
+    uint64_t lb_per_word = BITS_PER_WORD / this->bits_per_cell_;
     dump_file.open ("/var/log/dss_bmap.data");
     for(uint64_t i=0; i<data_.size(); i++) {
-        out = data_[i];
-        dump_file<<i<<" "<<out<<"\n";
+        iter = 1 ;
+        data_out = data_[i];
+        dump_file<<i<<" "<<data_out<<" ";
+        // Now proceed to write cell ID and cell value
+        while(iter <= lb_per_word) {
+            if (cell_id == (logical_start_block_offset_ + cells_)) {
+                break;
+            } 
+            cell_out = get_cell_value(cell_id);
+            dump_file<<cell_id<<":"<<cell_out<<", ";
+            cell_id++;
+            iter++;
+        }
+        dump_file<<"\n";
+        if (cell_id == (logical_start_block_offset_ + cells_)) {
+            break;
+        } 
     }
     dump_file.close();
     std::cout<<"Completed writing bmap data to file"<<std::endl;
@@ -749,6 +768,7 @@ void QwordVector64Cell::print_range(uint64_t begin, uint64_t end) const {
         (total_cells() - 1) + logical_start_block_offset_;
     std::cout<<"Debug only: Printing Bitmap Begin"<<std::endl;
     std::cout<<"Total cells in bitmap = "<<total_cells()<<std::endl;
+
     if ((end > last_cell_index) || (begin < 0)) {
         std::cout<<"Incorrect range"<<std::endl;
     }
