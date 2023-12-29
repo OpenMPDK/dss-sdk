@@ -97,6 +97,7 @@ void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
 
 dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, dss_module_t *m, dss_module_instance_t *kvt_m_thrd_inst, kvtrans_params_t *p)
 {
+    dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = (dss_kvtrans_module_ctx_t *)m->ctx;
     dss_request_t *req = (dss_request_t *)calloc(1, sizeof(dss_request_t));
     dss_kvt_init_ctx_t *init_req_ctx;
     dss_io_task_t *iot = NULL;
@@ -109,6 +110,7 @@ dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, ds
 
     req->module_ctx[DSS_MODULE_KVTRANS].module = m;
     req->module_ctx[DSS_MODULE_KVTRANS].module_instance = kvt_m_thrd_inst;
+    req->ss = dss_kvtrans_mctx->dfly_subsys;
 
     init_req_ctx = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt_init;
 
@@ -403,6 +405,31 @@ int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, uint64_t mdc_idx, void *data) {
     return 0;
 }
 
+uint64_t _dss_calculate_default_ba_meta_sz_blocks(uint64_t total_blocks)
+{
+    dss_blk_allocator_opts_t ba_config;
+    uint64_t ba_meta_sz_blocks;
+
+    // Create Dummy ba instance
+    dss_blk_allocator_set_default_config(NULL, &ba_config);
+    ba_config.num_total_blocks = total_blocks;
+    ba_config.blk_allocator_type = DEFAULT_BLK_ALLOC_NAME;
+    ba_config.block_alloc_meta_start_offset = 0;
+    ba_config.logical_start_block_offset = 0;
+    ba_config.allocator_block_size = BLOCK_SIZE;
+    // exclude empty state
+    ba_config.num_block_states = DEFAULT_BLOCK_STATE_NUM - 1;
+    ba_config.enable_ba_meta_sync = false;
+
+    ba_meta_sz_blocks = dss_blk_allocator_get_physical_size(&ba_config);
+    //Convert from bytes to blocks
+    ba_meta_sz_blocks = (ba_meta_sz_blocks / BLOCK_SIZE) + ((ba_meta_sz_blocks%BLOCK_SIZE)?1:0);
+
+    return ba_meta_sz_blocks;
+}
+
+#define DSS_DEFAULT_KV_META_START_OFFSET (2)
+
 void dss_kvtrans_process_internal_io(dss_request_t *req)
 {
     kvtrans_params_t params;
@@ -436,78 +463,100 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 DSS_ASSERT(params.dev != NULL);
                 params.iotm = kv_init_ctx->iotm;
                 DSS_ASSERT(params.iotm != NULL);
-                //TODO: Process super block
-                super_block = (dss_super_block_t *)kv_init_ctx->data;
-                printf("phy_sz : %d\n",super_block->phy_blk_size_in_bytes);
-                kv_init_ctx->logical_block_size =
-                    super_block->logi_blk_size_in_bytes;
-                /* TODO!: Super block provides physical addresses and we
-                          need logical block address.
-                   This translation is done temporarily here and needs to be
-                   refactored
-                */
-                params.logi_blk_size =
-                    super_block->logi_blk_size_in_bytes;
-                // Procure total number of usable blocks
-                usable_start_block =
-                    super_block->logi_usable_blk_start_addr;
-                usable_end_block = super_block->logi_usable_blk_end_addr;
-                params.logi_blk_num =
-                    usable_end_block - usable_start_block + 1;
-                // Procure block allocator meta start block offset
-                params.blk_alloc_meta_start_offset =
-                    super_block->logi_blk_alloc_meta_start_blk;
-                // Procure logical start addr or the offset
-                params.blk_offset = usable_start_block;
+                if(!dss_subsystem_kv_persistence_disabled(req->ss)) {//Load from super block
+                    super_block = (dss_super_block_t *)kv_init_ctx->data;
+                    DSS_NOTICELOG("phy_sz : %d\n",super_block->phy_blk_size_in_bytes);
+                    kv_init_ctx->logical_block_size =
+                        super_block->logi_blk_size_in_bytes;
+                    /* TODO!: Super block provides physical addresses and we
+                              need logical block address.
+                       This translation is done temporarily here and needs to be
+                       refactored
+                    */
+                    params.logi_blk_size =
+                        super_block->logi_blk_size_in_bytes;
+                    // Procure total number of usable blocks
+                    usable_start_block =
+                        super_block->logi_usable_blk_start_addr;
+                    usable_end_block = super_block->logi_usable_blk_end_addr;
+                    params.logi_blk_num =
+                        usable_end_block - usable_start_block + 1;
+                    // Procure block allocator meta start block offset
+                    params.blk_alloc_meta_start_offset =
+                        super_block->logi_blk_alloc_meta_start_blk;
+                    // Procure logical start addr or the offset
+                    params.blk_offset = usable_start_block;
 
-                //TODO: init path if not loading from superblock
-                //TODO: Setup device specific kvtrans params
-                DSS_ASSERT(*kv_init_ctx->kvt_ctx == NULL);
-                DSS_NOTICELOG("Read kv trans superblock from device %p\n", params.dev);
-                *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
-                if ((*kv_init_ctx->kvt_ctx)->is_ba_meta_sync_enabled == false) {
-                    //Skip loading bitmap when ba_meta_sync is disabled
-                    kv_init_ctx->state = DSS_KVT_LOADING_DC_HT;
-                    break;
-                }
-                // Figure out the first and last logical block to read from
-                kv_init_ctx->ba_meta_start_block =
-                    super_block->logi_blk_alloc_meta_start_blk;
-                kv_init_ctx->ba_meta_end_block =
-                    super_block->logi_blk_alloc_meta_end_blk;
-                kv_init_ctx->ba_meta_num_blks =
-                    kv_init_ctx->ba_meta_end_block -
-                    kv_init_ctx->ba_meta_start_block + 1;
-                kv_init_ctx->ba_meta_size =
-                    kv_init_ctx->ba_meta_num_blks *
-                    super_block->logi_blk_size_in_bytes;
-                // BA meta read multiple times instead in a single shot
-                kv_init_ctx->ba_disk_read_total_it =
-                    kv_init_ctx->ba_meta_size / BA_META_DISK_READ_SZ_MB;
-                if (kv_init_ctx->ba_meta_size %
-                        BA_META_DISK_READ_SZ_MB != 0) {
-                    kv_init_ctx->ba_disk_read_total_it++;
-                }
-                kv_init_ctx->ba_meta_num_blks_per_iter =
-                    BA_META_DISK_READ_SZ_MB /
-                    kv_init_ctx->logical_block_size;
+                    //TODO: init path if not loading from superblock
+                    //TODO: Setup device specific kvtrans params
+                    DSS_ASSERT(*kv_init_ctx->kvt_ctx == NULL);
+                    DSS_NOTICELOG("Read kv trans superblock from device %p\n", params.dev);
+                    *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
+                    if ((*kv_init_ctx->kvt_ctx)->is_ba_meta_sync_enabled == false) {
+                        //Skip loading bitmap when ba_meta_sync is disabled
+                        kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                        break;
+                    }
+                    // Figure out the first and last logical block to read from
+                    kv_init_ctx->ba_meta_start_block =
+                        super_block->logi_blk_alloc_meta_start_blk;
+                    kv_init_ctx->ba_meta_end_block =
+                        super_block->logi_blk_alloc_meta_end_blk;
+                    kv_init_ctx->ba_meta_num_blks =
+                        kv_init_ctx->ba_meta_end_block -
+                        kv_init_ctx->ba_meta_start_block + 1;
+                    kv_init_ctx->ba_meta_size =
+                        kv_init_ctx->ba_meta_num_blks *
+                        super_block->logi_blk_size_in_bytes;
+                    // BA meta read multiple times instead in a single shot
+                    kv_init_ctx->ba_disk_read_total_it =
+                        kv_init_ctx->ba_meta_size / BA_META_DISK_READ_SZ_MB;
+                    if (kv_init_ctx->ba_meta_size %
+                            BA_META_DISK_READ_SZ_MB != 0) {
+                        kv_init_ctx->ba_disk_read_total_it++;
+                    }
+                    kv_init_ctx->ba_meta_num_blks_per_iter =
+                        BA_META_DISK_READ_SZ_MB /
+                        kv_init_ctx->logical_block_size;
 
-                spdk_dma_free(kv_init_ctx->data);
-                // Free and assign memory appropriately
-                kv_init_ctx->data =
-                    spdk_dma_zmalloc(
-                            BA_META_DISK_READ_SZ_MB, 4096, NULL);
-                DSS_ASSERT(kv_init_ctx->data != NULL);
-                kv_init_ctx->data_len = BA_META_DISK_READ_SZ_MB;
-                // Reset current IO task, since super block has been read
-                iot_rc = dss_io_task_reset_ops(req->io_task);
-                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
-                DSS_ASSERT(req->io_task != NULL);
-                DSS_ASSERT(kv_init_ctx->data_len >=
-                        dss_io_dev_get_user_blk_sz(kv_init_ctx->dev)
-                            * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
-                // Complete reading super-block
-                kv_init_ctx->state = DSS_KVT_LOAD_SUPERBLOCK_COMPLETE;
+                    spdk_dma_free(kv_init_ctx->data);
+                    // Free and assign memory appropriately
+                    kv_init_ctx->data =
+                        spdk_dma_zmalloc(
+                                BA_META_DISK_READ_SZ_MB, 4096, NULL);
+                    DSS_ASSERT(kv_init_ctx->data != NULL);
+                    kv_init_ctx->data_len = BA_META_DISK_READ_SZ_MB;
+                    // Reset current IO task, since super block has been read
+                    iot_rc = dss_io_task_reset_ops(req->io_task);
+                    DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                    DSS_ASSERT(req->io_task != NULL);
+                    DSS_ASSERT(kv_init_ctx->data_len >=
+                            dss_io_dev_get_user_blk_sz(kv_init_ctx->dev)
+                                * DSS_KVT_SUPERBLOCK_NUM_BLOCKS);
+                    // Complete reading super-block
+                    kv_init_ctx->state = DSS_KVT_LOAD_SUPERBLOCK_COMPLETE;
+                } else {
+                    uint64_t total_blocks;
+                    uint64_t ba_meta_sz_blocks;
+
+                    DSS_ASSERT(BLOCK_SIZE%dss_io_dev_get_disk_blk_sz(params.dev) == 0);
+                    total_blocks = dss_io_dev_get_disk_num_blks(params.dev)/(BLOCK_SIZE / dss_io_dev_get_disk_blk_sz(params.dev));
+                    ba_meta_sz_blocks = _dss_calculate_default_ba_meta_sz_blocks(total_blocks);
+                    DSS_ASSERT(ba_meta_sz_blocks + DSS_DEFAULT_KV_META_START_OFFSET < total_blocks);
+
+                    spdk_dma_free(kv_init_ctx->data);
+                    kv_init_ctx->data = NULL;
+
+                    kv_init_ctx->logical_block_size = BLOCK_SIZE;
+                    params.logi_blk_size = BLOCK_SIZE;
+                    params.logi_blk_num = total_blocks - ba_meta_sz_blocks - DSS_DEFAULT_KV_META_START_OFFSET;
+                    params.blk_alloc_meta_start_offset = DSS_DEFAULT_KV_META_START_OFFSET;
+                    params.blk_offset = ba_meta_sz_blocks + DSS_DEFAULT_KV_META_START_OFFSET;
+                    params.blk_alloc_name = DEFAULT_BLK_ALLOC_NAME;
+
+                    *kv_init_ctx->kvt_ctx = init_kvtrans_ctx(&params);
+                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                }
                 break;
             case DSS_KVT_LOAD_SUPERBLOCK_COMPLETE:
                 // Issue read IO operation for block allocator meta-block
@@ -594,11 +643,9 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     if ((*kv_init_ctx->kvt_ctx)->dump_mem_meta) {
                         dss_kvtrans_dump_in_memory_meta(*kv_init_ctx->kvt_ctx);
                     }
-                    dss_module_dec_async_pending_task(
-                            req->module_ctx[DSS_MODULE_KVTRANS].module);
-                        DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
-                        kv_init_ctx->state = DSS_KVT_INITIALIZED;
-                        break;
+                    DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
+                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                    break;
                 }
                 iot_rc = dss_io_task_add_blk_read(
                                         req->io_task,
@@ -612,6 +659,7 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 break;
                 
             case DSS_KVT_INITIALIZED:
+                dss_module_dec_async_pending_task(req->module_ctx[DSS_MODULE_KVTRANS].module);
                 dss_kvtrans_free_init_request(req);
                 return;
             default:

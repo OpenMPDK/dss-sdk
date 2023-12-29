@@ -142,6 +142,14 @@ uint32_t dss_io_dev_get_user_blk_sz(dss_device_t *device);
 uint32_t dss_io_dev_get_disk_blk_sz(dss_device_t *device);
 
 /**
+ * @brief Get number of blocks in the disk
+ * 
+ * @param device Device whose number of disk blocks needs to be returned
+ * @return uint32_t number of blocks of disk block size units
+ */
+uint32_t dss_io_dev_get_disk_num_blks(dss_device_t *device);
+
+/**
  * @brief Initializes and returns a io_task module context
  * 
  * @param io_task_opts Options for initializing io module

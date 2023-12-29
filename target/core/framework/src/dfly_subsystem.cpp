@@ -180,6 +180,7 @@ void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_con
 	df_subsys->dss_kv_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_mode", true);
 	df_subsys->dss_iops_perf_mode = spdk_conf_section_get_boolval(subsys_sp, "dss_iops_perf_mode", false);
 	df_subsys->use_io_task = true;//TODO: Decide if this needs to be configurable?
+	df_subsys->disable_persistence = spdk_conf_section_get_boolval(subsys_sp, "dss_kv_disable_persistence", false);
 	// Count number of namespaces
 	for (num_kvt_threads = 0;; num_kvt_threads++)
 	{
@@ -538,6 +539,13 @@ bool dss_subsystem_use_io_task(dss_subsystem_t *ss)
 {
 	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
 	return df_ss->use_io_task;
+
+}
+
+bool dss_subsystem_kv_persistence_disabled(dss_subsystem_t *ss)
+{
+	struct dfly_subsystem *df_ss = (struct dfly_subsystem *) ss;
+	return df_ss->disable_persistence;
 
 }
 

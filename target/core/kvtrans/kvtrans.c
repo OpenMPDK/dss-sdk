@@ -982,6 +982,7 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
         DSS_ASSERT(ctx->state_num>0);
         ctx->blk_num = params->logi_blk_num;
     } else {
+        DSS_NOTICELOG("Using default parameters for initialization\n");
         ctx->kvtrans_params = set_default_params();
     }
 
@@ -1010,13 +1011,14 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
     ctx->blk_alloc_ctx = dss_blk_allocator_init(ctx->kvtrans_params.dev, &config);
     //ctx->blk_alloc_ctx = dss_blk_allocator_init(NULL, &config);
     if (!ctx->blk_alloc_ctx) {
-        printf("ERROR: blk_allocator init failed\n");
+        DSS_ERRLOG("blk_allocator init failed\n");
          goto failure_handle;
     }
 
     // calcualte block offset if it's not specified in params
     if (ctx->is_ba_meta_sync_enabled && ctx->blk_offset<=1) {
         ctx->blk_offset = dss_blk_allocator_get_physical_size(&config) / ctx->blk_size + 1;
+        DSS_NOTICELOG("Updating block offset to %d\n", ctx->blk_offset);
     }
 
     if (ctx->kvtrans_params.hash_size==0) {

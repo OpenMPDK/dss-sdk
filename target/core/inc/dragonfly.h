@@ -197,6 +197,7 @@ struct dfly_subsystem {
 	bool dss_kv_mode;
     bool dss_iops_perf_mode;
 	bool use_io_task;
+	bool disable_persistence;
 	dss_io_task_module_t *iotmod;
 	int num_kvt_threads;
 	struct dfly_module_list_s mlist;
@@ -540,6 +541,8 @@ void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_
 bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
 
 bool dss_subsystem_use_io_task(dss_subsystem_t *ss);
+
+bool dss_subsystem_kv_persistence_disabled(dss_subsystem_t *ss);
 
 dss_io_task_module_t *dss_subsytem_get_iotm_ctx(dss_subsystem_t *ss);
 

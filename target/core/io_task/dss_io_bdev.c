@@ -181,6 +181,7 @@ dss_io_dev_status_t dss_io_device_open(const char *dev_name, dss_device_type_t t
 		}
 
         d->disk_blk_sz = spdk_bdev_get_block_size(d->bdev);
+        d->disk_num_blks = spdk_bdev_get_num_blocks(d->bdev);
         d->user_blk_sz = d->disk_blk_sz;//Default to same as disk block size
 
         DSS_NOTICELOG("Initialized device %s with %d block size\n", d->dev_name, d->disk_blk_sz);
@@ -257,6 +258,12 @@ uint32_t dss_io_dev_get_user_blk_sz(dss_device_t *device)
 uint32_t dss_io_dev_get_disk_blk_sz(dss_device_t *device)
 {
     return device->disk_blk_sz;
+}
+
+uint32_t dss_io_dev_get_disk_num_blks(dss_device_t *device)
+{
+    DSS_ASSERT(device->dev_type == DSS_BLOCK_DEVICE);
+    return device->disk_num_blks;
 }
 
 struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device)
