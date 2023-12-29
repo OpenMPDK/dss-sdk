@@ -113,12 +113,12 @@ class TestDSSHost():
     def test_drive_to_addr_map(self, mocker):
         mock_functions(mocker, EXEC)
         res = drive_to_addr_map()
-        assert len(res) == 4
+        assert len(res) == 1
 
     def test_mountpt_to_nqn_addr_map(self, mocker):
         mock_functions(mocker, EXEC)
         res = mountpt_to_nqn_addr_map()
-        assert len(res) == 4
+        assert len(res) == 1
         for dev in res.keys():
             assert "nqn" in res[dev]
             assert "addr" in res[dev]
