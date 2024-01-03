@@ -271,7 +271,7 @@ struct spdk_io_channel *dss_io_dev_get_channel(dss_device_t *io_device)
     uint32_t ch_arr_index = dss_env_get_current_core();
     struct spdk_io_channel *ch;
 
-    DSS_ASSERT(ch_arr_index < io_device->n_ch);
+    DSS_ASSERT(ch_arr_index <= io_device->n_ch);
 
     if(spdk_unlikely(!io_device->ch_arr[ch_arr_index].ch)) {
         io_device->ch_arr[ch_arr_index].ch = spdk_bdev_get_io_channel(io_device->desc);
