@@ -149,7 +149,10 @@ void dss_nvmf_process_as_no_op(dss_request_t *req)
 void dss_net_setup_nvmf_resp(dss_request_t *req, dss_request_rc_t status, uint32_t cdw0)
 {
     struct spdk_nvmf_request *nvmf_req;
+    uint8_t nvmf_opc;
+
     nvmf_req = (struct spdk_nvmf_request *)req->module_ctx[DSS_MODULE_NET].mreq_ctx.net.nvmf_req;
+    nvmf_opc = dss_nvmf_get_req_opc(nvmf_req);
 
     switch(status) {
         case DSS_REQ_STATUS_SUCCESS:
@@ -159,7 +162,14 @@ void dss_net_setup_nvmf_resp(dss_request_t *req, dss_request_rc_t status, uint32
             }
             break;
         case DSS_REQ_STATUS_KEY_NOT_FOUND:
-            dss_nvmf_set_sct_sc(nvmf_req, SPDK_NVME_SCT_KV_CMD, SPDK_NVME_SC_KV_KEY_NOT_EXIST);
+            if(nvmf_opc == SPDK_NVME_OPC_SAMSUNG_KV_DELETE) {
+                //TODO: Return error if delete options set to fail on non-existent key
+                //Note: Returns success for deltion of non-existent keys
+                dss_nvmf_set_sc_success(nvmf_req);
+                dss_nvmf_set_resp_cdw0(nvmf_req, 0);
+            } else {
+                dss_nvmf_set_sct_sc(nvmf_req, SPDK_NVME_SCT_KV_CMD, SPDK_NVME_SC_KV_KEY_NOT_EXIST);
+            }
             break;
         case DSS_REQ_STATUS_ERROR:
             DSS_ASSERT(0);
