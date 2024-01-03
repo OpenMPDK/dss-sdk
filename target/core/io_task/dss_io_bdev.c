@@ -214,8 +214,7 @@ dss_io_dev_status_t dss_io_device_close(dss_device_t *device)
     switch (device->dev_type)
     {
     case DSS_BLOCK_DEVICE:
-        //TODO: Release bdev
-        for(i=0; i < device->n_ch; i++) {
+        for(i=0; i <= device->n_ch; i++) {
             if(device->ch_arr[i].ch) {
                 DSS_ASSERT(device->ch_arr[i].thread != NULL);
                 dss_spdk_thread_send_msg(device->ch_arr[i].thread, (void *)spdk_put_io_channel, device->ch_arr[i].ch);
