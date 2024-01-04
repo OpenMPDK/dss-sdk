@@ -1778,7 +1778,8 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
         case update:
         case to_delete:
             // unhandled
-            DSS_ASSERT(0);
+            rc = KVTRANS_STATUS_NOT_FOUND;
+            break;
         default:
             break;
         }
