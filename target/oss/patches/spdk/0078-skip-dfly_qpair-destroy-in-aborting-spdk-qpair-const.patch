@@ -1,0 +1,29 @@
+From 6530520ced05bd4b72aa7b3528eb94f78927d1d6 Mon Sep 17 00:00:00 2001
+From: Danlin Jia <dan.jia@samsung.com>
+Date: Thu, 4 Jan 2024 16:16:30 -0800
+Subject: [PATCH 78/78] skip dfly_qpair destroy in aborting spdk qpair
+ construction
+
+---
+ lib/nvmf/rdma.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 23bdbc2..1dd1877 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -725,6 +725,11 @@ static int dfly_nvmf_rdma_qpair_init(struct spdk_nvmf_rdma_qpair *rqpair)
+ 
+ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+ {
++	if (!rqpair->qpair.dqpair) {
++		// if this is triggered because of aborting rqpair creation,
++		// no dqpair had been initialized. Skip this function in this case.
++		return 0;
++	}
+ 	//TODO: only for subsytem with oss_target _enabled
+     char *cpu_group_name = NULL;
+ 
+-- 
+1.8.3.1
+

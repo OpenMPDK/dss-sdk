@@ -1,7 +1,7 @@
-From 6b93467b5e60aebac179a50584862d9fb5cccdf9 Mon Sep 17 00:00:00 2001
+From 88f43e8e508a84085a7365919382f5fe23ff9c9d Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 11 Nov 2021 14:24:14 -0800
-Subject: [PATCH 55/77] Identify and log Data direct request
+Subject: [PATCH 55/78] Identify and log Data direct request
 
 ---
  include/spdk/nvme_spec.h | 23 +++++++++++++++++

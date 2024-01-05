@@ -1,7 +1,7 @@
-From 2cd0e71124217a31833d1e736050a359e89374b8 Mon Sep 17 00:00:00 2001
+From af7d577bc37931385176643cc73b5fcf521cc554 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Thu, 29 Sep 2022 20:59:10 -0700
-Subject: [PATCH 70/77] Add support to align data buffer to nic/dev numa
+Subject: [PATCH 70/78] Add support to align data buffer to nic/dev numa
 
 ---
  lib/nvmf/transport.c | 17 +++++++++++++++--

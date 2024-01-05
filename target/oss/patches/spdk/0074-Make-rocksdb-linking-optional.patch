@@ -1,7 +1,7 @@
-From 36b593b70c82c14104328e85fca5c86b61cd2c18 Mon Sep 17 00:00:00 2001
+From 6e0d6cc52301a1458eb7d306ee4f072f60a84a3f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 19 Apr 2023 16:21:04 -0700
-Subject: [PATCH 74/77] Make rocksdb linking optional
+Subject: [PATCH 74/78] Make rocksdb linking optional
 
 ---
  CONFIG         | 3 +++

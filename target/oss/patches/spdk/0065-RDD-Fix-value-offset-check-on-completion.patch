@@ -1,7 +1,7 @@
-From 04b84ab102afe517c0af4e9f6287f6c61271ddfa Mon Sep 17 00:00:00 2001
+From 36281884b18fa05ed37feadf98d80dc02a1e2748 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Wed, 22 Jun 2022 13:23:33 -0700
-Subject: [PATCH 65/77] RDD - Fix value offset check on completion
+Subject: [PATCH 65/78] RDD - Fix value offset check on completion
 
 ---
  lib/nvmf/rdma.c | 22 ++++++++++++++--------

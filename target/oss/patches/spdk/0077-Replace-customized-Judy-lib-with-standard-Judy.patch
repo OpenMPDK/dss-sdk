@@ -1,7 +1,7 @@
-From c253271e0bbeada728b5a03f442751fab608306a Mon Sep 17 00:00:00 2001
+From 07db5c9cc009986a7d3fe37162f9ae75eb278a1a Mon Sep 17 00:00:00 2001
 From: Danlin Jia <dan.jia@samsung.com>
 Date: Tue, 22 Aug 2023 10:07:13 -0700
-Subject: [PATCH 77/77] Replace customized Judy lib with standard Judy
+Subject: [PATCH 77/78] Replace customized Judy lib with standard Judy
 
 ---
  mk/spdk.app.mk | 2 +-

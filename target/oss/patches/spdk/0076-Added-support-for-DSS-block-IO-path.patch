@@ -1,7 +1,7 @@
-From ecc30d4647eafd291f6de137ee026992e230a685 Mon Sep 17 00:00:00 2001
+From b8210318d1949a4d685db417df3d64ba653c651a Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 17 Jul 2023 17:44:40 -0700
-Subject: [PATCH 76/77] Added support for DSS block IO path
+Subject: [PATCH 76/78] Added support for DSS block IO path
 
 ---
  lib/nvmf/ctrlr.c                      |  6 ++++--

@@ -1,7 +1,7 @@
-From 8065531dbe0f3d5e04ff1647a45dea38cec33553 Mon Sep 17 00:00:00 2001
+From 36e2adf65d9858d094ddab1ff6878f6f239f132f Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Fri, 8 Jan 2021 00:27:30 -0800
-Subject: [PATCH 22/77] RDB compaction rpc with get_status support
+Subject: [PATCH 22/78] RDB compaction rpc with get_status support
 
 ---
  scripts/dss_rpc.py             | 6 ++++--
