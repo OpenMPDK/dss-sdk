@@ -151,8 +151,19 @@ typedef struct dss_kvt_init_ctx_s {
     uint64_t ba_meta_num_blks_per_iter;
     uint64_t logical_block_size;
     uint64_t ba_meta_start_block_per_iter;
-    // DC table specific variables
-    uint64_t dss_dc_idx;
+
+    // the next mdc entry index
+    uint64_t dss_mdc_lba;
+    // the maximum parallel IOs to load dc block
+    uint32_t mdc_io_depth;
+    // pre-allocated memory for dc_tbl entries
+    void *dc_entries;
+    // dc entry size
+    uint32_t dc_ent_sz;
+    // the number of outstanding mdc IOs
+    uint32_t mdc_io_count;
+    // the last batch of mdc IOs
+    bool last_batch;
 } dss_kvt_init_ctx_t;
 
 typedef double tick_t;

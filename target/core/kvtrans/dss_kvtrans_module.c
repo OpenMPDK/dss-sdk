@@ -94,6 +94,7 @@ void dss_kvtrans_setup_request(dss_request_t *req, kvtrans_ctx_t *kvt_ctx)
 
 #define DSS_KVT_SUPERBLOCK_LBA (0)
 #define DSS_KVT_SUPERBLOCK_NUM_BLOCKS (1)
+#define DEFAULT_MDC_IO_DEPTH (128)
 
 dss_module_status_t dss_kvtrans_initiate_loading(kvtrans_ctx_t **new_kvt_ctx, dss_module_t *m, dss_module_instance_t *kvt_m_thrd_inst, kvtrans_params_t *p)
 {
@@ -158,6 +159,7 @@ void dss_kvtrans_free_init_request(dss_request_t *req)
     kv_init_ctx = &req->module_ctx[DSS_MODULE_KVTRANS].mreq_ctx.kvt_init;
 
     spdk_free(kv_init_ctx->data);
+    if (kv_init_ctx->dc_entries) free(kv_init_ctx->dc_entries);
     memset(req, 0, sizeof(dss_request_t));
     free(req);
 
@@ -341,16 +343,33 @@ int boot_dc_get_next_dmc_blk(dss_kvt_init_ctx_t *kv_init_ctx) {
     kvtrans_ctx_t *kvt_ctx = *kv_init_ctx->kvt_ctx;
     blk_state_t state;
     
-    while (kv_init_ctx->dss_dc_idx < kvt_ctx->blk_offset + kvt_ctx->blk_num - 1)
+    while (kv_init_ctx->dss_mdc_lba < kvt_ctx->blk_offset + kvt_ctx->blk_num - 1)
     {
         // starts from kvt_ctx->blk_offset - 1;
-        kv_init_ctx->dss_dc_idx ++;
-        rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, kv_init_ctx->dss_dc_idx, &state);
+        kv_init_ctx->dss_mdc_lba ++;
+        rc = dss_blk_allocator_get_block_state(kvt_ctx->blk_alloc_ctx, kv_init_ctx->dss_mdc_lba, &state);
         if (rc) {
             // TODO: error handling
-            DSS_ERRLOG("Fail to get blk [%d] state\n", kv_init_ctx->dss_dc_idx);
+            DSS_ERRLOG("Fail to get blk [%d] state\n", kv_init_ctx->dss_mdc_lba);
             return 1;
         }
+
+        switch (state)
+        {
+        case EMPTY:
+            break;
+        case META:
+            kvt_ctx->stat.meta ++;
+        case COLLISION:
+            kvt_ctx->stat.mc ++;
+        case META_DATA_COLLISION_ENTRY:
+        case META_DATA_COLLISION:
+            kvt_ctx->stat.mdc ++;
+            break; 
+        default:
+            break;
+        }
+
         if (state==META_DATA_COLLISION_ENTRY) {
             break;
         }
@@ -359,17 +378,15 @@ int boot_dc_get_next_dmc_blk(dss_kvt_init_ctx_t *kv_init_ctx) {
     return 0;
 }
 
-int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, uint64_t mdc_idx, void *data) {
+int boot_dc_insert_elm(kvtrans_ctx_t *kvt_ctx, dc_item_t *it, void *data) {
 
     dss_blk_allocator_status_t rc;
-    dc_item_t *it;
     uint64_t dc_idx;
     blk_state_t dc_state;
 
     ondisk_meta_t *blk = (ondisk_meta_t *)data;
 
-    it = malloc(sizeof(dc_item_t));
-    it->mdc_index = mdc_idx;
+    // DSS_ASSERT(blk->magic == META_MAGIC);
 
     dc_idx = blk->data_collision_index;
 
@@ -441,6 +458,9 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
     dss_blk_allocator_context_t *blk_alloc_ctx = NULL;
     uint64_t usable_start_block = 0;
     uint64_t usable_end_block = 0;
+    int mdc_io_idx = 0;
+    void *mdc_buffer;
+    dc_item_t *dc_entry;
 
     DSS_ASSERT(req->opc == DSS_INTERNAL_IO);
     do {
@@ -497,6 +517,7 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                         kv_init_ctx->state = DSS_KVT_INITIALIZED;
                         break;
                     }
+                    DSS_NOTICELOG("BA loading bitmap starts\n");
                     // Figure out the first and last logical block to read from
                     kv_init_ctx->ba_meta_start_block =
                         super_block->logi_blk_alloc_meta_start_blk;
@@ -591,7 +612,8 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     // Initialize reading DC hash table, proceed to next
                     // phase
                     kv_init_ctx->state = DSS_KVT_LOADING_DC_HT;
-                    DSS_ASSERT(kv_init_ctx->dss_dc_idx == 0);
+                    DSS_ASSERT(kv_init_ctx->dss_mdc_lba == 0);
+                    DSS_NOTICELOG("BA loading bitmap completed\n");
                     break;
                 }
                 // Reset current IO task, since super block has been read
@@ -618,44 +640,76 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                     kv_init_ctx->ba_meta_num_blks_per_iter;
                 break;
              case DSS_KVT_LOADING_DC_HT:
-                if (kv_init_ctx->dss_dc_idx == 0) {
-                    kv_init_ctx->data = spdk_dma_zmalloc(kvt_ctx->blk_size, 4096, NULL);
-                    kv_init_ctx->dss_dc_idx = kvt_ctx->blk_offset - 1;
+                if (kv_init_ctx->dss_mdc_lba == 0) {
+                    // init varible for dc table construction
+                    DSS_NOTICELOG("DC table construction starts\n");
+                    kv_init_ctx->mdc_io_depth = DEFAULT_MDC_IO_DEPTH;
+                    kv_init_ctx->last_batch = false;
+                    kv_init_ctx->mdc_io_count = 0;
+                    kv_init_ctx->dc_ent_sz = sizeof(dc_item_t);
+                    kv_init_ctx->data = spdk_dma_zmalloc(kvt_ctx->blk_size * kv_init_ctx->mdc_io_depth, 4096, NULL);
+                    kv_init_ctx->dc_entries = calloc(kv_init_ctx->mdc_io_depth, kv_init_ctx->dc_ent_sz);
+                    kv_init_ctx->dss_mdc_lba = kvt_ctx->blk_offset - 1;
                     iot_rc = dss_io_task_reset_ops(req->io_task);
                     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 } else {
-                    if(boot_dc_insert_elm(kvt_ctx, kv_init_ctx->dss_dc_idx, kv_init_ctx->data)) {
-                        DSS_ERRLOG("Insert element to dc table in boot failed for index [%u]\n", kv_init_ctx->dss_dc_idx);
-                        assert(0);
+                    // iterate over all buffers of outstanding mdc IOs.
+                    for (mdc_io_idx = 0; mdc_io_idx<kv_init_ctx->mdc_io_count; mdc_io_idx++) {
+                        mdc_buffer = (void *) (mdc_io_idx * kvt_ctx->blk_size + (char *) kv_init_ctx->data);
+                        dc_entry = (dc_item_t *) (mdc_io_idx * kv_init_ctx->dc_ent_sz + (char *) kv_init_ctx->dc_entries);
+                        if (boot_dc_insert_elm(kvt_ctx, dc_entry, mdc_buffer)) {
+                            DSS_ERRLOG("Insert element to dc table in boot failed for index [%u]\n", kv_init_ctx->dss_mdc_lba);
+                            assert(0);
+                        }
                     }
+
+                    DSS_DEBUGLOG(DSS_KVTRANS, "Insert %d dc entries to dc_tbl.\n", mdc_io_idx);
+
+                    memset(kv_init_ctx->data, 0, kvt_ctx->blk_size * kv_init_ctx->mdc_io_depth);
+                    memset(kv_init_ctx->dc_entries, 0, kv_init_ctx->dc_ent_sz * kv_init_ctx->mdc_io_depth);
                     iot_rc = dss_io_task_reset_ops(req->io_task);
                     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 }
 
-                if (boot_dc_get_next_dmc_blk(kv_init_ctx)) {
-                    DSS_ERRLOG("DC Construction failed\n");
-                    assert(0);
-                }
-                
-                if (kv_init_ctx->dss_dc_idx == kvt_ctx->blk_offset + kvt_ctx->blk_num - 1) {
-                    // reach to the last blk
-                    DSS_NOTICELOG("Read ba bitmap from device %p\n", params.dev);
-                    if ((*kv_init_ctx->kvt_ctx)->dump_mem_meta) {
-                        dss_kvtrans_dump_in_memory_meta(*kv_init_ctx->kvt_ctx);
+                for (mdc_io_idx = 0 ; mdc_io_idx<kv_init_ctx->mdc_io_depth; mdc_io_idx++) {
+                    mdc_buffer = (void *) (mdc_io_idx * kvt_ctx->blk_size + (char *) kv_init_ctx->data);
+                    dc_entry = (dc_item_t *) (mdc_io_idx * kv_init_ctx->dc_ent_sz + (char *) kv_init_ctx->dc_entries);
+                    DSS_ASSERT(mdc_buffer);
+                    if (boot_dc_get_next_dmc_blk(kv_init_ctx)) {
+                        DSS_ERRLOG("DC Construction failed\n");
+                        assert(0);
                     }
-                    DSS_DEBUGLOG(DSS_KVTRANS, "DC table construction finished\n");
-                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
-                    break;
-                }
-                iot_rc = dss_io_task_add_blk_read(
+                    if (kv_init_ctx->dss_mdc_lba == kvt_ctx->blk_offset + kvt_ctx->blk_num - 1) {
+                        kv_init_ctx->last_batch = true;
+                        kv_init_ctx->mdc_io_count = mdc_io_idx;
+                        break;
+                    }
+                    iot_rc = dss_io_task_add_blk_read(
                                         req->io_task,
                                         kv_init_ctx->dev,
-                                        kv_init_ctx->dss_dc_idx,
+                                        kv_init_ctx->dss_mdc_lba,
                                         1, 
-                                        kv_init_ctx->data,
+                                        mdc_buffer,
                                         NULL);
-                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
-                iot_rc = dss_io_task_submit(req->io_task);
+                    DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                    dc_entry->mdc_index = kv_init_ctx->dss_mdc_lba;
+                }
+
+                if (mdc_io_idx>0) {
+                    kv_init_ctx->mdc_io_count = mdc_io_idx;
+                    iot_rc = dss_io_task_submit(req->io_task);
+                    DSS_DEBUGLOG(DSS_KVTRANS, "Submit %d mdc I/Os.\n", mdc_io_idx);
+                }
+
+                if (mdc_io_idx<kv_init_ctx->last_batch && kv_init_ctx->mdc_io_count==0) {
+                    // reach to the last blk && no outstanding IOs
+                    DSS_NOTICELOG("DC table construction finished\n");
+                    if ((*kv_init_ctx->kvt_ctx)->dump_mem_meta) {
+                        dss_kvtrans_dump_in_memory_meta(*kv_init_ctx->kvt_ctx);
+                        DSS_NOTICELOG("In-memory data dumping finished\n");
+                    }
+                    kv_init_ctx->state = DSS_KVT_INITIALIZED;
+                }
                 break;
                 
             case DSS_KVT_INITIALIZED:
