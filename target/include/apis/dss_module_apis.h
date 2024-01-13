@@ -244,6 +244,8 @@ struct kvtrans_req{
     STAILQ_ENTRY(kvtrans_req) req_link;
 #endif
 
+    STAILQ_ENTRY(kvtrans_req) meta_sync_link;
+
 };
 
 /**

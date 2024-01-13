@@ -110,7 +110,9 @@ typedef enum dss_kvtrans_status_e {
     // I/O failed
     KVTRANS_STATUS_IO_ERROR = 9,
     KVTRANS_IO_QUEUED = 10,
-    KVTRANS_IO_SUBMITTED = 11
+    KVTRANS_IO_SUBMITTED = 11,
+    KVTRANS_META_SYNC_TRUE = 12,
+    KVTRANS_META_SYNC_FALSE = 13
 } dss_kvtrans_status_t;
 
 
@@ -372,6 +374,13 @@ typedef struct dstat_s {
     tick_t setval;
 } dstat_t;
 
+typedef struct kvtrans_meta_sync_ctx_s {
+    // a Judy1 array
+    Pvoid_t dirty_meta_lba;
+    STAILQ_HEAD(, kvtrans_req) kv_req_queue;
+    uint32_t queue_length;
+} kvtrans_meta_sync_ctx_t;
+
 /**
  *  @brief kv translator context
  *  Create kv translator instance per disk.
@@ -428,6 +437,8 @@ typedef struct kvtrans_ctx_s {
 
     dstat_t stat;
 
+    kvtrans_meta_sync_ctx_t *meta_sync_ctx;
+
 } kvtrans_ctx_t;
 
 
@@ -461,6 +472,9 @@ dss_kvtrans_status_t dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx, kvtrans_re
 dss_kvtrans_status_t dss_kvtrans_write_ondisk_data(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq, bool submit_for_disk_io);
 
 void dss_kvtrans_dump_in_memory_meta(kvtrans_ctx_t *kvt_ctx);
+
+dss_kvtrans_status_t dss_kvtrans_init_meta_sync_ctx(kvtrans_ctx_t *kvt_ctx);
+void dss_kvtrans_free_meta_sync_ctx(kvtrans_meta_sync_ctx_t *meta_sync_ctx);
 
 typedef dss_kvtrans_status_t (async_kvtrans_fn)(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq);
 

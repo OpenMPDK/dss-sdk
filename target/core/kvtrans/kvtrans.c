@@ -481,9 +481,12 @@ dss_kvtrans_load_ondisk_blk(blk_ctx_t *blk_ctx,
         dss_io_task_status_t iot_rc;
         rc = dss_kvtrans_queue_load_ondisk_blk(blk_ctx, kreq);
         if (submit_for_disk_io) {
-            iot_rc = dss_io_task_submit(kreq->io_tasks);
             kreq->io_to_queue = false;
-            DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+            if(_sync_meta_blk_to_queue(kreq->kvtrans_ctx->meta_sync_ctx, blk_ctx) == KVTRANS_META_SYNC_FALSE) {
+                iot_rc = dss_io_task_submit(kreq->io_tasks);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+            }
+            // IO is submitted to either io task module or meta_sync_queue
             rc = KVTRANS_IO_SUBMITTED;
         }
         return rc;
@@ -607,6 +610,7 @@ dss_kvtrans_queue_write_ondisk_blk(blk_ctx_t *blk_ctx,
     dss_io_opts_t io_opts = {.mod_id = DSS_IO_OP_OWNER_KVTRANS,
                              .is_blocking = false};
 
+
     iot_rc = dss_io_task_add_blk_write(kreq->io_tasks, 
                                     kvtrans_ctx->target_dev,
                                     blk_ctx->index,
@@ -615,6 +619,10 @@ dss_kvtrans_queue_write_ondisk_blk(blk_ctx_t *blk_ctx,
                                     &io_opts);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
     kreq->io_to_queue = true;
+    // lock lba at blk_ctx->index
+#ifndef DSS_BUILD_CUNIT_TEST
+    _set_lba_dirty(kvtrans_ctx->meta_sync_ctx, blk_ctx->index);
+#endif
     return KVTRANS_IO_QUEUED;
 }
 
@@ -959,6 +967,25 @@ void dss_kvtrans_blk_ctx_dtor(void *ctx, void *item)
     return;
 }
 
+dss_kvtrans_status_t
+dss_kvtrans_init_meta_sync_ctx(kvtrans_ctx_t *kvtrans_ctx) {
+    kvtrans_ctx->meta_sync_ctx = (kvtrans_meta_sync_ctx_t *) calloc(1, sizeof(kvtrans_meta_sync_ctx_t));
+    if (!kvtrans_ctx->meta_sync_ctx) {
+        return KVTRANS_MALLOC_ERROR;
+    }
+    kvtrans_ctx->meta_sync_ctx->queue_length = 0;
+    STAILQ_INIT(&kvtrans_ctx->meta_sync_ctx->kv_req_queue);
+    return KVTRANS_STATUS_SUCCESS;
+}
+
+void
+dss_kvtrans_free_meta_sync_ctx(kvtrans_meta_sync_ctx_t *meta_sync_ctx) {
+    if (meta_sync_ctx) {
+        Judy1FreeArray(&meta_sync_ctx->dirty_meta_lba, PJE0);
+        free(meta_sync_ctx);
+    }
+}
+
 kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params) 
 {
     kvtrans_ctx_t *ctx;
@@ -1047,7 +1074,12 @@ kvtrans_ctx_t *init_kvtrans_ctx(kvtrans_params_t *params)
 
     init_dc_table(ctx);
     if (!ctx->dc_cache_tbl) {
-        printf("ERROR: dc_table init failed\n");
+        DSS_ERRLOG("ERROR: dc_table init failed\n");
+        goto failure_handle;
+    }
+
+    if(dss_kvtrans_init_meta_sync_ctx(ctx)!=KVTRANS_STATUS_SUCCESS) {
+        DSS_ERRLOG("Create meta sync ctx failed\n");
         goto failure_handle;
     }
 
@@ -1085,6 +1117,9 @@ void free_kvtrans_ctx(kvtrans_ctx_t *ctx)
 
     if (ctx->hash_fn_ctx) free_hash_fn_ctx(ctx->hash_fn_ctx);
     free_dc_table(ctx);
+
+    if (ctx->meta_sync_ctx) dss_kvtrans_free_meta_sync_ctx(ctx->meta_sync_ctx);
+
 #ifdef MEM_BACKEND
     free_mem_backend(ctx);
 #endif
@@ -1274,6 +1309,99 @@ _update_kreq_stat_after_io(kvtrans_req_t *kreq,
     return rc;
 }
 
+#ifndef DSS_BUILD_CUNIT_TEST
+bool _is_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    return Judy1Test(meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0);
+}
+
+dss_kvtrans_status_t
+_set_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    if (Judy1Set(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
+        // 1 if Index's bit was previously unset (successful)
+        return KVTRANS_STATUS_SUCCESS;
+    }
+    return KVTRANS_STATUS_ERROR;
+}
+
+dss_kvtrans_status_t
+_set_lba_free(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    if (Judy1Unset(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
+        // 1 if Index's bit was previously set (successful)
+        return KVTRANS_STATUS_SUCCESS;
+    }
+    return KVTRANS_STATUS_ERROR;
+}
+
+
+dss_kvtrans_status_t
+_sync_meta_blk_to_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *blk_ctx) {
+    dss_kvtrans_status_t rc;
+
+    DSS_ASSERT(meta_sync_ctx);
+    if (_is_lba_dirty(meta_sync_ctx, blk_ctx->index)) {
+        STAILQ_INSERT_TAIL(&meta_sync_ctx->kv_req_queue, blk_ctx->kreq, meta_sync_link);
+        meta_sync_ctx->queue_length ++;
+        DSS_NOTICELOG( "kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
+                        blk_ctx->kreq->req.req_key.key, blk_ctx->index, blk_ctx->state, meta_sync_ctx->queue_length);
+        return KVTRANS_META_SYNC_TRUE;
+    }
+    // lock lba at blk_ctx->index
+    rc = _set_lba_dirty(meta_sync_ctx, blk_ctx->index);
+    if (rc) DSS_ASSERT(0);
+    return KVTRANS_META_SYNC_FALSE;
+}
+
+dss_kvtrans_status_t
+_pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_flight_blk) {
+    dss_io_task_status_t iot_rc;
+    dss_kvtrans_status_t rc;
+    kvtrans_req_t *kreq;
+    blk_ctx_t *blk_ctx;
+    int num_blks;
+    int i = 0;
+    uint64_t blk_idx = in_flight_blk->index;
+
+    DSS_ASSERT(meta_sync_ctx);
+
+    // DSS_ASSERT(!_is_lba_dirty(meta_sync_ctx, blk_idx));
+    rc = _set_lba_free(meta_sync_ctx, in_flight_blk->index);
+    if (rc) {
+        DSS_ASSERT(in_flight_blk->state==DATA || in_flight_blk->state==COLLISION_EXTENSION);
+        return KVTRANS_META_SYNC_FALSE;
+    }
+
+    // Iterate all kvreq in queue to see any one dependent on blk_idx
+    STAILQ_FOREACH(kreq, &meta_sync_ctx->kv_req_queue, meta_sync_link) {
+        num_blks = kreq->num_meta_blk;
+        TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
+            i++;
+            if (blk_ctx->index == blk_idx) {
+                DSS_ASSERT(i == num_blks);
+                DSS_ASSERT(meta_sync_ctx->queue_length > 0);
+                STAILQ_REMOVE(&meta_sync_ctx->kv_req_queue, kreq, kvtrans_req, meta_sync_link);
+                meta_sync_ctx->queue_length --;
+                rc = _set_lba_dirty(meta_sync_ctx, blk_idx);
+                if (rc) return rc;
+                iot_rc = dss_io_task_submit(kreq->io_tasks);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                DSS_NOTICELOG( "kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
+                        kreq->req.req_key.key, blk_ctx->index, in_flight_blk->state, meta_sync_ctx->queue_length);
+                return KVTRANS_META_SYNC_TRUE;
+            }
+        }
+    }
+
+    return KVTRANS_META_SYNC_FALSE;
+}
+#endif
+
+bool _lba_in_range(kvtrans_ctx_t *ctx, uint64_t blk_idx) {
+    return blk_idx >= ctx->blk_offset && blk_idx < ctx->blk_offset + ctx->blk_num;
+}
+
 dss_kvtrans_status_t
 _alloc_entry_block(kvtrans_ctx_t *ctx, 
                     kvtrans_req_t *kreq,
@@ -1293,7 +1421,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     // ensure index is within [1, blk_alloc_opts.num_total_blocks - 1]
     ctx->kv_assign_block(&blk_ctx->index, ctx);
 
-    DSS_ASSERT(blk_ctx->index >= ctx->blk_offset && blk_ctx->index<ctx->blk_num);
+    DSS_ASSERT(_lba_in_range(ctx, blk_ctx->index));
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
     DSS_DEBUGLOG(DSS_KVTRANS, "Allocate block at index [%u] with state [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, req->req_key.key);
@@ -1316,7 +1444,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
         blk_ctx->kctx.dc_index = blk_ctx->index;
         rc = dss_kvtrans_dc_table_lookup(ctx, blk_ctx->kctx.dc_index, &blk_ctx->index);
         DSS_ASSERT(rc==KVTRANS_STATUS_SUCCESS);
-        DSS_ASSERT(blk_ctx->index>0 && blk_ctx->index<ctx->blk_num);
+        DSS_ASSERT(_lba_in_range(ctx, blk_ctx->index));
         blk_ctx->state = META_DATA_COLLISION_ENTRY;
         // continue to load ondisk blk
     case META:
@@ -1388,7 +1516,7 @@ find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
     rc = dss_kvtrans_alloc_contig(ctx, blk_ctx->kreq, DATA, 
         blk_ctx->index+1, num_blocks, &allocated_start_block);
     if(rc == KVTRANS_STATUS_SUCCESS) {
-        DSS_ASSERT(allocated_start_block>0 && allocated_start_block<ctx->blk_num);
+        DSS_ASSERT(_lba_in_range(ctx, allocated_start_block));
         blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].num_chunks = num_blocks;
         blk_ctx->blk->place_value[blk_ctx->blk->num_valid_place_value_entry].value_index = allocated_start_block;
 
@@ -2408,6 +2536,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
         case REQ_CMPL:
 #ifndef DSS_BUILD_CUNIT_TEST
             dss_trace_record(TRACE_KVTRANS_WRITE_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+            TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
+                _pop_meta_blk_from_queue(ctx->meta_sync_ctx, blk_ctx);
+            }
 #endif
             ctx->task_done++;
             return rc;
