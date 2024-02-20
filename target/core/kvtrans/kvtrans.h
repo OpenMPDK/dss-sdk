@@ -88,6 +88,7 @@ typedef struct hash_fn_ctx_s hash_fn_ctx_t;
 typedef struct kvtrans_params_s kvtrans_params_t;
 typedef struct ondisk_meta_s ondisk_meta_t;
 typedef struct blk_ctx blk_ctx_t;
+typedef struct kvtrans_ctx_s kvtrans_ctx_t;
 
 // typedef dfly_module_t kvtrans_t;
 
@@ -375,6 +376,8 @@ typedef struct dstat_s {
 } dstat_t;
 
 typedef struct kvtrans_meta_sync_ctx_s {
+    // Reference to the parent kvtrans intance
+    kvtrans_ctx_t *kvtrans_ctx;
     // a Judy1 array
     Pvoid_t dirty_meta_lba;
     STAILQ_HEAD(, kvtrans_req) kv_req_queue;
@@ -388,7 +391,7 @@ typedef struct kvtrans_meta_sync_ctx_s {
  *  Associate with the request pointer to process.
  *  Initialize a free list for data collision mapping.
  */
-typedef struct kvtrans_ctx_s {
+struct kvtrans_ctx_s {
     kvtrans_params_t kvtrans_params;
     // kvtrans_t *kvtrans_module;
     hash_fn_ctx_t *hash_fn_ctx;
@@ -439,7 +442,7 @@ typedef struct kvtrans_ctx_s {
 
     kvtrans_meta_sync_ctx_t *meta_sync_ctx;
 
-} kvtrans_ctx_t;
+};
 
 
 hash_fn_ctx_t *init_hash_fn_ctx(kvtrans_params_t *params);

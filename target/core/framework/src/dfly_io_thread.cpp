@@ -98,6 +98,8 @@ int dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				   struct spdk_nvmf_request *req);
 int dfly_io_req_process(void *ctx, struct dfly_request *req)
 {
+
+    DFLY_DEBUGLOG(DFLY_LOG_IO, "Processing IO request [%p]\n", req);
 	int status = 0;
 	struct io_thread_inst_ctx_s *thrd_inst = (struct io_thread_inst_ctx_s *)ctx;
 

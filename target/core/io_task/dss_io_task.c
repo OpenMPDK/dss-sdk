@@ -324,9 +324,11 @@ dss_io_task_status_t dss_io_task_get_op_ranges(dss_io_task_t *task, dss_io_op_ow
                 op = TAILQ_FIRST(&task->op_todo_list);
                 break;
             case DSS_IO_OP_COMPLETED:
+                DSS_DEBUGLOG(DSS_IO_TASK, "task[%p] op[%d] lba[%x] nblocks[%x], completed!\n", task, op, op->blk_rw.lba, op->blk_rw.nblocks);
                 op = TAILQ_FIRST(&task->op_done);
                 break;
             case DSS_IO_OP_FAILED:
+                DSS_DEBUGLOG(DSS_IO_TASK, "task[%p] op[%d] lba[%x] nblocks[%x], failed!\n", task, op, op->blk_rw.lba, op->blk_rw.nblocks);
                 op = TAILQ_FIRST(&task->failed_ops);
                 break;
             default:

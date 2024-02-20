@@ -294,7 +294,9 @@ void _dss_io_task_op_complete(struct spdk_bdev_io *bdev_io, bool success, void *
     dss_io_task_t *task = op->parent;
     dss_io_op_t *next_op;
 
+
     DSS_ASSERT(task->num_outstanding_ops >= 0);
+    DSS_DEBUGLOG(DSS_IO_TASK, "IO Completed task[%p] op[%d] lba[%x] nblocks[%x]\n", task, op->opc, op->blk_rw.lba, op->blk_rw.nblocks);
 
     task->num_ops_done++;
     task->num_outstanding_ops--;
@@ -380,6 +382,7 @@ void _dss_io_task_submit_to_device(dss_io_task_t *task)
                                                            num_disk_blocks,
                                                            _dss_io_task_op_complete,
                                                            curr_op);
+            DSS_DEBUGLOG(DSS_IO_TASK, "BLK_READ submit task[%p] op[%d] lba[%x] nblocks[%x]\n", task, curr_op->opc, curr_op->blk_rw.lba, curr_op->blk_rw.nblocks);
                 break;
             case DSS_IO_BLK_WRITE:
                 rc = spdk_bdev_write_blocks(io_device->desc, ch, curr_op->blk_rw.data, \
@@ -387,6 +390,7 @@ void _dss_io_task_submit_to_device(dss_io_task_t *task)
                                                             num_disk_blocks,
                                                             _dss_io_task_op_complete,
                                                             curr_op);
+            DSS_DEBUGLOG(DSS_IO_TASK, "BLK_WRITE submit task[%p] op[%d] lba[%x] nblocks[%x]\n", task, curr_op->opc, curr_op->blk_rw.lba, curr_op->blk_rw.nblocks);
                 break;
             default:
                 DSS_ASSERT(0);
@@ -425,6 +429,7 @@ dss_io_task_status_t dss_io_task_submit(dss_io_task_t *task)
 {
     DSS_ASSERT(task->dreq);
     DSS_ASSERT(task->in_progress == false);
+    DSS_DEBUGLOG(DSS_IO_TASK, "IO submit extenal task[%p]\n", task);
 
     task->in_progress = true;
     if(task->io_task_module->io_module) {
