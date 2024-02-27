@@ -1390,8 +1390,11 @@ _pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_f
     }
 
     // Iterate all kvreq in queue to see any one dependent on blk_idx
+    // Outer loop searches for the completed kreq in the in-flight kreq queue
     STAILQ_FOREACH(kreq, &meta_sync_ctx->kv_req_queue, meta_sync_link) {
         num_blks = kreq->num_meta_blk;
+        // Inner loop searches for meta-blocks related to kreq that can be
+        // scheduled to drive
         TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
             i++;
             if (blk_ctx->index == blk_idx) {
@@ -1408,6 +1411,9 @@ _pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_f
                 return KVTRANS_META_SYNC_TRUE;
             }
         }
+        // Reset iterator as a different kreq will have its own meta-blocks
+        // or blk_ctx
+        i = 0;
     }
 
     return KVTRANS_META_SYNC_FALSE;
