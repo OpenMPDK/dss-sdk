@@ -33,6 +33,7 @@
 
 #include "kvtrans.h"
 #include "kvtrans_hash.h"
+#include "dss_block_allocator.h"
 
 #ifndef DSS_BUILD_CUNIT_TEST
 #include "dss_spdk_wrapper.h"
@@ -1111,7 +1112,18 @@ void free_kvtrans_ctx(kvtrans_ctx_t *ctx)
     if (!ctx) return;
 
     if (ctx->blk_alloc_ctx) {
-        dss_blk_allocator_destroy(ctx->blk_alloc_ctx);
+        // NB 1: There is KV-Trans module created per drive; though
+        //       having such an option while not partitioning the drive
+        //       into sub-drives might not have any effect; this feature
+        //       is left as is for future extensions.
+        // NB 2: This check makes sure if the KVT instance is valid before
+        //       free
+        // NB 3: There are as many kv submodules as there are sub-sytems
+        // NB 4: There are as many threads per sub module, as many as 
+        //       namespaces there are by default
+        if (ctx->blk_alloc_ctx->blk_alloc_opts.blk_allocator_type != NULL) {
+            dss_blk_allocator_destroy(ctx->blk_alloc_ctx);
+        }
     }
 
     //kvtrans_ctx might be used since it is registered in cb_arg

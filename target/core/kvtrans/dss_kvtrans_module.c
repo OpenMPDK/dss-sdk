@@ -205,13 +205,18 @@ void *dss_kvtrans_thread_instance_init(void *mctx, void *inst_ctx, int inst_inde
     return thread_ctx;
 }
 
-void *dss_kvtrans_thread_instance_destroy(void *mctx, void *inst_ctx) {
+void *dss_kvtrans_thread_instance_destroy(void *mctx, void *inst_ctx)
+{
     dss_module_status_t m_rc;
     dss_kvtrans_module_ctx_t *dss_kvtrans_mctx = (dss_kvtrans_module_ctx_t *)mctx;
-    int i;
+    dss_kvtrans_thread_ctx_t *thread_ctx = (dss_kvtrans_thread_ctx_t *) inst_ctx;
+    int num_devices = dss_kvtrans_mctx->dfly_subsys->num_io_devices;
+    int num_threads = dss_kvtrans_mctx->num_threads;
+    int i, inst_index;
     kvtrans_ctx_t *kvt_ctx;
 
-    for(i=0; i < dss_kvtrans_mctx->num_kvts; i++) {
+    inst_index = thread_ctx->inst_index;
+    for(i=inst_index; i < num_devices; i= i+num_threads) {
         kvt_ctx = dss_kvtrans_mctx->kvt_ctx_arr[i];
         DSS_ASSERT(kvt_ctx->blk_alloc_ctx);
         if (kvt_ctx->dump_mem_meta) {
