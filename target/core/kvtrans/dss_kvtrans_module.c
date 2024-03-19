@@ -788,6 +788,7 @@ static int dss_kvtrans_request_handler(void *ctx, dss_request_t *req)
         // key not found is handled in dss_kvtrans_net_request_complete function
         if (!(rc == KVTRANS_STATUS_NOT_FOUND && kreq->state == REQ_CMPL)) {
             DSS_ERRLOG("kvt_ctx [%p] returns code [%d] for key [%s]\n", kvt_ctx, rc, kreq->req.req_key.key);
+            kreq->state = REQ_CMPL;
         }
     }
 
