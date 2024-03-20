@@ -172,8 +172,14 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
                             uint64_t blk_num, blk_state_t state)
 {
     dss_blk_allocator_status_t rc;
-    if (state==EMPTY) {
-       rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
+    blk_state_t blk_state;
+    rc = dss_blk_allocator_get_block_state(ctx->blk_alloc_ctx, 
+                                            index,
+                                            &blk_state);
+    DSS_ASSERT(blk_state!=state);
+    
+    if (state==EMPTY) {   
+        rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
     } else {
         DSS_ASSERT(blk_num==1);
         rc = dss_blk_allocator_set_blocks_state(ctx->blk_alloc_ctx, index, blk_num, state);
@@ -371,7 +377,6 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
         return KVTRANS_STATUS_ERROR;
     }
     DSS_ASSERT(ori_state==DATA || ori_state==COLLISION_EXTENSION);
-
     state = ori_state==DATA ? DATA_COLLISION : DATA_COLLISION_CE;
 
     rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, state);
@@ -449,6 +454,144 @@ dss_kvtrans_dump_dc_tbl(kvtrans_ctx_t  *ctx, const char* file_path) {
     fclose(out_file);
     return rc;
 }
+
+
+#ifndef DSS_BUILD_CUNIT_TEST
+bool _is_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    return Judy1Test(meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0);
+}
+
+bool
+_modify_meta(const kvtrans_req_t *kreq) {
+    if (!kreq) {
+        DSS_ERRLOG("Invalid kreq\n");
+        return false;
+    }
+    switch (kreq->req.opc)
+    {
+    case KVTRANS_OPC_STORE:
+        return true;
+    case KVTRANS_OPC_DELETE:
+        return true;
+    case KVTRANS_OPC_RETRIEVE:
+        return false;
+    case KVTRANS_OPC_EXIST:
+        return false;
+    default:
+        DSS_ERRLOG("Invalid opc\n");
+        return false;
+    }
+}
+
+dss_kvtrans_status_t
+_set_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    if (Judy1Set(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
+        // 1 if Index's bit was previously unset (successful)
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: setting lb[%u] dirty succeeded.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
+        return KVTRANS_STATUS_SUCCESS;
+    }
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: setting lb[%u] dirty failed.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
+    return KVTRANS_STATUS_ERROR;
+}
+
+dss_kvtrans_status_t
+_set_lba_free(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
+    DSS_ASSERT(meta_sync_ctx);
+    if (Judy1Unset(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
+        // 1 if Index's bit was previously set (successful)
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: freeing dirty lb[%u] succeeded.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
+        return KVTRANS_STATUS_SUCCESS;
+    }
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: freeing dirty lb[%u] failed.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
+    return KVTRANS_STATUS_ERROR;
+}
+
+dss_kvtrans_status_t
+_sync_meta_blk_to_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *blk_ctx) {
+    dss_kvtrans_status_t rc;
+
+    DSS_ASSERT(meta_sync_ctx);
+    kvtrans_ctx_t *kvtrans_ctx = blk_ctx->kreq->kvtrans_ctx;
+    if (_is_lba_dirty(meta_sync_ctx, blk_ctx->index)) {
+        STAILQ_INSERT_TAIL(&meta_sync_ctx->kv_req_queue, blk_ctx->kreq, meta_sync_link);
+        meta_sync_ctx->queue_length ++;
+        // TODO: Add counter for queue length
+        DSS_NOTICELOG("KVTRANS[%p]: kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
+                        kvtrans_ctx, blk_ctx->kreq->req.req_key.key, blk_ctx->index, blk_ctx->state, meta_sync_ctx->queue_length);
+        return KVTRANS_META_SYNC_TRUE;
+    }
+
+    if (_modify_meta(blk_ctx->kreq)) {
+        // lock lba at blk_ctx->index only if kreq is going to modify meta block possibly
+        rc = _set_lba_dirty(meta_sync_ctx, blk_ctx->index);
+        if (rc) return rc;
+    }
+    return KVTRANS_META_SYNC_FALSE;
+}
+
+dss_kvtrans_status_t
+_pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_flight_blk) {
+    dss_io_task_status_t iot_rc;
+    dss_kvtrans_status_t rc;
+    kvtrans_req_t *kreq;
+    blk_ctx_t *blk_ctx;
+    int num_blks;
+    int i = 0;
+    uint64_t blk_idx = in_flight_blk->index;
+
+    DSS_ASSERT(meta_sync_ctx);
+
+    // check if the lba was first queued
+    if (!_is_lba_dirty(meta_sync_ctx, in_flight_blk->index)) {
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS[%p]: Trying to pop non-dirty lb[%u]\n", 
+                meta_sync_ctx->kvtrans_ctx, in_flight_blk->index);
+        return KVTRANS_META_SYNC_FALSE;
+    }
+
+    // DSS_ASSERT(!_is_lba_dirty(meta_sync_ctx, blk_idx));
+    rc = _set_lba_free(meta_sync_ctx, in_flight_blk->index);
+    if (rc) {
+        DSS_ERRLOG("KVTRANS[%p]: failed to free dirty lb[%u]\n", 
+                meta_sync_ctx->kvtrans_ctx, in_flight_blk->index);
+        return KVTRANS_STATUS_ERROR;
+    }
+
+    // Iterate all kvreq in queue to see any one dependent on blk_idx
+    // Outer loop searches for the completed kreq in the in-flight kreq queue
+    STAILQ_FOREACH(kreq, &meta_sync_ctx->kv_req_queue, meta_sync_link) {
+        num_blks = kreq->num_meta_blk;
+        // Inner loop searches for meta-blocks related to kreq that can be
+        // scheduled to drive
+        TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
+            i++;
+            if (blk_ctx->index == blk_idx) {
+                DSS_ASSERT(i == num_blks);
+                DSS_ASSERT(meta_sync_ctx->queue_length > 0);
+                STAILQ_REMOVE(&meta_sync_ctx->kv_req_queue, kreq, kvtrans_req, meta_sync_link);
+                meta_sync_ctx->queue_length --;
+                if (_modify_meta(blk_ctx->kreq)) {
+                    rc = _set_lba_dirty(meta_sync_ctx, blk_idx);
+                    if (rc) return rc;
+                }
+                iot_rc = dss_io_task_submit(kreq->io_tasks);
+                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
+                // TODO: Add counter for queue length
+                DSS_NOTICELOG( "KVTRANS[%p]: kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
+                        meta_sync_ctx->kvtrans_ctx, kreq->req.req_key.key, blk_ctx->index, in_flight_blk->state, meta_sync_ctx->queue_length);
+                return KVTRANS_META_SYNC_TRUE;
+            }
+        }
+        // Reset iterator as a different kreq will have its own meta-blocks
+        // or blk_ctx
+        i = 0;
+    }
+
+    return KVTRANS_META_SYNC_FALSE;
+}
+#endif
+
 
 // Loads meta block from drive to memory
 dss_kvtrans_status_t
@@ -621,6 +764,11 @@ dss_kvtrans_queue_write_ondisk_blk(blk_ctx_t *blk_ctx,
                                     &io_opts);
     DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
     kreq->io_to_queue = true;
+#ifndef DSS_BUILD_CUNIT_TEST
+    if(!_is_lba_dirty(kreq->kvtrans_ctx->meta_sync_ctx, blk_ctx->index)) {
+        _set_lba_dirty(kreq->kvtrans_ctx->meta_sync_ctx, blk_ctx->index);
+    }
+#endif
     return KVTRANS_IO_QUEUED;
 }
 
@@ -1320,143 +1468,6 @@ _update_kreq_stat_after_io(kvtrans_req_t *kreq,
     return rc;
 }
 
-#ifndef DSS_BUILD_CUNIT_TEST
-bool _is_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
-    DSS_ASSERT(meta_sync_ctx);
-    return Judy1Test(meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0);
-}
-
-bool
-_modify_meta(const kvtrans_req_t *kreq) {
-    if (!kreq) {
-        DSS_ERRLOG("Invalid kreq\n");
-        return false;
-    }
-    switch (kreq->req.opc)
-    {
-    case KVTRANS_OPC_STORE:
-        return true;
-    case KVTRANS_OPC_DELETE:
-        return true;
-    case KVTRANS_OPC_RETRIEVE:
-        return false;
-    case KVTRANS_OPC_EXIST:
-        return false;
-    default:
-        DSS_ERRLOG("Invalid opc\n");
-        return false;
-    }
-}
-
-dss_kvtrans_status_t
-_set_lba_dirty(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
-    DSS_ASSERT(meta_sync_ctx);
-    if (Judy1Set(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
-        // 1 if Index's bit was previously unset (successful)
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: setting lb[%u] dirty succeeded.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
-        return KVTRANS_STATUS_SUCCESS;
-    }
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: setting lb[%u] dirty failed.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
-    return KVTRANS_STATUS_ERROR;
-}
-
-dss_kvtrans_status_t
-_set_lba_free(kvtrans_meta_sync_ctx_t *meta_sync_ctx, uint64_t blk_idx) {
-    DSS_ASSERT(meta_sync_ctx);
-    if (Judy1Unset(&meta_sync_ctx->dirty_meta_lba, blk_idx, PJE0)) {
-        // 1 if Index's bit was previously set (successful)
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: freeing dirty lb[%u] succeeded.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
-        return KVTRANS_STATUS_SUCCESS;
-    }
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: freeing dirty lb[%u] failed.\n", meta_sync_ctx->kvtrans_ctx, blk_idx);
-    return KVTRANS_STATUS_ERROR;
-}
-
-dss_kvtrans_status_t
-_sync_meta_blk_to_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *blk_ctx) {
-    dss_kvtrans_status_t rc;
-
-    DSS_ASSERT(meta_sync_ctx);
-    kvtrans_ctx_t *kvtrans_ctx = blk_ctx->kreq->kvtrans_ctx;
-    if (_is_lba_dirty(meta_sync_ctx, blk_ctx->index)) {
-        STAILQ_INSERT_TAIL(&meta_sync_ctx->kv_req_queue, blk_ctx->kreq, meta_sync_link);
-        meta_sync_ctx->queue_length ++;
-        // TODO: Add counter for queue length
-        DSS_NOTICELOG("KVTRANS[%p]: kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
-                        kvtrans_ctx, blk_ctx->kreq->req.req_key.key, blk_ctx->index, blk_ctx->state, meta_sync_ctx->queue_length);
-        return KVTRANS_META_SYNC_TRUE;
-    }
-
-    if (_modify_meta(blk_ctx->kreq)) {
-        // lock lba at blk_ctx->index only if kreq is going to modify meta block possibly
-        rc = _set_lba_dirty(meta_sync_ctx, blk_ctx->index);
-        if (rc) return rc;
-    }
-    return KVTRANS_META_SYNC_FALSE;
-}
-
-dss_kvtrans_status_t
-_pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_flight_blk) {
-    dss_io_task_status_t iot_rc;
-    dss_kvtrans_status_t rc;
-    kvtrans_req_t *kreq;
-    blk_ctx_t *blk_ctx;
-    int num_blks;
-    int i = 0;
-    uint64_t blk_idx = in_flight_blk->index;
-
-    DSS_ASSERT(meta_sync_ctx);
-
-    // Since pop check is added for both read and write operations
-    // check if the lba was first queued
-    if (!_is_lba_dirty(meta_sync_ctx, in_flight_blk->index)) {
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS[%p]: Trying to pop non-dirty lb[%u]\n", 
-                meta_sync_ctx->kvtrans_ctx, in_flight_blk->index);
-        return KVTRANS_META_SYNC_FALSE;
-    }
-
-    // DSS_ASSERT(!_is_lba_dirty(meta_sync_ctx, blk_idx));
-    rc = _set_lba_free(meta_sync_ctx, in_flight_blk->index);
-    if (rc) {
-        DSS_ERRLOG("KVTRANS[%p]: Trying to free unqueued lb[%u]\n", 
-                meta_sync_ctx->kvtrans_ctx, in_flight_blk->index);
-        return KVTRANS_META_SYNC_FALSE;
-    }
-
-    // Iterate all kvreq in queue to see any one dependent on blk_idx
-    // Outer loop searches for the completed kreq in the in-flight kreq queue
-    STAILQ_FOREACH(kreq, &meta_sync_ctx->kv_req_queue, meta_sync_link) {
-        num_blks = kreq->num_meta_blk;
-        // Inner loop searches for meta-blocks related to kreq that can be
-        // scheduled to drive
-        TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
-            i++;
-            if (blk_ctx->index == blk_idx) {
-                DSS_ASSERT(i == num_blks);
-                DSS_ASSERT(meta_sync_ctx->queue_length > 0);
-                STAILQ_REMOVE(&meta_sync_ctx->kv_req_queue, kreq, kvtrans_req, meta_sync_link);
-                meta_sync_ctx->queue_length --;
-                if (_modify_meta(blk_ctx->kreq)) {
-                    rc = _set_lba_dirty(meta_sync_ctx, blk_idx);
-                    if (rc) return rc;
-                }
-                iot_rc = dss_io_task_submit(kreq->io_tasks);
-                DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
-                // TODO: Add counter for queue length
-                DSS_NOTICELOG( "KVTRANS[%p]: kreq with key [%s] queue on blk [%zu] [%d]. meta sync ctx queue length is %d\n", 
-                        meta_sync_ctx->kvtrans_ctx, kreq->req.req_key.key, blk_ctx->index, in_flight_blk->state, meta_sync_ctx->queue_length);
-                return KVTRANS_META_SYNC_TRUE;
-            }
-        }
-        // Reset iterator as a different kreq will have its own meta-blocks
-        // or blk_ctx
-        i = 0;
-    }
-
-    return KVTRANS_META_SYNC_FALSE;
-}
-#endif
-
 bool _lba_in_range(kvtrans_ctx_t *ctx, uint64_t blk_idx) {
     return blk_idx >= ctx->blk_offset && blk_idx < ctx->blk_offset + ctx->blk_num;
 }
@@ -1863,8 +1874,8 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
 
     if(rc) {
         // allocate any EMPTY block for META
-        rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, DATA, blk_ctx->index + 1,
-                col_blk->vctx.value_blocks + 1, &col_blk->index);
+        rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, META, blk_ctx->index + 1,
+                1, &col_blk->index);
         if (rc) {
             DSS_ERRLOG("Error: Out of spaces. Cannot find a single free blk.\n");
         }

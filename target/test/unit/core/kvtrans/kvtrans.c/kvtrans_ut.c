@@ -140,7 +140,7 @@ void init_params(kvtrans_params_t *params) {
     params->iotm = DEFAULT_IOTM;
     params->blk_offset = 1;
     params->logi_blk_size = 4096;
-    params->state_num = 9;
+    params->state_num = 10;
 }
 
 void init_test_ctx() {
