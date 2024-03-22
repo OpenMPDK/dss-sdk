@@ -378,6 +378,7 @@ void list_module_started_cb(struct df_ss_cb_event_s *e)
         list_init_load_by_blk_iter(pool);//Rocksdb loading
     } else if (dss_subsystem_kv_mode_enabled((dss_subsystem_t *)pool)) {
         //TODO: load keys from KVTrans
+		DSS_WARNLOG("In-memory listing not loading keys from disks for subsystem %s\n", pool->name);
         list_module_load_done_cb(e);//Complete without loading keys
     } else {
         list_init_load_by_iter(e);//KVdrive loading
