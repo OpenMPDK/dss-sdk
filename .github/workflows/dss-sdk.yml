@@ -15,10 +15,15 @@ on:
       - synchronize
 
 jobs:
-  dss-sdk:
+  build:
+    strategy:
+      matrix:
+        component:
+          - dss-sdk-build
+          - dss-sdk-unit-test
     uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
     with:
-      component: dss-sdk
+      component: ${{ matrix.component }}
       project-name: OpenMPDK_dss-sdk
       compute-type-override: BUILD_GENERAL1_LARGE
     secrets: inherit
@@ -33,3 +38,10 @@ jobs:
       component: ${{ matrix.component }}
       project-name: OpenMPDK_dss-sdk
     secrets: inherit
+  scan:
+    uses: OpenMPDK/DSS/.github/workflows/build-aws.yml@master
+    with:
+      component: sonar-scanner
+      project-name: OpenMPDK_dss-sdk
+    secrets: inherit
+    needs: [build]

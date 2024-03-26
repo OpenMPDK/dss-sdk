@@ -1,0 +1,15 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    DSSS3URI: Codebuild-DSS:DSSS3URI
+
+phases:
+  build:
+    commands:
+      # Build dss-sdk target with unit tests
+      - ./target/build.sh --run-tests --with-coverage
+  post_build:
+    commands:
+      # Copy df_out for later sonar-scanner stage
+      - aws s3 cp --recursive df_out "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/unit/df_out" --only-show-errors

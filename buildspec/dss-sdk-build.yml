@@ -1,0 +1,33 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    DSSS3URI: Codebuild-DSS:DSSS3URI
+  variables:
+    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
+
+phases:
+  pre_build:
+    commands:
+      # Download latest build-wrapper
+      - rm -rf /build-wrapper-linux-x86
+      - wget --no-verbose --content-disposition -E -c "https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip"
+      - unzip -q build-wrapper-linux-x86.zip -d /
+  build:
+    commands:
+      # Build dss-sdk with Sonar build-wrapper for C/C++ static analysis
+      - /build-wrapper-linux-x86/build-wrapper-linux-x86-64  --out-dir bw-output ./scripts/build_all.sh kdd-samsung-remote
+  post_build:
+    commands:
+      # Copy artifacts to branch dir if this is a merge
+      - /stagemergeartifacts.sh
+      # Copy df_out, host_out, and bw-output for later sonar-scanner stage
+      - aws s3 cp --recursive bw-output "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/sonar/bw-output" --only-show-errors
+      - aws s3 cp --recursive df_out "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/build/df_out" --only-show-errors
+      - aws s3 cp --recursive host_out "$DSSS3URI/cache/dss-sdk/$GITHUB_RUN_NUMBER/build/host_out" --only-show-errors
+artifacts:
+  files:
+    - df_out/nkv-target-*.tgz
+    - host_out/nkv-sdk-bin-*.tgz
+  discard-paths: yes
+  name: builds/dss-sdk/$GITHUB_RUN_NUMBER
