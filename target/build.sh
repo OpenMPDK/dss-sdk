@@ -82,41 +82,42 @@ load_and_test_gcc() {
     fi
 }
 
-target_dir=$(readlink -f "$(dirname "$0")")
-build_dir="${target_dir}/../df_out"
-rpm_build_dir="${build_dir}/rpm-build"
-rpm_spec_file="${rpm_build_dir}/SPECS/total.spec"
+TARGET_DIR=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
+PROJECT_ROOT=$(realpath "$TARGET_DIR/../")
+BUILD_DIR="$PROJECT_ROOT/df_out"
+RPM_BUILD_DIR="$BUILD_DIR/rpm-build"
+RPM_SPEC_FILE="$RPM_BUILD_DIR/SPECS/total.spec"
 
 updateVersionInHeaderFile()
 {
     local targetVersion=$1
     local gitHash=$2
 
-    if [[ -z "${targetVersion}" ]]
+    if [[ -z "$targetVersion" ]]
     then
         die "ERR: Version string is empty!"
     fi
 
-    if [[ -z "${gitHash}" ]]
+    if [[ -z "$gitHash" ]]
     then
         die "ERR: Invalid git hash "
     fi
 
-    sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"${targetVersion}\"/" include/version.h
-    sed -i -e "s/^\#define OSS_TARGET_GIT_VER.\+$/#define OSS_TARGET_GIT_VER \"${gitHash}\"/" include/version.h
+    sed -i -e "s/^\#define OSS_TARGET_VER.\+$/#define OSS_TARGET_VER \"$targetVersion\"/" include/version.h
+    sed -i -e "s/^\#define OSS_TARGET_GIT_VER.\+$/#define OSS_TARGET_GIT_VER \"$gitHash\"/" include/version.h
 }
 
 makePackageDirectories()
 {
     local rpmBuildDir=$1
 
-    mkdir -p "${rpmBuildDir}"/SRPMS
-    mkdir -p "${rpmBuildDir}"/SPECS
-    mkdir -p "${rpmBuildDir}"/RPMS/x86_64
-    mkdir -p "${rpmBuildDir}"/BUILD/nkv-target
-    mkdir -p "${rpmBuildDir}"/BUILDROOT
-    mkdir -p "${rpmBuildDir}"/BUILD/nkv-target/usr/dss/
-    mkdir -p "${rpmBuildDir}"/BUILD/nkv-target/etc/rsyslog.d
+    mkdir -p "$rpmBuildDir/SRPMS"
+    mkdir -p "$rpmBuildDir/SPECS"
+    mkdir -p "$rpmBuildDir/RPMS/x86_64"
+    mkdir -p "$rpmBuildDir/BUILD/nkv-target"
+    mkdir -p "$rpmBuildDir/BUILDROOT"
+    mkdir -p "$rpmBuildDir/BUILD/nkv-target/usr/dss/"
+    mkdir -p "$rpmBuildDir/BUILD/nkv-target/etc/rsyslog.d"
 }
 
 generateSpecFile()
@@ -128,22 +129,22 @@ generateSpecFile()
     #replace hyphen with underscore for file name
     gitVer=${gitVer//[-]/_}
 
-    if [[ -z "${gitVer}" ]]
+    if [[ -z "$gitVer" ]]
     then
         die "ERR: Git Version string is empty!"
     fi
     
-    if [[ -e "${rpmSpecFile}" ]]
+    if [[ -e "$rpmSpecFile" ]]
     then
-        rm -f "${rpmSpecFile}"
+        rm -f "$rpmSpecFile"
     fi
 
 
     cat > "$rpmSpecFile" <<LAB_SPEC
 
 ####### NKV Target Package ###########
-Name: ${packageName}
-Version: ${gitVer}
+Name: $packageName
+Version: $gitVer
 Release: 1%{?dist}
 Summary: DSS NKV Target Release
 License: GPLv3+
@@ -165,7 +166,7 @@ exit 0
 %defattr(-,root,root,-)
 %dir /usr/dss/nkv-target
 /usr/dss/nkv-target/bin/nvmf_tgt
-/usr/dss/nkv-target/bin/${DSS_FORMAT_TOOL}
+/usr/dss/nkv-target/bin/$DSS_FORMAT_TOOL
 /usr/dss/nkv-target/bin/dss_target.py
 /usr/dss/nkv-target/bin/ustat
 /usr/dss/nkv-target/scripts/setup.sh
@@ -231,7 +232,7 @@ createDragonflyConfigFile()
 {
     local filename=$1
 
-    cat > "${filename}" << LAB_DFLY_CONF
+    cat > "$filename" << LAB_DFLY_CONF
 if \$programname == 'dfly' or \$syslogtag == '[dfly]:' \\
 then -/var/log/dragonfly/dfly.log
 &  stop
@@ -257,7 +258,8 @@ parse_options()
         ;;
         -b=*|--build-type=*)
         TYPE="${i#*=}"
-        if [ "$TYPE" == "debug" ] ; then
+        if [ "$TYPE" == "debug" ]
+        then
             BUILD_TYPE="debug"
         else
             BUILD_TYPE="release"
@@ -286,91 +288,104 @@ TARGET_VER="0.5.0"
 
 parse_options "$@"
 echo "Build rockdb only: $BUILD_ROCKSDB"
-echo "Building with coverage: ${BUILD_WITH_COVERAGE}"
+echo "Building with coverage: $BUILD_WITH_COVERAGE"
 echo "Target Version: $TARGET_VER"
 echo "Build Type: $BUILD_TYPE"
 
-if [[ -d "${build_dir}" ]]
+if [[ -d "$BUILD_DIR" ]]
 then
-    rm -rf "${build_dir}"
+    rm -rf "$BUILD_DIR"
 fi
 
-if [[ 'true' =  "${BUILD_WITH_ROCKSDB_KV}" ]]
+if [[ 'true' =  "$BUILD_WITH_ROCKSDB_KV" ]]
 then
     DSS_FORMAT_TOOL="mkfs_blobfs"
 else
     DSS_FORMAT_TOOL="dss_formatter"
 fi
 
-mkdir -p "${build_dir}"
-mkdir -p "${rpm_build_dir}"
+mkdir -p "$BUILD_DIR"
+mkdir -p "$RPM_BUILD_DIR"
 
 packageName="nkv-target"
-targetVersion=${TARGET_VER}
+targetVersion=$TARGET_VER
 gitVersion="$(git describe --abbrev=4 --always --tags)"
 
-DSS_TARGET_CMAKE_OPTIONS=""
+DSS_TARGET_CMAKE_OPTIONS=()
 
-pushd "${target_dir}/oss" || die "Can't change to ${target_dir}/oss dir"
+pushd "$TARGET_DIR/oss"
     ./apply-patch.sh
-popd || die "Can't change exit ${target_dir}/oss dir"
+popd
 
-pushd "${build_dir}" || die "Can't change to ${build_dir} dir"
-    pushd "${target_dir}" || die "Can't change to ${target_dir} dir"
-        updateVersionInHeaderFile "${targetVersion}" "${gitVersion}"
-    popd || die "Can't exit ${target_dir} dir"
+pushd "$BUILD_DIR"
+    pushd "$TARGET_DIR"
+        updateVersionInHeaderFile "$targetVersion" "$gitVersion"
+    popd
 
-    if $BUILD_WITH_COVERAGE;then
-       DSS_TARGET_CMAKE_OPTIONS="${DSS_TARGET_CMAKE_OPTIONS} -DWITH_COVERAGE=ON"
+    if $BUILD_WITH_COVERAGE
+    then
+       DSS_TARGET_CMAKE_OPTIONS+=("-DWITH_COVERAGE=ON")
     fi
 
-    if [[ "$BUILD_WITH_ROCKSDB_KV" = true || "$BUILD_ROCKSDB" = true ]];then
-       DSS_TARGET_CMAKE_OPTIONS="${DSS_TARGET_CMAKE_OPTIONS} -DWITH_ROCKSDB_KV=ON"
+    if [[ "$BUILD_WITH_ROCKSDB_KV" = true || "$BUILD_ROCKSDB" = true ]]
+    then
+       DSS_TARGET_CMAKE_OPTIONS+=("-DWITH_ROCKSDB_KV=ON")
        load_and_test_gcc
     fi
 
-    if [ "$BUILD_TYPE" = "debug" ] ; then
-        # shellcheck disable=SC2086
-        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_DEBUG=ON "${target_dir}"
-    elif [ "$BUILD_TYPE" = "release" ]; then
-        # shellcheck disable=SC2086
-        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DBUILD_MODE_RELEASE=ON "${target_dir}"
+    DSS_TARGET_CMAKE_OPTIONS+=("-DCMAKE_BUILD_TYPE=Debug")
+
+    if [ "$BUILD_TYPE" = "debug" ]
+    then
+        DSS_TARGET_CMAKE_OPTIONS+=("-DBUILD_MODE_DEBUG=ON")
+    elif [ "$BUILD_TYPE" = "release" ]
+    then
+        DSS_TARGET_CMAKE_OPTIONS+=("-DBUILD_MODE_RELEASE=ON")
     else
-    echo "Making in default mode"
-        # shellcheck disable=SC2086
-        cmake ${DSS_TARGET_CMAKE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug "${target_dir}"
+        echo "Making in default mode"
     fi
 
-    if $BUILD_ROCKSDB;then
-        make rocksdb
+    cmake "${DSS_TARGET_CMAKE_OPTIONS[@]}" "$TARGET_DIR"
+
+    if $BUILD_ROCKSDB
+    then
+        make "-j$(nproc)" rocksdb
     else
-        make
+        make "-j$(nproc)"
     fi
 
-    if ${RUN_TESTS};then
-        make test
-        if ${BUILD_WITH_COVERAGE};then
+    if $RUN_TESTS
+    then
+        make "-j$(nproc)" test
+        if $BUILD_WITH_COVERAGE
+        then
             echo "Generating sonarqube coverage report"
             mkdir -p reports
             #gcovr needs to be installed from pip
-            gcovr --sonarqube reports/sonar_qube_ut_coverage_report.xml -r ../target .
+            gcovr \
+                --sonarqube reports/sonar_qube_ut_coverage_report.xml \
+                --xml reports/cobertura.xml \
+                --txt \
+                --root "$PROJECT_ROOT" \
+                "$BUILD_DIR"
         fi
     fi
 
-    makePackageDirectories "${rpm_build_dir}"
+    makePackageDirectories "$RPM_BUILD_DIR"
 
-    createDragonflyConfigFile "${rpm_build_dir}"/BUILD/nkv-target/etc/rsyslog.d/dfly.conf
+    createDragonflyConfigFile "$RPM_BUILD_DIR/BUILD/nkv-target/etc/rsyslog.d/dfly.conf"
 
-    cp -rf "${build_dir}"/nkv-target "${rpm_build_dir}"/BUILD/nkv-target/usr/dss/
+    cp -rf "$BUILD_DIR/nkv-target" "$RPM_BUILD_DIR/BUILD/nkv-target/usr/dss/"
 
-    generateSpecFile "${rpm_spec_file}" "${packageName}" "${gitVersion}"
-    generateRPM "${rpm_spec_file}" "${rpm_build_dir}" || die "ERR: Failed to build RPM"
+    generateSpecFile "$RPM_SPEC_FILE" "$packageName" "$gitVersion"
+    generateRPM "$RPM_SPEC_FILE" "$RPM_BUILD_DIR" || die "ERR: Failed to build RPM"
 
-    cp "${rpm_build_dir}"/RPMS/x86_64/*.rpm "${build_dir}"/
+    cp "$RPM_BUILD_DIR"/RPMS/x86_64/*.rpm "$BUILD_DIR"/
 
-popd || die "Can't exit ${build_dir} dir"
+popd
 
 # Restore default GCC paths
-if test -f "$GCCRESTORE"; then
+if test -f "$GCCRESTORE"
+then
     source $GCCRESTORE
 fi

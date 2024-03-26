@@ -573,7 +573,7 @@ if(WITH_DSS_JUDY_LISTING)
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16 ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make V=2 ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   COMMAND make -C test/blobfs/mkfs ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
@@ -591,7 +591,7 @@ set(DSS_RDB_OSS_EXTRACXXFLAGS EXTRA_CXXFLAGS=-DDSS_OPEN_SOURCE_RELEASE)
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16 CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make V=2 CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
@@ -654,7 +654,7 @@ if(WITH_ROCKSDB_KV)
 ADD_CUSTOM_TARGET(rocksdb
   COMMENT "Building rocksdb async"
   WORKING_DIRECTORY oss/rocksdb
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make db_bench SPDK_DIR=../spdk_tcp/
   DEPENDS spdk_tcp
 )
 endif(WITH_ROCKSDB_KV)
@@ -717,7 +717,7 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DEBUG_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND DEBUG_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 elseif(BUILD_MODE_RELEASE)
@@ -725,7 +725,7 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND RELEASE_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND RELEASE_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 else()
@@ -733,7 +733,7 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 endif()
