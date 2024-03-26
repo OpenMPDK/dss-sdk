@@ -1,0 +1,29 @@
+# Get the Code Coverage % from SonarQube and ingest it in GitLab
+# This stage must run after SonarQube has executed
+code coverage:
+  stage: coverage
+  image: alpine:3.19.1
+  before_script:
+    - apk add curl jq
+  script:
+    # Scrape the SonarQube Project Key from sonar-project.properties
+    - export PROJECT_KEY_LINE=$(grep -E "^sonar.projectKey=" sonar-project.properties)
+    - export PROJECT_KEY=${PROJECT_KEY_LINE//sonar.projectKey=/}
+    # Set the base URL to the SonarQube API with Project Key
+    - export SONAR_API_URL="$SONAR_HOST_URL/api/measures/component?metricKeys=coverage&component=$PROJECT_KEY"
+    # Conditionally add branch or pullRequest argument if this is an MR
+    - |
+        if [ "$CI_PIPELINE_SOURCE" == 'merge_request_event' ]; then
+            export SONAR_API_URL="$SONAR_API_URL&pullRequest=$CI_MERGE_REQUEST_IID"
+        else
+            export SONAR_API_URL="$SONAR_API_URL&branch=$CI_COMMIT_REF_NAME"
+        fi
+    # Query the API and use jq to parse the code coverage %
+    - export PERCENT=$(curl -s -u "$SONAR_API_TOKEN:" "$SONAR_API_URL" | jq '.component.measures[0].value')
+    # Print the coverage string to console so that we can scrape it with GitLab
+    - echo "SonarQube Coverage Percent ${PERCENT//\"/}"
+  coverage: '/^SonarQube Coverage Percent (.+)$/'
+  needs:
+    - sonar-scanner
+  rules:
+    - !reference [.default_rules, merge_and_push]

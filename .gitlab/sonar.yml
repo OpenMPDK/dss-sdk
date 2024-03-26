@@ -1,0 +1,19 @@
+sonar-scanner:
+  stage: scan
+  before_script:
+    # Download latest sonar-scanner from sonar-source
+    - rm -rf /sonar-scanner*
+    - wget --no-verbose --content-disposition -E -c "https://search.maven.org/remote_content?g=org.sonarsource.scanner.cli&a=sonar-scanner-cli&v=LATEST&c=linux&e=zip"
+    - unzip -q sonar-scanner-cli-*.zip -d /
+  script:
+    # Scan with sonar-scanner
+    - /sonar-scanner-*-linux/bin/sonar-scanner  -Dsonar.qualitygate.wait=true -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.coverageReportPaths=$SONAR_UNIT_TEST_REPORT
+  allow_failure: true
+  needs:
+    - build dss-sdk
+    - target unit test
+  variables:
+    GIT_DEPTH: 0
+    SONAR_UNIT_TEST_REPORT: df_out/reports/sonar_qube_ut_coverage_report.xml
+  rules:
+    - !reference [.default_rules, merge_and_push]

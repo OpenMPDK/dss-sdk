@@ -1,0 +1,8 @@
+include:
+  - project: dfs/dss/dss
+    ref: master
+    file: .gitlab/shellcheck.yml
+
+shellcheck:
+  variables:
+    SHELLCHECK_VER: v0.8.0

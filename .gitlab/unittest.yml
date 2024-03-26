@@ -1,0 +1,17 @@
+target unit test:
+  stage: test
+  script: ./target/build.sh --run-tests --with-coverage
+  needs: []
+  artifacts:
+    name: target unit test reports
+    expire_in: 300 seconds
+    paths:
+     - df_out/reports
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: df_out/reports/cobertura.xml
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  rules:
+    - !reference [.default_rules, merge_and_push]

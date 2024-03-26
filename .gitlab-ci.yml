@@ -1,111 +1,26 @@
-variables:
-  BRANCH_NAME: $CI_COMMIT_BRANCH
-  SONAR_BRANCH: -Dsonar.branch.name=$CI_COMMIT_BRANCH
-  SONAR_UNIT_TEST_REPORT: df_out/reports/sonar_qube_ut_coverage_report.xml
-  COBERTURA_UNIT_TEST_REPORT: df_out/reports/cobertura.xml
-
-image:
-  name: dss-build_$BRANCH_NAME
-
-workflow:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      variables:
-        BRANCH_NAME: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-        SONAR_BRANCH: ''
-    - if: $CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"
-    - if: $CI_COMMIT_BRANCH =~ /^(stable|feature)\/.*/ && $CI_PIPELINE_SOURCE == "push"
+include:
+  - local: .gitlab/defaults.yml
 
 stages:
   - build
+  - deploy
   - lint
   - test
   - scan
+  - coverage
   - archive
+  - sync
 
-build dss-sdk:
-  stage: build
-  script:
-    # Download build wrapper from local SonarQube
-    - rm -rf /build-wrapper-linux-x86
-    - wget --no-verbose --content-disposition -E -c "$SONAR_HOST_URL/static/cpp/build-wrapper-linux-x86.zip"
-    - unzip -q build-wrapper-linux-x86.zip -d /
-    # Disable ssl verify from docker build env
-    - git config --global http.sslVerify false
-    # Build client with build-wrapper
-    - /build-wrapper-linux-x86/build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+deploy DSS:
+  stage: deploy
   variables:
-    GIT_SUBMODULE_STRATEGY: recursive
-  artifacts:
-    name: release build
-    expire_in: 300 seconds
-    paths:
-     - bw-output
-     - df_out
-     - host_out
-
-build target gcov and execute unit tests:
-  stage: build
-  script: ./target/build.sh --run-tests --with-coverage
-  artifacts:
-    name: gcov build
-    expire_in: 300 seconds
-    paths:
-     - df_out
-  variables:
-    GIT_SUBMODULE_STRATEGY: recursive
-
-target unit test coverage report:
-  stage: test
-  script:
-    - gcovr --xml $COBERTURA_UNIT_TEST_REPORT -r target/ df_out/
-    - sed -i -r 's/filename="/filename="target\//g' $COBERTURA_UNIT_TEST_REPORT
-    - sed -i -r 's/path="/path="target\//g' $SONAR_UNIT_TEST_REPORT
-  artifacts:
-    name: target unit test coverage report
-    expire_in: 300 seconds
-    paths:
-      - $SONAR_UNIT_TEST_REPORT
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: $COBERTURA_UNIT_TEST_REPORT
-  needs:
-    - build target gcov and execute unit tests
-
-sonar-scanner:
-  stage: scan
-  script:
-    # Download latest sonar-scanner from sonar-source
-    - rm -rf /sonar-scanner*
-    - wget --no-verbose --content-disposition -E -c "https://search.maven.org/remote_content?g=org.sonarsource.scanner.cli&a=sonar-scanner-cli&v=LATEST&c=linux&e=zip"
-    - unzip -q sonar-scanner-cli-*.zip -d /
-    # Scan with sonar-scanner
-    - /sonar-scanner-*-linux/bin/sonar-scanner  -Dsonar.qualitygate.wait=true -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.coverageReportPaths=$SONAR_UNIT_TEST_REPORT
-  allow_failure: true
-  dependencies:
-    - build dss-sdk
-    - target unit test coverage report
-
-pycodestyle:
-  stage: lint
-  script: git ls-files '*.py' | xargs -n1 pycodestyle --config=./scripts/pycodestyle --show-source --show-pep8
-  needs: []
-
-shellcheck:
-  stage: lint
-  script: git ls-files '*.sh' | xargs -n1 shellcheck
-  needs: []
-
-archive dss-sdk:
-  stage: archive
-  script: /stagemergeartifacts.sh
-  variables:
-    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
-  needs:
-    - build dss-sdk
-  artifacts:
-    name: release artifacts
-    paths:
-      - df_out/nkv-target-*.tgz
-      - host_out/nkv-sdk-bin-*.tgz
+    BRANCH_NAME: $BRANCH_NAME
+    UPSTREAM_REF: $CI_MERGE_REQUEST_REF_PATH
+  trigger:
+    include:
+      project: dfs/dss/dss-ansible
+      ref: master
+      file: .gitlab-ci.yml
+    strategy: depend
+  rules:
+    - !reference [.default_rules, merge_and_push]

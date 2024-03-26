@@ -1,0 +1,18 @@
+include:
+  - project: dfs/dss/dss
+    ref: master
+    file: .gitlab/defaults.yml
+  - project: dfs/dss/dss
+    ref: master
+    file: .gitlab/sync-github.yml
+  - .gitlab/archive.yml
+  - .gitlab/build.yml
+  - .gitlab/coverage.yml
+  - .gitlab/pycodestyle.yml
+  - .gitlab/shellcheck.yml
+  - .gitlab/sonar.yml
+  - .gitlab/unittest.yml
+
+sync-github:
+  variables:
+    GITHUB_REPO: dss-sdk
