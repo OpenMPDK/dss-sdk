@@ -131,6 +131,9 @@ void set_kvtrans_disk_meta_store(bool val) {
 }
 #endif
 
+// TODO: use macro to convert states to strings
+const char *stateNames[] = { "Empty", "Meta", "Data", "Collision", "DC", "MDC", "MDC_Entry", "CE", "DC_Empty", "DC_CE"};
+
 // util functions to get time ticks.
 // tmp use for benchmarking kvtrans 
 // TODO: use spdk_get_ticks
@@ -163,6 +166,10 @@ dss_kvtrans_alloc_contig(kvtrans_ctx_t *ctx,
 
         return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
     }
+
+    DSS_DEBUGLOG(DSS_KVTRANS, "Set blk [ %zu, %zu] from state [ Empty ] to [ %s ] for key [ %s ]\n",
+        *allocated_start_block, *allocated_start_block + num_blocks - 1, stateNames[state], kreq->req.req_key.key);
+
     kreq->ba_meta_updated = true;
     return KVTRANS_STATUS_SUCCESS;
 }
@@ -172,12 +179,8 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
                             uint64_t blk_num, blk_state_t state)
 {
     dss_blk_allocator_status_t rc;
-    blk_state_t blk_state;
-    rc = dss_blk_allocator_get_block_state(ctx->blk_alloc_ctx, 
-                                            index,
-                                            &blk_state);
-    DSS_ASSERT(blk_state!=state);
-    
+    uint64_t idx_state, blk_state;
+
     if (state==EMPTY) {   
         rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
     } else {
@@ -186,8 +189,8 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
     }
     if (rc) {
         // TODO: error handling
-        DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]\n",
-                    blk_num, index, blk_ctx->state, state);
+        DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%s] to state [%s]\n",
+                    blk_num, index, stateNames[blk_ctx->state], stateNames[state]);
 
         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
     }
@@ -209,8 +212,8 @@ dss_kvtrans_set_blks_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t inde
             rc = dss_blk_allocator_set_blocks_state(ctx->blk_alloc_ctx, index + offset, 1, state);
             if (rc) {
                 // TODO: error handling
-                DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%d] to state [%d]",
-                            blk_num, index, blk_ctx->state, state);
+                DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%s] to state [%s]",
+                            blk_num, index, stateNames[blk_ctx->state], stateNames[state]);
 
                 return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
             }
@@ -345,7 +348,7 @@ dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
 
     rc = dss_kvtrans_set_blk_state(ctx, blk_ctx, dc_index, 1, state);
     if (rc) {
-        DSS_ERRLOG("Failed to update blk state for [%u] from state [%d] to [%d]\n", dc_index, blk_ctx->state, state);
+        DSS_ERRLOG("Failed to update blk state for [%u] from state [%s] to [%s]\n", dc_index, stateNames[blk_ctx->state], stateNames[state]);
         return rc;
     }
 
@@ -356,7 +359,7 @@ dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
             return KVTRANS_STATUS_SUCCESS;
         }
     }
-    DSS_ERRLOG("update dc tbl failed for blk [%zu] with original state [%d]\n", dc_index, ori_state);
+    DSS_ERRLOG("update dc tbl failed for blk [%zu] with original state [%s]\n", dc_index, stateNames[ori_state]);
     return KVTRANS_STATUS_ERROR;
 }
 
@@ -401,7 +404,7 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
         return rc;
     }
 
-    DSS_ERRLOG("insert dc tbl failed for data blk [%zu] to [%zu] with original state [%d]\n", dc_index, mdc_index, ori_state);
+    DSS_ERRLOG("insert dc tbl failed for data blk [%zu] to [%zu] with original state [%s]\n", dc_index, mdc_index, stateNames[ori_state]);
 
     return KVTRANS_STATUS_ERROR;
 }
@@ -1494,7 +1497,7 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     DSS_ASSERT(_lba_in_range(ctx, blk_ctx->index));
     rc = dss_kvtrans_get_blk_state(ctx, blk_ctx);
 
-    DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Allocate block at index [%u] with state [%d] for key [%s].\n", ctx, blk_ctx->index, blk_ctx->state, req->req_key.key);
+    DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Allocate block at index [%u] with state [%s] for key [%s].\n", ctx, blk_ctx->index, stateNames[blk_ctx->state], req->req_key.key);
 
     switch (blk_ctx->state) {
     case EMPTY:
@@ -1638,6 +1641,7 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
             blk->num_valid_place_value_entry = 1;
             blk->place_value[0].num_chunks = blk_ctx->vctx.value_blocks;
             blk->place_value[0].value_index = blk_ctx->index+1;
+
             return KVTRANS_STATUS_SUCCESS;
         }
         blk->num_valid_place_value_entry = 0;
@@ -1794,7 +1798,7 @@ static dss_kvtrans_status_t init_meta_blk(void *ctx)
         state = META;
     }
     
-    DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, state, req->req_key.key);
+    DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%s] to [%s] for key [%s].\n", blk_ctx->index, stateNames[blk_ctx->state], stateNames[state], req->req_key.key);
 
     if (!blk_ctx->nothash) {
         // META blk is located by hashing. We need to alloc value blocks seperately.
@@ -1876,6 +1880,7 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
         // allocate any EMPTY block for META
         rc = dss_kvtrans_alloc_contig(kvtrans_ctx, kreq, META, blk_ctx->index + 1,
                 1, &col_blk->index);
+        col_blk->vctx.iscontig = false;
         if (rc) {
             DSS_ERRLOG("Error: Out of spaces. Cannot find a single free blk.\n");
         }
@@ -1966,7 +1971,7 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
                 }
             }
 
-            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, state, req->req_key.key);
+            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%s] to [%s] for key [%s].\n", blk_ctx->index, stateNames[blk_ctx->state], stateNames[state], req->req_key.key);
             // update meta blk only
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
@@ -2044,7 +2049,9 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
         }
                     
         blk_ctx->vctx.value_blocks = _get_num_blocks_required_for_value(req, kreq->kvtrans_ctx->blk_size);
-        
+        blk_ctx->vctx.remote_val_blocks = 0;
+        blk_ctx->vctx.iscontig = false;
+
         rc = _blk_init_value((void *)blk_ctx);
         if (rc) return rc;
         rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
@@ -2066,7 +2073,7 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
             DSS_ASSERT(blk->collision_extension_index == 0);
             blk->collision_extension_index = col_index;
 
-            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%d] to [%d] for key [%s].\n", blk_ctx->index, blk_ctx->state, COLLISION_EXTENSION, req->req_key.key);
+            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%s] to [%s] for key [%s].\n", blk_ctx->index, stateNames[blk_ctx->state], stateNames[COLLISION_EXTENSION], req->req_key.key);
 
             rc = dss_kvtrans_set_blk_state(kreq->kvtrans_ctx, blk_ctx, col_index, 1, COLLISION_EXTENSION);
             kreq->kvtrans_ctx->stat.ce ++;
@@ -2414,6 +2421,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             // only one blk_ctx in the meta_chain
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
             DSS_ASSERT(blk_ctx);
+            blk_ctx->vctx.iscontig = false;
             if (kreq->req.opc==KVTRANS_OPC_STORE) {
                 blk_ctx->kctx.flag = new_write;
             } else if (kreq->req.opc==KVTRANS_OPC_DELETE) {
@@ -2453,7 +2461,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             }
             
             if (rc) {
-                DSS_ERRLOG("rc [%d]: Failed to process blk [%zu] with state [%d] for kreq [%p].\n", rc, blk_ctx->index, blk_ctx->state, kreq);
+                DSS_ERRLOG("rc [%d]: Failed to process blk [%zu] with state [%s] for kreq [%p].\n", rc, blk_ctx->index, stateNames[blk_ctx->state], kreq);
                 goto req_terminate;
             }
 
@@ -2497,13 +2505,13 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
 
             rc = col_ctx->kctx.ops.update_blk((void *)col_ctx);
             if (rc) {
-                DSS_ERRLOG("Failed to process collision blk [%zu] with state [%d] for kreq [%p].\n", blk_ctx->index, blk_ctx->state, kreq);
+                DSS_ERRLOG("Failed to process collision blk [%zu] with state [%s] for kreq [%p].\n", blk_ctx->index, stateNames[blk_ctx->state], kreq);
                 goto req_terminate;
             }
             if (blk_ctx->kctx.flag==to_delete) {
                 rc = _delete_collision_entry(blk_ctx, col_ctx, kreq);
                 if (rc) {
-                    DSS_ERRLOG("Failed to delete collision entry [%d] for blk [%zu] with state [%d] for kreq [%p].\n", col_ctx->index, blk_ctx->index, blk_ctx->state, kreq);
+                    DSS_ERRLOG("Failed to delete collision entry [%d] for blk [%zu] with state [%s] for kreq [%p].\n", col_ctx->index, blk_ctx->index, stateNames[blk_ctx->state], kreq);
                     return rc;
                 }
             }
@@ -2554,14 +2562,14 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             if (rc == KVTRANS_STATUS_NOT_FOUND && col_ctx->first_insert_blk_ctx!=NULL) {
                 rc = _new_write_ops(col_ctx->first_insert_blk_ctx, kreq);
                 if (rc) {
-                    DSS_ERRLOG("Failed to write new blk [%zu] with state [%d] for kreq [%p].\n", 
-                                col_ctx->first_insert_blk_ctx->index, col_ctx->state, kreq);
+                    DSS_ERRLOG("Failed to write new blk [%zu] with state [%s] for kreq [%p].\n", 
+                                col_ctx->first_insert_blk_ctx->index, stateNames[col_ctx->state], kreq);
 
                     goto req_terminate;
                 }
             } else if (rc) {
-                DSS_ERRLOG("Failed to process collision extension blk [%zu] with state [%d] for kreq [%p].\n", 
-                                col_ctx->index, col_ctx->state, kreq);
+                DSS_ERRLOG("Failed to process collision extension blk [%zu] with state [%s] for kreq [%p].\n", 
+                                col_ctx->index, stateNames[col_ctx->state], kreq);
                 goto req_terminate;
             }
             if (kreq->state == COL_EXT_LOADING_DONE) {
@@ -2696,8 +2704,8 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
     enum kvtrans_req_e prev_state = -1;
 
     do {
-        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Req[%p] with opc [%d] prev state [%d] current_state [%d] for key [%s]\n", 
-                            kreq->kvtrans_ctx, kreq, kreq->req.opc, prev_state, kreq->state, req->req_key.key);
+        DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Req[%p] with opc [%d] prev state [%s] current_state [%s] for key [%s]\n", 
+                            kreq->kvtrans_ctx, kreq, kreq->req.opc, stateNames[prev_state], stateNames[kreq->state], req->req_key.key);
         prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
@@ -2716,7 +2724,7 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
             dss_trace_record(TRACE_KVTRANS_READ_ENTRY_LOADING_DONE, 0, 0, 0, (uintptr_t)kreq->dreq);
 #endif
             blk_ctx = TAILQ_FIRST(&kreq->meta_chain);
-            DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: ENTRY LOADING DONE with blk_ctx->state [%d]\n", kreq->kvtrans_ctx, blk_ctx->state);
+            DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: ENTRY LOADING DONE with blk_ctx->state [%s]\n", kreq->kvtrans_ctx, stateNames[blk_ctx->state]);
             switch(blk_ctx->state) {
                 case EMPTY:
                 case DATA:
@@ -2919,7 +2927,7 @@ void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     printf("kctx: \n");
     printf("    dc_index: %zu\n", blk_ctx->kctx.dc_index);
     printf("    flag: %d\n", blk_ctx->kctx.flag);
-    printf("    state: %d\n", blk_ctx->state);
+    printf("    state: %s\n", stateNames[blk_ctx->state]);
     printf("vctx: \n");
     printf("    iscontig: %d\n", blk_ctx->vctx.iscontig);
     printf("    remote_val_blocks: %zu\n", blk_ctx->vctx.remote_val_blocks);
@@ -2928,7 +2936,7 @@ void dump_blk_ctx(blk_ctx_t *blk_ctx) {
     else {
         printf("kreq: \n");
         printf("    id: %zu\n", blk_ctx->kreq->id);
-        printf("    state: %d\n", blk_ctx->kreq->state);
+        printf("    state: %s\n", stateNames[blk_ctx->kreq->state]);
         printf("    key: %s\n", blk_ctx->kreq->req.req_key.key);
     }
 
