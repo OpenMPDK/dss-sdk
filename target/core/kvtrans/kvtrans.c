@@ -1502,6 +1502,11 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
     switch (blk_ctx->state) {
     case EMPTY:
         // no need to load blk
+        // reset blk_ctx for a new kvtrans request
+        blk_ctx->kctx.dc_index = 0;
+        blk_ctx->kctx.pindex = 0;
+        blk_ctx->nothash = false;
+        memset(&blk_ctx->kctx.col_entry, 0, sizeof(col_entry_t));
         kreq->state = ENTRY_LOADING_DONE;
         break;
     case COLLISION_EXTENSION:
