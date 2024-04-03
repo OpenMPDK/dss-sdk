@@ -22,5 +22,6 @@ deploy DSS:
       ref: master
       file: .gitlab-ci.yml
     strategy: depend
+  resource_group: inv_$CI_PROJECT_NAME.ini
   rules:
     - !reference [.default_rules, merge_and_push]
