@@ -2648,6 +2648,21 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
 
 req_terminate:
     kreq->state = REQ_CMPL;
+
+#ifndef DSS_BUILD_CUNIT_TEST
+    // handle errors properly. otherwise, dirty LBAs become zombies
+    // new requests would be queued by zombie dirty LBAs
+    dss_trace_record(TRACE_KVTRANS_WRITE_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
+    TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
+        rc = _pop_meta_blk_from_queue(ctx->meta_sync_ctx, blk_ctx);
+        if (rc == KVTRANS_STATUS_ERROR) {
+            return rc;
+        } else {
+            rc = KVTRANS_STATUS_SUCCESS;
+        }
+    }
+#endif
+
     ctx->task_failed++;
     return rc;
 }
