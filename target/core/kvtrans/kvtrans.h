@@ -225,8 +225,6 @@ typedef struct blk_key_ctx_s {
     uint64_t pindex;
     // index of dc
     uint64_t dc_index;
-    // dc entry ???
-    col_entry_t col_entry;
 } blk_key_ctx_t;
 
 typedef struct blk_val_ctx_s {

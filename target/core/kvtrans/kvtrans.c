@@ -258,6 +258,7 @@ dss_kvtrans_get_free_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t **blk_ctx)
             return KVTRANS_STATUS_ERROR;
         }
     }
+    
     return KVTRANS_STATUS_SUCCESS;
 }
 
@@ -271,7 +272,9 @@ void reset_blk_ctx(blk_ctx_t *blk_ctx) {
     if (blk) {
         memset(blk, 0, sizeof(ondisk_meta_t));
     }
-    memset(blk_ctx, 0, sizeof(blk_ctx_t) - sizeof(blk_ctx->blk_link));
+
+    memset(blk_ctx, 0, sizeof(blk_ctx_t));
+    
     blk_ctx->blk = blk;
 
     return;
@@ -283,12 +286,14 @@ dss_kvtrans_put_free_blk_ctx(kvtrans_ctx_t *ctx,
 {
     dss_mallocator_status_t rc;
     
+    // free all memory space of blk_ctx
     reset_blk_ctx(blk_ctx);
     if (blk_ctx==NULL){
         DSS_ERRLOG("blk_ctx to put is NULL\n");
         DSS_ASSERT(0);
         return KVTRANS_STATUS_ERROR;
     }
+
     rc = dss_mallocator_put(ctx->blk_ctx_mallocator, 0, (dss_mallocator_item_t *)blk_ctx);
     if (rc==DSS_MALLOC_ERROR) {
         return KVTRANS_STATUS_ERROR;
@@ -1316,7 +1321,12 @@ kvtrans_req_t *init_kvtrans_req(kvtrans_ctx_t *kvtrans_ctx, req_t *req, kvtrans_
             goto failure_handle;
         }
         
-        TAILQ_INSERT_HEAD(&kreq->meta_chain, blk_ctx, blk_link);
+        if (!kreq->meta_chain.tqh_last) {
+            // TAILQ not initialized
+            TAILQ_INIT(&kreq->meta_chain);
+        }
+
+        TAILQ_INSERT_TAIL(&kreq->meta_chain, blk_ctx, blk_link);
         kreq->num_meta_blk = 1;
         blk_ctx->kreq = kreq;
     }
@@ -1401,15 +1411,20 @@ void free_kvtrans_req(kvtrans_req_t *kreq)
     if(kreq) {
         b1 = TAILQ_FIRST(&kreq->meta_chain);
         DSS_ASSERT(TAILQ_NEXT(b1, blk_link) == NULL);
-        reset_blk_ctx(b1);
-        b1->kreq = kreq;
+        // keep b1's link to kreq
+        
         kreq->ba_meta_updated = false;
         kreq->dreq = NULL;
         kreq->id = -1;
         kreq->io_to_queue = false;
         kreq->kvtrans_ctx = NULL;
         kreq->initialized = false;
-        kreq->num_meta_blk = 1; // we keep one blk_ctx
+        kreq->num_meta_blk = 1;
+        TAILQ_INIT(&kreq->meta_chain);
+        // we keep one blk_ctx
+        reset_blk_ctx(b1);
+        TAILQ_INSERT_TAIL(&kreq->meta_chain, b1, blk_link);
+        b1->kreq = kreq;
     }
 
     return;
@@ -1506,7 +1521,6 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
         blk_ctx->kctx.dc_index = 0;
         blk_ctx->kctx.pindex = 0;
         blk_ctx->nothash = false;
-        memset(&blk_ctx->kctx.col_entry, 0, sizeof(col_entry_t));
         kreq->state = ENTRY_LOADING_DONE;
         break;
     case COLLISION_EXTENSION:
@@ -1568,6 +1582,8 @@ blk_ctx_t *_get_next_blk_ctx(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx) {
     if (col_blk_ctx == NULL) {
         DSS_DEBUGLOG(DSS_KVTRANS, "allocating blk_ctx for kreq [%p]\n", blk_ctx->kreq);
         rc = dss_kvtrans_get_free_blk_ctx(ctx, &col_blk_ctx);
+        DSS_ASSERT(blk_ctx->kreq);
+        col_blk_ctx->kreq = blk_ctx->kreq;
         blk_ctx->kreq->num_meta_blk++;
         if (rc) return NULL;
         TAILQ_INSERT_TAIL(&blk_ctx->kreq->meta_chain, col_blk_ctx, blk_link);
@@ -1875,6 +1891,7 @@ static dss_kvtrans_status_t open_free_blk(void *ctx, uint64_t *col_index) {
     col_blk = _get_next_blk_ctx(kvtrans_ctx, blk_ctx);
     
     DSS_ASSERT(col_blk);
+    DSS_ASSERT (blk_ctx == TAILQ_PREV(col_blk, blk_elm, blk_link));
 
     memset(&col_blk->vctx, 0, sizeof(blk_val_ctx_t));
     col_blk->vctx.value_blocks = _get_num_blocks_required_for_value(req, kvtrans_ctx->blk_size);
