@@ -2148,10 +2148,8 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
             // no key, no col entries, no collision_extension
             if (blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY) {
                 rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, blk->data_collision_index, blk_ctx->index);
-                if (rc==KVTRANS_STATUS_NOT_FOUND) {
-                    // The dc_tbl entry has been deleted while deleting the parent blk->
-                    DSS_ASSERT(blk_ctx->kctx.pindex>0);
-                } else if (rc) {
+                if (rc && rc != KVTRANS_STATUS_NOT_FOUND) {
+                    // The dc_tbl entry has been deleted while deleting the parent blk
                     return rc;
                 }
                 kvtrans_ctx->stat.mdc--;
@@ -2170,10 +2168,8 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
         blk_ctx->blk->num_valid_dc_col_entry--;
         if (blk_ctx->blk->num_valid_dc_col_entry==0) {
             rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, col_ctx->blk->data_collision_index, col_ctx->index);
-            if (rc==KVTRANS_STATUS_NOT_FOUND) {
-            // The dc_tbl entry has been deleted while deleting the parent blk->
-                DSS_ASSERT(col_ctx->kctx.pindex>0);
-            } else if (rc) {
+            if (rc && rc != KVTRANS_STATUS_NOT_FOUND) {
+                // The dc_tbl entry has been deleted while deleting the parent blk
                 return rc;
             }
             kvtrans_ctx->stat.mdc--;
