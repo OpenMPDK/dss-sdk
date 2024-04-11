@@ -54,7 +54,7 @@ struct dss_mallocator_ctx_s {
 static inline dss_mallocator_item_t *__dss_mallocator_alloc(dss_mallocator_ctx_t *c) {
     //TODO: support multiple types -- function impl
     dss_mallocator_item_t *item;
-    item = malloc(c->allocation_size);
+    item = calloc(1, c->allocation_size);
     if(!item) {
         return NULL;
     }
