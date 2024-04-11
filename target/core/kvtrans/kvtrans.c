@@ -2324,8 +2324,12 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
                 return rc;
         } else {
             // collision_extension_index is 0
-            if (blk_ctx->first_insert_blk_ctx == blk_ctx ||
-                blk_ctx->first_insert_blk_ctx == NULL) {
+            if ((blk_ctx->first_insert_blk_ctx == blk_ctx ||
+                blk_ctx->first_insert_blk_ctx == NULL) &&
+                blk_ctx->kctx.flag != to_delete ) {
+                // only need to write new col entry if
+                // 1. the current blk_ctx is where the entry should write
+                // 2. this is not a delete operation
                 rc = _new_write_ops(blk_ctx, kreq);
             } else {
                 rc = KVTRANS_STATUS_NOT_FOUND;
@@ -2564,7 +2568,11 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->kctx.ops = g_blk_register[col_ctx->state];
 
             rc = col_ctx->kctx.ops.update_blk((void *)col_ctx);
-            if (rc == KVTRANS_STATUS_NOT_FOUND && col_ctx->first_insert_blk_ctx!=NULL) {
+            if (rc == KVTRANS_STATUS_NOT_FOUND &&
+                col_ctx->first_insert_blk_ctx!=NULL &&
+                blk_ctx->kctx.flag != to_delete) {
+                // write new col entry to col_ctx->first_insert_blk_ctx
+                // make sure this is not a delete operation
                 rc = _new_write_ops(col_ctx->first_insert_blk_ctx, kreq);
                 if (rc) {
                     DSS_ERRLOG("Failed to write new blk [%zu] with state [%s] for kreq [%p].\n", 
@@ -2648,6 +2656,10 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
 
 req_terminate:
     kreq->state = REQ_CMPL;
+
+#ifndef DSS_BUILD_CUNIT_TEST
+    // handle errors properly. otherwise, dirty LBAs become zombies
+    // new requests would be queued by zombie dirty LBAs
     dss_trace_record(TRACE_KVTRANS_WRITE_REQ_CMPL, 0, 0, 0, (uintptr_t)kreq->dreq);
     TAILQ_FOREACH(blk_ctx, &kreq->meta_chain, blk_link) {
         rc = _pop_meta_blk_from_queue(ctx->meta_sync_ctx, blk_ctx);
@@ -2657,6 +2669,7 @@ req_terminate:
             rc = KVTRANS_STATUS_SUCCESS;
         }
     }
+#endif
 
     ctx->task_failed++;
     return rc;
