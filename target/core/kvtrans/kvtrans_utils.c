@@ -282,6 +282,7 @@ void *get_elm(cache_tbl_t *cache_tbl, uint64_t kidx) {
     new_entry = (uint64_t *)JudyLGet(cache_tbl->mem_array, kidx, PJE0);
     if (new_entry==NULL) {
         printf("Error: index is not found\n");
+        assert(0);
         return NULL;
     }
 

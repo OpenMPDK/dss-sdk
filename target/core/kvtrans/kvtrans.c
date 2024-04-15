@@ -180,6 +180,17 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
 {
     dss_blk_allocator_status_t rc;
     uint64_t idx_state, blk_state;
+    
+    blk_state = DEFAULT_BLOCK_STATE_NUM;
+
+    rc = dss_blk_allocator_get_block_state(ctx->blk_alloc_ctx, 
+                                            index,
+                                            &blk_state);
+    if (rc) {
+        // TODO: error handling
+        DSS_ERRLOG("Fail to get blk [%d] state\n", blk_ctx->index);
+        return KVTRANS_STATUS_ERROR;
+    }
 
     if (state==EMPTY) {   
         rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
@@ -240,6 +251,31 @@ dss_kvtrans_get_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx)
     }
     blk_ctx->state = (blk_state_t) blk_state;
     return KVTRANS_STATUS_SUCCESS;
+}
+
+void 
+dss_kvtrans_check_all_empty(kvtrans_ctx_t *ctx)
+{
+    dss_blk_allocator_status_t rc;
+    uint64_t blk_state = DEFAULT_BLOCK_STATE_NUM;
+
+    uint64_t i;
+    bool printed = false;
+    for (i = ctx->blk_offset; i < ctx->blk_offset + ctx->blk_num; i++)
+    {
+        rc = dss_blk_allocator_get_block_state(ctx->blk_alloc_ctx, 
+                                            i,
+                                            &blk_state);
+        if (rc) {
+            // TODO: error handling
+            DSS_ERRLOG("Fail to get blk [%zu] state\n", i);
+            DSS_ASSERT(0);
+        }
+        if (blk_state != EMPTY && !printed) {
+            DSS_ERRLOG("index [%zu] is [%s]\n", i, stateNames[blk_state]);
+            printed = 1;
+        }
+    }
 }
 
 dss_kvtrans_status_t
@@ -1555,10 +1591,16 @@ _alloc_entry_block(kvtrans_ctx_t *ctx,
 
 dss_kvtrans_status_t _col_tbl_remove_entry(ondisk_meta_t *blk, int entry_idx) {
     DSS_ASSERT(entry_idx<=MAX_COL_TBL_SIZE-1 && blk);
+    
+    if (blk->collision_tbl[entry_idx].state == DATA_COL_ENTRY) {
+        blk->num_valid_dc_col_entry --;
+    }
+
     blk->collision_tbl[entry_idx].state = DELETED;
     // memset(&blk->collision_tbl[entry_idx], 0, sizeof(col_entry_t));
 
     blk->num_valid_col_entry--;
+    
     return KVTRANS_STATUS_SUCCESS;
 }
 
@@ -1980,7 +2022,9 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
             if (blk_ctx->kctx.dc_index > 0) {
                 // no need to set state to META_DATA_COLLISION
                 state = blk_ctx->state;
-                DSS_ASSERT(blk_ctx->state==META_DATA_COLLISION || blk_ctx->state==META_DATA_COLLISION_ENTRY);
+                DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION ||
+                            blk_ctx->state == META_DATA_COLLISION_ENTRY ||
+                            blk_ctx->state == COLLISION_EXTENSION);
                 blk->collision_tbl[0].state = DATA_COL_ENTRY;
                 blk->num_valid_dc_col_entry++;
             } else {
@@ -1990,6 +2034,11 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
                     if (rc) return rc;
                     kvtrans_ctx->stat.meta--;
                     kvtrans_ctx->stat.mc++;
+                } else if (blk_ctx->state == COLLISION_EXTENSION) {
+                    rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, col_index, 1, COLLISION_EXTENSION);
+                    if (rc) return rc;
+                    kvtrans_ctx->stat.meta--;
+                    kvtrans_ctx->stat.ce++;
                 }
             }
 
@@ -2035,8 +2084,11 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
                     return rc;
                 }
                 kvtrans_ctx->stat.mdc--;
+            } else if (blk_ctx->state == COLLISION_EXTENSION || blk_ctx->state == DATA_COLLISION_CE) {
+                kvtrans_ctx->stat.ce --;
+                blk_ctx->blk->isvalid = 0;
             } else {
-                kvtrans_ctx->stat.meta--; 
+                kvtrans_ctx->stat.meta--;
             }
             rc = blk_ctx->kctx.ops.clean_blk(ctx);
             // blk is empty, no need to write it
@@ -2108,6 +2160,8 @@ _new_write_ops(blk_ctx_t *blk_ctx, kvtrans_req_t *kreq) {
             if (blk_ctx->kctx.dc_index>0) {
                 col_entry_buf->state = DATA_COL_ENTRY;
                 blk->num_valid_dc_col_entry++;
+                rc = dss_kvtrans_set_blk_state(kreq->kvtrans_ctx, blk_ctx, col_index, 1, META_DATA_COLLISION);
+                if (rc) return rc;
             }
             blk->num_valid_col_entry++;
         }
@@ -2148,13 +2202,14 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
     // regular entries after delete
     //       -> key only            
     //          -> COLLISION        ->-> change state to meta for collsion
-    //          -> MDC              ->-> no change
+    //          -> MDC  / CE        ->-> no change
     //       -> no key or col  
     //          -> COLLISION        ->-> change state to empty
     //          -> MDC              ->-> remove index from dc_tbl, change state to empty
+    //          -> CE               ->-> call delete_collision_extension
     if (blk->num_valid_col_entry==0 && blk->collision_extension_index==0) {
         if (blk->isvalid) {
-            // no need to change state for META_DATA_COLLISION
+            // no need to change state for META_DATA_COLLISION and COLLISION_ENTRY
             if (blk_ctx->state==COLLISION) {
                 blk_ctx->state = META;
                 rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, blk_ctx->index, 1, META); 
@@ -2163,6 +2218,11 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
             } 
         } else {
             // no key, no col entries, no collision_extension
+            if (blk_ctx->state == COLLISION_EXTENSION || blk_ctx->state == DATA_COLLISION_CE) {
+                rc = clean_collision_extension(blk_ctx);
+                return rc;
+            }
+            
             if (blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY) {
                 rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, blk_ctx, blk->data_collision_index, blk_ctx->index);
                 if (rc && rc != KVTRANS_STATUS_NOT_FOUND) {
@@ -2199,17 +2259,13 @@ _delete_collision_entry(blk_ctx_t *blk_ctx,
 
 
 dss_kvtrans_status_t 
-_delete_collision_extension(blk_ctx_t *blk_ctx, 
-                            blk_ctx_t *last_ce_ctx,
-                            kvtrans_req_t *kreq)
+clean_collision_extension(blk_ctx_t *ce_ctx)
 {
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     blk_ctx_t *pre_ctx;
-    kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
-    if (rc) return rc;
-    pre_ctx = TAILQ_PREV(last_ce_ctx, blk_elm, blk_link);
+    kvtrans_ctx_t *kvtrans_ctx = ce_ctx->kreq->kvtrans_ctx;
+    pre_ctx = TAILQ_PREV(ce_ctx, blk_elm, blk_link);
     DSS_ASSERT(pre_ctx!=NULL);
-    if (rc) return rc;
     // Col Extension after delete
     // col_ctx   
     //      ->-> no col entries
@@ -2217,13 +2273,39 @@ _delete_collision_extension(blk_ctx_t *blk_ctx,
     //          -> key invalid -> mark entry in pre_ctx invalid
     //              -> find pre of pre_ctx, repeatly check status
     //      ->-> has col entries -> keep state. 
-    if (last_ce_ctx->blk->num_valid_col_entry==0 && !last_ce_ctx->blk->isvalid) {
+    if (ce_ctx->blk->num_valid_col_entry== 0 && 
+        !ce_ctx->blk->isvalid &&
+        ce_ctx->blk->collision_extension_index == 0) {
         kvtrans_ctx->stat.ce --;
-        pre_ctx->blk->collision_extension_index = 0;
+        if (pre_ctx->blk->collision_extension_index == ce_ctx->index) {
+            pre_ctx->blk->collision_extension_index = 0;
+        }
+        if (ce_ctx->state == META_DATA_COLLISION_ENTRY) {
+            DSS_ASSERT(ce_ctx->blk->data_collision_index != 0);
+            rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, ce_ctx, ce_ctx->blk->data_collision_index, ce_ctx->index);
+            if (rc==KVTRANS_STATUS_NOT_FOUND) {
+                DSS_ASSERT(ce_ctx->kctx.pindex>0);
+            } else if (rc) {
+                return rc;
+            }
+            kvtrans_ctx->stat.mdc--;
+        }
+        rc = clean_blk((void *)ce_ctx);
+        if (rc) return rc;
         while (pre_ctx->blk->num_valid_col_entry==0 && 
                 pre_ctx->blk->collision_extension_index==0 && 
                 !pre_ctx->blk->isvalid) {
             kvtrans_ctx->stat.ce --;
+            if (pre_ctx->state == META_DATA_COLLISION_ENTRY) {
+                DSS_ASSERT(pre_ctx->blk->data_collision_index != 0);
+                rc = dss_kvtrans_dc_table_delete(kvtrans_ctx, pre_ctx, pre_ctx->blk->data_collision_index, pre_ctx->index);
+                if (rc==KVTRANS_STATUS_NOT_FOUND) {
+                    DSS_ASSERT(pre_ctx->kctx.pindex>0);
+                } else if (rc) {
+                    return rc;
+                }
+                kvtrans_ctx->stat.mdc--;
+            }
             rc = clean_blk((void *)pre_ctx);
             if (rc) return rc;
             pre_ctx = TAILQ_PREV(pre_ctx, blk_elm, blk_link);
@@ -2247,7 +2329,10 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
     int i;
 
     DSS_ASSERT(blk->num_valid_col_entry>0 || blk->collision_extension_index>0);
-    DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION || blk_ctx->state == META_DATA_COLLISION_ENTRY || blk_ctx->state == COLLISION);
+    DSS_ASSERT(blk_ctx->state == META_DATA_COLLISION ||
+                blk_ctx->state == META_DATA_COLLISION_ENTRY ||
+                blk_ctx->state == COLLISION ||
+                blk_ctx->state == COLLISION_EXTENSION);
     if (!blk->isvalid && blk_ctx->kctx.flag!=to_delete) {
         blk_ctx->first_insert_blk_ctx = blk_ctx;
     } 
@@ -2321,6 +2406,7 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
                 if (rc) return rc;
                 rc = dss_kvtrans_load_ondisk_blk(col_blk_ctx, kreq, true);
                 rc = _update_kreq_stat_after_io(kreq, rc, COL_LOADING_DONE, QUEUE_TO_LOAD_COL);
+                
                 return rc;
             }
         }
@@ -2332,6 +2418,8 @@ static dss_kvtrans_status_t update_collision_blk(void *ctx) {
                 }
                 col_blk_ctx->index = blk->collision_extension_index;
                 col_blk_ctx->kreq = kreq;
+                rc = dss_kvtrans_get_blk_state(kvtrans_ctx, col_blk_ctx);
+                if (rc) return rc;
                 rc = dss_kvtrans_load_ondisk_blk(col_blk_ctx, kreq, true);
                 rc = _update_kreq_stat_after_io(kreq, rc, COL_EXT_LOADING_DONE, QUEUE_TO_LOAD_COL_EXT);
                 return rc;
@@ -2368,13 +2456,15 @@ static dss_kvtrans_status_t update_meta_data_collision_blk(void *ctx) {
     return rc;
 }
 
+
+
 dss_kvtrans_status_t clean_blk(void *ctx) {
     dss_kvtrans_status_t rc = KVTRANS_STATUS_SUCCESS;
     blk_ctx_t *blk_ctx = (blk_ctx_t *) ctx;
     kvtrans_req_t *kreq = blk_ctx->kreq;
     kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
 
-    if (blk_ctx->blk->isvalid && blk_ctx->blk->value_location != INLINE) {
+    if (blk_ctx->blk->value_location != INLINE) {
         rc = _blk_del_value(ctx);
         if (rc) return rc;
     }
@@ -2393,9 +2483,7 @@ dss_kvtrans_status_t clean_blk(void *ctx) {
     return rc;
 }
 
-void _copy_key_and_value(ondisk_meta_t *des, ondisk_meta_t *src) {
-    memcpy(des, src, 2006);
-}
+static dss_kvtrans_status_t update_collision_extension_blk(void *ctx);
 
 static blk_key_ops_t g_blk_register[DEFAULT_BLOCK_STATE_NUM] = {
     // EMPTY is the initial state
@@ -2413,12 +2501,40 @@ static blk_key_ops_t g_blk_register[DEFAULT_BLOCK_STATE_NUM] = {
     // META_DATA_COLLISION_ENTRY
     { NULL, &update_meta_data_collision_blk, &clean_blk},
     // COLLISION_EXTENSION
-    { &init_meta_data_collision_blk, NULL, NULL},
+    { &init_meta_data_collision_blk, &update_collision_extension_blk, &clean_collision_extension},
     // DATA_COLLISION_EMPTY,
     { NULL, &update_meta_data_collision_blk, NULL},
     // DATA_COLLISION_CE
     { NULL, &update_meta_data_collision_blk, NULL},
 };
+
+static dss_kvtrans_status_t update_collision_extension_blk(void *ctx) {
+    dss_kvtrans_status_t rc;
+    blk_ctx_t *blk_ctx = (blk_ctx_t *) ctx;
+    ondisk_meta_t *blk = blk_ctx->blk; 
+    blk_ctx_t *blk_next;
+
+    DSS_ASSERT(blk_ctx->state == COLLISION_EXTENSION ||
+               blk_ctx->state == DATA_COLLISION_CE ||
+               blk_ctx->state == DATA_COLLISION_EMPTY);
+    if (blk_ctx->blk->data_collision_index > 0) {
+        blk_ctx->kctx.dc_index = blk_ctx->blk->data_collision_index;
+        rc = g_blk_register[META_DATA_COLLISION].update_blk(ctx);
+    } else if (blk_ctx->blk->num_valid_col_entry==0 && blk_ctx->blk->isvalid) {
+        rc = g_blk_register[META].update_blk(ctx);
+    } else {
+        rc = g_blk_register[COLLISION].update_blk(ctx);
+    }
+
+    // blk_next = TAILQ_NEXT(blk_ctx, blk_link);
+    // if (blk_next && blk_ctx->kctx.flag != to_delete) {
+    //     if (blk_next->state != COLLISION_EXTENSION ||
+    //         blk_next->state != DATA_COLLISION_CE)
+    //     dss_kvtrans_set_blks_state(blk_ctx->kreq->kvtrans_ctx, blk_next, blk_next->index, 1, COLLISION_EXTENSION);
+    // }
+
+    return rc;
+}
 
 // key_ops is the call-back from io_task on write completion
 dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
@@ -2512,7 +2628,6 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->vctx.iscontig = false;
             col_ctx->vctx.value_blocks = 0;
             col_ctx->vctx.remote_val_blocks = 0;
-            col_ctx->kctx.dc_index = blk_ctx->kctx.dc_index;
 
             DSS_ASSERT(col_ctx->state!=META_DATA_COLLISION_ENTRY);
             if (col_ctx->state==META_DATA_COLLISION) {
@@ -2521,6 +2636,9 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
                 DSS_ASSERT(col_ctx->blk->num_valid_col_entry==0);
             } else if (col_ctx->state == COLLISION) {
                 DSS_ASSERT(col_ctx->blk->num_valid_col_entry>0);
+            } else if (col_ctx->state == COLLISION_EXTENSION ||
+                        col_ctx->state == DATA_COLLISION_CE) {
+                col_ctx->state = COLLISION_EXTENSION;
             }
 
             col_ctx->kctx.ops = g_blk_register[col_ctx->state];
@@ -2530,7 +2648,8 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
                 DSS_ERRLOG("Failed to process collision blk [%zu] with state [%s] for kreq [%p].\n", blk_ctx->index, stateNames[blk_ctx->state], kreq);
                 goto req_terminate;
             }
-            if (blk_ctx->kctx.flag==to_delete) {
+
+            if (blk_ctx->kctx.flag == to_delete) {
                 rc = _delete_collision_entry(blk_ctx, col_ctx, kreq);
                 if (rc) {
                     DSS_ERRLOG("Failed to delete collision entry [%d] for blk [%zu] with state [%s] for kreq [%p].\n", col_ctx->index, blk_ctx->index, stateNames[blk_ctx->state], kreq);
@@ -2566,17 +2685,7 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             col_ctx->vctx.iscontig = false;
             col_ctx->vctx.value_blocks = 0;
             col_ctx->vctx.remote_val_blocks = 0;
-            col_ctx->kctx.dc_index = blk_ctx->kctx.dc_index;
-
-            DSS_ASSERT(col_ctx->state!=META_DATA_COLLISION_ENTRY);
-            if (col_ctx->blk->data_collision_index>0) {
-                col_ctx->kctx.dc_index = col_ctx->blk->data_collision_index;
-                col_ctx->state = META_DATA_COLLISION;
-            } else if (col_ctx->blk->num_valid_col_entry==0) {
-                col_ctx->state = META;
-            } else {
-                col_ctx->state = COLLISION;
-            }
+            col_ctx->state = COLLISION_EXTENSION;
 
             col_ctx->kctx.ops = g_blk_register[col_ctx->state];
 
@@ -2599,15 +2708,15 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
                 goto req_terminate;
             }
             if (kreq->state == COL_EXT_LOADING_DONE) {
-                if (TAILQ_NEXT(col_ctx, blk_link)!=NULL) {
+                if (TAILQ_NEXT(col_ctx, blk_link)!=NULL && col_ctx->blk->collision_extension_index != 0) {
                     // continue to load next col extension
                     kreq->state = COL_EXT_LOADING_CONTIG;
                     break;
                 }
-                if (col_ctx->kctx.flag==to_delete) {
-                    rc =  _delete_collision_extension(blk_ctx, col_ctx, kreq);
-                    if (rc) return rc;
-                }
+                // if (col_ctx->kctx.flag==to_delete) {
+                //     rc =  clean_collision_extension(col_ctx);
+                //     if (rc) return rc;
+                // }
                 kreq->state = QUEUE_TO_START_IO;
             }
             break;

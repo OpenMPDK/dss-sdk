@@ -486,6 +486,7 @@ async_kvtrans_fn kvtrans_exist;
 dss_kvtrans_status_t kv_process(kvtrans_ctx_t *ctx);
 
 int dss_kvtrans_handle_request(kvtrans_ctx_t *ctx, req_t *req);
+void dss_kvtrans_check_all_empty(kvtrans_ctx_t *ctx);
 
 // void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
 
@@ -494,6 +495,7 @@ void init_mem_backend(kvtrans_ctx_t  *ctx, uint64_t meta_pool_size, uint64_t dat
 void reset_mem_backend(kvtrans_ctx_t  *ctx);
 void free_mem_backend(kvtrans_ctx_t  *ctx);
 #endif
+
 
 #ifdef __cplusplus
 }
