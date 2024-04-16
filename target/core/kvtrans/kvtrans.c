@@ -619,6 +619,11 @@ _pop_meta_blk_from_queue(kvtrans_meta_sync_ctx_t *meta_sync_ctx, blk_ctx_t *in_f
                     rc = _set_lba_dirty(meta_sync_ctx, blk_idx);
                     if (rc) return rc;
                 }
+                // it's possbile the state has been changed during queuing
+                rc = dss_kvtrans_get_blk_state(kreq->kvtrans_ctx, blk_ctx);
+                DSS_ASSERT(rc == KVTRANS_STATUS_SUCCESS);
+                // TODO: optimize for empty blocks. abort io_task, call _kvtrans_key_ops directly
+
                 iot_rc = dss_io_task_submit(kreq->io_tasks);
                 DSS_ASSERT(iot_rc == DSS_IO_TASK_STATUS_SUCCESS);
                 // TODO: Add counter for queue length
