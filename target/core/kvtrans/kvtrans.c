@@ -2604,7 +2604,11 @@ dss_kvtrans_status_t _kvtrans_key_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq)
             }
             
             if (rc) {
-                DSS_ERRLOG("rc [%d]: Failed to process blk [%zu] with state [%s] for kreq [%p].\n", rc, blk_ctx->index, stateNames[blk_ctx->state], kreq);
+                if (rc == KVTRANS_STATUS_NOT_FOUND) {
+                    DSS_DEBUGLOG(DSS_KVTRANS, "rc [%d]: Failed to process blk [%zu] with state [%s] for kreq [%p].\n", rc, blk_ctx->index, stateNames[blk_ctx->state], kreq);
+                } else {
+                    DSS_ERRLOG("rc [%d]: Failed to process blk [%zu] with state [%s] for kreq [%p].\n", rc, blk_ctx->index, stateNames[blk_ctx->state], kreq);
+                }
                 goto req_terminate;
             }
 

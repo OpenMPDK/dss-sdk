@@ -603,7 +603,8 @@ int dss_hsl_list(dss_hsl_ctx_t *hctx, const char *prefix, const char *start_key,
 
 		if(!value) {
 			//Entry not found
-			DFLY_NOTICELOG("Couldn't find token %s\n", tok);
+			// DFLY_NOTICELOG("Couldn't find token %s\n", tok); 
+			// DEBUG log needs to register logger
 			return rc;
 		}
 
