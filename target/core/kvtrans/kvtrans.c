@@ -160,9 +160,13 @@ dss_kvtrans_alloc_contig(kvtrans_ctx_t *ctx,
     rc = dss_blk_allocator_alloc_blocks_contig(ctx->blk_alloc_ctx, state, 
                 hint_block_index, num_blocks, allocated_start_block);
     if (rc) {
-        // TODO: error handling
-        DSS_ERRLOG("Alloc contig [%d] blks for blk_ctx [%zu] failed\n",
+        if (num_blocks == 1) {
+            DSS_ERRLOG("Alloc contig [%d] blks for blk_ctx [%zu] failed\n",
                     num_blocks, hint_block_index);
+        } else {
+            DSS_DEBUGLOG(DSS_KVTRANS, "Alloc contig [%d] blks for blk_ctx [%zu] failed\n",
+                    num_blocks, hint_block_index);
+        }
 
         return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
     }
@@ -1654,6 +1658,12 @@ find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
     } 
     uint64_t allocated_start_block = 0;
 
+    if (blk_ctx->blk->num_valid_place_value_entry == MAX_VALUE_SCATTER) {
+        DSS_ERRLOG("The max scattered data entries [%d] has been reached\n", MAX_VALUE_SCATTER);
+        return KVTRANS_STATUS_ERROR;
+    }
+
+
     rc = dss_kvtrans_alloc_contig(ctx, blk_ctx->kreq, DATA, 
         blk_ctx->index+1, num_blocks, &allocated_start_block);
     if(rc == KVTRANS_STATUS_SUCCESS) {
@@ -1665,8 +1675,6 @@ find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
             blk_ctx->vctx.remote_val_blocks++;
         }
         blk_ctx->blk->num_valid_place_value_entry++;
-        //TODO: handle this case
-        DSS_ASSERT(blk_ctx->blk->num_valid_place_value_entry!=MAX_DATA_COL_TBL_SIZE);
         return rc;
     }
 
@@ -1674,7 +1682,7 @@ find_data_blocks(blk_ctx_t *blk_ctx, kvtrans_ctx_t *ctx, uint64_t num_blocks) {
     uint64_t rb = num_blocks - lb;
 
     if (lb+rb==1 && num_blocks==1) {
-        printf("ERROR: failed to find 1 block at index %zu\n", blk_ctx->index+1);
+        DSS_ERRLOG("No space on disk. Failed to find 1 block for index %zu\n", blk_ctx->index+1);
         return KVTRANS_STATUS_ERROR;
     }
 
@@ -1716,7 +1724,7 @@ dss_kvtrans_status_t _blk_init_value(void *ctx) {
         blk_ctx->vctx.remote_val_blocks = 0;
         rc = find_data_blocks(blk_ctx, kvtrans_ctx, blk_ctx->vctx.value_blocks);
         if (rc!=KVTRANS_STATUS_SUCCESS) {
-            return KVTRANS_STATUS_ALLOC_CONTIG_ERROR;
+            return rc;
         }
         DSS_ASSERT(blk->num_valid_place_value_entry>0);
         if (blk_ctx->vctx.remote_val_blocks==0) {
