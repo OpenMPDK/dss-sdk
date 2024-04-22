@@ -305,6 +305,37 @@ int find_elm(cache_tbl_t *cache_tbl, uint64_t kidx) {
 }
 
 /**
+ * @brief check if the cache table is empty.
+ * @param cache_tbl the cache table to check.
+ * @return true for empty, false for not empty.
+ */
+bool has_no_elm(cache_tbl_t *cache_tbl) {
+    uint64_t kidx = 0;
+    uint64_t *entry;
+    entry = JudyLFirst(cache_tbl->mem_array, &kidx, PJE0);
+    if (entry == NULL) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief get the first element.
+ * @param cache_tbl the cache table to check.
+ * @param kidx the key index returned.
+ * 
+ * @return the first elment or NULL if cache_tbl is empty.
+ */
+void *get_first_elm(cache_tbl_t *cache_tbl, uint64_t *kidx) {
+    uint64_t *new_entry;
+    new_entry = (uint64_t *)JudyLFirst(cache_tbl->mem_array, kidx, PJE0);
+    if (new_entry==NULL) {
+        return NULL;
+    }
+    return get_elm_addr(cache_tbl, *new_entry);
+}
+
+/**
  * @brief delete an element by key index
  * @param cache_tbl the cache table to insert.
  * @param kidx the key index specified by user.

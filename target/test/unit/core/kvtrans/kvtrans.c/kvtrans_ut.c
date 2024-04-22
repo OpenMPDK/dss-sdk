@@ -38,13 +38,13 @@
 #include "keygen.h"
 
 #define KEY_LEN 1024
-#define VAL_LEN 4096 * 3
+#define VAL_LEN 4096 * 10
 #define KEY_BATCH 1000
 #define KEY_NUM 100000
 #define DEFAULT_DEV 0x34acb239
 #define DEFAULT_IOTM 0xffffffff
 #undef BLK_NUM
-#define BLK_NUM 4000000 / 8
+#define BLK_NUM 250000 * 10
 
 typedef struct key_generator_s key_generator_t;
 typedef struct obj_key_s obj_key_t;
@@ -399,10 +399,12 @@ void testFullDelete(void)
         CU_ASSERT(rc == KVTRANS_STATUS_SUCCESS || rc==KVTRANS_STATUS_FREE);
         idx++;
     } while(rc != KVTRANS_STATUS_FREE);
-
+    
+    dss_kvtrans_check_all_empty(g_kvtrans_ut.ctx);
+    
     free(reqs);
     free(obj_keys);
-    reset_mem_backend(g_kvtrans_ut.ctx);
+    // reset_mem_backend(g_kvtrans_ut.ctx);
     reset_key_generator(g_kvtrans_ut.kg);
 }
 

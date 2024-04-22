@@ -719,7 +719,12 @@ void dss_kvtrans_process_internal_io(dss_request_t *req)
                 
             case DSS_KVT_INITIALIZED:
                 dss_module_dec_async_pending_task(req->module_ctx[DSS_MODULE_KVTRANS].module);
+                
+                if (has_no_elm((*kv_init_ctx->kvt_ctx)->dc_cache_tbl)) {
+                    DSS_NOTICELOG("Loading done. DC table is empty\n");
+                }
                 dss_kvtrans_free_init_request(req);
+                
                 return;
             default:
                 DSS_ASSERT(0);

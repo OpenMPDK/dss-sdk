@@ -77,6 +77,29 @@ void testGet(void) {
     }
 }
 
+void testEmpty(void) {
+    CU_ASSERT(g_cache_tbl.ctx!=NULL);
+    bool empty = false;
+    empty = has_no_elm(g_cache_tbl.ctx);
+    CU_ASSERT(empty==true);
+}
+
+void testNotEmpty(void) {
+    CU_ASSERT(g_cache_tbl.ctx!=NULL);
+    bool empty = false;
+    empty = has_no_elm(g_cache_tbl.ctx);
+    CU_ASSERT(empty==false);
+}
+
+void testGetFirst(void) {
+    CU_ASSERT(g_cache_tbl.ctx!=NULL);
+    struct test_str *data;
+    uint64_t i = 0;
+    data = (struct test_str *) get_first_elm(g_cache_tbl.ctx, &i);
+    CU_ASSERT(data!=NULL);
+    CU_ASSERT(i==0);
+}
+
 void testDelete(void) {
     CU_ASSERT(g_cache_tbl.ctx!=NULL);
     uint64_t i;
@@ -121,7 +144,10 @@ int main (int argc, char **argv) {
         || NULL == CU_add_test(pSuite, "testStore" ,  testStore)
         || NULL == CU_add_test(pSuite, "testIterate" ,  testIterate)
         || NULL == CU_add_test(pSuite, "testGet" ,  testGet)
+        || NULL == CU_add_test(pSuite, "testNotEmpty" ,  testNotEmpty)
+        || NULL == CU_add_test(pSuite, "testGetFirst" ,  testGetFirst)
         || NULL == CU_add_test(pSuite, "testDelete" ,  testDelete)
+        || NULL == CU_add_test(pSuite, "testEmpty" ,  testEmpty)
     ) {
         CU_cleanup_registry();
         return CU_get_error();

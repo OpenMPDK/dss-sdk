@@ -196,6 +196,8 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
         return KVTRANS_STATUS_ERROR;
     }
 
+    DSS_NOTICELOG("Set state for [ %zu ] block at [ %zu ] from [ %s ] to [ %s ]\n", blk_num, index, stateNames[blk_state], stateNames[state] );
+
     if (state==EMPTY) {   
         rc = dss_blk_allocator_clear_blocks(ctx->blk_alloc_ctx, index, blk_num);
     } else {
@@ -279,6 +281,15 @@ dss_kvtrans_check_all_empty(kvtrans_ctx_t *ctx)
             DSS_ERRLOG("index [%zu] is [%s]\n", i, stateNames[blk_state]);
             printed = 1;
         }
+    }
+
+    if (has_no_elm(ctx->dc_cache_tbl) == false) {
+        i = 0;
+        if(!get_first_elm(ctx->dc_cache_tbl, &i)) {
+            // not empty
+            DSS_ASSERT(0);
+        }
+        DSS_ERRLOG("DC table is not empty. The fisrt elm is at [%zu]", i);
     }
 }
 
@@ -408,7 +419,6 @@ dss_kvtrans_dc_table_update(kvtrans_ctx_t *ctx,
     return KVTRANS_STATUS_ERROR;
 }
 
-
 dss_kvtrans_status_t
 dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
                             blk_ctx_t *blk_ctx,
@@ -419,6 +429,10 @@ dss_kvtrans_dc_table_insert(kvtrans_ctx_t *ctx,
     Word_t *entry;
     dc_item_t *it;
     blk_state_t state;
+
+    if (has_no_elm(ctx->dc_cache_tbl)) {
+        DSS_NOTICELOG("DC table is empty\n");
+    }
 
     if (dss_kvtrans_dc_table_exist(ctx, dc_index)==KVTRANS_STATUS_SUCCESS) {
         printf("ERROR: dc %zu is existent\n", dc_index);
