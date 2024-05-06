@@ -282,7 +282,7 @@ typedef struct dfly_request {
 	TAILQ_ENTRY(dfly_request)	fuse_pending_list;
 
 	TAILQ_ENTRY(dfly_request)	outstanding;
-	int32_t waiting_for_buffer:1;
+	uint32_t waiting_for_buffer:1;
 	struct df_io_lat_ticks lat;
     uint64_t submit_tick;
     int print_to;

@@ -192,7 +192,7 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
                                             &blk_state);
     if (rc) {
         // TODO: error handling
-        DSS_ERRLOG("Fail to get blk [%d] state\n", blk_ctx->index);
+        DSS_ERRLOG("Fail to get blk [%d] state\n", blk_ctx?blk_ctx->index:-1);
         return KVTRANS_STATUS_ERROR;
     }
 
@@ -207,7 +207,7 @@ dss_kvtrans_set_blk_state(kvtrans_ctx_t *ctx, blk_ctx_t *blk_ctx, uint64_t index
     if (rc) {
         // TODO: error handling
         DSS_ERRLOG("Set state failed for [%d] blk_ctx [%zu] from state [%s] to state [%s]\n",
-                    blk_num, index, stateNames[blk_ctx->state], stateNames[state]);
+                    blk_num, index, blk_ctx?stateNames[blk_ctx->state]:-1, stateNames[state]);
 
         return KVTRANS_STATUS_SET_BLK_STATE_ERROR;
     }
@@ -855,12 +855,12 @@ dss_kvtrans_write_ondisk_blk(blk_ctx_t *blk_ctx,
                 rc = KVTRANS_IO_SUBMITTED;
                 kreq->io_to_queue = false;
             }
-            return rc;
         } else {
             insert_meta(kreq->kvtrans_ctx->meta_ctx, 
                 blk_ctx->index,
                 blk_ctx->blk);
         }
+        return rc;
 #else
     insert_meta(kreq->kvtrans_ctx->meta_ctx, 
                 blk_ctx->index,
@@ -899,8 +899,6 @@ dss_kvtrans_delete_ondisk_blk(blk_ctx_t *blk_ctx,
                 blk_ctx->index);
     return KVTRANS_STATUS_SUCCESS;
 #endif
-    kvtrans_ctx_t *kvtrans_ctx = kreq->kvtrans_ctx;
-    return KVTRANS_STATUS_SUCCESS;
 #else
     return KVTRANS_STATUS_SUCCESS;
 #endif
@@ -2057,6 +2055,7 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
             } else {
                 if (blk_ctx->state==META) {
                     state = COLLISION;
+                    DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%s] to [%s] for key [%s].\n", blk_ctx->index, stateNames[blk_ctx->state], stateNames[state], req->req_key.key);
                     rc = dss_kvtrans_set_blk_state(kvtrans_ctx, blk_ctx, blk_ctx->index, 1, state);
                     if (rc) return rc;
                     kvtrans_ctx->stat.meta--;
@@ -2068,8 +2067,6 @@ static dss_kvtrans_status_t update_meta_blk(void *ctx) {
                     kvtrans_ctx->stat.ce++;
                 }
             }
-
-            DSS_DEBUGLOG(DSS_KVTRANS, "Block [%u] state changes from [%s] to [%s] for key [%s].\n", blk_ctx->index, stateNames[blk_ctx->state], stateNames[state], req->req_key.key);
             // update meta blk only
             rc = dss_kvtrans_write_ondisk_blk(blk_ctx, kreq, false);
             if (rc == KVTRANS_STATUS_IO_ERROR) return rc;
@@ -2885,9 +2882,9 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
     enum kvtrans_req_e prev_state = -1;
 
     do {
+        prev_state = kreq->state;
         DSS_DEBUGLOG(DSS_KVTRANS, "KVTRANS [%p]: Req[%p] with opc [%d] prev state [%s] current_state [%s] for key [%s]\n", 
                             kreq->kvtrans_ctx, kreq, kreq->req.opc, stateNames[prev_state], stateNames[kreq->state], req->req_key.key);
-        prev_state = kreq->state;
         switch (kreq->state) {
         case REQ_INITIALIZED:
 #ifndef DSS_BUILD_CUNIT_TEST
@@ -2990,9 +2987,10 @@ dss_kvtrans_status_t _kvtrans_val_ops(kvtrans_ctx_t *ctx, kvtrans_req_t *kreq, b
             iot_rc = dss_io_task_submit(kreq->io_tasks);
             DSS_ASSERT(iot_rc==DSS_IO_TASK_STATUS_SUCCESS);
             break;
-#endif
+#else
             kreq->state = IO_CMPL;
             break;
+#endif
         case QUEUED_FOR_DATA_IO:
             //External code should continue progres
             break;

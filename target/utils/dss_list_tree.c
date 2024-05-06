@@ -317,10 +317,7 @@ int _dss_hsl_delete_key(dss_hsl_ctx_t *hctx, dss_hslist_node_t *tnode, char *tok
 			//Key not found
 			return 0;
 		}
-
-		return 0;
 	}
-
 }
 
 int dss_hsl_delete(dss_hsl_ctx_t *hctx, const char *key)
