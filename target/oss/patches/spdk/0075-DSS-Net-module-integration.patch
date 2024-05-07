@@ -1,0 +1,132 @@
+From 32e8cbdd505b4f6b0a9354b084e75c97d44e24bf Mon Sep 17 00:00:00 2001
+From: Benixon Arul dhas <benixon.a@samsung.com>
+Date: Wed, 31 May 2023 13:15:10 -0700
+Subject: [PATCH 75/78] DSS Net module integration
+
+---
+ lib/nvmf/ctrlr.c                      | 11 ++++++++++-
+ lib/nvmf/rdma.c                       |  5 +++--
+ test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c |  7 +++++++
+ test/unit/lib/nvmf/rdma.c/rdma_ut.c   |  5 +++++
+ test/unit/lib/nvmf/tcp.c/tcp_ut.c     |  7 +++++++
+ 5 files changed, 32 insertions(+), 3 deletions(-)
+
+diff --git a/lib/nvmf/ctrlr.c b/lib/nvmf/ctrlr.c
+index e699528..8f4db8c 100644
+--- a/lib/nvmf/ctrlr.c
++++ b/lib/nvmf/ctrlr.c
+@@ -50,11 +50,14 @@
+ 
+ //SPDK_CONFIG_OSS_TARGET
+ #include "dragonfly.h"
++#include "apis/dss_net_module.h"
++
+ int
+ dfly_nvmf_request_complete(struct spdk_nvmf_request *req)
+ {
+     return spdk_nvmf_request_complete(req);
+ }
++
+ //END - SPDK_CONFIG_OSS_TARGET
+ 
+ #define MIN_KEEP_ALIVE_TIMEOUT_IN_MS 10000
+@@ -3028,7 +3031,13 @@ _nvmf_request_exec(struct spdk_nvmf_request *req,
+ 	} else {
+         //SPDK_CONFIG_OSS_TARGET
+         if(req->qpair->ctrlr->subsys->oss_target_enabled == OSS_TARGET_ENABLED) {
+-            dfly_handle_request(req->dreq);
++			if(req->qpair->dqpair->dss_enabled) {
++				//Post to network module
++				dss_net_setup_request(&req->dreq->common_req, req->qpair->dqpair->net_module_instance, (void *)req);
++				dss_module_post_to_instance(DSS_MODULE_NET, req->dreq->common_req.module_ctx[DSS_MODULE_NET].module_instance, &req->dreq->common_req);
++			} else {
++				dfly_handle_request(req->dreq);
++			}
+             status = SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+         } else
+         //END - SPDK_CONFIG_OSS_TARGET
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index d8a9207..1287ea0 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -51,6 +51,7 @@
+ #include "nvmf_internal.h"
+ 
+ #include "rdd.h"
++#include "apis/dss_net_module.h"
+ 
+ struct spdk_nvme_rdma_hooks g_nvmf_hooks = {};
+ const struct spdk_nvmf_transport_ops spdk_nvmf_transport_rdma;
+@@ -728,7 +729,7 @@ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+ 
+ 	if(rqpair->qpair.dqpair) {
+ 		if(rqpair->qpair.qid != 0) {
+-			dfly_put_core(rqpair->qpair.dqpair->listen_addr, spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
++			dfly_put_core(dss_net_module_get_name(rqpair->qpair.dqpair->listen_addr), spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
+ 		}
+ 		dfly_qpair_destroy(rqpair->qpair.dqpair);
+ 	}
+@@ -783,7 +784,7 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
+     } else {
+         struct spdk_nvme_transport_id peer_trid;
+         spdk_nvmf_qpair_get_peer_trid(qpair, &peer_trid);
+-        core = dfly_get_next_core(trid.traddr, g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
++        core = dfly_get_next_core(dss_net_module_get_name(trid.traddr), g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
+     }
+ 
+ 	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
+diff --git a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+index f7d1776..4cccc9f 100644
+--- a/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
++++ b/test/unit/lib/nvmf/ctrlr.c/ctrlr_ut.c
+@@ -197,6 +197,13 @@ DEFINE_STUB_V(nvmf_transport_qpair_abort_request,
+ DEFINE_STUB_V(spdk_nvme_print_command, (uint16_t qid, struct spdk_nvme_cmd *cmd));
+ DEFINE_STUB_V(spdk_nvme_print_completion, (uint16_t qid, struct spdk_nvme_cpl *cpl));
+ 
++DEFINE_STUB(dss_module_post_to_instance,
++		int,
++		(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req),
++		0);
++
++DEFINE_STUB_V(dss_net_setup_request, (dss_request_t *req, dss_module_instance_t *m_inst, void *nvmf_req));
++
+ int
+ spdk_nvmf_qpair_disconnect(struct spdk_nvmf_qpair *qpair, nvmf_qpair_disconnect_cb cb_fn, void *ctx)
+ {
+diff --git a/test/unit/lib/nvmf/rdma.c/rdma_ut.c b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+index ecb1d75..e4b21fd 100644
+--- a/test/unit/lib/nvmf/rdma.c/rdma_ut.c
++++ b/test/unit/lib/nvmf/rdma.c/rdma_ut.c
+@@ -130,6 +130,11 @@ DEFINE_STUB(dss_check_req_timeout,
+                 (struct dfly_request *dreq),
+                 false);
+ 
++DEFINE_STUB(dss_net_module_get_name,
++				char *,
++				(char *ip),
++				NULL);
++
+ 
+ SPDK_LOG_REGISTER_COMPONENT("nvmf", SPDK_LOG_NVMF)
+ DEFINE_STUB(spdk_mem_map_set_translation, int, (struct spdk_mem_map *map, uint64_t vaddr,
+diff --git a/test/unit/lib/nvmf/tcp.c/tcp_ut.c b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+index ee75d72..446195e 100644
+--- a/test/unit/lib/nvmf/tcp.c/tcp_ut.c
++++ b/test/unit/lib/nvmf/tcp.c/tcp_ut.c
+@@ -281,6 +281,13 @@ DEFINE_STUB_V(nvmf_transport_qpair_abort_request,
+ DEFINE_STUB_V(spdk_nvme_print_command, (uint16_t qid, struct spdk_nvme_cmd *cmd));
+ DEFINE_STUB_V(spdk_nvme_print_completion, (uint16_t qid, struct spdk_nvme_cpl *cpl));
+ 
++DEFINE_STUB_V(dss_net_setup_request, (dss_request_t *req, dss_module_instance_t *m_inst, void *nvmf_req));
++
++DEFINE_STUB(dss_module_post_to_instance,
++		int,
++		(dss_module_type_t mtype, dss_module_instance_t *module_thread_instance, void *req),
++		0);
++
+ struct spdk_trace_histories *g_trace_histories;
+ 
+ struct spdk_bdev {
+-- 
+1.8.3.1
+

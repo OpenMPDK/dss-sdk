@@ -1,0 +1,10 @@
+release tarballs:
+  stage: archive
+  script:
+    - /stagemergeartifacts.sh
+  variables:
+    DSSGLOBLIST: "nkv-sdk-*.tgz nkv-target-*.tgz"
+  needs:
+    - build dss-sdk
+  rules:
+    - !reference [.default_rules, push_only]

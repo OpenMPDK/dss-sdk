@@ -565,6 +565,9 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 {
 	int rc = 0;
 	struct lock_service_subsys_s *ls_ss_ctx;
+	dss_module_config_t c;
+
+	dss_module_set_default_config(&c);
 
 	ls_ss_ctx = (struct lock_service_subsys_s *)calloc(1, sizeof(struct lock_service_subsys_s));
 	assert(ls_ss_ctx);
@@ -591,8 +594,10 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 		return -1;
 	}
 
-	subsys->mlist.lock_service = dfly_module_start("Lock_service", subsys->id, &lock_svc_module_ops,
-				     ls_ss_ctx, 1, cb, cb_arg);
+	c.id = subsys->id;
+
+	subsys->mlist.lock_service = dfly_module_start("Lock_service", DSS_MODULE_LOCK, &c, &lock_svc_module_ops,
+				     ls_ss_ctx, cb, cb_arg);
 
 	DFLY_ASSERT(subsys->mlist.lock_service);
 
@@ -602,7 +607,7 @@ int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not
 void _dfly_lock_service_subsystem_stop(void *event, void *ctx)
 {
 	struct df_ss_cb_event_s *lock_cb_event = (struct df_ss_cb_event_s *)event;
-	struct lock_service_subsys_s *ls_ss_ctx = (struct lock_service_subsys_s *)ctx;
+	struct lock_service_subsys_s *ls_ss_ctx = (struct lock_service_subsys_s *)lock_cb_event->df_ss_private;
 
 	dfly_mempool_destroy(ls_ss_ctx->lobj_mp, LOBJ_MPOOL_COUNT);
 	ls_ss_ctx->active_locks = NULL;
@@ -611,6 +616,7 @@ void _dfly_lock_service_subsystem_stop(void *event, void *ctx)
 
 	free(ls_ss_ctx);
 	df_ss_cb_event_complete(lock_cb_event);
+    free(lock_cb_event);
 
 	return;
 }
@@ -621,11 +627,11 @@ void dfly_lock_service_subsystem_stop(struct dfly_subsystem *subsys, void *arg/*
 	struct df_ss_cb_event_s *lock_cb_event;
 
 	ls_ss_ctx = (struct lock_service_subsys_s *)subsys->mlist.lock_service->ctx;
-	lock_cb_event = df_ss_cb_event_allocate(subsys, cb, cb_arg, arg);
 
 	DFLY_ASSERT(ls_ss_ctx);
 
-	dfly_module_stop(subsys->mlist.lock_service, _dfly_lock_service_subsystem_stop, lock_cb_event, ls_ss_ctx);
+	lock_cb_event = df_ss_cb_event_allocate(subsys, cb, cb_arg, ls_ss_ctx);
+	dfly_module_stop(subsys->mlist.lock_service, _dfly_lock_service_subsystem_stop, lock_cb_event);
 
 
 	return;

@@ -34,7 +34,9 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -47,65 +49,6 @@
 
 struct spdk_nvme_cmd *dfly_nvmf_setup_cmd_key(struct spdk_nvmf_request *req,
 		struct spdk_nvme_cmd *in_cmd);
-
-static int
-dfly_spdk_get_numa_node_value(char *path)
-{
-	FILE *fd;
-	int numa_node = -1;
-	char buf[MAX_STRING_LEN + 1];
-
-	fd = fopen(path, "r");
-	if (!fd) {
-		return -1;
-	}
-
-	if (fgets(buf, sizeof(buf), fd) != NULL) {
-		numa_node = strtoul(buf, NULL, 10);
-	}
-	fclose(fd);
-
-	return numa_node;
-}
-
-int _dfly_spdk_get_ifaddr_numa_node(char *if_addr)
-{
-	int ret;
-	struct ifaddrs *ifaddrs, *ifa;
-	struct sockaddr_in addr, addr_in;
-	char path[MAX_STRING_LEN + 1];
-	int numa_node = -1;
-	char *delim = NULL;
-
-	addr_in.sin_addr.s_addr = inet_addr(if_addr);
-	if (addr_in.sin_addr.s_addr == INADDR_NONE) {
-		return -1;//We don't expect 255.255.255.255
-		//Should be a local NIC
-	}
-
-	ret = getifaddrs(&ifaddrs);
-	if (ret < 0)
-		return -1;
-
-	for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
-		addr = *(struct sockaddr_in *)ifa->ifa_addr;
-		if ((uint32_t)addr_in.sin_addr.s_addr != (uint32_t)addr.sin_addr.s_addr) {
-			continue;
-		}
-
-		delim = strchr(ifa->ifa_name, '.');
-		if(delim) {
-			*delim = '\0';
-		}
-
-		snprintf(path, MAX_STRING_LEN, "/sys/class/net/%s/device/numa_node", ifa->ifa_name);
-		numa_node = dfly_spdk_get_numa_node_value(path);
-		break;
-	}
-	freeifaddrs(ifaddrs);
-
-	return numa_node;
-}
 
 void
 dfly_nvmf_bdev_ctrlr_complete_cmd(struct spdk_bdev_io *bdev_io, bool success,
@@ -204,6 +147,7 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 
 	if(df_subsystem_enabled(subsys->id) &&
 		g_dragonfly->blk_map) {//Rocksdb block trannslation
+#ifdef DSS_ENABLE_ROCKSDB_KV
 		if(spdk_unlikely(g_dragonfly->rdb_sim_timeout)) {
 				usleep(g_dragonfly->rdb_sim_timeout * 1000000);
 		}
@@ -267,6 +211,9 @@ _dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				break;
 		}
 		DFLY_ASSERT(0);
+#else
+		DFLY_ASSERT(0);
+#endif//DSS_ENABLE_ROCKSDB_KV
 	}
 	switch (cmd->opc) {
 	case SPDK_NVME_OPC_READ:

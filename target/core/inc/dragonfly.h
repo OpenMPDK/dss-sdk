@@ -58,8 +58,13 @@ extern "C" {
 #include "spdk/nvme.h"
 #include "spdk/nvmf_transport.h"
 #include "spdk/likely.h"
+#include "spdk/trace.h"
 
 #include "spdk_internal/log.h"
+
+#include "dss.h"
+#include "apis/dss_module_apis.h"
+#include "apis/dss_io_task_apis.h"
 
 #include "df_dev.h"
 #include "df_req.h"
@@ -120,7 +125,6 @@ extern "C" {
 #define MB                  (1048576)
 #define MB_SHIFT			(20)
 
-#define DSS_ASSERT DFLY_ASSERT
 #define DFLY_ASSERT(x) assert((x))
 
 #define OSS_TARGET_ENABLED (1)
@@ -141,11 +145,15 @@ struct dragonfly_core {
 };
 
 struct dfly_module_list_s {
-	struct dfly_module_s *dfly_io_module;
-	struct dfly_module_s *dfly_wal_module;
-	struct dfly_module_s *dfly_fuse_module;
+	void *dummy;//Init
+	/// @brief Note: This list needs to be in the order of dss_module_type_t
 	struct dfly_module_s *lock_service;
+	struct dfly_module_s *dfly_fuse_module;
+	void *dss_net_module;//dss_net_module_subsys_t
+	struct dfly_module_s *dfly_io_module;
+	void *dss_kv_trans_module;
 	struct dfly_module_s *dfly_list_module;
+	struct dfly_module_s *dfly_wal_module;
 };
 
 struct init_multi_dev_s {
@@ -183,12 +191,15 @@ struct dfly_io_device_s {
 	struct rdb_dev_ctx_s *rdb_handle;
 };
 
-typedef struct df_subsys_conf_s {
-	uint32_t oss_target_enabled;
-} df_subsys_conf_t;
-
 struct dfly_subsystem {
-	df_subsys_conf_t conf;
+	bool dss_enabled;
+	/// @brief  true - kv mode; false - block mode
+	bool dss_kv_mode;
+    bool dss_iops_perf_mode;
+	bool use_io_task;
+	bool disable_persistence;
+	dss_io_task_module_t *iotmod;
+	int num_kvt_threads;
 	struct dfly_module_list_s mlist;
 	struct dfly_kd_context_s *kd_ctx;
 	rdd_ctx_t *rdd_ctx;
@@ -203,6 +214,8 @@ struct dfly_subsystem {
 	uint32_t blocklen;//Blocksize in bytes reported by kvpool nvmf controller
 
 	int num_io_devices;
+	dss_device_t **dev_arr; //Device handle array
+	//TODO: dfly_io_device will be depricated
 	struct dfly_io_device_s *devices;
 
 	void *parent_ctx;//struct spdk_nvmf_subsystem
@@ -216,6 +229,7 @@ struct dfly_subsystem {
     bool iomem_dev_numa_aligned;
 	int wal_init_status;
 	int list_init_status;
+    void *list_init_event;
 	int list_initialized_nbdev;
 	void (*wal_init_cb)(void *subsystem, int status);
 	void (*list_init_cb)(void *subsystem, int status);
@@ -228,8 +242,9 @@ struct df_ss_cb_event_s {
 	struct dfly_subsystem *ss;
 	df_module_event_complete_cb df_ss_cb;
 	void *df_ss_cb_arg;
-	uint32_t src_core;
 	void *df_ss_private;
+    uint64_t status;
+    struct spdk_thread *src_thread;
 };
 
 typedef void (*df_exec_on_core)(void *arg1, void *arg2);
@@ -281,7 +296,7 @@ struct dragonfly {
 
 	struct dragonfly_core core[64]; /**< round robin core selection data from each core */
 
-	bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
+    bool target_pool_enabled; /**< whether want to disable dragonfly for debugging or measuring baseline performance */
 	bool blk_map;//Rocksdb block translation
         uint32_t rdb_bg_core_start; /**<rdb background job core id start>*/
         uint32_t rdb_bg_job_cnt; /**<rdb background max job cnt per instance>*/
@@ -331,7 +346,6 @@ struct dragonfly {
 	uint32_t			df_sessionc;
 	pthread_mutex_t			df_ses_lock;
 
-	dict_t	 			*disk_stat_table;
 	uint64_t req_lat_to;//Request latency timeout
 	bool enable_latency_profiling;
 
@@ -365,9 +379,14 @@ struct dfly_qpair_s {
 	TAILQ_HEAD(, dfly_request) qp_outstanding_reqs;
 
 	bool dss_enabled;
+	bool dss_net_mod_enabled;
 	struct dss_lat_ctx_s *lat_ctx;
 	void *df_poller;
 	TAILQ_ENTRY(dfly_qpair_s)           qp_link;
+
+	//DSS Net module
+	dss_module_instance_t *net_module_instance;
+	char *net_module_name;
 };
 
 struct dword_bytes {
@@ -377,16 +396,12 @@ struct dword_bytes {
 	uint8_t cdwb4;
 };
 
-int dragonfly_init(void);
-int dragonfly_finish(void);
 
 int dfly_init(void);
+int dragonfly_finish(void);
 
 void dfly_config_read(struct spdk_conf_section *sp);
 int dfly_config_parse(void);
-
-int dragonfly_core_init(uint32_t nvmf_core);
-int dragonfly_core_finish(uint32_t nvmf_core);
 
 struct dfly_subsystem *dfly_get_subsystem_no_lock(uint32_t ssid);
 struct dfly_subsystem *dfly_get_subsystem(uint32_t ssid);
@@ -397,6 +412,10 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   void *ops, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/*Not Used*/,
 					df_module_event_complete_cb cb, void *cb_arg);
+
+int dss_kvtrans_module_subsystem_start(struct dfly_subsystem *subsystem, void *arg/*Not Used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_kvtrans_module_subsystem_stop(struct dfly_subsystem *subsystem, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
 
 int dfly_lock_service_subsys_start(struct dfly_subsystem *subsys, void *arg/*Not used*/,
 				   df_module_event_complete_cb cb, void *cb_arg);
@@ -431,11 +450,13 @@ int dfly_subsystem_init(void *vctx, dfly_spdk_nvmf_io_ops_t *io_ops,
 int dfly_subsystem_destroy(void *vctx, df_subsystem_event_processed_cb cb, void *cb_arg, int cb_status);
 void *dfly_subsystem_list_device(struct dfly_subsystem *ss, void **dev_list, uint32_t *nr_dev);
 
-void df_subsys_update_dss_enable(uint32_t ssid, uint32_t ss_dss_enabled);
+void df_subsys_update_dss_enable(uint32_t ssid, bool ss_dss_enabled);
 void df_subsystem_parse_conf(struct spdk_nvmf_subsystem *subsys, struct spdk_conf_section *subsys_sp);
 uint32_t df_subsystem_enabled(uint32_t ssid);
 
 uint32_t df_qpair_susbsys_enabled(struct spdk_nvmf_qpair *nvmf_qpair, struct spdk_nvmf_request *req);
+uint32_t df_qpair_susbsys_kv_enabled(struct spdk_nvmf_qpair *nvmf_qpair);
+int dss_qpair_finish_init(struct spdk_nvmf_qpair *nvmf_qpair);
 
 int dfly_qpair_init(struct spdk_nvmf_qpair *nvmf_qpair);
 int dfly_qpair_init_reqs(struct spdk_nvmf_qpair *nvmf_qpair, char *req_arr, int req_size, int max_reqs);
@@ -446,16 +467,6 @@ int dfly_nvmf_request_complete(struct spdk_nvmf_request *req);
 void wal_flush_complete(struct df_dev_response_s resp, void *arg);
 void log_recovery_writethrough_complete(struct df_dev_response_s resp, void *arg);
 
-dict_t *dfly_getItem(dict_t **dict, char *key);
-
-
-void dfly_delItem(dict_t **dict, char *key);
-
-void dfly_addItem(dict_t **dict, char *key, int value, char *message);
-
-void dfly_updateItem(dict_t **dict, char *key, int value, char *message);
-void dfly_deleteAllItems(dict_t **disk_table);
-void dfly_dump_status_info(struct spdk_json_write_ctx *w);
 void nvmf_tgt_subsystem_start_continue(void *nvmf_subsystem, int status);
 
 struct spdk_nvme_cmd *dfly_get_nvme_cmd(struct dfly_request *req);
@@ -517,6 +528,44 @@ int dfly_blk_io_count(stat_block_io_t *stats, int opc, size_t value_size);
 
 bool dss_check_req_timeout(struct dfly_request *dreq);
 int dss_get_rdma_req_state( struct spdk_nvmf_request *req);
+
+//C Constructor declarations: to enable symbol lookup on linking
+void _dss_block_allocator_register_simbmap_allocator(void);
+void _dss_block_allocator_register_block_impresario(void);
+//END - C Constructor declarations
+
+dss_module_status_t dss_net_module_subsys_start(dss_subsystem_t *ss, void *arg, df_module_event_complete_cb cb, void *cb_arg);
+
+void dss_net_module_subsys_stop(dss_subsystem_t *ss, void *arg /*Not used*/, df_module_event_complete_cb cb, void *cb_arg);
+
+bool dss_subsystem_kv_mode_enabled(dss_subsystem_t *ss);
+
+bool dss_subsystem_use_io_task(dss_subsystem_t *ss);
+
+bool dss_subsystem_kv_persistence_disabled(dss_subsystem_t *ss);
+
+dss_io_task_module_t *dss_subsytem_get_iotm_ctx(dss_subsystem_t *ss);
+
+void dss_qpair_set_net_module_instance(struct spdk_nvmf_qpair *nvmf_qpair);
+
+int dfly_spdk_conf_section_get_intval_default(struct spdk_conf_section *sp, const char *key, int default_val);
+
+void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v);
+
+static inline bool dss_enable_net_module(struct dfly_subsystem *df_ss)
+{
+    if(df_ss->dss_enabled && !df_ss->dss_iops_perf_mode) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+dss_io_dev_status_t dss_subsystem_initialize_io_devices(dss_subsystem_t *ss);
+void dss_subsystem_deinit_io_devices(dss_subsystem_t *ss);
+
+uint64_t dss_subystem_get_max_inflight_requests(dss_subsystem_t *ss);
+
 #ifdef __cplusplus
 }
 #endif

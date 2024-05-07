@@ -113,6 +113,21 @@ static int64_t get_random(struct rndinfo *ri, uint64_t rv1, uint64_t rv2)
 	return 0;
 }
 
+static double get_random_double(struct rndinfo *ri, uint64_t rv1, uint64_t rv2)
+{
+	if (ri->type == RND_UNIFORM) {
+		double anorm = ((double)rv1) / UINT64_MAX;
+		return (double)(anorm * (ri->b - ri->a) + ri->a);
+	} else if (ri->type == RND_NORMAL) {
+		double r1, r2;
+		r1 = -log(1 - (((double)rv1) / UINT64_MAX));
+		r2 =  2 * __PI * (((double)rv2) / UINT64_MAX);
+		r1 =  sqrt(2 * r1);
+		return (double)(ri->b * r1 * cos(r2) + ri->a);
+	}
+	return 0;
+}
+
 #ifdef __RAND_GEN_TEST
 
 void _rand_gen_test()

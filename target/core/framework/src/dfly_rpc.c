@@ -44,6 +44,19 @@
 
 #include "version.h"
 
+//Force linking C constructors
+// This file is copied and compiled as part of target spdk application
+// Add any C constructors to force linking here
+typedef void (*dummy_fn) (void);
+static struct {
+	dummy_fn dummy1;
+	dummy_fn dummy2;
+} __dss_force_constructor_linking = {
+	.dummy1 = (dummy_fn) _dss_block_allocator_register_simbmap_allocator,
+	.dummy2 = (dummy_fn) _dss_block_allocator_register_block_impresario
+};
+
+
 #define DSS_MAX_SIM_IO_TIMEOUT (10)
 
 struct dss_rpc_lat_profile_req_s {
@@ -240,28 +253,6 @@ static const struct spdk_json_object_decoder dfly_status_decoders[] = {
 
 
 static void
-dfly_dump_disk_state(struct spdk_json_write_ctx *w)
-{
-	spdk_json_write_name(w, "TARGET_DISK");
-	spdk_json_write_object_begin(w);
-
-	dict_t *disk_table = g_dragonfly->disk_stat_table;
-	dict_t *current_item, *tmp;
-	// TODO: Need to check the HASH_iter work mechanism when removing the ns from the table
-	HASH_ITER(hh, disk_table, current_item, tmp) {
-		spdk_json_write_name(w, current_item->key);
-		spdk_json_write_object_begin(w);
-		spdk_json_write_name(w, "status");
-		spdk_json_write_int32(w, current_item->value);
-		//spdk_json_write_int32(w, ptr->value);
-		spdk_json_write_name(w, "message");
-		spdk_json_write_string(w, current_item->message);
-		spdk_json_write_object_end(w);
-	}
-	spdk_json_write_object_end(w);
-}
-
-static void
 dfly_dump_subsystem_state(struct spdk_json_write_ctx *w)
 {
 	struct spdk_nvmf_subsystem *subsystem;
@@ -333,7 +324,6 @@ dfly_dump_status_info(struct spdk_json_write_ctx *w)
 	spdk_json_write_name(w, "status");
 	spdk_json_write_object_begin(w);
 	dfly_dump_timestamp(w);
-	dfly_dump_disk_state(w);
 	dfly_dump_subsystem_state(w);
 	dfly_dump_nic_state(w);
 	spdk_json_write_object_end(w);
@@ -925,6 +915,7 @@ void free_rpc_nqn_req(struct dss_rpc_nqn_req_s *req)
 static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 		const struct spdk_json_val *params)
 {
+#ifdef SPDK_CONFIG_ROCKSDB_KV
 	struct dss_rpc_nqn_req_s req = {};
 	struct dfly_subsystem *df_subsys;
 	struct spdk_json_write_ctx *w;
@@ -983,5 +974,9 @@ static void dss_rpc_rdb_compact(struct spdk_jsonrpc_request *request,
 invalid:
 	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS, "Invalid Parameters");
 	free_rpc_nqn_req(&req);
+#else//SPDK_CONFIG_ROCKSDB_KV
+	spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_METHOD_NOT_FOUND, "Method not supported");
+#endif//SPDK_CONFIG_ROCKSDB_KV
+	return;
 }
 SPDK_RPC_REGISTER("dss_rdb_compact", dss_rpc_rdb_compact, SPDK_RPC_RUNTIME)

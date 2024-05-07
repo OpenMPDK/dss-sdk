@@ -35,7 +35,11 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 #include "nvme_internal.h"
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #include "rocksdb/dss_kv2blk_c.h"
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
+
+#include "apis/dss_io_task_apis.h"
 
 extern "C" {
 #include "spdk/blob.h"
@@ -94,6 +98,8 @@ int dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 				   struct spdk_nvmf_request *req);
 int dfly_io_req_process(void *ctx, struct dfly_request *req)
 {
+
+    DFLY_DEBUGLOG(DFLY_LOG_IO, "Processing IO request [%p]\n", req);
 	int status = 0;
 	struct io_thread_inst_ctx_s *thrd_inst = (struct io_thread_inst_ctx_s *)ctx;
 
@@ -105,11 +111,22 @@ int dfly_io_req_process(void *ctx, struct dfly_request *req)
 	}
 
 	if (req->flags & DFLY_REQF_NVMF) {
-		status = dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, (struct spdk_nvmf_request *)req->req_ctx);
+		if(thrd_inst->module_ctx->dfly_subsys->use_io_task) {
+			DSS_ASSERT(req->common_req.io_task);
+			dss_io_task_submit_to_device(req->common_req.io_task);
+			status = SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+		} else {
+			status = dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, (struct spdk_nvmf_request *)req->req_ctx);
+		}
 	} else if (req->flags & DFLY_REQF_NVME) {
 		status = dfly_nvme_submit_io_cmd(thrd_inst, req);
 		DFLY_ASSERT(status == SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS);
-	} else {
+	} else if (req->common_req.opc == DSS_INTERNAL_IO) {
+		DSS_ASSERT(thrd_inst->module_ctx->dfly_subsys->use_io_task == true);
+		DSS_ASSERT(req->common_req.io_task);
+		dss_io_task_submit_to_device(req->common_req.io_task);
+		status = SPDK_NVMF_REQUEST_EXEC_STATUS_ASYNCHRONOUS;
+	}else {
 		assert(0);
 	}
 
@@ -244,13 +261,13 @@ void *dfly_io_thread_instance_init(void *mctx, void *inst_ctx, int inst_index)
 	} else {
 		for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
 			DFLY_ASSERT(io_mod_ctx->dfly_subsys->devices[i].index == i);
-			thread_instance->io_chann_parr[i] = spdk_bdev_get_io_channel(
-					io_mod_ctx->dfly_subsys->devices[i].ns->desc);
+			thread_instance->io_chann_parr[i] = dss_io_dev_get_channel(io_mod_ctx->dfly_subsys->dev_arr[i]);
 		}
 	}
 	return thread_instance;
 }
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 static void
 rdb_blobfs_unload_cb(__attribute__((unused)) void *ctx,
             __attribute__((unused)) int fserrno)
@@ -261,6 +278,7 @@ void dfly_rdb_close_blobfs(void *ctx, void *arg2)
 {
        spdk_fs_unload((struct spdk_filesystem *)ctx,rdb_blobfs_unload_cb, NULL);
 }
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 
 void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 {
@@ -269,6 +287,7 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
 	int i;
 
    if(g_dragonfly->blk_map) {
+	#ifdef DSS_ENABLE_ROCKSDB_KV
        for (i = thread_instance->module_inst_index; i < io_mod_ctx->dfly_subsys->num_io_devices; i+=io_mod_ctx->num_threads) {
            struct spdk_event *event;
 
@@ -281,6 +300,9 @@ void *dfly_io_thread_instance_destroy(void *mctx, void *inst_ctx)
            spdk_event_call(event);
        }
        return NULL;
+	#else
+		DFLY_ASSERT(0);
+	#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
    }
 
 	for (i = 0; i < io_mod_ctx->dfly_subsys->num_io_devices; i++) {
@@ -405,6 +427,7 @@ dfly_nvmf_ctrlr_process_io_cmd(struct io_thread_inst_ctx_s *thrd_inst,
 	return _dfly_nvmf_ctrlr_process_io_cmd(thrd_inst, req);
 }
 
+//TODO: Deprecate
 int dfly_io_module_init_spdk_devices(struct dfly_subsystem *subsystem,
 				     struct spdk_nvmf_subsystem *nvmf_subsys)
 {
@@ -472,12 +495,29 @@ int _dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   dfly_spdk_nvmf_io_ops_t *io_ops, df_module_event_complete_cb cb, void *cb_arg,
 					struct io_thread_ctx_s *io_thrd_ctx)
 {
-	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", subsystem->id, &io_module_ops,
-					  io_thrd_ctx, io_thrd_ctx->num_threads, cb, cb_arg);
+	dss_module_config_t c;
 
+	dss_module_set_default_config(&c);
+	c.id = subsystem->id;
+	c.num_cores = io_thrd_ctx->num_threads;
+
+	subsystem->mlist.dfly_io_module = dfly_module_start("DFLY_IO", DSS_MODULE_IO, &c, &io_module_ops,
+					  io_thrd_ctx, cb, cb_arg);
+
+	if(subsystem->use_io_task) {
+		dss_io_task_module_status_t task_mod_status;
+		dss_io_task_module_opts_t iotm_opts;
+		iotm_opts.io_module = dss_module_get_subsys_ctx(DSS_MODULE_IO, subsystem);
+		iotm_opts.max_io_tasks = dss_subystem_get_max_inflight_requests((dss_subsystem_t *)subsystem);
+		iotm_opts.max_io_ops = 5 * iotm_opts.max_io_tasks;//Default to 5x io tasks TODO: calculate this
+		task_mod_status = dss_io_task_module_init(iotm_opts, &subsystem->iotmod);
+		//TODO: Handle failure
+		DSS_ASSERT(task_mod_status == DSS_IO_TASK_MODULE_STATUS_SUCCESS);
+	}
 	return 0;
 }
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 void _all_dev_init_complete(void *arg1, void *arg2)
 {
 	struct init_multi_dev_s *dev_cb_event = (struct init_multi_dev_s *)arg1;
@@ -562,7 +602,7 @@ void _dev_init(void *device, void *cb_event)
 
 }
 
-void _dfly_rdb_init_devices( void *ctx, void * dummy) {
+void _dfly_rdb_init_devices( void *ctx) {
 	struct init_multi_dev_s *event_ctx = (struct init_multi_dev_s *)ctx;;
 	struct spdk_event *event;
 	int i;
@@ -594,6 +634,7 @@ void dfly_rdb_init_devices(struct dfly_subsystem *subsystem, df_module_event_com
 
 	_dfly_io_module_subsystem_start(subsystem, io_thrd_ctx->io_ops, _dfly_rdb_init_devices, event_ctx, io_thrd_ctx);
 }
+#endif//DSS_ENABLE_ROCKSDB_KV
 
 int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 				   void *ops, df_module_event_complete_cb cb, void *cb_arg)
@@ -621,7 +662,11 @@ int dfly_io_module_subsystem_start(struct dfly_subsystem *subsystem,
 	}
 
 	if(g_dragonfly->blk_map) {
+#ifdef DSS_ENABLE_ROCKSDB_KV
 		dfly_rdb_init_devices(subsystem, cb, cb_arg, io_thrd_ctx);
+#else
+	DFLY_ASSERT(0);
+#endif//DSS_ENABLE_ROCKSDB_KV
 	} else {
 		_dfly_io_module_subsystem_start(subsystem, io_ops, cb, cb_arg, io_thrd_ctx);
 	}
@@ -638,6 +683,8 @@ void _dfly_io_module_stop(void *event, void *dummy)
 	dfly_io_module_deinit_spdk_devices(subsystem);
 
 	df_ss_cb_event_complete(io_mod_cb_event);
+    free(io_mod_cb_event);
+
 	return;
 }
 
@@ -646,6 +693,6 @@ void dfly_io_module_subsystem_stop(struct dfly_subsystem *subsystem, void *args/
 {
 
 	struct df_ss_cb_event_s *io_mod_cb_event = df_ss_cb_event_allocate(subsystem, cb, cb_arg, args);
-	dfly_module_stop(subsystem->mlist.dfly_io_module, _dfly_io_module_stop, io_mod_cb_event, NULL);
+	dfly_module_stop(subsystem->mlist.dfly_io_module, _dfly_io_module_stop, io_mod_cb_event);
 
 }

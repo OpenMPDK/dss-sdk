@@ -1,7 +1,7 @@
-From f58c1276fdeccaf403afdcceda63130f046dd070 Mon Sep 17 00:00:00 2001
+From fc4be149030625c9cdef83c657b9de9fa03b828c Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Mon, 20 Dec 2021 16:38:29 -0800
-Subject: [PATCH 56/73] RDD IO path implementation
+Subject: [PATCH 56/78] RDD IO path implementation
 
 ---
  lib/nvmf/ctrlr.c |   2 +-

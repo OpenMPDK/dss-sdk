@@ -211,8 +211,14 @@ void
 dfly_config_read(struct spdk_conf_section *sp)
 {
 	char *str = NULL;
-	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", false);
+    bool val;
+
+	g_dragonfly->target_pool_enabled = spdk_conf_section_get_boolval(sp, "KV_PoolEnabled", true);
+#ifdef DSS_ENABLE_ROCKSDB_KV
+	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", true);
+#else
 	g_dragonfly->blk_map = spdk_conf_section_get_boolval(sp, "block_translation_enabled", false);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
     	g_dragonfly->rdb_bg_core_start = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_core_start", 40);
     	g_dragonfly->rdb_bg_job_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_bg_job_cnt", 24);
         g_dragonfly->rdb_shard_cnt = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_shard_cnt", 24);
@@ -221,8 +227,8 @@ dfly_config_read(struct spdk_conf_section *sp)
     	g_dragonfly->rdb_blobfs_cache_enable = spdk_conf_section_get_boolval(sp, "block_translation_blobfs_cache_enable", true);
     	g_dragonfly->rdb_blobfs_cache_sz_mb = dfly_spdk_conf_section_get_intval_default(sp, "block_translation_blobfs_cache_size", 20480);
     	g_dragonfly->num_io_threads = dfly_spdk_conf_section_get_intval_default(sp, "io_threads_per_ss", 8);
-    	g_dragonfly->rdb_wal_enable = spdk_conf_section_get_boolval(sp, "rdb_wal_enable", true);
-        g_dragonfly->rdb_sync_enable = spdk_conf_section_get_boolval(sp, "rdb_sync_enable", true);
+    	g_dragonfly->rdb_wal_enable = spdk_conf_section_get_boolval(sp, "rdb_wal_enable", false);
+        g_dragonfly->rdb_sync_enable = spdk_conf_section_get_boolval(sp, "rdb_sync_enable", false);
         g_dragonfly->rdb_auto_compaction_enable = spdk_conf_section_get_boolval(sp, "rdb_auto_compaction_enable", false);
         g_dragonfly->rdb_io_debug_level = dfly_spdk_conf_section_get_intval_default(sp, "rdb_io_debug_level", 0);
         g_dragonfly->rdb_stats_intervals_sec = dfly_spdk_conf_section_get_intval_default(sp, "rdb_stats_intervals_sec", 10);
@@ -230,11 +236,16 @@ dfly_config_read(struct spdk_conf_section *sp)
    		g_dragonfly->rdb_sim_io_pre_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_io_pre_timeout", 0);
    		g_dragonfly->rdb_sim_io_post_timeout = dfly_spdk_conf_section_get_intval_default(sp, "rdb_sim_io_post_timeout", 0);
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 	g_dragonfly->rdb_direct_listing = spdk_conf_section_get_boolval(sp, "rdb_direct_listing", true);
+#else
+	g_dragonfly->rdb_direct_listing = spdk_conf_section_get_boolval(sp, "rdb_direct_listing", false);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
 	g_dragonfly->rdb_direct_listing_evict_levels = dfly_spdk_conf_section_get_intval_default(sp, "rdb_direct_listing_evict_levels", 2);
 	g_dragonfly->rdb_direct_listing_nthreads = dfly_spdk_conf_section_get_intval_default(sp, "rdb_direct_listing_nthreads", 4);
 	g_dragonfly->rdb_direct_listing_enable_tpool= spdk_conf_section_get_boolval(sp, "rdb_direct_listing_enable_tpool", false);
 
+#ifdef DSS_ENABLE_ROCKSDB_KV
 #ifdef DSS_OPEN_SOURCE_RELEASE
 	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", false);
 	if(g_dragonfly->dss_enable_judy_listing) {
@@ -242,9 +253,13 @@ dfly_config_read(struct spdk_conf_section *sp)
 		DFLY_NOTICELOG("Judy based listing not supported for open source release\n");
 	}
 #else
-	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", true);
+	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", false);
 	g_dragonfly->dss_judy_listing_cache_limit_size = dfly_spdk_conf_section_get_intval_default(sp, "dss_judy_list_cache_sz_mb", DSS_LISTING_CACHE_DEFAULT_MAX_LIMIT);
 #endif
+#else
+	g_dragonfly->dss_enable_judy_listing = spdk_conf_section_get_boolval(sp, "dss_enable_judy_listing", true);
+	g_dragonfly->dss_judy_listing_cache_limit_size = dfly_spdk_conf_section_get_intval_default(sp, "dss_judy_list_cache_sz_mb", DSS_LISTING_CACHE_DEFAULT_MAX_LIMIT);
+#endif//#ifdef DSS_ENABLE_ROCKSDB_KV
         
 	g_dragonfly->num_nw_threads = dfly_spdk_conf_section_get_intval_default(sp, "poll_threads_per_nic", 4);
    	g_dragonfly->mm_buff_count = dfly_spdk_conf_section_get_intval_default(sp, "mm_buff_count", 1024 * 32);
@@ -335,7 +350,7 @@ dfly_config_read(struct spdk_conf_section *sp)
 		g_list_prefix_head_size = 4;
 	}
 
-	g_list_conf.list_enabled = spdk_conf_section_get_boolval(sp, "list_enabled", true);
+	g_list_conf.list_enabled = spdk_conf_section_get_boolval(sp, "list_enabled", false);
 	g_list_conf.list_zone_per_pool = dfly_spdk_conf_section_get_intval_default(sp,
 					 "list_zones_per_pool", 1);
 	g_list_conf.list_nr_cores = dfly_spdk_conf_section_get_intval_default(sp, "list_nr_cores", 1);
@@ -354,6 +369,19 @@ dfly_config_read(struct spdk_conf_section *sp)
 		dfly_qos_init(sp);
 	}
 
+    val = spdk_conf_section_get_boolval(sp, "kvtrans_disk_data_store", true);
+    set_kvtrans_disk_data_store(val);
+
+	val = spdk_conf_section_get_boolval(sp, "kvtrans_disk_meta_store", true);
+	set_kvtrans_disk_meta_store(val);
+
+	val = spdk_conf_section_get_boolval(sp, "kvtrans_ba_meta_sync", true);
+	set_kvtrans_ba_meta_sync_enabled(val);
+
+	val = spdk_conf_section_get_boolval(sp, "kvtrans_dump_mem_meta", false);
+	set_kvtrans_dump_mem_meta_enabled(val);
+
+    return;
 }
 
 void

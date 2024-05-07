@@ -54,6 +54,11 @@ extern "C" {
 #include "df_def.h"
 #include "df_poller.h"
 
+#include "apis/dss_module_apis.h"
+#include "apis/dss_io_task_apis.h"
+
+typedef struct dfly_key dss_key_t;
+typedef struct dfly_value dss_value_t;
 struct dfly_key {
 	void     *key;
 	uint16_t length;
@@ -155,7 +160,19 @@ struct dfly_request_ops {
 
 };
 
+struct dss_request_s {
+	dss_request_opc_t opc;
+	dss_request_rc_t status;
+	dss_subsystem_t *ss;
+	dss_device_t *io_device;
+	uint32_t io_device_index;
+	dss_io_task_t *io_task;
+	//Common request context struct for all modules
+	dss_module_req_ctx_t module_ctx[DSS_MODULE_END];
+};
+
 typedef struct dfly_request {
+	dss_request_t common_req;
 	uint32_t    flags; /**< request type */
 
 	uint16_t
@@ -189,7 +206,7 @@ typedef struct dfly_request {
 	struct dfly_value req_value;
 	//struct dfly_value fuse1_value; /**< value for fuse f1 compare data */
 	void         *req_ctx; /**<parent nvme or rdma request*/
-	void 		 *io_device; /**<kvssd device>*/
+	void 		 *io_device; /**<kvssd device>*/ //TODO: Depricate io_device
 	uint32_t	rsp_cdw0;
 	uint32_t 	rsp_sct;
 	uint32_t	rsp_sc;
@@ -242,6 +259,7 @@ typedef struct dfly_request {
 		uint32_t iter_option; //iter_open command cdw11
 		void *dev_iter_info;
 		void *internal_cb;
+        void *load_event;
 	} iter_data;
 	struct {
 		struct rdd_rdma_queue_s *q;
@@ -264,7 +282,7 @@ typedef struct dfly_request {
 	TAILQ_ENTRY(dfly_request)	fuse_pending_list;
 
 	TAILQ_ENTRY(dfly_request)	outstanding;
-	int32_t waiting_for_buffer:1;
+	uint32_t waiting_for_buffer:1;
 	struct df_io_lat_ticks lat;
     uint64_t submit_tick;
     int print_to;
@@ -321,6 +339,15 @@ bool dfly_cmd_sequential(struct dfly_request *req1, struct dfly_request *req2);
 void dfly_set_status_code(struct dfly_request *req, int sct, int sc);
 
 void dss_set_rdd_transfer(struct dfly_request *req);
+
+uint32_t dss_req_get_val_len(dss_request_t *req);
+dss_key_t *dss_req_get_key(dss_request_t *req);
+dss_value_t *dss_req_get_value(dss_request_t *req);
+
+dss_subsystem_t *dss_req_get_subsystem(dss_request_t *req);
+
+dss_module_instance_t *dss_req_get_net_module_instance(dss_request_t *req);
+
 #ifdef __cplusplus
 }
 #endif

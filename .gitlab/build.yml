@@ -1,0 +1,23 @@
+build dss-sdk:
+  stage: build
+  before_script:
+    # Download build wrapper from local SonarQube
+    - rm -rf /build-wrapper-linux-x86
+    - wget --no-verbose --content-disposition -E -c "$SONAR_HOST_URL/static/cpp/build-wrapper-linux-x86.zip"
+    - unzip -q build-wrapper-linux-x86.zip -d /
+    # Disable ssl verify from docker build env
+    - git config --global http.sslVerify false
+  script:
+    # Build client with build-wrapper
+    - /build-wrapper-linux-x86/build-wrapper-linux-x86-64 --out-dir bw-output/ ./scripts/build_all.sh kdd-samsung-remote
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  artifacts:
+    name: release build
+    expire_in: 300 seconds
+    paths:
+     - bw-output
+     - df_out
+     - host_out
+  rules:
+    - !reference [.default_rules, merge_and_push]

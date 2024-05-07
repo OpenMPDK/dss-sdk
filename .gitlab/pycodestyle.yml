@@ -1,0 +1,6 @@
+pycodestyle:
+  stage: lint
+  script: git ls-files '*.py' | xargs -n1 pycodestyle --config=./scripts/pycodestyle --show-source --show-pep8
+  needs: []
+  rules:
+    - !reference [.default_rules, merge_and_push]

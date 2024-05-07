@@ -1,7 +1,7 @@
-From feb321b7811bfd764a020d4d238bee9b4c210137 Mon Sep 17 00:00:00 2001
+From 2e3cd8a02c572e10b839cd44de692c5a7636e992 Mon Sep 17 00:00:00 2001
 From: Benixon Arul dhas <benixon.a@samsung.com>
 Date: Tue, 15 Nov 2022 12:44:12 -0800
-Subject: [PATCH 71/73] SPDK patch update
+Subject: [PATCH 71/78] SPDK patch update
 
     * Add api to get RDMA req state `dss_get_rdma_req_state`
     * Check outstanding IOs if pending for more than 10s

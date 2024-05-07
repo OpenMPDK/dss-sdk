@@ -1,7 +1,7 @@
-From 98a051e5f67beaaf8bdbe3f91b3971c256847a2c Mon Sep 17 00:00:00 2001
+From 70a2828477b74797507cfab9d10f8cbf6c7cc640 Mon Sep 17 00:00:00 2001
 From: Jian Liang <jian.l@ssi.samsung.com>
 Date: Tue, 15 Dec 2020 20:25:47 -0800
-Subject: [PATCH 15/73] * bdev blocksize support * increment nr of the
+Subject: [PATCH 15/78] * bdev blocksize support * increment nr of the
  blobstore request to 4k
 
 ---

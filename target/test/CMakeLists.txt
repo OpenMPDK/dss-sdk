@@ -32,3 +32,4 @@
 #
 add_subdirectory(unit)
 add_subdirectory(test_rdd_cl)
+add_subdirectory(test_hash_fn)

@@ -1,0 +1,14 @@
+#Auto Generated File do not modify
+configure_file(../../core/kvtrans/formatter/dss_format.c ../../core/kvtrans/formatter/dss_format.c COPYONLY)
+configure_file(../../core/kvtrans/formatter/formatter.h ../../core/kvtrans/formatter/formatter.h COPYONLY)
+configure_file(../../core/kvtrans/formatter/formatter_impl.cc ../../core/kvtrans/formatter/formatter_impl.cc COPYONLY)
+configure_file(../../core/kvtrans/formatter/formatter_interface.h ../../core/kvtrans/formatter/formatter_interface.h COPYONLY)
+configure_file(../../core/kvtrans/formatter/formatter_interface_impl.cc ../../core/kvtrans/formatter/formatter_interface_impl.cc COPYONLY)
+configure_file(../../core/kvtrans/formatter/Makefile ../../core/kvtrans/formatter/Makefile COPYONLY)
+configure_file(../../core/kvtrans/formatter/parser.h ../../core/kvtrans/formatter/parser.h COPYONLY)
+configure_file(../../core/kvtrans/formatter/parser_impl.cc ../../core/kvtrans/formatter/parser_impl.cc COPYONLY)
+configure_file(../../core/kvtrans/formatter/README.md ../../core/kvtrans/formatter/README.md COPYONLY)
+#Symbolic links
+#TODO: Resolve this:configure_file does not support copy directory and copy symlink without dereference
+ADD_CUSTOM_TARGET(copy_formatter_links
+)

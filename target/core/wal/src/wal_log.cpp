@@ -2211,34 +2211,13 @@ int wal_init_by_conf(struct dfly_subsystem *pool, void *arg/*Not used*/,
 			cb, cb_arg);
 }
 
-//Assumes subsystems are initialized one by one
-static struct wal_started_cb_event_s {
-	df_module_event_complete_cb df_ss_cb;
-	void *df_ss_cb_arg;
-	uint32_t src_core;
-} wal_cb_event;
-
-
 void wal_module_load_done_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
 {
-	uint32_t icore = spdk_env_get_current_core();
-	struct spdk_event *event;
-	//wal_cb event to be populated before start
-	DFLY_ASSERT(wal_cb_event.df_ss_cb);
-	DFLY_ASSERT(wal_cb_event.df_ss_cb_arg);
 
-	//Call cb started event;
-	if (icore == wal_cb_event.src_core) {
-		wal_cb_event.df_ss_cb(wal_cb_event.df_ss_cb_arg, NULL);
-	} else {
-		event = spdk_event_allocate(wal_cb_event.src_core, wal_cb_event.df_ss_cb,
-					    wal_cb_event.df_ss_cb_arg, NULL);
-		spdk_event_call(event);
-	}
+    df_ss_cb_event_complete(__wal_log_init_ctx.init_cb_event);
+    __wal_log_init_ctx.init_cb_event = NULL;
 
-	//Reset wal cb event
-	wal_cb_event.df_ss_cb = NULL;
-	wal_cb_event.df_ss_cb_arg = NULL;
+    return;
 }
 
 void wal_module_started_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
@@ -2259,6 +2238,8 @@ void wal_module_started_cb(struct dfly_subsystem *pool, void *arg/*Not used*/)
 
 	if (rc == WAL_LOG_INIT_FAILED)
 		rc = WAL_INIT_FAILED;
+
+    return;
 
 }
 
@@ -2338,8 +2319,9 @@ int wal_init(struct dfly_subsystem *pool, struct dragonfly_ops *dops,
 
 	if (g_wal_conf.wal_cache_enabled) {
 		if (g_wal_conf.wal_log_enabled) {
-			wal_cb_event.df_ss_cb = (df_module_event_complete_cb)cb;
-			wal_cb_event.df_ss_cb_arg = cb_arg;
+            struct df_ss_cb_event_s *e;
+            e = df_ss_cb_event_allocate(pool, cb, cb_arg, NULL);
+            __wal_log_init_ctx.init_cb_event = e;
 			dfly_wal_module_init(pool_id, g_wal_conf.wal_nr_cores, (void *)wal_module_started_cb,
 					     pool);//Pool ID should be dfly subsystem id
 		} else {

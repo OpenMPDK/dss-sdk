@@ -30,14 +30,23 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef DF_MODULE_H
+#define DF_MODULE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "df_stats.h"
 
 #define MAX_MODULE_NAME_LEN (64)
 #define REQ_PER_POLL (8)
-#define MAX_CPU (128)
+#define MAX_CPU (256)
 
 #define DFLY_MODULE_MSG_MP_SC
 
 typedef enum dfly_module_request_status_s {
+	/// @brief Note: Do not use DFLY_MODULE_REQUEST_PROCESSED in new code. This will be deprecated
 	DFLY_MODULE_REQUEST_PROCESSED = 0,
 	DFLY_MODULE_REQUEST_PROCESSED_INLINE,
 	DFLY_MODULE_REQUEST_QUEUED,
@@ -50,6 +59,7 @@ struct dfly_module_pipe_s {
 
 typedef struct dfly_module_s {
 	char name[MAX_MODULE_NAME_LEN];
+	dss_module_type_t mtype;
 	struct dfly_module_ops *ops;
 
 	pthread_mutex_t module_lock;
@@ -59,6 +69,20 @@ typedef struct dfly_module_s {
 	int thread_index_arr[MAX_CPU];
 #endif
 	void *ctx; //Module Context info
+
+	struct {
+		bool async_load_enabled;
+		pthread_mutex_t async_load_lock;
+		enum {
+			DSS_MODULE_UNINITIALIZED = 0,
+			DSS_MODULE_LOADING,
+			DSS_MODULE_LOADED,
+			DSS_MODULE_UNLOADING,
+			DSS_MODULE_UNLOADED
+		} state;
+		uint64_t pending_load_count;
+		dss_module_cmpl_evt_t *cmpl_evt_info;
+	} async_load;
 
 	TAILQ_HEAD(, dfly_module_poller_instance_s) active_threads;
 
@@ -80,19 +104,18 @@ struct dfly_module_poller_instance_s {
 typedef int (*req_poller_fn)(void *ctx, struct dfly_request *req);
 typedef int (*gen_poller_fn)(void *ctx);
 
-typedef void (*df_module_event_complete_cb)(void *cb_event, void *dummy_arg);
+typedef void (*df_module_event_complete_cb)(void *cb_event);
 
 struct df_module_event_complete_s {
-	uint32_t src_core;
 	df_module_event_complete_cb cb_fn;
-	void *arg1;
-	void *arg2;
+	void *arg;
+    struct spdk_thread *src_thread;
 };
 
-struct dfly_module_s *dfly_module_start(const char *name, int id, struct dfly_module_ops *mops,
+struct dfly_module_s *dfly_module_start(const char *name, dss_module_type_t mtype, dss_module_config_t *cfg, struct dfly_module_ops *mops,
 					void *ctx,
-					int num_cores, df_module_event_complete_cb cb, void *cb_arg);
-void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg, void *cb_private);
+					df_module_event_complete_cb cb, void *cb_arg);
+void dfly_module_stop(struct dfly_module_s *module, df_module_event_complete_cb cb, void *cb_arg);
 void dfly_module_post_request(struct dfly_module_s *module, struct dfly_request *req);
 void dfly_module_complete_request(struct dfly_module_s *module, struct dfly_request *req);
 void *dfly_module_get_ctx(struct dfly_module_s *module);
@@ -109,3 +132,9 @@ struct dfly_module_ops {
 				       *req);//	Find the module instance context based on the request
 	void *(*module_instance_destroy)(void *mctx, void *inst_ctx);
 };
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // DF_MODULE_H

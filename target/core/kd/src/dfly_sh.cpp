@@ -106,6 +106,7 @@ void *dfly_sh_find_object_disk(void *vctx, void *in, uint32_t len)
 struct dfly_kd_fn_table dfly_kd_sh_fn_table = {
 	.add_device  = dfly_sh_add_device,
 	.find_device = dfly_sh_find_object_disk,
+	.find_device_index = NULL,
 };
 
 

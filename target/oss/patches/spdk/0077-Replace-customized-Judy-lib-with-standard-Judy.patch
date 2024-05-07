@@ -1,0 +1,25 @@
+From 07db5c9cc009986a7d3fe37162f9ae75eb278a1a Mon Sep 17 00:00:00 2001
+From: Danlin Jia <dan.jia@samsung.com>
+Date: Tue, 22 Aug 2023 10:07:13 -0700
+Subject: [PATCH 77/78] Replace customized Judy lib with standard Judy
+
+---
+ mk/spdk.app.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mk/spdk.app.mk b/mk/spdk.app.mk
+index 6fffc88..de711aa 100644
+--- a/mk/spdk.app.mk
++++ b/mk/spdk.app.mk
+@@ -55,7 +55,7 @@ SYS_LIBS +=  -lsnappy -lz -L$(SPDK_ROOT_DIR)/../rocksdb -lrocksdb
+ endif
+ 
+ ifeq ($(CONFIG_DSS_OSS),n)
+-SYS_LIBS += -ldss_hsl -ldss_lat -ljudyL
++SYS_LIBS += -ldss_hsl -ldss_lat -lJudy
+ endif
+ 
+ CLEAN_FILES = $(APP)
+-- 
+1.8.3.1
+

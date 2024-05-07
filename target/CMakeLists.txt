@@ -35,12 +35,22 @@ project(nkv-target)
 enable_language(C)
 enable_language(CXX)
 
+#This option is to support sonarlint integration with vscode
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_COMPILER "g++")
+
 option(WITH_COVERAGE "Generate binaries with coverage enabled." OFF)
 if(WITH_COVERAGE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
     set(SPDK_ENABLE_COVERAGE --enable-coverage)
 endif(WITH_COVERAGE)
+
+option(WITH_ROCKSDB_KV "Support KV translation with rocksdb engine" OFF)
 
 #--Judy--
 
@@ -145,6 +155,7 @@ add_custom_command(
 
 #--Judy--
 
+
 # Prohibit a common type of an in-source build.
 # Note that building in a subdirectory in the source tree is still allowed
 # as it can be convenient.
@@ -175,6 +186,26 @@ add_custom_command ( OUTPUT dfly_config.h
                      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/version.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/spdk/include)
+
+add_library(dss_formatter_impl STATIC ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/parser_impl.cc
+                             ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/formatter_impl.cc
+                             ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/formatter_interface_impl.cc)
+
+target_include_directories(dss_formatter_impl PRIVATE ${CMAKE_SOURCE_DIR}/core/kvtrans/formatter)
+
+target_link_libraries(dss_formatter_impl -L${CMAKE_BINARY_DIR})
+target_compile_options(dss_formatter_impl PRIVATE -Wall -g -I${CMAKE_SOURCE_DIR}/include/ -std=gnu++11)
+add_custom_command(
+        TARGET dss_formatter_impl PRE_BUILD
+        COMMENT ${CMAKE_SOURCE_DIR}
+)
+
+ADD_CUSTOM_TARGET(dss_formatter ALL
+    COMMENT "Building dss format utility"
+    WORKING_DIRECTORY core/kvtrans/formatter
+    COMMAND make
+    DEPENDS spdk_tcp dss_formatter_impl
+)
 
 # DFLY flags
 set(DFLY_LIBS ${DFLY_LIBS} -lpthread -Wl,--no-as-needed -fPIC -lrt -L. -ltbb -lm -march=native)
@@ -208,6 +239,74 @@ SET(KD_HEADERS
 SET(KV_CMD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/nvme_samsung_kv_cmd.c
 )
+
+# Block allocator
+SET(BLK_ALLOC_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.c
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_simbmap_allocator.c
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/seek_optimization_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_interface.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator_impl.cc
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/io_task_orderer_impl.cc
+)
+
+SET(BLK_ALLOC_HEADERS
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_block_allocator_apis.h
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_io_task_apis.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/dss_block_allocator.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/block_allocator.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/allocator_type.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator/bitmap_impl.h
+    ${CMAKE_SOURCE_DIR}/core/block_allocator/utils/judy_hashmap.h
+)
+
+#Io task Module
+SET(IO_TASK_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev.c
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev_direct.c
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.c
+)
+
+SET(IO_TASK_HEADERS
+    ${CMAKE_SOURCE_DIR}/include/apis/dss_io_task_apis.h
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_task.h
+    ${CMAKE_SOURCE_DIR}/core/io_task/dss_io_bdev.h
+)
+
+# KV Translator
+SET(KVTRANS_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.c
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/xxhash.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/sha256.c
+    ${CMAKE_SOURCE_DIR}/utils/hash/spooky.c
+)
+
+SET(KVTRANS_HEADERS
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_hash.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_utils.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/kvtrans_mem_backend.h
+    ${CMAKE_SOURCE_DIR}/core/kvtrans/dss_kvtrans_module.h
+)
+
+#Network Module
+SET(NETWORK_SOURCES
+    ${CMAKE_SOURCE_DIR}/core/net/dss_net_module.c
+    ${CMAKE_SOURCE_DIR}/core/net/dss_net_request.c
+    ${CMAKE_SOURCE_DIR}/core/net/dss_net_nvmf.c
+    ${CMAKE_SOURCE_DIR}/core/net/dss_net_helper.c
+)
+
+SET(NETWORK_HEADERS
+    ${CMAKE_SOURCE_DIR}/core/net/dss_net_helper.h
+)
+
 #
 # QOS library build rules (shared)
 #
@@ -219,7 +318,7 @@ SET(QOS_HEADERS
 )
 
 #
-# WAL library build rules 
+# WAL library build rules
 #
 SET(ITER_SOURCES
     ${CMAKE_SOURCE_DIR}/core/iter/src/iter_op.cpp
@@ -312,11 +411,21 @@ SET(FW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_counters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dfly_blk_stats.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dragonfly.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/framework/src/dss_spdk_wrapper.c
 )
 SET(FW_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/core/inc/uthash.h
     ${CMAKE_CURRENT_SOURCE_DIR}/core/inc/dragonfly.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/dss_spdk_wrapper.h
     ${CMAKE_CURRENT_SOURCE_DIR}/oss/dssd/lib/libustat/ustat.h
+)
+
+#
+# Util sources
+#
+SET(UTIL_SOURCES
+   ${CMAKE_SOURCE_DIR}/utils/dss_item_cache.c
+   ${CMAKE_SOURCE_DIR}/utils/dss_mallocator.c
 )
 
 include_directories (${CMAKE_SOURCE_DIR}/include)
@@ -326,14 +435,24 @@ include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/lib/nvme/)
 include_directories (${CMAKE_BINARY_DIR}/oss/spdk_tcp/app/nvmf_tgt)
 include_directories (${CMAKE_SOURCE_DIR}/stats)
 include_directories (${CMAKE_SOURCE_DIR}/core/inc)
+include_directories (${CMAKE_SOURCE_DIR}/core/kvtrans)
+include_directories (${CMAKE_SOURCE_DIR}/core/kvtrans/formatter/)
 include_directories (${CMAKE_SOURCE_DIR}/core/wal/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/iter/inc)
 include_directories (${CMAKE_SOURCE_DIR}/core/fuse/inc)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/include/)
 include_directories (${CMAKE_SOURCE_DIR}/oss/dssd/lib/libustat/)
-include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
-include_directories (${CMAKE_SOURCE_DIR}/include)
+include_directories (${CMAKE_SOURCE_DIR}/oss/libjudy/src)
 
+if(WITH_ROCKSDB_KV)
+include_directories (${CMAKE_SOURCE_DIR}/oss/rocksdb/include)
+endif(WITH_ROCKSDB_KV)
+
+include_directories (${CMAKE_SOURCE_DIR}/core/net/)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/utils)
+include_directories (${CMAKE_SOURCE_DIR}/core/block_allocator/bitmap_allocator)
+include_directories (${CMAKE_SOURCE_DIR}/utils)
 
 option(WITH_KV_STATS "Enable KV Stats library" OFF)
 option(WITH_KV_LOG   "Enable KV Logging" OFF)
@@ -385,19 +504,47 @@ else()
 set(OSS_CFLAGS -g -std=gnu++11 -MMD -MP -D_FILE_OFFSET_BITS=64 -fPIC -fpermissive -Wwrite-strings -march=native)
 endif()
 
+SET(DSS_FILES
+    ${FW_SOURCES}
+    ${FW_HEADERS}
+    ${RDD_SOURCES}
+    ${RDD_HEADERS}
+    ${ITER_SOURCES}
+    ${ITER_HEADERS}
+    ${WAL_SOURCES}
+    ${WAL_HEADERS}
+    ${FUSE_SOURCES}
+    ${FUSE_HEADERS}
+    ${QOS_SOURCES}
+    ${QOS_HEADERS}
+    ${KD_SOURCES}
+    ${KD_HEADERS}
+    ${BLK_ALLOC_SOURCES}
+    ${BLK_ALLOC_HEADERS}
+    ${IO_TASK_SOURCES}
+    ${IO_TASK_HEADERS}
+    ${NETWORK_SOURCES}
+    ${NETWORK_HEADERS}
+    ${UTIL_SOURCES}
+    ${KVTRANS_SOURCES}
+    ${KVTRANS_HEADERS}
+)
 
-add_library(oss STATIC ${FW_SOURCES} ${FW_HEADERS} ${RDD_SOURCES} ${RDD_HEADERS} ${ITER_SOURCES} ${ITER_HEADERS} ${WAL_SOURCES} ${WAL_HEADERS} ${FUSE_SOURCES} ${FUSE_HEADERS} ${QOS_SOURCES} ${QOS_HEADERS} ${KD_SOURCES} ${KD_HEADERS})
+add_library(oss STATIC ${DSS_FILES})
 target_link_libraries (oss ${OSS_LIBS})
 target_compile_options(oss PRIVATE ${OSS_CFLAGS})
 add_dependencies(oss spdk_tcp_configure)
 add_dependencies(oss GenConfig)
+
+if(WITH_ROCKSDB_KV)
+target_compile_definitions(oss PRIVATE -DDSS_ENABLE_ROCKSDB_KV)
+endif(WITH_ROCKSDB_KV)
 
 add_custom_command(
         TARGET oss POST_BUILD
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
         COMMAND cp liboss.a ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/lib
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/liboss.a ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/lib/libspdk_oss.a
         COMMAND export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CMAKE_BINARY_DIR}/nkv-target/lib
 )
 
@@ -417,13 +564,17 @@ ADD_CUSTOM_TARGET(spdk_tcp_configure
 )
 endif()
 
+if(WITH_ROCKSDB_KV)
+set(SPDK_CONFIG_ENABLE_ROCKSDB_KV "CONFIG_DSS_ROCKSDB_KV=y")
+endif(WITH_ROCKSDB_KV)
+
 if(WITH_DSS_JUDY_LISTING)
 
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16
-  COMMAND make -C test/blobfs/mkfs
+  COMMAND make V=2 ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make -C test/blobfs/mkfs ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
   DEPENDS oss
@@ -440,8 +591,8 @@ set(DSS_RDB_OSS_EXTRACXXFLAGS EXTRA_CXXFLAGS=-DDSS_OPEN_SOURCE_RELEASE)
 ADD_CUSTOM_TARGET(spdk_tcp
   COMMENT "Building SPDK with NVMEoTCP Support"
   WORKING_DIRECTORY oss/spdk_tcp
-  COMMAND make V=2 -j16 CONFIG_DSS_OSS=y
-  COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y
+  COMMAND make V=2 CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
+  COMMAND make -C test/blobfs/mkfs CONFIG_DSS_OSS=y ${SPDK_CONFIG_ENABLE_ROCKSDB_KV}
   DEPENDS dssd
   DEPENDS spdk_tcp_configure
   DEPENDS oss
@@ -468,7 +619,6 @@ add_custom_command(
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include
         COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/include/spdk
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/build/bin/nvmf_tgt ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/setup.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/common.sh ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
         COMMAND cp -r ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/scripts/rpc/ ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/scripts/
@@ -478,15 +628,36 @@ add_custom_command(
         COMMAND cp ${CMAKE_SOURCE_DIR}/dss_target.py ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/dssd/cmd/ustat/ustat ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
         COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
 )
 
+if(WITH_ROCKSDB_KV)
+
+ADD_CUSTOM_TARGET(package_tgt_tgz ALL
+  COMMENT "Creating dss target package"
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/oss/spdk_tcp/test/blobfs/mkfs/mkfs ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/mkfs_blobfs
+  COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
+  DEPENDS spdk_tcp
+)
+
+else(WITH_ROCKSDB_KV)
+
+ADD_CUSTOM_TARGET(package_tgt_tgz ALL
+  COMMENT "Creating dss target package"
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/core/kvtrans/formatter/dss_formatter ${CMAKE_CURRENT_BINARY_DIR}/nkv-target/bin/
+  COMMAND tar cvzf nkv-target-${DSS_VER}.tgz nkv-target
+  DEPENDS dss_formatter
+)
+
+endif(WITH_ROCKSDB_KV)
+
+if(WITH_ROCKSDB_KV)
 ADD_CUSTOM_TARGET(rocksdb
   COMMENT "Building rocksdb async"
   WORKING_DIRECTORY oss/rocksdb
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 db_bench SPDK_DIR=../spdk_tcp/
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make db_bench SPDK_DIR=../spdk_tcp/
   DEPENDS spdk_tcp
 )
+endif(WITH_ROCKSDB_KV)
 
 if(WITH_DSS_JUDY_LISTING)
 
@@ -511,7 +682,13 @@ add_library(dss_hsl STATIC	utils/dss_list_tree.c
 							utils/crc32.cc
 							utils/dss_keygen.c)
 target_link_libraries(dss_hsl -ljudyL)
+
+if(WITH_ROCKSDB_KV)
 target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/rocksdb/include -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
+else()
+target_compile_options(dss_hsl PRIVATE -g -I${CMAKE_SOURCE_DIR}/core/inc -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/)
+endif()
+
 add_dependencies(dss_hsl judyL)
 
 add_custom_command(
@@ -534,12 +711,13 @@ ADD_CUSTOM_TARGET(test_hsl
 
 endif(WITH_DSS_JUDY_LISTING)
 
+if(WITH_ROCKSDB_KV)
 if(BUILD_MODE_DEBUG)
 ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DEBUG_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND DEBUG_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 elseif(BUILD_MODE_RELEASE)
@@ -547,7 +725,7 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND RELEASE_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND RELEASE_MODE_BUILD=1 DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 else()
@@ -555,12 +733,55 @@ ADD_CUSTOM_TARGET(rocksdb_lib
   COMMENT "Building rocksdb async static library"
   WORKING_DIRECTORY oss/rocksdb
   COMMAND make clean SPDK_DIR=../spdk_tcp
-  COMMAND DISABLE_WARNING_AS_ERROR=1 make -j16 static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
+  COMMAND DISABLE_WARNING_AS_ERROR=1 make static_lib SPDK_DIR=../spdk_tcp/ -I../../core/iter/inc/ ${DSS_RDB_OSS_EXTRACXXFLAGS}
   DEPENDS spdk_tcp_configure
 )
 endif()
+else(WITH_ROCKSDB_KV)
+ADD_CUSTOM_TARGET(rocksdb_lib
+  COMMENT "Not building rocksdb - Disabled"
+  COMMAND echo "option WITH_ROCKSDB_KV not set"
+)
+endif(WITH_ROCKSDB_KV)
 
+add_library(judy_hashmap STATIC core/block_allocator/utils/judy_hashmap_impl.cc)
+add_definitions(-DJUDYERROR_NOTEST=y)
+target_link_libraries(judy_hashmap -ljudyL)
+target_compile_options(judy_hashmap PRIVATE -g -I${CMAKE_SOURCE_DIR}/oss/libjudy/src -I${CMAKE_SOURCE_DIR}/include/ -std=gnu++11)
+add_dependencies(judy_hashmap judyL)
 
 add_test(NAME dss_lock_service_ut COMMAND dss_lock_service_ut)
 
+add_test(NAME dss_simbmap_allocator_ut COMMAND dss_simbmap_allocator_ut)
+set_property(TEST dss_simbmap_allocator_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
+add_test(NAME test_bitmap_impl COMMAND test_bitmap_impl)
+set_property(TEST test_bitmap_impl
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+add_test(NAME dss_item_cache_ut COMMAND dss_item_cache_ut)
+add_test(NAME dss_mallocator_ut COMMAND dss_mallocator_ut)
+add_test(NAME dss_io_task_ut COMMAND dss_io_task_ut)
+
+add_test(NAME test_judy_hashmap_impl COMMAND test_judy_hashmap_impl)
+set_property(TEST test_judy_hashmap_impl
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+add_test(NAME test_seek_optimization_impl COMMAND test_seek_optimization_impl)
+set_property(TEST test_seek_optimization_impl
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+add_test(NAME test_io_task_orderer_impl COMMAND test_io_task_orderer_impl)
+set_property(TEST test_io_task_orderer_impl
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
+add_test(NAME test_block_allocator_ut COMMAND test_block_allocator_ut)
+set_property(TEST test_block_allocator_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
+add_test(NAME dss_kvtrans_ut COMMAND dss_kvtrans_ut)
+set_property(TEST dss_kvtrans_ut
+             PROPERTY ENVIRONMENT LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
+add_test(NAME dss_kvtrans_utils_ut COMMAND dss_kvtrans_utils_ut)
+
 enable_testing()
+

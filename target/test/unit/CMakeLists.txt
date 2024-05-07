@@ -33,6 +33,7 @@
 include_directories (${CMAKE_SOURCE_DIR})
 add_definitions(-DDSS_BUILD_CUNIT_TEST=y)
 
-set(UNIT_LIBS cunit)
+set(UNIT_LIBS cunit cppunit)
 
 add_subdirectory(core)
+add_subdirectory(utils)

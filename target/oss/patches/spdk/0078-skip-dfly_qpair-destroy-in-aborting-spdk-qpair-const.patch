@@ -1,0 +1,58 @@
+From 8f15879332b339baa968be25987484397103960d Mon Sep 17 00:00:00 2001
+From: Danlin Jia <dan.jia@samsung.com>
+Date: Tue, 19 Mar 2024 17:29:26 -0700
+Subject: [PATCH 78/78] decouple poll group deinit with dfly modules
+
+---
+ include/spdk/nvmf_transport.h |  1 +
+ lib/nvmf/rdma.c               | 13 ++-----------
+ 2 files changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/include/spdk/nvmf_transport.h b/include/spdk/nvmf_transport.h
+index ecb07e6..41dfd76 100644
+--- a/include/spdk/nvmf_transport.h
++++ b/include/spdk/nvmf_transport.h
+@@ -131,6 +131,7 @@ struct spdk_nvmf_qpair {
+ 
+ //SPDK_CONFIG_DSS_TARGET
+     struct dfly_qpair_s     *dqpair;
++	char cpu_group_name[64];
+ //END - SPDK_CONFIG_DSS_TARGET
+ 
+ 	struct spdk_nvmf_request		*first_fused_req;
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 23bdbc2..7bd2e19 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -726,19 +726,9 @@ static int dfly_nvmf_rdma_qpair_init(struct spdk_nvmf_rdma_qpair *rqpair)
+ static int dfly_nvmf_rdma_qpair_destroy(struct spdk_nvmf_rdma_qpair *rqpair)
+ {
+ 	//TODO: only for subsytem with oss_target _enabled
+-    char *cpu_group_name = NULL;
+-
+-    cpu_group_name = dss_net_module_get_name(rqpair->qpair.dqpair->listen_addr);
+-    if(!cpu_group_name) {
+-        //Use IP for backward compatability
+-        cpu_group_name = rqpair->qpair.dqpair->listen_addr;
+-    }
+-    DFLY_ASSERT(cpu_group_name);
+-
+-
+ 	if(rqpair->qpair.dqpair) {
+ 		if(rqpair->qpair.qid != 0) {
+-			dfly_put_core(cpu_group_name, spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
++			dfly_put_core(rqpair->qpair.cpu_group_name, spdk_env_get_current_core(), rqpair->qpair.dqpair->peer_addr);
+ 		}
+ 		dfly_qpair_destroy(rqpair->qpair.dqpair);
+ 	}
+@@ -800,6 +790,7 @@ dfly_rdma_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
+         }
+         DFLY_ASSERT(cpu_group_name);
+         core = dfly_get_next_core(cpu_group_name, g_dragonfly->num_nw_threads, trid.traddr, peer_trid.traddr);
++		strcpy(&qpair->cpu_group_name, cpu_group_name);
+     }
+ 
+ 	TAILQ_FOREACH(pg, &rtransport->poll_groups, link) {
+-- 
+1.8.3.1
+

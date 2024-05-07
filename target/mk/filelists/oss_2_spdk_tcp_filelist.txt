@@ -29,6 +29,12 @@ configure_file(../../core/inc/murmurhash3.h ../../oss/spdk_tcp/include/oss/murmu
 configure_file(../../core/inc/uthash.h ../../oss/spdk_tcp/include/oss/uthash.h COPYONLY)
 configure_file(../../core/inc/rdd_api.h ../../oss/spdk_tcp/include/oss/rdd_api.h COPYONLY)
 configure_file(../../core/rdd/rdd.h ../../oss/spdk_tcp/include/oss/rdd.h COPYONLY)
+configure_file(../../include/dss_spdk_wrapper.h ../../oss/spdk_tcp/include/oss/dss_spdk_wrapper.h COPYONLY)
+configure_file(../../include/dss_spdk_trace.h ../../oss/spdk_tcp/include/oss/dss_spdk_trace.h COPYONLY)
+configure_file(../../core/inc/dss.h ../../oss/spdk_tcp/include/oss/dss.h COPYONLY)
+configure_file(../../include/apis/dss_module_apis.h ../../oss/spdk_tcp/include/oss/apis/dss_module_apis.h COPYONLY)
+configure_file(../../include/apis/dss_io_task_apis.h ../../oss/spdk_tcp/include/oss/apis/dss_io_task_apis.h COPYONLY)
+configure_file(../../include/apis/dss_net_module.h ../../oss/spdk_tcp/include/oss/apis/dss_net_module.h COPYONLY)
 configure_file(../../include/utils/dss_ref.h ../../oss/spdk_tcp/include/oss/utils/dss_ref.h COPYONLY)
 
 configure_file(../../core/framework/src/nvme_samsung_kv_cmd.c ../../oss/spdk_tcp/lib/nvme/nvme_samsung_kv_cmd.c COPYONLY)
