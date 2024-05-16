@@ -107,9 +107,9 @@ public:
      * in a given cell of the bitmap. This behaves like a get operation
      * @ return a n-bit value inside the cell represented by uint8_t
      */
-    uint8_t operator[](int index) const {
-        int byte_index = index / cells_per_qword_;
-        int shift = (index % cells_per_qword_) * bits_per_cell_;
+    uint8_t operator[](uint64_t index) const {
+        uint64_t byte_index = index / cells_per_qword_;
+        uint64_t shift = (index % cells_per_qword_) * bits_per_cell_;
         return (data_[byte_index] >> shift) & read_cell_flag_;
     }
 
