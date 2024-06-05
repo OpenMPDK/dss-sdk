@@ -238,16 +238,25 @@ def install_kernel_driver(align):
 
     # Check if the kernel modules were built
     kernel_modules = ["nvme-core.ko", "nvme-fabrics.ko", "nvme-tcp.ko", "nvme-rdma.ko"]
-    for module in kernel_modules:
-        if not os.path.exists(module):
-            os.chdir(cwd)
-            raise IOError("File not found: " + os.path.join(os.getcwd(), module) + ", did you forget to run config_driver?")
+    if not integrated_driver:
+        for module in kernel_modules:
+            if not os.path.exists(module):
+                os.chdir(cwd)
+                raise IOError("File not found: " + os.path.join(os.getcwd(), module) + ", did you forget to run config_driver?")
 
     disconnect_cmd = "nvme disconnect-all"
-    rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics nvme nvme-core"
+    rmmod = "modprobe -r nvme-tcp nvme-rdma nvme-fabrics"
+    # Append nvme and nvme-core if not integrated kernel driver
+    if not integrated_driver:
+        rmmod += " nvme nvme-core"
     # rmmod = "rmmod nvme; rmmod nvme-tcp; rmmod nvme-rdma; rmmod nvme-fabrics; rmmod nvme-core;"
-    insmod = "insmod ./nvme-core.ko mem_align=%d io_timeout=300 admin_timeout=300; insmod ./nvme-fabrics.ko; \
+
+    # Use insmod if not integrated kernel driver
+    if not integrated_driver:
+        insmod = "insmod ./nvme-core.ko mem_align=%d io_timeout=300 admin_timeout=300; insmod ./nvme-fabrics.ko; \
             insmod ./nvme-tcp.ko; insmod ./nvme-rdma.ko" % (align)
+    else:
+        insmod = "modprobe nvme-fabrics nvme-tcp nvme-rdma"
 
     ret, do, err = exec_cmd(disconnect_cmd)
     if ret != 0:
@@ -445,13 +454,14 @@ def subnet_drive_map():
         for dev in subsys["Paths"]:
             name = '/dev/' + dev["Name"] + 'n1'
             transport = dev["Transport"]
-            addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
-            subnet = getSubnet(addr)
+            if transport == "rdma":
+                addr = re.search(r"traddr=(\S+)", dev["Address"]).group(1)
+                subnet = getSubnet(addr)
 
-            if subnet not in subnet_device_map:
-                subnet_device_map[subnet] = []
-            subnet_device_map[subnet].append(name)
-            addrs.append(addr)
+                if subnet not in subnet_device_map:
+                    subnet_device_map[subnet] = []
+                subnet_device_map[subnet].append(name)
+                addrs.append(addr)
 
     # We have IP octets now. Get interface and numa information for that octet.
     for octet in subnet_device_map.keys():
@@ -1058,10 +1068,12 @@ The most commonly used dss target commands are:
         exec_cmd("rmmod nvme_tcp")
         exec_cmd("rmmod nvme_rdma")
         exec_cmd("rmmod nvme_fabrics")
-        exec_cmd("rmmod nvme")
-        exec_cmd("rmmod nvme_core")
-        # Load stock nvme driver
-        exec_cmd("modprobe nvme")
+        # Only rmmod if not integrated kernel driver
+        if not integrated_driver:
+            exec_cmd("rmmod nvme")
+            exec_cmd("rmmod nvme_core")
+            # Load stock nvme driver
+            exec_cmd("modprobe nvme")
 
 
 if __name__ == '__main__':
@@ -1070,6 +1082,10 @@ if __name__ == '__main__':
 
     # reload(sys)
     # sys.setdefaultencoding('utf8')
+
+    # Set global bool for integrated kernel driver
+    global integrated_driver
+    integrated_driver = os.getenv('INTEGRATED_DRIVER', 'False').lower() == 'true'
 
     g_path = os.getcwd()
     print("Make sure this script is executed from nkv-sdk/bin diretory, running command under path:%s" % (g_path))
