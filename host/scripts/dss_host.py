@@ -429,9 +429,11 @@ def mountpt_to_nqn_addr_map():
         nqn = subsystems[i]["NQN"]
         for path in subsystems[i + 1]["Paths"]:
             mount_point = '/dev/' + path["Name"] + 'n1'
-            addr = re.search(r"traddr=(\S+)", path["Address"]).group(1)
-            mountpts_to_nqn_addr_map[mount_point]["nqn"] = nqn
-            mountpts_to_nqn_addr_map[mount_point]["addr"] = addr
+            transport = path["Transport"]
+            if transport == "rdma":
+                addr = re.search(r"traddr=(\S+)", path["Address"]).group(1)
+                mountpts_to_nqn_addr_map[mount_point]["nqn"] = nqn
+                mountpts_to_nqn_addr_map[mount_point]["addr"] = addr
     return mountpts_to_nqn_addr_map
 
 
