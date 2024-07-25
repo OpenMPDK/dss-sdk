@@ -22,6 +22,7 @@ install_build_deps() {
     BUILD_DEPS+=('git')
     BUILD_DEPS+=('libaio-dev')
     BUILD_DEPS+=('libboost-dev')
+    BUILD_DEPS+=('libboost-filesystem-dev')
     BUILD_DEPS+=('libc6-dev')
     BUILD_DEPS+=('libcppunit-dev')
     BUILD_DEPS+=('libcunit1-dev')
