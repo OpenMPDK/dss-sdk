@@ -36,7 +36,6 @@ define_build_deps() {
     BUILD_DEPS+=('python3-devel')
     BUILD_DEPS+=('python3-pip')
     BUILD_DEPS+=('rdma-core-devel')
-    # BUILD_DEPS+=('redhat-lsb')
     BUILD_DEPS+=('rpm-build')
     BUILD_DEPS+=('snappy-devel')
     BUILD_DEPS+=('tbb-devel')
@@ -69,7 +68,7 @@ install_packages() {
     fi
 
     # Optimizations for Docker build
-    if [[ -f /.dockerenv ]]
+    if [[ $DOCKER ]]
     then
         if [[ $INSTALLER_BIN != 'yum' ]]
         then
@@ -87,7 +86,7 @@ install_packages() {
 define_build_deps
 
 # Farther cleanup if Docker environment
-if [[ -f /.dockerenv ]]
+if [[ $DOCKER ]]
 then
     CLEANUP_STRING="$INSTALLER_BIN clean all"
     echo "executing command: $CLEANUP_STRING"

@@ -88,7 +88,7 @@ package_manager() {
     fi
 
     # Optimizations for Docker build
-    if [[ -f /.dockerenv ]]
+    if [[ $DOCKER ]]
     then
         if [[ $INSTALLER_BIN != 'yum' ]]
         then

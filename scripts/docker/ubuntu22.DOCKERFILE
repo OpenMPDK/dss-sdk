@@ -1,4 +1,4 @@
-FROM rockylinux:9-minimal
+FROM ubuntu:22.04
 
 ADD scripts/dependencies /dependencies
 RUN set -eux \

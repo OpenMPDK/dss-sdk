@@ -14,7 +14,7 @@ PIP_ARGS+=("-r")
 PIP_ARGS+=("$REQUIREMENTS")
 
 # Optimizations for Docker build
-if [[ -f /.dockerenv ]]
+if [[ $DOCKER ]]
 then
     PIP_ARGS+=("--no-cache-dir")
 fi
@@ -38,7 +38,7 @@ do
 done
 
 # Set git safe.directory globally if docker
-if [[ -f /.dockerenv ]]
+if [[ $DOCKER ]]
 then
     git config --global --add safe.directory '*'
 fi
