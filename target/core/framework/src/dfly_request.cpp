@@ -35,6 +35,8 @@
 #include "dragonfly.h"
 #include "nvmf_internal.h"
 #include <map>
+#include "boost/cstdint.hpp"
+#include <string>
 
 void dss_req_set_from_nvme_cmd(struct dfly_request *req)
 {
