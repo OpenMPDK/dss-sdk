@@ -18,6 +18,7 @@ The build scripts and README.md for them are located in the [scripts](scripts) d
 - CentOS 7.8
 - Rockylinux 8
 - Rockylinux 9
+- Ubuntu 22.04
 
 ### Build Dependencies
 
