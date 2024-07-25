@@ -4,15 +4,19 @@ set -e
 # Build Dependencies
 install_build_deps() {
     
-    # Install dnf and epel-release - must be installed first
-    BUILD_DEPS=('dnf')
+    # Install epel-release - must be installed first
+    BUILD_DEPS=()
+    # Install dnf if OS is rocky
+    if [[ $ID == 'rocky' ]]; then BUILD_DEPS+=('dnf'); fi
     BUILD_DEPS+=('epel-release')
     package_manager 'install'
 
-    # Install / Enable CRB (PowerTools)
-    BUILD_DEPS=("'dnf-command(config-manager)'")
-    package_manager 'install'
-    crb enable
+    # Install / Enable CRB (PowerTools) on Rockylinux
+    if [[ $ID == 'rocky' ]]; then
+        BUILD_DEPS=("'dnf-command(config-manager)'")
+        package_manager 'install'
+        crb enable
+    fi
 
     # Install and enable mariadb-devel module on Rocky8 only (needed for Judy-devel)
     if [[ $ROCKY_SUPPORT_PRODUCT == "Rocky-Linux-8" ]]
@@ -23,7 +27,8 @@ install_build_deps() {
     fi
 
     # Build dependencies
-    BUILD_DEPS=('bc')
+    BUILD_DEPS=()
+    BUILD_DEPS+=('bc')
     BUILD_DEPS+=('bison')
     BUILD_DEPS+=('boost-devel')
     BUILD_DEPS+=('check')
@@ -45,12 +50,12 @@ install_build_deps() {
     BUILD_DEPS+=('libaio-devel')
     BUILD_DEPS+=('libcurl-devel')
     BUILD_DEPS+=('libuuid-devel')
+    BUILD_DEPS+=('make')
     BUILD_DEPS+=('meson')
     BUILD_DEPS+=('ncurses-devel')
     BUILD_DEPS+=('numactl-devel')
     BUILD_DEPS+=('openssl-devel')
     BUILD_DEPS+=('pulseaudio-libs-devel')
-    BUILD_DEPS+=('python3')
     BUILD_DEPS+=('python3-devel')
     BUILD_DEPS+=('python3-pip')
     BUILD_DEPS+=('rdma-core-devel')
