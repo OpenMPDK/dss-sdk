@@ -2,28 +2,55 @@
 
 dss-sdk is a sub-component of the larger project, [DSS](https://github.com/OpenMPDK/DSS).
 
-## Major Components
+## Major components
 
 - The target component is located under the [target](target) directory.
 - The host component is located under the [host](host) directory.
 
-## Build Scripts
-
-The build scripts and README.md for them are located in the [scripts](scripts) directory.
-
 ## Dependencies
 
-### Supported Operating Systems
+### Supported operating systems
+
+dss-sdk target and host can be built using one of the following:
 
 - CentOS 7.8
 - Rockylinux 8
 - Rockylinux 9
 - Ubuntu 22.04
 
-### Build Dependencies
+### Install build dependencies
 
 ```bash
 sudo ./scripts/dependencies/install.sh
+```
+
+### Build dss-sdk
+
+Prior to building dss-sdk, ensure that you have checked-out submodules:
+
+```bash
+git clone https://github.com/OpenMPDK/dss-sdk
+git submodule update --init --recursive
+```
+
+#### Build dss-sdk target
+
+```bash
+./scripts/build_target.sh
+```
+
+#### Build dss-sdk host
+
+note: dss-sdk target must be built prior to building host.
+
+```bash
+./scripts/build_host.sh kdd-samsung-remote
+```
+
+#### Build dss-sdk all (target + host)
+
+```bash
+./scripts/build_all.sh kdd-samsung-remote
 ```
 
 ## Contributing
