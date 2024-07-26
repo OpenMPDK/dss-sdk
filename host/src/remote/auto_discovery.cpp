@@ -211,7 +211,7 @@ bool nvme_disconnect(std::string subsystem_nqn)
  */
 void read_file(const std::string& file_path, int32_t start_line, int32_t line_to_read, std::vector<std::string>& lines)
 {
-  ifstream fh (file_path);
+  std::ifstream fh (file_path);
   int32_t index = 1;
   try{
     if (fh.is_open()) {
