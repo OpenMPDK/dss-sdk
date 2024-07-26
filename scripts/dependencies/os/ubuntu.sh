@@ -6,11 +6,11 @@ export TZ=Etc/UTC
 
 # Build Dependencies
 install_build_deps() {
-    BUILD_DEPS=('')
+    BUILD_DEPS=()
     package_manager 'update'
 
     # Build dependencies
-    BUILD_DEPS=('bc')
+    BUILD_DEPS+=('bc')
     BUILD_DEPS+=('bison')
     BUILD_DEPS+=('check')
     BUILD_DEPS+=('cmake')
