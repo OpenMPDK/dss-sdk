@@ -20,14 +20,16 @@ phases:
       - sed -i -r "s|/codebuild/output/src[^/]+/src/github.com/OpenMPDK/dss-sdk|$CODEBUILD_SRC_DIR|g" bw-output/compile_commands.json
       # Download the latest sonar-scanner
       - rm -rf /sonar-scanner*
-      - wget --no-verbose --content-disposition -E -c "https://search.maven.org/remote_content?g=org.sonarsource.scanner.cli&a=sonar-scanner-cli&v=LATEST&c=linux&e=zip"
-      - unzip -q sonar-scanner-cli-*.zip -d /
-      - rm -f sonar-scanner-cli*.zip
+      - export SONAR_SCANNER_FILENAME="${SONAR_SCANNER_URL##*/}"
+      - export SONAR_SCANNER_DIR="${SONAR_SCANNER_FILENAME%.*}"
+      - wget --no-verbose --content-disposition -E -c "$SONAR_SCANNER_URL"
+      - unzip -q "$SONAR_SCANNER_FILENAME" -d /
+      - rm -f "$SONAR_SCANNER_FILENAME"
   build:
     commands:
       # Run sonar-scanner and ingest coverage report(s)
       - |
-        /sonar-scanner-*-linux/bin/sonar-scanner \
+        /$SONAR_SCANNER_DIR/bin/sonar-scanner \
           -Dsonar.branch.name="$([[ "$GITHUB_REF_NAME" != *"/merge" ]] && echo "$GITHUB_REF_NAME")" \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.pullrequest.github.summary_comment=true \
