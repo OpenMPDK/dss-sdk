@@ -29,6 +29,12 @@ sudo ./scripts/dependencies/install.sh
 Prior to building dss-sdk, ensure that you have checked-out submodules:
 
 ```bash
+git clone --recurse-submodules https://github.com/OpenMPDK/dss-sdk
+```
+
+Alternatively:
+
+```bash
 git clone https://github.com/OpenMPDK/dss-sdk
 git submodule update --init --recursive
 ```
@@ -51,6 +57,43 @@ note: dss-sdk target must be built prior to building host.
 
 ```bash
 ./scripts/build_all.sh kdd-samsung-remote
+```
+
+### Build dss-sdk with docker
+
+Required: [Install Docker Engine](https://docs.docker.com/engine/install/) in your development environment.
+
+dss-sdk can be built with any of the below docker base images:
+
+- centos:centos7.8.2003
+- rockylinux:8-minimal
+- rockylinux:9-minimal
+- ubuntu:22.04
+
+#### Build with base image
+
+Example build using Ubuntu 22 base image:
+
+```bash
+docker run -w /${PWD##*/} -i -t --rm -v "$(pwd)":/${PWD##*/} ubuntu:22.04 /bin/bash
+./scripts/dependencies/install.sh
+./scripts/build_all.sh kdd-samsung-remote
+```
+
+#### Create a dss-sdk build image from dockerfile
+
+Alternatively, you can build [one of the dockerfiles in scripts/docker](scripts/docker) to create an image with the build dependencies:
+
+```bash
+docker build -t dss-sdk:ubuntu22-master -f scripts/docker/ubuntu22.DOCKERFILE .
+```
+
+#### Build dss-sdk from dockerfile image
+
+To build with the `dss-sdk:ubuntu22-master` image you have built, [as described above](#Create-a-dss-sdk-build-image-from-dockerfile):
+
+```bash
+docker run -w /${PWD##*/} -i -t --rm -v "$(pwd)":/${PWD##*/} dss-sdk:ubunu22-master ./scripts/build_all.sh kdd-samsung-remote
 ```
 
 ## Contributing
