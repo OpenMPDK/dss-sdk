@@ -75,7 +75,7 @@ dss-sdk can be built with any of the below docker base images:
 Example build using Ubuntu 22 base image:
 
 ```bash
-docker run -w /${PWD##*/} -i -t --rm -v "$(pwd)":/${PWD##*/} ubuntu:22.04 /bin/bash
+docker run -w /dss-sdk -i -t --rm -v "$(pwd)":/dss-sdk ubuntu:22.04 /bin/bash
 ./scripts/dependencies/install.sh
 ./scripts/build_all.sh kdd-samsung-remote
 ```
@@ -93,7 +93,7 @@ docker build -t dss-sdk:ubuntu22-master -f scripts/docker/ubuntu22.DOCKERFILE .
 To build with the `dss-sdk:ubuntu22-master` image you have built, [as described above](#Create-a-dss-sdk-build-image-from-dockerfile):
 
 ```bash
-docker run -w /${PWD##*/} -i -t --rm -v "$(pwd)":/${PWD##*/} dss-sdk:ubunu22-master ./scripts/build_all.sh kdd-samsung-remote
+docker run -i -t --rm -v "$(pwd)":/dss-sdk dss-sdk:ubunu22-master ./scripts/build_all.sh kdd-samsung-remote
 ```
 
 ## Contributing

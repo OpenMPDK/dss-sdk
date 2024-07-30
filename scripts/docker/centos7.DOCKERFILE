@@ -6,3 +6,4 @@ RUN set -eux \
     && sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo \
     && DOCKER=true /dependencies/install.sh \
     && rm -rf /dependencies
+WORKDIR /dss-sdk
