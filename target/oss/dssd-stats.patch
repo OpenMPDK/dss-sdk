@@ -55,7 +55,7 @@ index a3e097f..ab04137 100644
  		if (iter_c != 0 && iter_i > 0)
  			(void) poll(NULL, 0, iter_i * 1000);
 diff --git a/lib/Makefile b/lib/Makefile
-index c69c3bd..f2b8a82 100644
+index c69c3bd..7b9b494 100644
 --- a/lib/Makefile
 +++ b/lib/Makefile
 @@ -15,14 +15,38 @@
@@ -79,8 +79,8 @@ index c69c3bd..f2b8a82 100644
 +        libvmem \
 +        libbson \
 +        libustat \
-+        libutrace \
-+        libucore
++        libutrace
++        #libucore
 +#       libvmem_malloc
 +
 +OBJDIR := ./objs

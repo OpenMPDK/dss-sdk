@@ -32,6 +32,8 @@
  */
 
 #include <unordered_map>
+#include "boost/cstdint.hpp"
+#include <string>
 
 #ifndef DSS_BUILD_CUNIT_TEST
 # include "dragonfly.h"

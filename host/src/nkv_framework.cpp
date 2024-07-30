@@ -821,7 +821,7 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
           memcpy(c_buffer, n_value->value, n_value->length);
           nkv_value_wrapper nkvvalue (c_buffer, n_value->length, n_value->length);
           std::lock_guard<std::mutex> lck (lru_lock);
-          cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+          cnt_cache[shard_id]->put(key_str, std::move(nkvvalue));
         }
       }
     }
@@ -969,7 +969,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
         std::size_t key_prefix = std::hash<std::string>{}(key_str);
         shard_id = key_prefix % nkv_read_cache_shard_size;
         std::lock_guard<std::mutex> lck (lru_lock);
-        const nkv_value_wrapper& nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
+        const nkv_value_wrapper& nkvvalue = cnt_cache[shard_id]->get(key_str, cache_hit);
         //nkv_value_wrapper nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
         //nkv_value_wrapper* nkvvalue = cnt_cache[shard_id].get(key_str, cache_hit);
         if (cache_hit) {
@@ -1058,7 +1058,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
               //nkv_value_wrapper* nkvvalue = new nkv_value_wrapper(NULL, 0, 0);
               smg_info(logger, "Cache put non-existence, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
               std::lock_guard<std::mutex> lck (lru_lock);
-              cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+              cnt_cache[shard_id]->put(key_str, std::move(nkvvalue));
               //cnt_cache[shard_id].put(key_str, nkvvalue);
             }
           }
@@ -1115,7 +1115,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
           nkv_value_wrapper nkvvalue (c_buffer, n_value->actual_length, n_value->actual_length);
           smg_info(logger, "Cache put after get, key = %s, dev_path = %s, ip = %s", key_str.c_str(), dev_path.c_str(), path_ip.c_str());
           std::lock_guard<std::mutex> lck (lru_lock);
-          cnt_cache[shard_id].put(key_str, std::move(nkvvalue));
+          cnt_cache[shard_id]->put(key_str, std::move(nkvvalue));
           //cnt_cache[shard_id].put(key_str, nkvvalue);
         } else {
           smg_warn(logger, "data key = %s, length = %u, dev_path = %s, ip = %s", key_str.c_str(), n_value->actual_length, dev_path.c_str(), path_ip.c_str());
@@ -1458,7 +1458,7 @@ nkv_result NKVTargetPath::do_delete_io_from_path (const nkv_key* n_key, nkv_post
           int32_t shard_id = key_prefix % nkv_read_cache_shard_size;
           bool cache_hit = false;
           std::lock_guard<std::mutex> lck (lru_lock);
-          cnt_cache[shard_id].del(key_str, cache_hit);
+          cnt_cache[shard_id]->del(key_str, cache_hit);
         }
       }
     }
@@ -2218,10 +2218,14 @@ NKVTargetPath::~NKVTargetPath() {
       if (nkv_in_memory_exec) {
         delete[] data_cache;
       }
-      delete[] cnt_cache;
+      //delete[] cnt_cache;
+      for (int i=0; i<cnt_cache.size(); i++) {
+          delete cnt_cache[i];
+      }
+      cnt_cache.clear();
       smg_info(logger, "Cleanup successful for path = %s", dev_path.c_str());
 
-      
+
       if( device_stat) {
         nkv_ustat_delete(device_stat);
       }

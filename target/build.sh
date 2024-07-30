@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source=/dev/null
 # shellcheck disable=SC1090
 #
 # set -o xtrace
@@ -377,10 +378,13 @@ pushd "$BUILD_DIR"
 
     cp -rf "$BUILD_DIR/nkv-target" "$RPM_BUILD_DIR/BUILD/nkv-target/usr/dss/"
 
-    generateSpecFile "$RPM_SPEC_FILE" "$packageName" "$gitVersion"
-    generateRPM "$RPM_SPEC_FILE" "$RPM_BUILD_DIR" || die "ERR: Failed to build RPM"
-
-    cp "$RPM_BUILD_DIR"/RPMS/x86_64/*.rpm "$BUILD_DIR"/
+    # Only build RPM for centos or rocky
+    source /etc/os-release
+    if [[ ( $ID == 'centos' ) || ( $ID == 'rocky' )]]; then
+        generateSpecFile "$RPM_SPEC_FILE" "$packageName" "$gitVersion"
+        generateRPM "$RPM_SPEC_FILE" "$RPM_BUILD_DIR" || die "ERR: Failed to build RPM"
+        cp "$RPM_BUILD_DIR"/RPMS/x86_64/*.rpm "$BUILD_DIR"/
+    fi
 
 popd
 
