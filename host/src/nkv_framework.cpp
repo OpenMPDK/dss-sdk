@@ -646,14 +646,18 @@ nkv_result NKVTargetPath::do_store_io_to_path(const nkv_key* n_key, const nkv_st
     return NKV_ERR_KEY_LENGTH;
   }
 
-  if (!n_value->value) {
+  if (!n_value->value && n_value->length) {
     smg_error(logger, "nkv_value->value = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
  
-  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  //if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  if ((n_value->length > nkv_max_value_length)) {
     smg_error(logger, "Wrong value length, supplied length = %u, max supported = %u !!", n_value->length, nkv_max_value_length);
     return NKV_ERR_VALUE_LENGTH;
+  }
+  if (n_value->length == 0) {
+    n_value->value = NULL;
   }
   if (nkv_dynamic_logging == 2) {
     smg_alert(logger, "NKV store request for key = %s, key_length = %u, value_length = %u, dev_path = %s, ip = %s",
@@ -877,14 +881,20 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
     return NKV_ERR_KEY_LENGTH;
   }
 
-  if (!n_value->value) {
+  if (!n_value->value && n_value->length) {
     smg_error(logger, "nkv_value->value = NULL !!");
     return NKV_ERR_NULL_INPUT;
   }
-  if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  //if ((n_value->length > nkv_max_value_length) || (n_value->length == 0)) {
+  if ((n_value->length > nkv_max_value_length)) {
     smg_error(logger, "Wrong value length, supplied length = %d !!", n_value->length);
     return NKV_ERR_VALUE_LENGTH;
   }
+
+  if (n_value->length == 0) {
+    n_value->value = NULL;
+  }
+
   if (nkv_dynamic_logging == 2) {
     smg_alert(logger, "NKV retrieve request for key = %s, key_length = %u, dev_path = %s, ip = %s",
              (char*) n_key->key, n_key->length, dev_path.c_str(), path_ip.c_str());
@@ -1031,7 +1041,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
       int ret = kvs_retrieve_tuple(path_cont_handle, &kvskey, &kvsvalue, &ret_ctx);
       if(ret != KVS_SUCCESS ) {
         if (ret != KVS_ERR_KEY_NOT_EXIST) {
-          smg_error(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
+          smg_warn(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s", 
                     ret, kvs_errstr(ret), n_key->key, dev_path.c_str(), path_ip.c_str());
         } else {
           smg_info(logger, "Retrieve tuple failed with error 0x%x - %s, key = %s, dev_path = %s, ip = %s",
@@ -1073,7 +1083,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
     n_value->actual_length = kvsvalue.actual_value_size;
     if (n_value->actual_length == 0) {
-      smg_error(logger, "Retrieve tuple Success with actual length = 0, Retrying once !! key = %s, dev_path = %s, ip = %s, passed_length = %u",
+      smg_info(logger, "Retrieve tuple Success with actual length = 0, Retrying once !! key = %s, dev_path = %s, ip = %s, passed_length = %u",
                 n_key->key, dev_path.c_str(), path_ip.c_str(), kvsvalue.length);
 
       kvs_value kvsvalue_retry = { n_value->value, (uint32_t)n_value->length, 0, 0};
@@ -1098,7 +1108,7 @@ nkv_result NKVTargetPath::do_retrieve_io_from_path(const nkv_key* n_key, const n
 
       n_value->actual_length = kvsvalue_retry.actual_value_size;
       if (n_value->actual_length == 0) {
-        smg_error(logger, "Retrieve tuple Success with actual length = 0, done Retrying !! key = %s, dev_path = %s, ip = %s",
+        smg_warn(logger, "Retrieve tuple Success with actual length = 0, done Retrying !! key = %s, dev_path = %s, ip = %s",
                   n_key->key, dev_path.c_str(), path_ip.c_str());
 
       }
