@@ -276,8 +276,8 @@ void Formatter::format_bdev_read_super_complete_cb(
     }
 
     // Free all the super block memory allocated
-    free(read_sb);
-    free(Formatter::written_super_block);
+    spdk_dma_free(read_sb);
+    spdk_dma_free(Formatter::written_super_block);
 
 
     // Try to exit application
@@ -324,8 +324,8 @@ bool Formatter::read_and_print_super_block(
 
     if (rc != 0) {
         assert(("ERROR", false));
-        free(super_block);
-        free(Formatter::written_super_block);
+        spdk_dma_free(super_block);
+        spdk_dma_free(Formatter::written_super_block);
         // return false;
     }
 
@@ -346,7 +346,7 @@ void Formatter::format_bdev_write_super_complete_cb(
         // Assert for now
         assert(("ERROR", false));
         // Free memory allocated for super_block
-        free(Formatter::written_super_block);
+        spdk_dma_free(Formatter::written_super_block);
         // Free payload
         delete payload;
     }
@@ -357,7 +357,7 @@ void Formatter::format_bdev_write_super_complete_cb(
         Formatter::read_and_print_super_block(payload);
     } else {
         // Free memory allocated for super_block
-        free(Formatter::written_super_block);
+        spdk_dma_free(Formatter::written_super_block);
         // Free payload
         delete payload;
         // Check for app stop
@@ -397,7 +397,6 @@ bool Formatter::format_device(bool is_debug) {
 
     int rc = 0;
     int num_blocks = 0;
-    //bool is_debug = true;
 
     // This API assumes that the device is already opened and
     // all relevant details are computed
@@ -412,7 +411,6 @@ bool Formatter::format_device(bool is_debug) {
     cb_payload->bdev_super_block_physical_start_block =
         this->bdev_super_block_physical_start_block_;
     cb_payload->debug = is_debug;
-
 
     // Build and write super block
     dss_super_block_t *super_block =
@@ -456,7 +454,7 @@ bool Formatter::format_device(bool is_debug) {
             cb_payload);
 
     if (rc != 0) {
-        free(super_block);
+        spdk_dma_free(super_block);
         Formatter::written_super_block = nullptr;
         delete cb_payload;
         assert(("ERROR", false));

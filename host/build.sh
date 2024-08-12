@@ -117,18 +117,6 @@ else
   exit 1
 fi
 
-# Install required package dependencies
-for PACKAGE in boost-devel libcurl-devel numactl-devel tbb-devel
-do
-  if [ "$(yum list installed | cut -f1 -d' ' | grep --extended ^${PACKAGE} -c)" -eq 1 ]
-  then
-    echo "${PACKAGE} already installed"
-  else
-    echo "sudo yum install ${PACKAGE}"
-    yum install ${PACKAGE}
-  fi
-done
-
 # Build dss-sdk host
 rm -rf "$OUTDIR"
 mkdir "$OUTDIR"
