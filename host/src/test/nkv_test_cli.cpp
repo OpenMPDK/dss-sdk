@@ -919,14 +919,16 @@ void *iothread(void *args)
     uint32_t klen = targs->klen;
     char* val = NULL;
     
-    if (!targs->alignment) {
-      val   = (char*)nkv_zalloc(targs->vlen);
-      //memset(val, 0, targs->vlen);
-    } else {
-      val   = (char*)aligned_alloc(targs->alignment, targs->vlen);
-      if ((uint64_t)val % targs->alignment != 0) {
-        smg_error(logger, "Non %u Byte Aligned value address = 0x%x", targs->alignment, val);
-        assert(0);
+    if (targs->vlen > 0) {
+      if (!targs->alignment) {
+        val   = (char*)nkv_zalloc(targs->vlen);
+        //memset(val, 0, targs->vlen);
+      } else {
+        val   = (char*)aligned_alloc(targs->alignment, targs->vlen);
+        if ((uint64_t)val % targs->alignment != 0) {
+          smg_error(logger, "Non %u Byte Aligned value address = 0x%x", targs->alignment, val);
+          assert(0);
+        }
       }
     }
     //memset(val, 0, targs->vlen);
@@ -1075,15 +1077,16 @@ void *iothread(void *args)
               nkv_free(meta_val_4);
 
           } else {
-
-            snprintf(val, targs->vlen,  "%0*d", klen, iter);
+            if (targs->vlen > 0) {
+              snprintf(val, targs->vlen,  "%0*d", klen, iter);
+            }
             status = nkv_store_kvp (targs->nkv_handle, &targs->ioctx[iter % targs->ioctx_cnt], &nkvkey, targs->s_option, &nkvvalue);
             if (status != 0) {
               smg_error(logger, "NKV Store KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
               return 0;
             } else {
               smg_info(logger, "NKV Store successful, key = %s", key_name);
-              if (targs->check_integrity) {
+              if (targs->check_integrity && targs->vlen > 0) {
                 unsigned char checksum[MD5_DIGEST_LENGTH];
                 MD5((unsigned char*) val, targs->vlen, checksum);
                 snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter); 
@@ -1104,6 +1107,10 @@ void *iothread(void *args)
 
       case 11: //RDD PUT
         {
+          if (targs->vlen > 0) {
+            snprintf(val, targs->vlen,  "%0*d", klen, iter);
+          }
+
           if (!targs->is_mixed) {
             targs->s_option->nkv_store_rdd = 1;
             struct ibv_mr *mr = rdd_cl_conn_get_mr(targs->rdd_conn_list[iter % targs->ioctx_cnt], val, targs->vlen);
@@ -1117,7 +1124,7 @@ void *iothread(void *args)
                       (char*) nkvkey.key, (char*) nkvvalue.value, val, nkvvalue.length, mr->rkey,
                       rdd_cl_conn_get_qhandle(targs->rdd_conn_list[iter % targs->ioctx_cnt]));
 
-              if (targs->check_integrity) {
+              if (targs->check_integrity && targs->vlen > 0) {
                 unsigned char checksum[MD5_DIGEST_LENGTH];
                 MD5((unsigned char*) val, targs->vlen, checksum);
                 snprintf(key_name, targs->klen, "crc_%s_%d_%u", targs->key_prefix, targs->id, iter);
@@ -1142,6 +1149,11 @@ void *iothread(void *args)
 
       case 7: //chunked PUT
         {
+
+          if (targs->vlen > 0) {
+            snprintf(val, targs->vlen,  "%0*d", klen, iter);
+          }
+
           if (!targs->is_mixed) {
             //val   = (char*)nkv_zalloc(vlen);
             //memset(val, 0, vlen);
@@ -1165,7 +1177,7 @@ void *iothread(void *args)
                 chunk_start += chunk_size;
               }
             }
-            if (targs->check_integrity) {
+            if (targs->check_integrity && targs->vlen > 0) {
               unsigned char checksum[MD5_DIGEST_LENGTH] = {0};
               MD5((unsigned char*) val, targs->vlen, checksum);
               snprintf(key_name, targs->klen, "crc_chunked_put_%s_%d_%u", targs->key_prefix, targs->id, iter);
@@ -1246,7 +1258,7 @@ void *iothread(void *args)
           } else {
             smg_info(logger, "NKV Retrieve successful, key = %s, value = %s, len = %u, got actual length = %u", (char*) nkvkey.key,
                     (char*) nkvvalue.value, nkvvalue.length, nkvvalue.actual_length);
-            if (targs->check_integrity) {
+            if (targs->check_integrity && targs->vlen > 0) {
               unsigned char checksum1[MD5_DIGEST_LENGTH] = {0};
               unsigned char checksum2[MD5_DIGEST_LENGTH] = {0};
               MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
@@ -1294,7 +1306,7 @@ void *iothread(void *args)
               rdd_cl_conn_put_mr(mr);
             }
 
-            if (targs->check_integrity) {
+            if (targs->check_integrity && targs->vlen > 0) {
               unsigned char checksum1[MD5_DIGEST_LENGTH];
               unsigned char checksum2[MD5_DIGEST_LENGTH];
               MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
@@ -1346,7 +1358,7 @@ void *iothread(void *args)
                 chunk_start += chunk_size;
               }
             }
-            if (targs->check_integrity) {
+            if (targs->check_integrity && targs->vlen > 0) {
               unsigned char checksum1[MD5_DIGEST_LENGTH];
               unsigned char checksum2[MD5_DIGEST_LENGTH];
               //MD5((unsigned char*) val, nkvvalue.actual_length, checksum1);
@@ -1889,11 +1901,11 @@ int main(int argc, char *argv[]) {
     usage(argv[0]);
     exit(1);
   }
-  if (klen > vlen) {
+  /*if (klen > vlen) {
     smg_error(logger, "key length can't be greater than value length, not an API restriction but specific to test CLI requirement, sorry..");
     usage(argv[0]);
     exit(1);  
-  }
+  }*/
 
   uint64_t instance_uuid, nkv_handle = 0; 
   nkv_result status = nkv_open(config_path, "nkv_test_cli", host_name_ip, port, &instance_uuid, &nkv_handle);
@@ -2125,15 +2137,20 @@ do {
       klen = strlen (key_to_work);
       key_name = key_to_work;
     }
-    char *val   = (char*)nkv_zalloc(vlen);
-    memset(val, 0, vlen);
+    char *val = NULL;
+    if (vlen > 0) { 
+      char *val   = (char*)nkv_zalloc(vlen);
+      memset(val, 0, vlen);
+    }
     const nkv_key  nkvkey = { (void*)key_name, klen};
     nkv_value nkvvalue = { (void*)val, vlen, 0 };
     
     switch(op_type) {
       case 0: //PUT
         {
-          snprintf(val, vlen, "%0*d", klen, 1980);
+          if (vlen > 0) {
+            snprintf(val, vlen, "%0*d", klen, 1980);
+          }
           
           status = nkv_store_kvp (nkv_handle, &io_ctx[0], &nkvkey, &s_option, &nkvvalue);
           if (status != 0) {
@@ -2146,6 +2163,11 @@ do {
         break;
       case 1: //GET
         {
+
+          if (vlen > 0) {
+            snprintf(val, vlen, "%0*d", klen, 1980);
+          }
+
           status = nkv_retrieve_kvp (nkv_handle, &io_ctx[0], &nkvkey, &r_option, &nkvvalue);
           if (status != 0) {
             smg_error(logger, "NKV Retrieve KVP call failed !!, key = %s, error = %d", (char*) nkvkey.key, status);
@@ -2387,7 +2409,10 @@ do {
 
   smg_info(logger, "num_threads = 0, going without thread creation..");
  
-  char *cmpval   = (char*)nkv_zalloc(vlen);
+  char *cmpval   = NULL;
+  if (vlen > 0) {
+    cmpval = (char*)nkv_zalloc(vlen);
+  }
   char* meta_key_1 = NULL;
   char* meta_key_2 = NULL;
   char* meta_val = NULL;
@@ -2423,10 +2448,13 @@ do {
     switch(op_type) {
       case 0: //PUT
         {
-          val   = (char*)nkv_zalloc(vlen);
-          memset(val, 0, vlen);
+          if (vlen > 0) {
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+            snprintf(val, vlen, "%0*d", klen, iter);
+          }
+
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
-          snprintf(val, vlen, "%0*d", klen, iter);
 
           if (!is_async) {
             status = nkv_store_kvp (nkv_handle, &io_ctx[iter % io_ctx_cnt], &nkvkey, &s_option, &nkvvalue);
@@ -2595,8 +2623,10 @@ do {
         break;
       case 1: //GET
         {
-          val   = (char*)nkv_zalloc(vlen);
-          memset(val, 0, vlen);
+          if (vlen > 0) { 
+            val   = (char*)nkv_zalloc(vlen);
+            memset(val, 0, vlen);
+          }
           nkv_value nkvvalue = { (void*)val, vlen, 0 };
 
           if (!is_async) {

@@ -764,7 +764,7 @@ nkv_result nkv_retrieve_kvp (uint64_t nkv_handle, nkv_io_context* ioctx, const n
     smg_info(logger, "NKV retrieve operation is successful for nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u", 
              nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length);
     if (value->actual_length == 0)
-      smg_error(logger, "NKV retrieve operation returned 0 value length object !!, nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
+      smg_warn(logger, "NKV retrieve operation returned 0 value length object !!, nkv_handle = %u, key = %s, key_length = %u, supplied length = %u, actual length = %u",
                 nkv_handle, key ? (char*)key->key: "NULL", key ? key->length:0, value->length, value->actual_length); 
   }
   return stat;
