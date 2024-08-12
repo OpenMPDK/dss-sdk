@@ -818,11 +818,19 @@ void dss_setup_kvtrans_req(dss_request_t *req, dss_key_t *k, dss_value_t *v)
     switch(req->opc) {
         case DSS_NVMF_KV_IO_OPC_STORE:
             kreq->req.opc = KVTRANS_OPC_STORE;
-            DSS_ASSERT(v->value);
+            if (v->length != 0) {
+                // This check is in place to support
+                // writing zero byte keys
+                DSS_ASSERT(v->value);
+            }
             break;
         case DSS_NVMF_KV_IO_OPC_RETRIEVE:
             kreq->req.opc = KVTRANS_OPC_RETRIEVE;
-            DSS_ASSERT(v->value);
+            if (v->length != 0) {
+                // This check is in place to support
+                // reading zero byte keys
+                DSS_ASSERT(v->value);
+            }
             break;
         case DSS_NVMF_KV_IO_OPC_DELETE:
             kreq->req.opc = KVTRANS_OPC_DELETE;

@@ -1,0 +1,40 @@
+From 0f8a7e7a9b0025e19679cf1a8baace52e0a38e35 Mon Sep 17 00:00:00 2001
+From: Ramachaitanya Kavuluru <r.kavuluru@samsung.com>
+Date: Wed, 7 Aug 2024 20:57:11 -0700
+Subject: [PATCH 79/79] [spdk_tcp/NVMF] Add support for zero byte values
+
+---
+ lib/nvmf/rdma.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/lib/nvmf/rdma.c b/lib/nvmf/rdma.c
+index 7bd2e19..9c55d2f 100644
+--- a/lib/nvmf/rdma.c
++++ b/lib/nvmf/rdma.c
+@@ -2794,8 +2794,11 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 				break;
+ 			}
+ 
+-			if (!rdma_req->req.data) {
++            // Extending the NULL check only for cases when length is not zero
++            // This is done to supporting zero byte values
++			if ((rdma_req->req.data) == NULL && (rdma_req->req.length != 0)) {
+ 				/* No buffers available. */
++                SPDK_DEBUGLOG(SPDK_LOG_RDMA, "No buffers available since data is null\n");
+ 				rgroup->stat.pending_data_buffer++;
+ 				break;
+ 			}
+@@ -2893,7 +2896,9 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
+ 			}
+ 
+ 			rdma_req->state = RDMA_REQUEST_STATE_EXECUTING;
+-			if(rdma_req->req.xfer != SPDK_NVME_DATA_NONE) {
++            // Extending NULL check to occur only when length is not zero
++            // This is done to support zero byte values
++			if((rdma_req->req.xfer != SPDK_NVME_DATA_NONE) && (rdma_req->req.length != 0)) {
+ 				assert(rdma_req->req.data != NULL);
+ 			}
+ 			spdk_nvmf_request_exec(&rdma_req->req);
+-- 
+1.8.3.1
+
