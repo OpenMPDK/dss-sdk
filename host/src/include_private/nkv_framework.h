@@ -229,8 +229,10 @@
     int32_t core_to_pin;
     int32_t path_numa_node;
     std::atomic<uint32_t> nkv_async_path_cur_qd;
-    std::unordered_map<std::size_t, std::set<std::string> > *listing_keys; 
-    std::unordered_map<std::string, nkv_value_wrapper*> *data_cache; 
+    // This is a vector of maps with keys and set values
+    std::vector<std::unordered_map<std::size_t, std::set<std::string>>> listing_keys;
+    // This is a vector of maps with keys and wrapper object values
+    std::vector<std::unordered_map<std::string, nkv_value_wrapper*>> data_cache;
     std::atomic<uint32_t> nkv_outstanding_iter_on_path;
     std::atomic<uint32_t> nkv_path_stopping;
     std::atomic<uint64_t> nkv_num_key_prefixes;
@@ -244,7 +246,6 @@
     std::atomic<uint64_t> pending_io_size;
     std::atomic<uint64_t> pending_io_value;
     std::condition_variable cv_path;
-    //nkv_lruCache<std::string, nkv_value_wrapper> *cnt_cache;
     std::vector<nkv_lruCache<std::string, nkv_value_wrapper> *> cnt_cache;
     pthread_rwlock_t lru_rw_lock;
     std::mutex lru_lock;
@@ -282,16 +283,26 @@
         pthread_rwlock_init(&data_rw_lock_list[iter], NULL);
       }
 
-      listing_keys = new std::unordered_map<std::size_t, std::set<std::string> > (nkv_listing_cache_num_shards);
+      // Resize and initialize std::unordered_map at each index
+      listing_keys.resize(nkv_listing_cache_num_shards);
+      for (auto i =0; i<nkv_listing_cache_num_shards; i++) {
+          // Initialize map at index
+          listing_keys[i] = std::unordered_map<std::size_t, std::set<std::string>>();
+      }
       if (nkv_in_memory_exec) {
-        data_cache = new std::unordered_map<std::string, nkv_value_wrapper*> (nkv_listing_cache_num_shards);
+        // Resize and initialize data_cache
+        data_cache.resize(nkv_listing_cache_num_shards);
+        for (auto i=0; i<nkv_listing_cache_num_shards; i++) {
+            // Initialize map at index
+            data_cache[i] = std::unordered_map<std::string, nkv_value_wrapper*>();
+        }
       }
       cnt_cache.resize(nkv_read_cache_shard_size);
       for (auto i=0; i<nkv_read_cache_shard_size; i++) {
-          // Initialize class object
+          // Initialize object
           nkv_lruCache<std::string, nkv_value_wrapper> *cache_obj
               = new nkv_lruCache<std::string, nkv_value_wrapper>(nkv_read_cache_size);
-          cnt_cache.push_back(cache_obj);
+          cnt_cache[i] = cache_obj;
       }
       nkv_num_dc_keys = 0;
 

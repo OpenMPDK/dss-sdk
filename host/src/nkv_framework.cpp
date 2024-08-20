@@ -2224,11 +2224,24 @@ NKVTargetPath::~NKVTargetPath() {
       }
 
       delete[] cache_rw_lock_list;
-      delete[] listing_keys;
+      // Explicit delete is not required with the STL container, clean up happens
+      // when container goes out of scope
+      // Just delete memory allocated outside STL container
       if (nkv_in_memory_exec) {
-        delete[] data_cache;
+          // All the previous memory allocated for nkv_value_wrapper
+          // needs to be freed
+          for (auto i=0; i<data_cache.size(); i++) {
+              // Each index at data_cache contains an
+              // unordered_map
+              for (auto it=data_cache[i].begin(); it!=data_cache[i].end(); it++) {
+                  // delete element only when not NULL
+                  if (it->second != NULL) {
+                      delete it->second;
+                  }
+              }
+          }
       }
-      //delete[] cnt_cache;
+      // Proceed to delete cnt_cache elements;
       for (int i=0; i<cnt_cache.size(); i++) {
           delete cnt_cache[i];
       }
