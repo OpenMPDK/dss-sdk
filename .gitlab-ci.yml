@@ -18,9 +18,9 @@ deploy DSS:
     UPSTREAM_REF: $CI_MERGE_REQUEST_REF_PATH
   trigger:
     include:
-      project: dfs/dss/dss-ansible
-      ref: master
-      file: .gitlab-ci.yml
+      - project: dfs/dss/dss-ansible
+        ref: master
+        file: .gitlab-ci.yml
     strategy: depend
   resource_group: inv_$CI_PROJECT_NAME.ini
   rules:
